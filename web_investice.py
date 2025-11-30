@@ -10,7 +10,7 @@ import hashlib
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
 
-REPO_NAZEV = "Poutniiik/Moje-Investice" 
+REPO_NAZEV = "Poutniik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
 SOUBOR_HISTORIE = "history_data.csv"
@@ -308,4 +308,30 @@ def main():
         if not df.empty:
             with st.form("b"):
                 t = st.text_input("BUY Ticker").upper(); p = st.number_input("Qty", 0.001); c = st.number_input("Price", 0.1)
-                if st.form_submit_button("BUY
+                if st.form_submit_button("BUY"):
+                    _, m = ziskej_info(t); m = m if m else "USD"
+                    cost = p*c; bal = zustatky.get(m, 0)
+                    if bal >= cost:
+                        pohyb_penez(-cost, m, "Nákup", f"Buy {t}", USER)
+                        new = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER}])
+                        upd = pd.concat([df, new], ignore_index=True)
+                        st.session_state['df'] = upd; uloz_data_uzivatele(upd, USER, SOUBOR_DATA); st.success("OK"); st.rerun()
+                    else: st.error("No Cash")
+            with st.form("s"):
+                t = st.selectbox("SELL Ticker", df['Ticker'].unique()); q = st.number_input("Sell Qty", 0.001); pr = st.number_input("Sell Price", 0.1)
+                if st.form_submit_button("SELL"):
+                    _, m = ziskej_info(t); m = m if m else "USD"
+                    ok, msg = proved_prodej(t, q, pr, USER, m)
+                    if ok: st.success("OK"); st.rerun()
+                    else: st.error(msg)
+        else: st.info("Empty.")
+
+    with t4:
+        if not st.session_state['df_hist'].empty:
+            ed = st.data_editor(st.session_state['df_hist'], use_container_width=True, num_rows="dynamic")
+            if not st.session_state['df_hist'].equals(ed):
+                if st.button("SAVE LOGS"): st.session_state['df_hist'] = ed; uloz_data_uzivatele(ed, USER, SOUBOR_HISTORIE); st.success("Saved"); st.rerun()
+        else: st.info("No history.")
+
+if __name__ == "__main__":
+    main()
