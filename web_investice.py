@@ -9,7 +9,6 @@ from datetime import datetime
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Moje Portfolio: Multiměna", layout="wide", page_icon="🌍")
 
-# 🛑 ZKONTROLUJ SI NÁZEV REPOZITÁŘE!
 REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 
@@ -17,7 +16,8 @@ SOUBOR_DATA = "portfolio_data.csv"
 st.markdown("""
 <style>
     .metric-card {background-color: #f0f2f6; border-radius: 10px; padding: 15px; text-align: center;}
-    div[data-testid="stMetricValue"] {font-size: 2.2rem;}
+    /* Zvětšení písma pro hlavní metriky */
+    div[data-testid="stMetricValue"] {font-size: 1.8rem;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -116,7 +116,7 @@ def main():
             st.session_state['prihlasen'] = False
             st.rerun()
 
-    st.title("🌍 Globální Portfolio (USD Base)")
+    st.title("🌍 Globální Portfolio")
 
     if 'df' not in st.session_state:
         with st.spinner("Nahrávám data..."):
@@ -163,13 +163,13 @@ def main():
         celk_hodnota_usd = 0
         celk_investice_usd = 0
         
-        # Slovník pro sčítání investic podle měn: {"USD": 500, "CZK": 12000}
-        investovano_dle_men = {}
+        # Slovník pro statistiky měn: {"CZK": {"investice": 1000, "zisk": 200}, ...}
+        stats_meny = {}
 
         # Stáhneme kurzy měn
         kurzy = ziskej_kurzy()
         
-        my_bar = st.progress(0, text="Stahuji ceny a přepočítávám měny...")
+        my_bar = st.progress(0, text="Stahuji ceny a počítám zisky v měnách...")
         
         for index, row in edited_df.iterrows():
             if pd.isna(row['Ticker']) or pd.isna(row['Pocet']) or str(row['Ticker']).strip() == "": continue
@@ -189,13 +189,15 @@ def main():
             investice_orig = row['Pocet'] * row['Cena']
             zisk_orig = hodnota_orig - investice_orig
 
-            # --- NOVINKA: SČÍTÁNÍ PODLE MĚN ---
-            if mena not in investovano_dle_men:
-                investovano_dle_men[mena] = 0
-            investovano_dle_men[mena] += investice_orig
+            # --- SČÍTÁNÍ PRO MĚNOVÝ PŘEHLED ---
+            if mena not in stats_meny:
+                stats_meny[mena] = {"investice": 0.0, "zisk": 0.0}
+            
+            stats_meny[mena]["investice"] += investice_orig
+            stats_meny[mena]["zisk"] += zisk_orig
             # ----------------------------------
 
-            # 3. PŘEPOČET NA USD
+            # 3. PŘEPOČET NA USD (pro celkový součet)
             if mena == "USD":
                 hodnota_usd = hodnota_orig
                 investice_usd = investice_orig
@@ -224,39 +226,46 @@ def main():
         
         my_bar.empty()
 
-        # --- DASHBOARD HLAVNÍ ---
-        st.subheader("🌐 Globální přehled (v USD)")
+        # --- DASHBOARD HLAVNÍ (USD) ---
+        st.subheader("🌐 Globální hodnota (v USD)")
         celk_zisk_usd = celk_hodnota_usd - celk_investice_usd
         
         c1, c2, c3 = st.columns(3)
-        c1.metric("Celkem investováno (přepočet)", f"${celk_investice_usd:,.0f}")
-        c2.metric("Aktuální hodnota (přepočet)", f"${celk_hodnota_usd:,.0f}")
-        c3.metric("Celkový zisk (přepočet)", f"${celk_zisk_usd:+,.0f}", delta_color="normal")
+        c1.metric("Celkem investováno", f"${celk_investice_usd:,.0f}")
+        c2.metric("Aktuální hodnota", f"${celk_hodnota_usd:,.0f}")
+        c3.metric("Celkový zisk", f"${celk_zisk_usd:+,.0f}", delta_color="normal")
 
-        # --- DASHBOARD PODLE MĚN (NOVINKA) ---
+        # --- DASHBOARD PODLE MĚN (ZISK/ZTRÁTA) ---
         st.divider()
-        st.subheader("💰 Investováno v měnách")
+        st.subheader("💰 Peněženky podle měn")
         
-        # Dynamicky vytvoříme sloupce podle toho, kolik měn v portfoliu najdeme
-        cols = st.columns(len(investovano_dle_men))
+        # Vytvoříme sloupečky
+        cols = st.columns(len(stats_meny))
         
-        # Seřadíme měny (USD první, pak zbytek) a vypíšeme
-        serazene_meny = sorted(investovano_dle_men.keys(), key=lambda x: (x != 'USD', x))
+        # Seřadíme (USD, CZK, EUR, ostatní...)
+        serazene_meny = sorted(stats_meny.keys(), key=lambda x: (x != 'USD', x != 'CZK', x))
         
         for i, mena in enumerate(serazene_meny):
-            castka = investovano_dle_men[mena]
-            # Vybereme správný symbol
+            data = stats_meny[mena]
+            inv = data["investice"]
+            profit = data["zisk"]
+            
+            # Správný symbol
             symbol = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€" if mena == "EUR" else mena)
             
             with cols[i]:
-                st.metric(f"Investice ({mena})", f"{castka:,.2f} {symbol}")
+                # Tady je to kouzlo: 'value' je investice, 'delta' je zisk
+                st.metric(
+                    label=f"Měna: {mena}",
+                    value=f"Inv: {inv:,.0f} {symbol}",
+                    delta=f"{profit:+,.0f} {symbol}"
+                )
         
         st.divider()
 
-        # Tabulka s detaily
+        # Tabulka
         st.subheader("📊 Detailní rozpis")
         df_viz = pd.DataFrame(viz_data)
-        
         st.dataframe(
             df_viz.style.format({
                 "Cena teď": "{:.2f}",
