@@ -10,11 +10,11 @@ import hashlib
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Investiční App", layout="wide", page_icon="📈")
 
-REPO_NAZEV = "Poutniiik/Moje-Investice" 
+REPO_NAZEV = "Poutniik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
 SOUBOR_HISTORIE = "history_data.csv"
-SOUBOR_CASH = "cash_data.csv" # 🆕 Nový soubor na peníze
+SOUBOR_CASH = "cash_data.csv"
 
 # --- STYLY ---
 st.markdown("""
@@ -41,9 +41,11 @@ def zasifruj(text):
 def nacti_uzivatele():
     try:
         df = nacti_csv(SOUBOR_UZIVATELE)
+        # Fix pokud je prázdný
+        if df.empty:
+             return pd.DataFrame(columns=["username", "password", "recovery_key"])
         return df
     except:
-        # Fallback pro první spuštění
         return pd.DataFrame(columns=["username", "password", "recovery_key"])
 
 # --- UNIVERZÁLNÍ UKLÁDÁNÍ ---
@@ -66,7 +68,6 @@ def nacti_csv(nazev_souboru):
         df['Owner'] = df['Owner'].astype(str)
         return df
     except:
-        # Definice sloupců pro různé soubory
         if nazev_souboru == SOUBOR_HISTORIE:
             return pd.DataFrame(columns=["Ticker", "Kusu", "Prodejka", "Zisk", "Mena", "Datum", "Owner"])
         if nazev_souboru == SOUBOR_CASH:
@@ -84,17 +85,13 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
     uloz_csv(full_df, nazev_souboru, f"Update {username}")
     st.cache_data.clear()
 
-# --- PENĚŽENKA LOGIKA 💰 ---
+# --- PENĚŽENKA LOGIKA ---
 def get_zustatky(user):
-    """Vrátí slovník {CZK: 1000, USD: 50}"""
     df_cash = st.session_state.get('df_cash', pd.DataFrame())
     if df_cash.empty: return {}
-    
-    # Seskupíme podle měny a sečteme částky
     return df_cash.groupby('Mena')['Castka'].sum().to_dict()
 
 def pohyb_penez(castka, mena, typ, poznamka, user):
-    """Zapíše vklad, výběr, nákup nebo prodej"""
     df_cash = st.session_state['df_cash']
     novy = pd.DataFrame([{
         "Typ": typ, "Castka": castka, "Mena": mena, 
@@ -116,7 +113,7 @@ def proved_prodej(ticker, kusy_k_prodeji, prodejni_cena, user, mena_akcie):
 
     zbyva = kusy_k_prodeji
     zisk = 0
-    trzba_celkem = kusy_k_prodeji * prodejni_cena # Kolik peněz dostaneme
+    trzba_celkem = kusy_k_prodeji * prodejni_cena 
     
     for idx, row in df_ticker.iterrows():
         if zbyva <= 0: break
@@ -129,23 +126,20 @@ def proved_prodej(ticker, kusy_k_prodeji, prodejni_cena, user, mena_akcie):
             df_port.at[idx, 'Pocet'] -= ukrojeno
         zbyva -= ukrojeno
 
-    # Zápis do historie
     new_hist = pd.DataFrame([{
         "Ticker": ticker, "Kusu": kusy_k_prodeji, "Prodejka": prodejni_cena,
         "Zisk": zisk, "Mena": mena_akcie, "Datum": datetime.now(), "Owner": user
     }])
     df_hist = pd.concat([df_hist, new_hist], ignore_index=True)
     
-    # 💰 PŘIPSÁNÍ PENĚZ DO PENĚŽENKY
     pohyb_penez(trzba_celkem, mena_akcie, "Prodej", f"Prodej {kusy_k_prodeji}x {ticker}", user)
 
-    # Uložení
     st.session_state['df'] = df_port
     st.session_state['df_hist'] = df_hist
     uloz_data_uzivatele(df_port, user, SOUBOR_DATA)
     uloz_data_uzivatele(df_hist, user, SOUBOR_HISTORIE)
     
-    return True, f"Prodáno! Připsáno {trzba_celkem:,.2f} {mena_akcie} (Zisk: {zisk:+.2f})"
+    return True, f"Prodáno! +{trzba_celkem:,.2f} {mena_akcie}"
 
 # --- INFO ---
 @st.cache_data(ttl=3600)
@@ -182,7 +176,7 @@ def main():
                     p = st.text_input("Heslo", type="password")
                     if st.form_submit_button("Vstoupit", use_container_width=True):
                         users = nacti_uzivatele()
-                        row = users[users['username'] == u]
+                        row = users[users['username'] == u] if not users.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
                             st.session_state.clear()
                             st.session_state['prihlasen'] = True
@@ -196,7 +190,7 @@ def main():
                     rec = st.text_input("Kód", type="password")
                     if st.form_submit_button("Registrovat", use_container_width=True):
                         users = nacti_uzivatele()
-                        if nu in users['username'].values: st.error("Obsazeno")
+                        if not users.empty and nu in users['username'].values: st.error("Obsazeno")
                         else:
                             new = pd.DataFrame([{"username": nu, "password": zasifruj(np), "recovery_key": zasifruj(rec)}])
                             uloz_csv(pd.concat([users, new], ignore_index=True), SOUBOR_UZIVATELE, "New user")
@@ -208,7 +202,7 @@ def main():
                     rnp = st.text_input("Nové heslo", type="password")
                     if st.form_submit_button("Reset", use_container_width=True):
                         users = nacti_uzivatele()
-                        idx = users.index[users['username'] == ru].tolist()
+                        idx = users.index[users['username'] == ru].tolist() if not users.empty else []
                         if idx and users.at[idx[0], 'recovery_key'] == zasifruj(rk):
                             users.at[idx[0], 'password'] = zasifruj(rnp)
                             uloz_csv(users, SOUBOR_UZIVATELE, "Reset")
@@ -220,19 +214,16 @@ def main():
     USER = st.session_state['aktualni_uzivatel']
     with st.sidebar:
         st.write(f"👤 **{USER}**")
-        # Zobrazíme zůstatky v sidebaru
         st.divider()
         st.subheader("💰 Peněženka")
         
-        # Načteme cash data
         if 'df_cash' not in st.session_state:
             with st.spinner("Nahrávám finance..."):
                 fc = nacti_csv(SOUBOR_CASH)
                 st.session_state['df_cash'] = fc[fc['Owner'] == str(USER)].copy()
         
         zustatky = get_zustatky(USER)
-        if not zustatky:
-            st.warning("0.00 (Vlož peníze)")
+        if not zustatky: st.warning("0.00")
         else:
             for mena, castka in zustatky.items():
                 sym = "Kč" if mena == "CZK" else ("$" if mena == "USD" else mena)
@@ -255,42 +246,33 @@ def main():
     df_hist = st.session_state['df_hist']
     df_cash = st.session_state['df_cash']
 
-    t_port, t_wallet, t_sell, t_hist = st.tabs(["📊 Portfolio", "💰 Peněženka (Vklad)", "💸 Prodej", "📜 Historie"])
+    t_port, t_wallet, t_sell, t_hist = st.tabs(["📊 Portfolio", "💰 Peněženka", "💸 Prodej", "📜 Historie"])
 
     # --- 1. PORTFOLIO & DASHBOARD ---
     with t_port:
-        # PŘIDÁNÍ S KONTROLOU PENĚZ
-        with st.expander("➕ PŘIDAT NÁKUP (Z Peněženky)"):
+        with st.expander("➕ PŘIDAT NÁKUP"):
             with st.form("add"):
                 c1, c2, c3 = st.columns(3)
-                with c1: t = st.text_input("Ticker (např. AAPL)").upper()
+                with c1: t = st.text_input("Ticker").upper()
                 with c2: p = st.number_input("Počet", min_value=0.0001)
                 with c3: c = st.number_input("Cena", min_value=0.1)
                 if st.form_submit_button("Koupit"):
-                    # Zjistíme měnu akcie
                     _, mena_akcie = ziskej_info_o_akcii(t)
-                    if mena_akcie == "N/A": mena_akcie = "USD" # Default
-                    
+                    if mena_akcie == "N/A": mena_akcie = "USD"
                     cena_celkem = p * c
                     aktualni_hotovost = zustatky.get(mena_akcie, 0)
                     
                     if aktualni_hotovost >= cena_celkem:
-                        # 1. Odečteme peníze
                         pohyb_penez(-cena_celkem, mena_akcie, "Nákup", f"Nákup {t}", USER)
-                        
-                        # 2. Přidáme akcii
                         novy = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER}])
                         updated = pd.concat([df, novy], ignore_index=True)
                         st.session_state['df'] = updated
                         uloz_data_uzivatele(updated, USER, SOUBOR_DATA)
-                        
-                        st.success(f"✅ Koupeno {t}. Z peněženky odečteno {cena_celkem:,.2f} {mena_akcie}.")
+                        st.success("OK")
                         st.rerun()
-                    else:
-                        st.error(f"❌ Nedostatek prostředků! Máš jen {aktualni_hotovost:,.2f} {mena_akcie}, ale potřebuješ {cena_celkem:,.2f} {mena_akcie}.")
+                    else: st.error(f"Chybí ti {cena_celkem - aktualni_hotovost:.2f} {mena_akcie}")
 
-        # PŘEPÍNAČ POHLEDU
-        rezim = st.radio("Pohled:", ["Detailní (Editace)", "Souhrnný (Přehled)"], horizontal=True)
+        rezim = st.radio("Pohled:", ["Detailní (Editace)", "Souhrnný"], horizontal=True)
 
         if rezim == "Detailní (Editace)":
             edited_df = st.data_editor(
@@ -305,7 +287,6 @@ def main():
                     st.success("Uloženo")
                     st.rerun()
             data_pro_vypocet = df
-        
         else:
             if not df.empty:
                 df_temp = df.copy()
@@ -313,27 +294,21 @@ def main():
                 grouped = df_temp.groupby('Ticker').agg({'Pocet': 'sum', 'Investice': 'sum'}).reset_index()
                 grouped['Cena'] = grouped['Investice'] / grouped['Pocet']
                 data_pro_vypocet = grouped
-            else:
-                data_pro_vypocet = pd.DataFrame()
+            else: data_pro_vypocet = pd.DataFrame()
 
-        # DASHBOARD
         st.divider()
         if not data_pro_vypocet.empty:
             viz_data = []
-            celk_hod_usd = 0
-            celk_inv_usd = 0
+            celk_hod_usd, celk_inv_usd = 0, 0
             stats_meny = {}
             kurzy = ziskej_kurzy()
-            
             bar = st.progress(0, "Počítám...")
-            total_rows = len(data_pro_vypocet)
             
             for i, (idx, row) in enumerate(data_pro_vypocet.iterrows()):
                 if pd.isna(row['Ticker']) or pd.isna(row['Pocet']): continue
                 tkr = str(row['Ticker'])
                 cena_ted, mena = ziskej_info_o_akcii(tkr)
                 cena_ted = cena_ted if cena_ted else row['Cena']
-                
                 hod = row['Pocet'] * cena_ted
                 inv = row['Pocet'] * row['Cena']
                 zisk = hod - inv
@@ -351,15 +326,15 @@ def main():
                 
                 viz_data.append({"Ticker": tkr, "Kusy": row['Pocet'], "Průměrná nákupka": row['Cena'], 
                                  "Hodnota": hod, "Zisk": zisk, "Měna": mena, "HodnotaUSD": hod*konv})
-                if total_rows > 0: bar.progress((i+1)/total_rows)
+                bar.progress((i+1)/len(data_pro_vypocet))
             bar.empty()
 
             c1, c2, c3 = st.columns(3)
-            c1.metric("Celkem investováno (USD)", f"${celk_inv_usd:,.0f}")
-            c2.metric("Aktuální hodnota (USD)", f"${celk_hod_usd:,.0f}")
-            c3.metric("Celkový zisk (USD)", f"${(celk_hod_usd-celk_inv_usd):+,.0f}", delta_color="normal")
+            c1.metric("Investováno (USD)", f"${celk_inv_usd:,.0f}")
+            c2.metric("Hodnota (USD)", f"${celk_hod_usd:,.0f}")
+            c3.metric("Zisk (USD)", f"${(celk_hod_usd-celk_inv_usd):+,.0f}", delta_color="normal")
 
-            st.subheader("💰 Peněženky (Investováno)")
+            st.subheader("💰 Investice v měnách")
             cols = st.columns(len(stats_meny))
             for i, m in enumerate(stats_meny):
                 d = stats_meny[m]
@@ -375,38 +350,28 @@ def main():
             else:
                 st.dataframe(gf, use_container_width=True)
 
-    # --- 2. PENĚŽENKA (NOVÁ ZÁLOŽKA) ---
     with t_wallet:
         st.subheader("🏦 Správa hotovosti")
-        
-        # Zobrazení pohybů
         c1, c2 = st.columns([1, 2])
         with c1:
-            st.info("Zde si můžeš vložit fiktivní peníze pro nákupy.")
             with st.form("deposit"):
                 vklad_castka = st.number_input("Částka", min_value=1.0, step=100.0)
                 vklad_mena = st.selectbox("Měna", ["USD", "CZK", "EUR"])
-                if st.form_submit_button("💰 VLOŽIT PENÍZE"):
-                    pohyb_penez(vklad_castka, vklad_mena, "Vklad", "Vklad uživatele", USER)
-                    st.success(f"Vloženo {vklad_castka} {vklad_mena}")
+                if st.form_submit_button("💰 VLOŽIT"):
+                    pohyb_penez(vklad_castka, vklad_mena, "Vklad", "Vklad", USER)
+                    st.success("OK")
                     st.rerun()
-            
             with st.form("withdraw"):
                 vyber_castka = st.number_input("Částka výběru", min_value=1.0, step=100.0)
                 vyber_mena = st.selectbox("Měna výběru", ["USD", "CZK", "EUR"])
-                if st.form_submit_button("💸 VYBRAT PENÍZE"):
-                    pohyb_penez(-vyber_castka, vyber_mena, "Výběr", "Výběr uživatele", USER)
-                    st.success(f"Vybráno {vyber_castka} {vyber_mena}")
+                if st.form_submit_button("💸 VYBRAT"):
+                    pohyb_penez(-vyber_castka, vyber_mena, "Výběr", "Výběr", USER)
+                    st.success("OK")
                     st.rerun()
-
         with c2:
-            st.write("#### Historie transakcí")
             if not df_cash.empty:
                 st.dataframe(df_cash.sort_values("Datum", ascending=False), use_container_width=True)
-            else:
-                st.info("Žádné transakce.")
 
-    # --- 3. PRODEJ ---
     with t_sell:
         st.subheader("Realizace zisku")
         if df.empty: st.info("Prázdno.")
@@ -416,28 +381,50 @@ def main():
                 sel_t = st.selectbox("Akcie", tickery)
                 ks = df[df['Ticker'] == sel_t]['Pocet'].sum()
                 akt_cena, akt_mena = ziskej_info_o_akcii(sel_t)
-                st.write(f"Máš: **{ks}** ks. Cena teď: **{akt_cena:.2f} {akt_mena}**")
-                
+                st.write(f"Máš: **{ks}** ks. Cena: **{akt_cena:.2f} {akt_mena}**")
                 c1, c2 = st.columns(2)
                 q = c1.number_input("Kolik prodat?", 0.0001, float(ks))
                 pr = c2.number_input("Prodejní cena", 0.01, float(akt_cena) if akt_cena else 0.0)
-                
                 if st.form_submit_button("PRODAT"):
                     ok, msg = proved_prodej(sel_t, q, pr, USER, akt_mena)
                     if ok: st.success(msg); st.rerun()
                     else: st.error(msg)
 
-    # --- 4. HISTORIE ---
+    # --- 4. HISTORIE (Zde je ta editace!) ---
     with t_hist:
-        st.subheader("Deník obchodů")
-        if df_hist.empty: st.info("Žádné obchody.")
+        st.subheader("📜 Deník obchodů (Editace)")
+        if df_hist.empty: st.info("Zatím žádné uzavřené obchody.")
         else:
-            st.dataframe(df_hist.sort_values("Datum", ascending=False), use_container_width=True)
-            real_czk = df_hist[df_hist['Mena']=='CZK']['Zisk'].sum()
-            real_usd = df_hist[df_hist['Mena']=='USD']['Zisk'].sum()
-            c1, c2 = st.columns(2)
-            c1.metric("Realizováno (CZK)", f"{real_czk:,.0f} Kč")
-            c2.metric("Realizováno (USD)", f"${real_usd:,.0f}")
+            st.caption("Pokud jsi prodal omylem, můžeš řádek smazat. (Pozor: Peníze se do peněženky samy nevrátí, musíš si je upravit ve vkladech).")
+            # EDITOVATELNÁ HISTORIE
+            edited_hist = st.data_editor(
+                df_hist,
+                num_rows="dynamic",
+                use_container_width=True,
+                column_config={
+                    "Kusu": st.column_config.NumberColumn(format="%.4f"),
+                    "Prodejka": st.column_config.NumberColumn(format="%.2f"),
+                    "Zisk": st.column_config.NumberColumn(format="%.2f"),
+                    "Datum": st.column_config.DatetimeColumn(format="D.M.YYYY HH:mm")
+                },
+                key="hist_editor"
+            )
+            
+            # Tlačítko na uložení změn v historii
+            if not df_hist.equals(edited_hist):
+                if st.button("💾 ULOŽIT OPRAVY HISTORIE"):
+                    st.session_state['df_hist'] = edited_hist
+                    uloz_data_uzivatele(edited_hist, USER, SOUBOR_HISTORIE)
+                    st.success("Historie aktualizována!")
+                    st.rerun()
+
+            st.divider()
+            # Statistiky
+            real_czk = edited_hist[edited_hist['Mena']=='CZK']['Zisk'].sum()
+            real_usd = edited_hist[edited_hist['Mena']=='USD']['Zisk'].sum()
+            col1, col2 = st.columns(2)
+            col1.metric("Realizováno (CZK)", f"{real_czk:,.0f} Kč")
+            col2.metric("Realizováno (USD)", f"${real_usd:,.0f}")
 
 if __name__ == "__main__":
     main()
