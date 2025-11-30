@@ -9,7 +9,7 @@ from datetime import datetime
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Moje Portfolio: Multiměna", layout="wide", page_icon="🌍")
 
-REPO_NAZEV = "Poutniik/Moje-Investice" 
+REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 
 # --- STYLY ---
@@ -254,3 +254,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
