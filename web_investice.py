@@ -15,7 +15,7 @@ SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
 SOUBOR_HISTORIE = "history_data.csv"
 SOUBOR_CASH = "cash_data.csv"
-SOUBOR_VYVOJ = "value_history.csv" # 🆕 Soubor pro graf vývoje
+SOUBOR_VYVOJ = "value_history.csv"
 
 # --- STYLY ---
 st.markdown("""
@@ -62,12 +62,17 @@ def nacti_csv(nazev_souboru):
         repo = get_repo()
         file = repo.get_contents(nazev_souboru)
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
-        if 'Datum' in df.columns: df['Datum'] = pd.to_datetime(df['Datum'])
+        
+        # Pokus o konverzi data, pokud sloupec existuje
+        if 'Datum' in df.columns: 
+            df['Datum'] = pd.to_datetime(df['Datum'], errors='coerce')
+        if 'Date' in df.columns: 
+            df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+            
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         df['Owner'] = df['Owner'].astype(str)
         return df
     except:
-        # Definice sloupců
         if nazev_souboru == SOUBOR_HISTORIE:
             return pd.DataFrame(columns=["Ticker", "Kusu", "Prodejka", "Zisk", "Mena", "Datum", "Owner"])
         if nazev_souboru == SOUBOR_CASH:
@@ -103,28 +108,30 @@ def pohyb_penez(castka, mena, typ, poznamka, user):
     st.session_state['df_cash'] = df_cash
     uloz_data_uzivatele(df_cash, user, SOUBOR_CASH)
 
-# --- VÝVOJ HODNOTY (Snapshot) ---
+# --- VÝVOJ HODNOTY (OPRAVENO) ---
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
-    """Zapíše dnešní hodnotu do historie, pokud tam ještě není."""
-    # Načteme celou historii vývoje
     try:
         full_hist = nacti_csv(SOUBOR_VYVOJ)
     except:
         full_hist = pd.DataFrame(columns=["Date", "TotalUSD", "Owner"])
     
+    # 🛡️ OPRAVA: Vynutíme formát data hned na začátku
+    if not full_hist.empty:
+        full_hist['Date'] = pd.to_datetime(full_hist['Date'])
+
     today = datetime.now().strftime("%Y-%m-%d")
-    
-    # Vyfiltrujeme záznamy uživatele
     user_hist = full_hist[full_hist['Owner'] == str(user)].copy()
     
-    # Zkontrolujeme, jestli už dnes máme záznam
-    if not user_hist.empty and user_hist.iloc[-1]['Date'].strftime("%Y-%m-%d") == today:
-        # Už máme dnešek -> aktualizujeme hodnotu (přepisujeme)
-        # Najdeme index v hlavním DF
-        last_idx = user_hist.index[-1]
-        full_hist.at[last_idx, 'TotalUSD'] = aktualni_hodnota_usd
-    else:
-        # Dnešek chybí -> přidáme nový řádek
+    # 🛡️ OPRAVA: Bezpečné porovnání data
+    dnes_uz_zapsano = False
+    if not user_hist.empty:
+        last_date = user_hist.iloc[-1]['Date']
+        if pd.to_datetime(last_date).strftime("%Y-%m-%d") == today:
+            dnes_uz_zapsano = True
+            last_idx = user_hist.index[-1]
+            full_hist.at[last_idx, 'TotalUSD'] = aktualni_hodnota_usd
+
+    if not dnes_uz_zapsano:
         new_row = pd.DataFrame([{
             "Date": datetime.now(),
             "TotalUSD": aktualni_hodnota_usd,
@@ -132,7 +139,6 @@ def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
         }])
         full_hist = pd.concat([full_hist, new_row], ignore_index=True)
     
-    # Uložíme jen pokud se něco změnilo (tady ukládáme vždy pro jistotu, ale je to OK)
     uloz_csv(full_hist, SOUBOR_VYVOJ, "Daily snapshot")
     return full_hist[full_hist['Owner'] == str(user)]
 
@@ -328,7 +334,6 @@ def main():
         celk_inv_usd = 0
         stats_meny = {}
         
-        # VÝPOČET DAT PRO DASHBOARD
         if not data_pro_vypocet.empty:
             kurzy = ziskej_kurzy()
             bar = st.progress(0, "Počítám...")
@@ -358,19 +363,19 @@ def main():
                 bar.progress((i+1)/len(data_pro_vypocet))
             bar.empty()
 
-        # ULOŽENÍ SNÍMKU DO HISTORIE VÝVOJE (Jen jednou denně)
+        # ULOŽENÍ SNÍMKU DO HISTORIE VÝVOJE
         if celk_hod_usd > 0:
             hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
         else:
             hist_vyvoje = pd.DataFrame()
 
-        # HLAVNÍ METRIKY
+        # METRIKY
         c1, c2, c3 = st.columns(3)
         c1.metric("Celkem investováno (USD)", f"${celk_inv_usd:,.0f}")
         c2.metric("Aktuální hodnota (USD)", f"${celk_hod_usd:,.0f}")
         c3.metric("Celkový zisk (USD)", f"${(celk_hod_usd-celk_inv_usd):+,.0f}", delta_color="normal")
 
-        # GRAF VÝVOJE (NOVINKA!)
+        # GRAF VÝVOJE
         if not hist_vyvoje.empty:
             st.caption("📈 Vývoj hodnoty portfolia v čase")
             fig_line = px.area(hist_vyvoje, x='Date', y='TotalUSD', title=None)
@@ -460,18 +465,14 @@ def main():
                 },
                 key="hist_editor"
             )
+            
             if not df_hist.equals(edited_hist):
                 if st.button("💾 ULOŽIT OPRAVY HISTORIE"):
                     st.session_state['df_hist'] = edited_hist
                     uloz_data_uzivatele(edited_hist, USER, SOUBOR_HISTORIE)
                     st.success("Uloženo")
                     st.rerun()
+
             st.divider()
             real_czk = edited_hist[edited_hist['Mena']=='CZK']['Zisk'].sum()
-            real_usd = edited_hist[edited_hist['Mena']=='USD']['Zisk'].sum()
-            col1, col2 = st.columns(2)
-            col1.metric("Realizováno (CZK)", f"{real_czk:,.0f} Kč")
-            col2.metric("Realizováno (USD)", f"${real_usd:,.0f}")
-
-if __name__ == "__main__":
-    main()
+            real_usd = edited_hist[edited_
