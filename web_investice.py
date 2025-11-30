@@ -8,7 +8,7 @@ from io import StringIO
 st.set_page_config(page_title="Moje Online Investice", layout="wide")
 
 # --- 1. NASTAVENÍ (Změň si název repozitáře!) ---
-REPO_NAZEV = "Poutniik/Moje-Investice" 
+REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 
 # --- 2. PŘIHLÁŠENÍ A TOKENY ---
@@ -167,4 +167,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
