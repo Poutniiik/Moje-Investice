@@ -4,23 +4,34 @@ import yfinance as yf
 import plotly.express as px
 from github import Github
 from io import StringIO
+import time
 
-st.set_page_config(page_title="Moje Online Investice", layout="wide")
+# --- KONFIGURACE ---
+st.set_page_config(page_title="Moje Portfolio", layout="wide", page_icon="📈")
 
-# --- 1. NASTAVENÍ (Změň si název repozitáře!) ---
+# 🛑 ZKONTROLUJ SI NÁZEV REPOZITÁŘE!
 REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 
-# --- 2. PŘIHLÁŠENÍ A TOKENY ---
+# --- STYLY (CSS) ---
+# Trochu mague, aby to vypadalo lépe
+st.markdown("""
+<style>
+    .metric-card {background-color: #f0f2f6; border-radius: 10px; padding: 15px; text-align: center;}
+    div[data-testid="stMetricValue"] {font-size: 2.5rem;}
+</style>
+""", unsafe_allow_html=True)
+
+# --- PŘIHLÁŠENÍ ---
 try:
     ADMIN_USER = st.secrets["login"]["uzivatel"]
     ADMIN_PASS = st.secrets["login"]["heslo"]
     GITHUB_TOKEN = st.secrets["github"]["token"]
 except:
-    st.error("❌ CHYBA: Nejsou nastaveny Secrets! (chybí login nebo github token)")
+    st.error("❌ CHYBA: Chybí nastavení Secrets!")
     st.stop()
 
-# --- 3. FUNKCE PRO GITHUB (Mozek aplikace) ---
+# --- GITHUB FUNKCE ---
 def get_repo():
     g = Github(GITHUB_TOKEN)
     return g.get_repo(REPO_NAZEV)
@@ -28,144 +39,189 @@ def get_repo():
 def nacti_data():
     try:
         repo = get_repo()
-        # Zkusíme najít soubor s daty
-        file_content = repo.get_contents(SOUBOR_DATA)
-        # Dekódujeme data z GitHubu
-        csv_data = file_content.decoded_content.decode("utf-8")
-        return pd.read_csv(StringIO(csv_data))
+        file = repo.get_contents(SOUBOR_DATA)
+        data = file.decoded_content.decode("utf-8")
+        return pd.read_csv(StringIO(data))
     except:
-        # Když soubor neexistuje (první spuštění), vrátíme prázdnou tabulku
         return pd.DataFrame(columns=["Ticker", "Pocet", "Cena"])
 
 def uloz_data(df):
     repo = get_repo()
-    csv_content = df.to_csv(index=False)
-    
+    csv = df.to_csv(index=False)
     try:
-        # Zkusíme soubor aktualizovat
         file = repo.get_contents(SOUBOR_DATA)
-        repo.update_file(file.path, "Aktualizace portfolia", csv_content, file.sha)
+        repo.update_file(file.path, "Update", csv, file.sha)
     except:
-        # Pokud neexistuje, vytvoříme nový
-        repo.create_file(SOUBOR_DATA, "Vytvoření portfolia", csv_content)
-    
+        repo.create_file(SOUBOR_DATA, "Init", csv)
     st.cache_data.clear()
 
-# --- 4. HLAVNÍ APLIKACE ---
+# --- BEZPEČNÉ STAŽENÍ CENY ---
+def ziskej_aktualni_cenu(ticker):
+    """Pokusí se stáhnout cenu. Když to nejde, vrátí None."""
+    try:
+        # Ticker object je spolehlivější než hromadný download
+        akcie = yf.Ticker(ticker)
+        # Získáme historii za poslední 2 dny (pro jistotu)
+        hist = akcie.history(period="2d")
+        if not hist.empty:
+            return hist['Close'].iloc[-1]
+    except:
+        pass
+    return None
+
+# --- HLAVNÍ LOGIKA ---
 def main():
-    # Login obrazovka
     if 'prihlasen' not in st.session_state:
         st.session_state['prihlasen'] = False
 
+    # 1. LOGIN OBRAZOVKA
     if not st.session_state['prihlasen']:
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.title("🔐 Přihlášení")
+        c1, c2, c3 = st.columns([1,2,1])
+        with c2:
+            st.title("🔐 Vstup do portfolia")
             with st.form("login"):
-                u = st.text_input("Jméno")
+                u = st.text_input("Uživatel")
                 p = st.text_input("Heslo", type="password")
-                if st.form_submit_button("Vstoupit"):
+                if st.form_submit_button("Přihlásit se", use_container_width=True):
                     if u == ADMIN_USER and p == ADMIN_PASS:
                         st.session_state['prihlasen'] = True
                         st.rerun()
                     else:
-                        st.error("Špatné heslo")
+                        st.error("Neplatné údaje")
         return
 
-    # Aplikace po přihlášení
+    # 2. APLIKACE
     with st.sidebar:
-        st.success(f"Uživatel: {ADMIN_USER}")
-        if st.button("Odhlásit"):
+        st.write(f"👤 **{ADMIN_USER}**")
+        if st.button("Odhlásit", use_container_width=True):
             st.session_state['prihlasen'] = False
             st.rerun()
+        st.divider()
+        st.info("💡 Data se ukládají automaticky na GitHub.")
 
-    st.title("📈 Moje Portfolio (GitHub Cloud)")
+    st.title("📈 Moje Investiční Portfolio")
 
-    # Načtení dat při startu
     if 'df' not in st.session_state:
-        with st.spinner("Stahuji data z GitHubu..."):
+        with st.spinner("Nahrávám data z cloudu..."):
             st.session_state['df'] = nacti_data()
-
+    
     df = st.session_state['df']
 
-    col1, col2 = st.columns([1, 2])
-
-    # Formulář
-    with col1:
-        st.subheader("➕ Přidat investici")
-        with st.form("add"):
-            tick = st.text_input("Zkratka (např. AAPL)").upper()
-            kusy = st.number_input("Počet kusů", min_value=0.001, format="%.3f")
-            cena = st.number_input("Nákupní cena ($)", min_value=0.1)
-            
-            if st.form_submit_button("💾 ULOŽIT NAVŽDY"):
-                novy_radek = pd.DataFrame([{"Ticker": tick, "Pocet": kusy, "Cena": cena}])
-                df = pd.concat([df, novy_radek], ignore_index=True)
-                st.session_state['df'] = df # Uložit do paměti aplikace
-                
-                with st.spinner("Odesílám na GitHub..."):
-                    uloz_data(df) # Odeslat na server
-                
-                st.success("✅ Uloženo! Data jsou v bezpečí.")
-                st.rerun()
+    # --- VÝPOČTY (TADY SE DĚJE KOUZLO) ---
+    if not df.empty:
+        viz_data = []
+        celkova_hodnota = 0
+        celkem_investovano = 0
         
-        if st.button("🗑️ Smazat všechna data"):
-            prazdny = pd.DataFrame(columns=["Ticker", "Pocet", "Cena"])
-            st.session_state['df'] = prazdny
-            uloz_data(prazdny)
+        # Progress bar, aby to vypadalo profi
+        progress_text = "Aktualizuji ceny na burze..."
+        my_bar = st.progress(0, text=progress_text)
+        
+        celkem_polozek = len(df)
+        
+        for index, row in df.iterrows():
+            ticker = row['Ticker']
+            aktualni_cena = ziskej_aktualni_cenu(ticker)
+            
+            # 🛡️ ZÁCHRANNÁ SÍŤ: Když se cena nepodaří stáhnout
+            if aktualni_cena is None or pd.isna(aktualni_cena):
+                # Použijeme nákupní cenu, aby se nerozbily výpočty
+                pouzita_cena = row['Cena']
+                status = "⚠️ (Offline)"
+            else:
+                pouzita_cena = aktualni_cena
+                status = ""
+
+            hodnota = row['Pocet'] * pouzita_cena
+            investice = row['Pocet'] * row['Cena']
+            zisk = hodnota - investice
+            
+            celkova_hodnota += hodnota
+            celkem_investovano += investice
+            
+            viz_data.append({
+                "Ticker": f"{ticker} {status}",
+                "Kusů": row['Pocet'],
+                "Cena nákup": row['Cena'],
+                "Cena teď": pouzita_cena,
+                "Hodnota": hodnota,
+                "Zisk ($)": zisk,
+                "Zisk (%)": (zisk / investice * 100) if investice > 0 else 0
+            })
+            # Aktualizace progress baru
+            my_bar.progress((index + 1) / celkem_polozek)
+        
+        my_bar.empty() # Skrýt bar po dokončení
+        
+        # --- ZOBRAZENÍ DASHBOARDU ---
+        celkovy_zisk = celkova_hodnota - celkem_investovano
+        
+        # Velké metriky
+        col1, col2, col3 = st.columns(3)
+        col1.metric("💰 Investováno", f"${celkem_investovano:,.0f}")
+        col2.metric("📊 Aktuální hodnota", f"${celkova_hodnota:,.0f}")
+        col3.metric("🚀 Celkový zisk", f"${celkovy_zisk:+,.0f}", delta_color="normal")
+        
+        st.divider()
+        
+        c_graf, c_tabulka = st.columns([1, 2])
+        
+        df_viz = pd.DataFrame(viz_data)
+
+        with c_graf:
+            st.subheader("🍰 Rozložení")
+            fig = px.pie(df_viz, values='Hodnota', names='Ticker', hole=0.4)
+            fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
+            st.plotly_chart(fig, use_container_width=True)
+
+        with c_tabulka:
+            st.subheader("📋 Detailní přehled")
+            
+            # Formátování tabulky s barvami
+            st.dataframe(
+                df_viz.style.format({
+                    "Cena nákup": "${:.2f}",
+                    "Cena teď": "${:.2f}",
+                    "Hodnota": "${:.2f}",
+                    "Zisk ($)": "${:+.2f}",
+                    "Zisk (%)": "{:+.1f} %"
+                }).map(lambda x: 'color: #4CAF50; font-weight: bold' if x > 0 else 'color: #FF5252; font-weight: bold', subset=['Zisk ($)', 'Zisk (%)']),
+                use_container_width=True,
+                height=400
+            )
+
+    else:
+        st.info("Zatím žádné investice. Přidej první vlevo dole! 👇")
+
+    st.divider()
+
+    # --- PŘIDÁVÁNÍ NOVÝCH ---
+    with st.expander("➕ PŘIDAT / UPRAVIT INVESTICI", expanded=df.empty):
+        with st.form("add_form"):
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                t = st.text_input("Ticker (např. AAPL, BTC-USD)").upper()
+            with col_b:
+                p = st.number_input("Počet kusů", min_value=0.0001, format="%.4f")
+            with col_c:
+                c = st.number_input("Nákupní cena ($)", min_value=0.1)
+            
+            if st.form_submit_button("💾 Uložit na GitHub", use_container_width=True):
+                novy = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c}])
+                df = pd.concat([df, novy], ignore_index=True)
+                st.session_state['df'] = df
+                with st.spinner("Odesílám..."):
+                    uloz_data(df)
+                st.success("Uloženo!")
+                st.rerun()
+
+    # --- TLAČÍTKO SMAZAT ---
+    if not df.empty:
+        if st.button("🗑️ Smazat celou databázi"):
+            empty_df = pd.DataFrame(columns=["Ticker", "Pocet", "Cena"])
+            st.session_state['df'] = empty_df
+            uloz_data(empty_df)
             st.rerun()
-
-    # Přehled
-    with col2:
-        if not df.empty:
-            # Rychlý výpočet hodnoty
-            celkem_hodnota = 0
-            viz_data = []
-            
-            # Abychom nečekali věčnost, stáhneme ceny hromadně
-            tickers = df['Ticker'].unique().tolist()
-            ceny_burza = {}
-            if tickers:
-                try:
-                    data = yf.download(tickers, period="1d")['Close'].iloc[-1]
-                    # Ošetření, když je jen jedna akcie (yfinance vrací číslo, ne seznam)
-                    if len(tickers) == 1:
-                        ceny_burza[tickers[0]] = float(data)
-                    else:
-                        for t in tickers:
-                            ceny_burza[t] = float(data[t])
-                except:
-                    pass
-
-            for index, row in df.iterrows():
-                t = row['Ticker']
-                c_ted = ceny_burza.get(t, row['Cena']) # Když nenačte cenu, použije nákupní
-                hodnota = row['Pocet'] * c_ted
-                zisk = hodnota - (row['Pocet'] * row['Cena'])
-                celkem_hodnota += hodnota
-                
-                viz_data.append({
-                    "Ticker": t,
-                    "Kusů": row['Pocet'],
-                    "Cena nákup": row['Cena'],
-                    "Hodnota": hodnota,
-                    "Zisk": zisk
-                })
-            
-            st.metric("Celková hodnota", f"${celkem_hodnota:,.2f}")
-            
-            df_viz = pd.DataFrame(viz_data)
-            
-            tab1, tab2 = st.tabs(["Graf", "Tabulka"])
-            with tab1:
-                fig = px.pie(df_viz, values='Hodnota', names='Ticker', hole=0.4)
-                st.plotly_chart(fig, use_container_width=True)
-            with tab2:
-                st.dataframe(df_viz.style.format({"Hodnota": "${:.2f}", "Zisk": "${:+.2f}"}), use_container_width=True)
-        else:
-            st.info("Zatím žádná data.")
 
 if __name__ == "__main__":
     main()
-
-
