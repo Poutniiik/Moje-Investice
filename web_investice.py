@@ -232,23 +232,41 @@ def main():
                     st.success("OK")
                     st.rerun()
 
-        # TABULKA
-        st.subheader("Vaše pozice")
-        edited_df = st.data_editor(
-            df[["Ticker", "Pocet", "Cena", "Datum"]],
-            num_rows="dynamic", use_container_width=True,
-            column_config={"Pocet": st.column_config.NumberColumn(format="%.4f"), "Cena": st.column_config.NumberColumn(format="%.2f"), "Datum": st.column_config.DatetimeColumn(format="D.M.YYYY")}
-        )
-        if not df[["Ticker", "Pocet", "Cena", "Datum"]].reset_index(drop=True).equals(edited_df.reset_index(drop=True)):
-            if st.button("💾 ULOŽIT ZMĚNY"):
-                st.session_state['df'] = edited_df
-                uloz_data_uzivatele(edited_df, USER, SOUBOR_DATA)
-                st.success("Uloženo")
-                st.rerun()
+        # PŘEPÍNAČ POHLEDU
+        rezim = st.radio("Pohled:", ["Detailní (Editace)", "Souhrnný (Přehled)"], horizontal=True)
 
-        # --- TADY JE TEN NÁVRAT DASHBOARDU ---
+        if rezim == "Detailní (Editace)":
+            st.caption("Zde můžeš upravovat jednotlivé nákupy.")
+            edited_df = st.data_editor(
+                df[["Ticker", "Pocet", "Cena", "Datum"]],
+                num_rows="dynamic", use_container_width=True,
+                column_config={"Pocet": st.column_config.NumberColumn(format="%.4f"), "Cena": st.column_config.NumberColumn(format="%.2f"), "Datum": st.column_config.DatetimeColumn(format="D.M.YYYY")}
+            )
+            if not df[["Ticker", "Pocet", "Cena", "Datum"]].reset_index(drop=True).equals(edited_df.reset_index(drop=True)):
+                if st.button("💾 ULOŽIT ZMĚNY"):
+                    st.session_state['df'] = edited_df
+                    uloz_data_uzivatele(edited_df, USER, SOUBOR_DATA)
+                    st.success("Uloženo")
+                    st.rerun()
+            
+            # Data pro výpočet (použijeme vše)
+            data_pro_vypocet = df
+        
+        else:
+            # SOUHRNNÝ REŽIM
+            st.caption("Sloučené pozice podle tickeru (průměrná cena).")
+            if not df.empty:
+                df_temp = df.copy()
+                df_temp['Investice'] = df_temp['Pocet'] * df_temp['Cena']
+                grouped = df_temp.groupby('Ticker').agg({'Pocet': 'sum', 'Investice': 'sum'}).reset_index()
+                grouped['Cena'] = grouped['Investice'] / grouped['Pocet'] # Průměrná cena
+                data_pro_vypocet = grouped
+            else:
+                data_pro_vypocet = pd.DataFrame()
+
+        # --- DASHBOARD ---
         st.divider()
-        if not df.empty:
+        if not data_pro_vypocet.empty:
             viz_data = []
             celk_hod_usd = 0
             celk_inv_usd = 0
@@ -256,8 +274,9 @@ def main():
             kurzy = ziskej_kurzy()
             
             bar = st.progress(0, "Počítám...")
+            total_rows = len(data_pro_vypocet)
             
-            for i, (idx, row) in enumerate(df.iterrows()):
+            for i, (idx, row) in enumerate(data_pro_vypocet.iterrows()):
                 if pd.isna(row['Ticker']) or pd.isna(row['Pocet']): continue
                 tkr = str(row['Ticker'])
                 cena_ted, mena = ziskej_info_o_akcii(tkr)
@@ -278,8 +297,10 @@ def main():
                 celk_hod_usd += hod * konv
                 celk_inv_usd += inv * konv
                 
-                viz_data.append({"Ticker": tkr, "Hodnota": hod, "Zisk": zisk, "Měna": mena, "HodnotaUSD": hod*konv})
-                bar.progress((i+1)/len(df))
+                viz_data.append({"Ticker": tkr, "Kusy": row['Pocet'], "Průměrná nákupka": row['Cena'], 
+                                 "Hodnota": hod, "Zisk": zisk, "Měna": mena, "HodnotaUSD": hod*konv})
+                
+                if total_rows > 0: bar.progress((i+1)/total_rows)
             bar.empty()
 
             # HLAVNÍ METRIKY
@@ -296,6 +317,13 @@ def main():
                 sym = "$" if m=="USD" else ("Kč" if m=="CZK" else "€")
                 cols[i].metric(f"Měna: {m}", f"Inv: {d['inv']:,.0f} {sym}", f"{d['zisk']:+,.0f} {sym}")
 
+            # TABULKA VÝSLEDKŮ (Liší se podle pohledu)
+            st.divider()
+            if rezim == "Souhrnný (Přehled)":
+                st.dataframe(pd.DataFrame(viz_data)[["Ticker", "Měna", "Kusy", "Průměrná nákupka", "Hodnota", "Zisk"]]
+                             .style.format({"Průměrná nákupka": "{:.2f}", "Hodnota": "{:,.2f}", "Zisk": "{:+,.2f}"})
+                             .map(lambda x: 'color: green' if x > 0 else 'color: red', subset=['Zisk']), use_container_width=True)
+            
             # GRAFY
             st.divider()
             gf = pd.DataFrame(viz_data)
