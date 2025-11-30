@@ -74,10 +74,7 @@ def nacti_celou_databazi():
         if 'Datum' not in df.columns: df['Datum'] = datetime.now()
         df['Datum'] = pd.to_datetime(df['Datum'])
         
-        # Pojistka pro stará data bez vlastníka
-        if 'Owner' not in df.columns: 
-            df['Owner'] = "admin" 
-            
+        if 'Owner' not in df.columns: df['Owner'] = "admin" 
         df['Owner'] = df['Owner'].astype(str)
         return df
     except:
@@ -86,8 +83,10 @@ def nacti_celou_databazi():
 def uloz_zmeny_uzivatele(user_df, username):
     repo = get_repo()
     full_df = nacti_celou_databazi()
-    # Smažeme staré, přidáme nové
+    
+    # Smažeme staré záznamy uživatele a nahradíme novými
     full_df = full_df[full_df['Owner'] != str(username)]
+    
     if not user_df.empty:
         user_df['Owner'] = str(username)
         full_df = pd.concat([full_df, user_df], ignore_index=True)
@@ -131,23 +130,22 @@ def main():
             tab1, tab2, tab3 = st.tabs(["Přihlášení", "Registrace", "Obnova hesla"])
             
             with tab1:
-                with st.form("login_form_safe"):
+                with st.form("login_safe"):
                     u = st.text_input("Jméno")
                     p = st.text_input("Heslo", type="password")
                     if st.form_submit_button("Vstoupit", use_container_width=True):
                         users = nacti_uzivatele()
                         row = users[users['username'] == u]
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
-                            # 🛡️ VYČIŠTĚNÍ PAMĚTI PŘI PŘIHLÁŠENÍ (Aby tam nestrašila data předchozího uživatele)
+                            # Výplach paměti
                             if 'df' in st.session_state: del st.session_state['df']
-                            
                             st.session_state['prihlasen'] = True
                             st.session_state['aktualni_uzivatel'] = u
                             st.rerun()
                         else: st.error("Chyba přihlášení")
 
             with tab2:
-                with st.form("reg_form_safe"):
+                with st.form("reg_safe"):
                     nu = st.text_input("Nové jméno")
                     np = st.text_input("Heslo", type="password")
                     rec = st.text_input("Záchranný kód", type="password")
@@ -161,7 +159,7 @@ def main():
                             st.success("Hotovo.")
 
             with tab3:
-                with st.form("reset_form_safe"):
+                with st.form("reset_safe"):
                     ru = st.text_input("Jméno")
                     rk = st.text_input("Kód", type="password")
                     rnp = st.text_input("Nové heslo", type="password")
@@ -180,18 +178,16 @@ def main():
     
     with st.sidebar:
         st.write(f"👤 **{USER}**")
-        # 🛡️ TLAČÍTKO ODHLÁSIT (Kompletní výplach paměti)
         if st.button("Odhlásit"):
-            st.session_state.clear() # Smaže všechno v paměti
+            st.session_state.clear()
             st.rerun()
 
     st.title(f"🌍 Portfolio: {USER}")
 
-    # --- NAČTENÍ DAT A FILTRACE ---
+    # Načtení dat
     if 'df' not in st.session_state:
         with st.spinner(f"Nahrávám trezor uživatele {USER}..."):
             full_df = nacti_celou_databazi()
-            # Filtrujeme jen data vlastníka
             my_df = full_df[full_df['Owner'] == str(USER)].copy()
             st.session_state['df'] = my_df
     
@@ -217,7 +213,7 @@ def main():
 
     # --- PŘIDÁNÍ ---
     with st.expander("➕ Rychlé přidání", expanded=False):
-        with st.form("unique_add_form"):
+        with st.form("add_safe"):
             c1, c2, c3 = st.columns(3)
             with c1: t = st.text_input("Ticker").upper()
             with c2: p = st.number_input("Počet", min_value=0.0001)
@@ -240,7 +236,11 @@ def main():
         
         my_bar = st.progress(0, text="Počítám...")
         
-        for index, row in df.iterrows():
+        # 🛡️ ZDE JE TA OPRAVA PRO PROGRESS BAR 🛡️
+        # Používáme 'enumerate', abychom měli vlastní počítadlo (i) a ignorovali mezery v indexu
+        total_rows = len(df)
+        
+        for i, (index, row) in enumerate(df.iterrows()):
             if pd.isna(row['Ticker']) or pd.isna(row['Pocet']): continue
             ticker = str(row['Ticker'])
             aktualni_cena, mena = ziskej_info_o_akcii(ticker)
@@ -263,7 +263,11 @@ def main():
 
             viz_data.append({"Ticker": ticker, "Měna": mena, "Cena teď": pouzita_cena, 
                              "Hodnota (Orig)": hodnota_orig, "Zisk (Orig)": zisk_orig})
-            my_bar.progress((index + 1) / len(df))
+            
+            # Bezpečný výpočet progressu
+            if total_rows > 0:
+                my_bar.progress((i + 1) / total_rows)
+                
         my_bar.empty()
 
         c1, c2, c3 = st.columns(3)
