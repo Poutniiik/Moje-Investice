@@ -42,18 +42,12 @@ def nacti_data():
         data = file.decoded_content.decode("utf-8")
         df = pd.read_csv(StringIO(data))
         
-        # 🛠️ OPRAVA 1: Pokud chybí sloupec Datum, vytvoříme ho
         if 'Datum' not in df.columns:
-            # Vytvoříme sloupec a naplníme ho aktuálním časem
             df['Datum'] = datetime.now()
         
-        # 🛠️ OPRAVA 2 (Tohle vyřeší tu chybu):
-        # Musíme donutit Python, aby chápal sloupec jako DATUM, ne jako TEXT
         df['Datum'] = pd.to_datetime(df['Datum'])
-
         return df
     except:
-        # Pokud soubor neexistuje, vrátíme prázdnou tabulku se správnými typy
         return pd.DataFrame({
             "Ticker": pd.Series(dtype='str'),
             "Pocet": pd.Series(dtype='float'),
@@ -63,7 +57,9 @@ def nacti_data():
 
 def uloz_data(df):
     repo = get_repo()
-    csv = df.to_csv(index=False)
+    # Před uložením odstraníme prázdné řádky, aby se neukládalo smetí
+    df_clean = df.dropna(subset=['Ticker', 'Pocet']) 
+    csv = df_clean.to_csv(index=False)
     try:
         file = repo.get_contents(SOUBOR_DATA)
         repo.update_file(file.path, "Update portfolia", csv, file.sha)
@@ -73,8 +69,9 @@ def uloz_data(df):
 
 # --- CENA AKCIE ---
 def ziskej_aktualni_cenu(ticker):
+    if not ticker or pd.isna(ticker): return None
     try:
-        akcie = yf.Ticker(ticker)
+        akcie = yf.Ticker(str(ticker))
         hist = akcie.history(period="2d")
         if not hist.empty:
             return hist['Close'].iloc[-1]
@@ -110,7 +107,7 @@ def main():
             st.session_state['prihlasen'] = False
             st.rerun()
         st.divider()
-        st.info("💡 Tip: Data v tabulce můžeš přepisovat! Změny se uloží až tlačítkem 'Uložit změny'.")
+        st.info("💡 Tip: Řádky můžeš přidávat i tlačítkem '+' v tabulce.")
 
     st.title("🚀 Moje Portfolio: Edice Pro")
 
@@ -118,17 +115,15 @@ def main():
         with st.spinner("Nahrávám data z cloudu..."):
             st.session_state['df'] = nacti_data()
     
-    # Práce s daty v paměti
     df = st.session_state['df']
 
     # --- SEKCE 1: EDITACE DAT (TABULKA) ---
     with st.expander("📝 SPRÁVA DAT (Editace, Mazání, Historie)", expanded=True):
-        st.caption("Zde můžeš přímo přepisovat hodnoty nebo mazat řádky (označ řádek vlevo a stiskni Delete).")
+        st.caption("Můžeš editovat přímo v tabulce. Nový řádek přidáš kliknutím na + dole.")
         
-        # INTERAKTIVNÍ TABULKA
         edited_df = st.data_editor(
             df,
-            num_rows="dynamic", # Povolí přidávání/mazání řádků
+            num_rows="dynamic",
             use_container_width=True,
             column_config={
                 "Pocet": st.column_config.NumberColumn("Počet kusů", format="%.4f"),
@@ -137,9 +132,8 @@ def main():
             }
         )
 
-        # Tlačítko na uložení změn (jen když se něco změnilo)
         if not df.equals(edited_df):
-            st.warning("⚠️ Máš neuložené změny v tabulce!")
+            st.warning("⚠️ Máš neuložené změny!")
             if st.button("💾 ULOŽIT ZMĚNY NA GITHUB", type="primary"):
                 st.session_state['df'] = edited_df
                 with st.spinner("Odesílám změny..."):
@@ -147,59 +141,41 @@ def main():
                 st.success("Uloženo!")
                 st.rerun()
 
-    # --- SEKCE 2: PŘIDÁNÍ NOVÉHO (Formulář) ---
-    # Formulář necháme, je fajn pro rychlé přidání s aktuálním časem
-    with st.expander("➕ RYCHLÉ PŘIDÁNÍ", expanded=False):
-        with st.form("add_form"):
-            c1, c2, c3, c4 = st.columns(4)
-            with c1:
-                t = st.text_input("Ticker").upper()
-            with c2:
-                p = st.number_input("Počet", min_value=0.0001, format="%.4f")
-            with c3:
-                c = st.number_input("Cena ($)", min_value=0.1)
-            with c4:
-                # Automatický datum a čas
-                d = st.text_input("Datum (YYYY-MM-DD HH:MM)", value=datetime.now().strftime("%Y-%m-%d %H:%M"))
-            
-            if st.form_submit_button("Přidat"):
-                # Převedeme vstup na správný formát hned tady
-                try:
-                    datum_obj = pd.to_datetime(d)
-                except:
-                    datum_obj = datetime.now()
-
-                novy = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datum_obj}])
-                
-                # Přidáme k editované tabulce
-                updated_df = pd.concat([edited_df, novy], ignore_index=True)
-                st.session_state['df'] = updated_df
-                uloz_data(updated_df)
-                st.rerun()
-
     st.divider()
 
-    # --- SEKCE 3: DASHBOARD (Výpočty) ---
+    # --- SEKCE 2: DASHBOARD ---
     if not edited_df.empty:
         viz_data = []
         celkova_hodnota = 0
         celkem_investovano = 0
         
-        # Progress bar
         my_bar = st.progress(0, text="Počítám zisky...")
         total_rows = len(edited_df)
         
         for index, row in edited_df.iterrows():
-            ticker = row['Ticker']
+            # --- ZÁCHRANNÁ BRZDA (Oprava chyby) ---
+            # Pokud je řádek prázdný (právě jsi klikl na +), přeskočíme výpočty
+            if pd.isna(row['Ticker']) or pd.isna(row['Pocet']) or row['Ticker'] == "":
+                continue # Jdeme na další řádek a tento ignorujeme
+            
+            # Převedeme na čísla, kdyby náhodou
+            try:
+                r_pocet = float(row['Pocet']) if pd.notnull(row['Pocet']) else 0.0
+                r_cena_nakup = float(row['Cena']) if pd.notnull(row['Cena']) else 0.0
+            except:
+                r_pocet = 0
+                r_cena_nakup = 0
+
+            ticker = str(row['Ticker'])
             aktualni_cena = ziskej_aktualni_cenu(ticker)
             
             if aktualni_cena is None or pd.isna(aktualni_cena):
-                pouzita_cena = row['Cena']
+                pouzita_cena = r_cena_nakup
             else:
                 pouzita_cena = aktualni_cena
 
-            hodnota = row['Pocet'] * pouzita_cena
-            investice = row['Pocet'] * row['Cena']
+            hodnota = r_pocet * pouzita_cena
+            investice = r_pocet * r_cena_nakup
             zisk = hodnota - investice
             
             celkova_hodnota += hodnota
@@ -216,28 +192,24 @@ def main():
         
         my_bar.empty()
         
-        # Metriky
-        celkovy_zisk = celkova_hodnota - celkem_investovano
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Investováno", f"${celkem_investovano:,.0f}")
-        col2.metric("Hodnota", f"${celkova_hodnota:,.0f}")
-        col3.metric("Zisk", f"${celkovy_zisk:+,.0f}", 
-                   delta_color="normal")
-        
-        # Grafy
-        df_viz = pd.DataFrame(viz_data)
-        c_graf1, c_graf2 = st.columns(2)
-        
-        with c_graf1:
-            st.caption("Rozložení portfolia")
-            fig = px.pie(df_viz, values='Hodnota', names='Ticker', hole=0.4)
-            st.plotly_chart(fig, use_container_width=True)
+        # Zobrazíme dashboard jen pokud máme nějaká platná data
+        if viz_data:
+            celkovy_zisk = celkova_hodnota - celkem_investovano
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Investováno", f"${celkem_investovano:,.0f}")
+            c2.metric("Hodnota", f"${celkova_hodnota:,.0f}")
+            c3.metric("Zisk", f"${celkovy_zisk:+,.0f}", delta_color="normal")
             
-        with c_graf2:
-            st.caption("Zisk podle pozic")
-            fig = px.bar(df_viz, x='Ticker', y='Zisk', color='Zisk',
-                        color_continuous_scale=['red', 'green'])
-            st.plotly_chart(fig, use_container_width=True)
+            df_viz = pd.DataFrame(viz_data)
+            g1, g2 = st.columns(2)
+            with g1:
+                fig = px.pie(df_viz, values='Hodnota', names='Ticker', hole=0.4)
+                st.plotly_chart(fig, use_container_width=True)
+            with g2:
+                fig = px.bar(df_viz, x='Ticker', y='Zisk', color='Zisk', color_continuous_scale=['red', 'green'])
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Doplň údaje do tabulky nahoře.")
 
     else:
         st.info("Portfolio je prázdné.")
