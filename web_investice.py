@@ -42,7 +42,6 @@ def nacti_uzivatele():
         file = repo.get_contents(SOUBOR_UZIVATELE)
         return pd.read_csv(StringIO(file.decoded_content.decode("utf-8")), dtype=str)
     except:
-        # První spuštění - vytvoříme admina
         try:
             p = zasifruj(st.secrets["login"]["heslo"])
             def_user = st.secrets["login"]["uzivatel"]
@@ -67,41 +66,32 @@ def uloz_uzivatele(df):
 
 # --- SPRÁVA PORTFOLIA ---
 def nacti_celou_databazi():
-    """Stáhne všechna data, ale zatím je nefiltruje."""
     try:
         repo = get_repo()
         file = repo.get_contents(SOUBOR_DATA)
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
         
-        # Oprava sloupců
         if 'Datum' not in df.columns: df['Datum'] = datetime.now()
         df['Datum'] = pd.to_datetime(df['Datum'])
         
-        # 🛠️ DŮLEŽITÉ: Pokud stará data nemají vlastníka, dáme je adminovi
+        # Pojistka pro stará data bez vlastníka
         if 'Owner' not in df.columns: 
             df['Owner'] = "admin" 
             
-        # Převedeme Owner na string, aby fungovalo porovnávání
         df['Owner'] = df['Owner'].astype(str)
         return df
     except:
         return pd.DataFrame(columns=["Ticker", "Pocet", "Cena", "Datum", "Owner"])
 
 def uloz_zmeny_uzivatele(user_df, username):
-    """Uloží změny jen pro daného uživatele, ostatní data nechá být."""
     repo = get_repo()
     full_df = nacti_celou_databazi()
-    
-    # 1. Vymažeme staré záznamy TOHOTO uživatele z hlavní databáze
-    # (Ostatní uživatele tam necháme)
+    # Smažeme staré, přidáme nové
     full_df = full_df[full_df['Owner'] != str(username)]
-    
-    # 2. Přidáme tam jeho nové záznamy
     if not user_df.empty:
-        user_df['Owner'] = str(username) # Pojistka: Vtiskneme tam jeho jméno
+        user_df['Owner'] = str(username)
         full_df = pd.concat([full_df, user_df], ignore_index=True)
     
-    # 3. Uložíme celek
     csv = full_df.to_csv(index=False)
     try:
         file = repo.get_contents(SOUBOR_DATA)
@@ -141,21 +131,23 @@ def main():
             tab1, tab2, tab3 = st.tabs(["Přihlášení", "Registrace", "Obnova hesla"])
             
             with tab1:
-                # UNIKÁTNÍ KLÍČ FORMULÁŘE (oprava chyby)
-                with st.form("unique_login_form"):
+                with st.form("login_form_safe"):
                     u = st.text_input("Jméno")
                     p = st.text_input("Heslo", type="password")
                     if st.form_submit_button("Vstoupit", use_container_width=True):
                         users = nacti_uzivatele()
                         row = users[users['username'] == u]
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
+                            # 🛡️ VYČIŠTĚNÍ PAMĚTI PŘI PŘIHLÁŠENÍ (Aby tam nestrašila data předchozího uživatele)
+                            if 'df' in st.session_state: del st.session_state['df']
+                            
                             st.session_state['prihlasen'] = True
                             st.session_state['aktualni_uzivatel'] = u
                             st.rerun()
                         else: st.error("Chyba přihlášení")
 
             with tab2:
-                with st.form("unique_reg_form"):
+                with st.form("reg_form_safe"):
                     nu = st.text_input("Nové jméno")
                     np = st.text_input("Heslo", type="password")
                     rec = st.text_input("Záchranný kód", type="password")
@@ -169,7 +161,7 @@ def main():
                             st.success("Hotovo.")
 
             with tab3:
-                with st.form("unique_reset_form"):
+                with st.form("reset_form_safe"):
                     ru = st.text_input("Jméno")
                     rk = st.text_input("Kód", type="password")
                     rnp = st.text_input("Nové heslo", type="password")
@@ -188,8 +180,9 @@ def main():
     
     with st.sidebar:
         st.write(f"👤 **{USER}**")
+        # 🛡️ TLAČÍTKO ODHLÁSIT (Kompletní výplach paměti)
         if st.button("Odhlásit"):
-            st.session_state['prihlasen'] = False
+            st.session_state.clear() # Smaže všechno v paměti
             st.rerun()
 
     st.title(f"🌍 Portfolio: {USER}")
@@ -198,11 +191,8 @@ def main():
     if 'df' not in st.session_state:
         with st.spinner(f"Nahrávám trezor uživatele {USER}..."):
             full_df = nacti_celou_databazi()
-            
-            # 🔐 TADY SE DĚJE TO KOUZLO FILTROVÁNÍ
-            # Vybereme jen řádky, kde se sloupec Owner shoduje s přihlášeným uživatelem
+            # Filtrujeme jen data vlastníka
             my_df = full_df[full_df['Owner'] == str(USER)].copy()
-            
             st.session_state['df'] = my_df
     
     df = st.session_state['df']
@@ -218,7 +208,6 @@ def main():
                 "Datum": st.column_config.DatetimeColumn("Koupeno", format="D.M.YYYY")
             }
         )
-        # Porovnání změn (ignorujeme index)
         if not df[["Ticker", "Pocet", "Cena", "Datum"]].reset_index(drop=True).equals(edited_df.reset_index(drop=True)):
             if st.button("💾 ULOŽIT ZMĚNY"):
                 st.session_state['df'] = edited_df
@@ -234,7 +223,6 @@ def main():
             with c2: p = st.number_input("Počet", min_value=0.0001)
             with c3: c = st.number_input("Cena", min_value=0.1)
             if st.form_submit_button("Přidat"):
-                # Tady explicitně přidáváme Ownera = USER
                 novy = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER}])
                 updated = pd.concat([st.session_state['df'], novy], ignore_index=True)
                 st.session_state['df'] = updated
@@ -299,8 +287,7 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
 
     else:
-        st.info(f"Ahoj {USER}, tvůj seznam je prázdný. Cizí data jsou skrytá.")
+        st.info(f"Ahoj {USER}, tvůj seznam je prázdný. Přidej svou první investici nahoře!")
 
 if __name__ == "__main__":
     main()
-
