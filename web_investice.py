@@ -475,4 +475,10 @@ def main():
 
             st.divider()
             real_czk = edited_hist[edited_hist['Mena']=='CZK']['Zisk'].sum()
-            real_usd = edited_hist[edited_
+            real_usd = edited_hist[edited_hist['Mena']=='USD']['Zisk'].sum()
+            col1, col2 = st.columns(2)
+            col1.metric("Realizováno (CZK)", f"{real_czk:,.0f} Kč")
+            col2.metric("Realizováno (USD)", f"${real_usd:,.0f}")
+
+if __name__ == "__main__":
+    main()
