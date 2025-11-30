@@ -11,7 +11,7 @@ import hashlib
 st.set_page_config(page_title="Terminal", layout="wide", page_icon="💹")
 
 # --- KONSTANTY ---
-REPO_NAZEV = "Poutniik/Moje-Investice" 
+REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
 SOUBOR_HISTORIE = "history_data.csv"
@@ -327,3 +327,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
