@@ -9,6 +9,7 @@ from datetime import datetime
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Moje Portfolio: Multiměna", layout="wide", page_icon="🌍")
 
+# 🛑 ZKONTROLUJ SI NÁZEV REPOZITÁŘE!
 REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 
@@ -16,7 +17,7 @@ SOUBOR_DATA = "portfolio_data.csv"
 st.markdown("""
 <style>
     .metric-card {background-color: #f0f2f6; border-radius: 10px; padding: 15px; text-align: center;}
-    div[data-testid="stMetricValue"] {font-size: 2.5rem;}
+    div[data-testid="stMetricValue"] {font-size: 2.2rem;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,16 +58,16 @@ def uloz_data(df):
         repo.create_file(SOUBOR_DATA, "Init portfolia", csv)
     st.cache_data.clear()
 
-# --- 🧠 MOZEK NA MĚNY A KURZY ---
-@st.cache_data(ttl=3600) # Uložíme do paměti na hodinu, ať to nezdržuje
+# --- MOZEK NA MĚNY A KURZY ---
+@st.cache_data(ttl=3600)
 def ziskej_kurzy():
     """Stáhne aktuální kurzy měn vůči USD."""
     kurzy = {"USD": 1.0}
-    tickers = ["CZK=X", "EURUSD=X"] # CZK=X (kolik CZK za USD), EURUSD=X (kolik USD za EUR)
+    tickers = ["CZK=X", "EURUSD=X"]
     try:
         data = yf.download(tickers, period="1d")['Close'].iloc[-1]
-        kurzy["CZK"] = float(data["CZK=X"])   # Např. 23.50
-        kurzy["EUR"] = float(data["EURUSD=X"]) # Např. 1.08
+        kurzy["CZK"] = float(data["CZK=X"])
+        kurzy["EUR"] = float(data["EURUSD=X"])
     except:
         pass
     return kurzy
@@ -76,15 +77,15 @@ def ziskej_info_o_akcii(ticker):
     if not ticker or pd.isna(ticker): return None, "USD"
     try:
         akcie = yf.Ticker(str(ticker))
-        # Zkusíme fast_info (je rychlejší)
+        # Zkusíme fast_info
         cena = akcie.fast_info.last_price
         mena = akcie.fast_info.currency
         return cena, mena
     except:
-        # Fallback (když fast_info selže)
+        # Fallback
         try:
             hist = akcie.history(period="2d")
-            return hist['Close'].iloc[-1], "USD" # Defaultně USD
+            return hist['Close'].iloc[-1], "USD"
         except:
             return None, "USD"
 
@@ -162,6 +163,9 @@ def main():
         celk_hodnota_usd = 0
         celk_investice_usd = 0
         
+        # Slovník pro sčítání investic podle měn: {"USD": 500, "CZK": 12000}
+        investovano_dle_men = {}
+
         # Stáhneme kurzy měn
         kurzy = ziskej_kurzy()
         
@@ -172,12 +176,11 @@ def main():
             
             ticker = str(row['Ticker'])
             
-            # 1. Zjistíme cenu a měnu akcie
+            # 1. Zjistíme cenu a měnu
             aktualni_cena, mena = ziskej_info_o_akcii(ticker)
-            
             if aktualni_cena is None: 
                 pouzita_cena = row['Cena']
-                mena = "N/A"
+                mena = "USD" # Default
             else:
                 pouzita_cena = aktualni_cena
 
@@ -186,13 +189,13 @@ def main():
             investice_orig = row['Pocet'] * row['Cena']
             zisk_orig = hodnota_orig - investice_orig
 
-            # 3. PŘEPOČET NA DOLARY (USD) PRO CELKOVÝ SOUČET
-            # Pokud je to CZK: dělíme kurzem (např. 1000 CZK / 23 = 43 USD)
-            # Pokud je to EUR: násobíme kurzem (např. 100 EUR * 1.08 = 108 USD)
-            
-            hodnota_usd = 0
-            investice_usd = 0
+            # --- NOVINKA: SČÍTÁNÍ PODLE MĚN ---
+            if mena not in investovano_dle_men:
+                investovano_dle_men[mena] = 0
+            investovano_dle_men[mena] += investice_orig
+            # ----------------------------------
 
+            # 3. PŘEPOČET NA USD
             if mena == "USD":
                 hodnota_usd = hodnota_orig
                 investice_usd = investice_orig
@@ -203,7 +206,6 @@ def main():
                 hodnota_usd = hodnota_orig * kurzy["EUR"]
                 investice_usd = investice_orig * kurzy["EUR"]
             else:
-                # Neznámá měna - bereme jako 1:1 (nouzovka)
                 hodnota_usd = hodnota_orig
                 investice_usd = investice_orig
 
@@ -222,19 +224,39 @@ def main():
         
         my_bar.empty()
 
-        # --- DASHBOARD ---
+        # --- DASHBOARD HLAVNÍ ---
+        st.subheader("🌐 Globální přehled (v USD)")
         celk_zisk_usd = celk_hodnota_usd - celk_investice_usd
         
         c1, c2, c3 = st.columns(3)
-        c1.metric("Celkem investováno (USD)", f"${celk_investice_usd:,.0f}")
-        c2.metric("Aktuální hodnota (USD)", f"${celk_hodnota_usd:,.0f}")
-        c3.metric("Celkový zisk (USD)", f"${celk_zisk_usd:+,.0f}", delta_color="normal")
+        c1.metric("Celkem investováno (přepočet)", f"${celk_investice_usd:,.0f}")
+        c2.metric("Aktuální hodnota (přepočet)", f"${celk_hodnota_usd:,.0f}")
+        c3.metric("Celkový zisk (přepočet)", f"${celk_zisk_usd:+,.0f}", delta_color="normal")
+
+        # --- DASHBOARD PODLE MĚN (NOVINKA) ---
+        st.divider()
+        st.subheader("💰 Investováno v měnách")
+        
+        # Dynamicky vytvoříme sloupce podle toho, kolik měn v portfoliu najdeme
+        cols = st.columns(len(investovano_dle_men))
+        
+        # Seřadíme měny (USD první, pak zbytek) a vypíšeme
+        serazene_meny = sorted(investovano_dle_men.keys(), key=lambda x: (x != 'USD', x))
+        
+        for i, mena in enumerate(serazene_meny):
+            castka = investovano_dle_men[mena]
+            # Vybereme správný symbol
+            symbol = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€" if mena == "EUR" else mena)
+            
+            with cols[i]:
+                st.metric(f"Investice ({mena})", f"{castka:,.2f} {symbol}")
+        
+        st.divider()
 
         # Tabulka s detaily
         st.subheader("📊 Detailní rozpis")
         df_viz = pd.DataFrame(viz_data)
         
-        # Formátování, aby to bylo hezké
         st.dataframe(
             df_viz.style.format({
                 "Cena teď": "{:.2f}",
@@ -245,8 +267,8 @@ def main():
             use_container_width=True
         )
 
-        # Graf (koláč podle USD hodnoty)
-        fig = px.pie(df_viz, values='Hodnota (USD)', names='Ticker', title='Rozložení portfolia (přepočteno na USD)')
+        # Graf
+        fig = px.pie(df_viz, values='Hodnota (USD)', names='Ticker', title='Rozložení portfolia (USD)')
         st.plotly_chart(fig, use_container_width=True)
 
     else:
@@ -254,4 +276,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
