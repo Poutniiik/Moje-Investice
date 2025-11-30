@@ -1,22 +1,19 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import plotly.express as px # Knihovna na grafy
 
 # --- NASTAVENÍ STRÁNKY ---
 st.set_page_config(page_title="Moje Investice", layout="wide")
 
-# --- PAMĚŤ APLIKACE (SESSION STATE) ---
-# Tady aplikaci naučíme, aby si pamatovala portfolio, i když klikáme
+# --- PAMĚŤ APLIKACE ---
 if 'portfolio' not in st.session_state:
-    st.session_state['portfolio'] = [
-        {"symbol": "AAPL", "pocet": 10, "nakupni_cena": 150.00},
-        {"symbol": "BTC-USD", "pocet": 0.5, "nakupni_cena": 30000.00},
-    ]
+    st.session_state['portfolio'] = []
 
-# --- FUNKCE PRO PŘIDÁNÍ NOVÉ INVESTICE ---
+# --- FUNKCE PRO PŘIDÁNÍ ---
 def pridat_investici(symbol, pocet, cena):
     nova_polozka = {
-        "symbol": symbol.upper(), # .upper() změní text na VELKÁ PÍSMENA
+        "symbol": symbol.upper(),
         "pocet": float(pocet),
         "nakupni_cena": float(cena)
     }
@@ -25,40 +22,39 @@ def pridat_investici(symbol, pocet, cena):
 
 # --- HLAVNÍ APLIKACE ---
 def ukaz_aplikaci():
-    # Rozdělení na dva sloupce: Vlevo ovládání, Vpravo přehled
+    st.title("💰 Můj Investiční Dashboard")
+    
     col_ovladani, col_prehled = st.columns([1, 3]) 
 
+    # --- LEVÝ PANEL (PŘIDÁVÁNÍ) ---
     with col_ovladani:
-        st.header("➕ Přidat nákup")
+        st.subheader("➕ Nový nákup")
         with st.form("pridani_form"):
-            novy_symbol = st.text_input("Zkratka akcie (např. TSLA)")
-            novy_pocet = st.number_input("Počet kusů", min_value=0.01, step=0.1)
+            novy_symbol = st.text_input("Ticker (např. AAPL, BTC-USD)")
+            novy_pocet = st.number_input("Počet kusů", min_value=0.0001, format="%.4f")
             nova_cena = st.number_input("Nákupní cena za kus ($)", min_value=0.1)
             
-            # Tlačítko odeslat
-            odeslat = st.form_submit_button("Uložit do portfolia")
-            
-            if odeslat:
-                if novy_symbol:
-                    pridat_investici(novy_symbol, novy_pocet, nova_cena)
-                    st.rerun() # Obnovit stránku, aby se to ukázalo v tabulce
-                else:
-                    st.error("Vyplň zkratku akcie!")
+            odeslat = st.form_submit_button("Uložit")
+            if odeslat and novy_symbol:
+                pridat_investici(novy_symbol, novy_pocet, nova_cena)
+                st.rerun()
 
-        st.info("💡 Tip: Pro Bitcoin zadej 'BTC-USD', pro Apple 'AAPL'.")
+        # Tlačítko pro vymazání všeho (pro jistotu)
+        if st.button("🗑️ Vymazat portfolio"):
+            st.session_state['portfolio'] = []
+            st.rerun()
 
+    # --- PRAVÝ PANEL (DATA A GRAFY) ---
     with col_prehled:
-        st.header("📈 Můj investiční přehled")
-        
-        celkem_investovano = 0
-        celkova_hodnota = 0
-        data_pro_tabulku = []
-
-        # Pokud je portfolio prázdné
         if not st.session_state['portfolio']:
-            st.warning("Zatím nemáš žádné investice. přidej je vlevo.")
+            st.info("Zatím žádné investice. Přidej něco vlevo! 👈")
         else:
-            with st.spinner('Aktualizuji ceny...'):
+            data_pro_tabulku = []
+            celkem_investovano = 0
+            celkova_hodnota = 0
+
+            # Načítání dat
+            with st.spinner('Aktualizuji tržní data...'):
                 for polozka in st.session_state['portfolio']:
                     ticker = polozka["symbol"]
                     pocet = polozka["pocet"]
@@ -67,83 +63,103 @@ def ukaz_aplikaci():
                     try:
                         aktualni_cena = yf.Ticker(ticker).history(period="1d")['Close'].iloc[-1]
                     except:
-                        aktualni_cena = 0 # Když se nepodaří načíst
+                        aktualni_cena = 0 
                     
                     investovano = pocet * nakupka
                     hodnota_ted = pocet * aktualni_cena
                     zisk = hodnota_ted - investovano
-                    
-                    if investovano > 0:
-                        zisk_procenta = (zisk / investovano) * 100
-                    else:
-                        zisk_procenta = 0
+                    zisk_proc = (zisk / investovano * 100) if investovano > 0 else 0
 
                     celkem_investovano += investovano
                     celkova_hodnota += hodnota_ted
                     
                     data_pro_tabulku.append({
-                        "Akcie": ticker,
+                        "Ticker": ticker,
                         "Počet": pocet,
                         "Cena nákup": nakupka,
                         "Cena teď": aktualni_cena,
-                        "Hodnota": hodnota_ted,
+                        "Hodnota ($)": hodnota_ted,
                         "Zisk ($)": zisk,
-                        "Zisk (%)": f"{zisk_procenta:.1f} %"
+                        "Zisk (%)": zisk_proc
                     })
 
-            # --- ZOBRAZENÍ METRIK (TŘI ČÍSLA NAHOŘE) ---
+            # 1. HLAVNÍ ČÍSLA
             celkovy_zisk = celkova_hodnota - celkem_investovano
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Investováno", f"{celkem_investovano:,.2f} $")
-            m2.metric("Hodnota portfolia", f"{celkova_hodnota:,.2f} $")
-            m3.metric("Zisk / Ztráta", f"{celkovy_zisk:+,.2f} $", delta_color="normal")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Investováno", f"{celkem_investovano:,.0f} $")
+            c2.metric("Hodnota portfolia", f"{celkova_hodnota:,.0f} $")
+            c3.metric("Celkový zisk", f"{celkovy_zisk:+,.0f} $", delta_color="normal")
+            
+            st.divider()
 
-            # --- TABULKA ---
+            # 2. GRAFY (NOVINKA!)
             df = pd.DataFrame(data_pro_tabulku)
             
-            # Formátování tabulky (aby čísla vypadala hezky)
+            g1, g2 = st.columns(2)
+            
+            with g1:
+                st.subheader("🍰 Rozložení portfolia")
+                # Koláčový graf: Jakou část tvoří která akcie
+                fig_pie = px.pie(df, values='Hodnota ($)', names='Ticker', hole=0.4)
+                st.plotly_chart(fig_pie, use_container_width=True)
+                
+            with g2:
+                st.subheader("📊 Ziskovost pozic")
+                # Sloupcový graf: Kde vyděláváš a kde proděláváš
+                fig_bar = px.bar(df, x='Ticker', y='Zisk ($)', color='Zisk ($)',
+                                color_continuous_scale=['red', 'green'])
+                st.plotly_chart(fig_bar, use_container_width=True)
+
+            # 3. TABULKA
+            st.subheader("📋 Detailní výpis")
             st.dataframe(
                 df.style.format({
                     "Cena nákup": "${:.2f}",
                     "Cena teď": "${:.2f}",
-                    "Hodnota": "${:.2f}",
-                    "Zisk ($)": "${:+.2f}"
-                }).map(lambda x: 'color: green' if x > 0 else 'color: red', subset=['Zisk ($)']),
+                    "Hodnota ($)": "${:.2f}",
+                    "Zisk ($)": "${:+.2f}",
+                    "Zisk (%)": "{:+.1f} %"
+                }).map(lambda x: 'color: #4CAF50' if x > 0 else 'color: #FF5252', subset=['Zisk ($)', 'Zisk (%)']),
                 use_container_width=True
             )
 
-# --- LOGIN (ZŮSTAL STEJNÝ) ---
-# --- LOGIN SE SEKCE ---
+# --- LOGIN ---
 def main():
-    st.sidebar.title("🔐 Přihlášení")
     if 'prihlasen' not in st.session_state:
         st.session_state['prihlasen'] = False
 
     if not st.session_state['prihlasen']:
-        uzivatel = st.sidebar.text_input("Uživatelské jméno")
-        heslo = st.sidebar.text_input("Heslo", type="password")
-        tlacitko = st.sidebar.button("Přihlásit se")
-
-        if tlacitko:
-            # --- BEZPEČNOSTNÍ ZMĚNA ---
-            try:
-                spravne_jmeno = st.secrets["login"]["uzivatel"]
-                spravne_heslo = st.secrets["login"]["heslo"]
-            except FileNotFoundError:
-                st.error("Chybí soubor .streamlit/secrets.toml!")
-                return
-
-            if uzivatel == spravne_jmeno and heslo == spravne_heslo:
-                st.session_state['prihlasen'] = True
-                st.rerun()
-            else:
-                st.sidebar.error("Chyba přihlášení")
-            # --------------------------
-            
+        st.markdown("<h1 style='text-align: center;'>🔐</h1>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([1,2,1])
+        with c2:
+            with st.form("login_form"):
+                uzivatel = st.text_input("Jméno")
+                heslo = st.text_input("Heslo", type="password")
+                submitted = st.form_submit_button("Vstoupit")
+                
+                if submitted:
+                    try:
+                        # TADY ČTEME HESLO Z TREZORU
+                        s_user = st.secrets["login"]["uzivatel"]
+                        s_pass = st.secrets["login"]["heslo"]
+                        
+                        if uzivatel == s_user and heslo == s_pass:
+                            st.session_state['prihlasen'] = True
+                            st.rerun()
+                        else:
+                            st.error("Neplatné údaje")
+                    except:
+                        st.error("Chybí nastavení secrets!")
     else:
-        if st.sidebar.button("Odhlásit se"):
-            st.session_state['prihlasen'] = False
-            st.rerun()
+        # Tlačítko odhlášení v postranním panelu
+        with st.sidebar:
+            if "login" in st.secrets:
+                 st.write(f"Uživatel: **{st.secrets['login']['uzivatel']}**")
+            
+            if st.button("Odhlásit se"):
+                st.session_state['prihlasen'] = False
+                st.rerun()
+        
         ukaz_aplikaci()
 
 if __name__ == "__main__":
