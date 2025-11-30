@@ -42,13 +42,24 @@ def nacti_data():
         data = file.decoded_content.decode("utf-8")
         df = pd.read_csv(StringIO(data))
         
-        # 🛠️ OPRAVA PRO STARÁ DATA (pokud chybí sloupec Datum)
+        # 🛠️ OPRAVA 1: Pokud chybí sloupec Datum, vytvoříme ho
         if 'Datum' not in df.columns:
-            df['Datum'] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            # Vytvoříme sloupec a naplníme ho aktuálním časem
+            df['Datum'] = datetime.now()
         
+        # 🛠️ OPRAVA 2 (Tohle vyřeší tu chybu):
+        # Musíme donutit Python, aby chápal sloupec jako DATUM, ne jako TEXT
+        df['Datum'] = pd.to_datetime(df['Datum'])
+
         return df
     except:
-        return pd.DataFrame(columns=["Ticker", "Pocet", "Cena", "Datum"])
+        # Pokud soubor neexistuje, vrátíme prázdnou tabulku se správnými typy
+        return pd.DataFrame({
+            "Ticker": pd.Series(dtype='str'),
+            "Pocet": pd.Series(dtype='float'),
+            "Cena": pd.Series(dtype='float'),
+            "Datum": pd.Series(dtype='datetime64[ns]')
+        })
 
 def uloz_data(df):
     repo = get_repo()
@@ -149,10 +160,17 @@ def main():
                 c = st.number_input("Cena ($)", min_value=0.1)
             with c4:
                 # Automatický datum a čas
-                d = st.text_input("Datum", value=datetime.now().strftime("%Y-%m-%d %H:%M"))
+                d = st.text_input("Datum (YYYY-MM-DD HH:MM)", value=datetime.now().strftime("%Y-%m-%d %H:%M"))
             
             if st.form_submit_button("Přidat"):
-                novy = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": d}])
+                # Převedeme vstup na správný formát hned tady
+                try:
+                    datum_obj = pd.to_datetime(d)
+                except:
+                    datum_obj = datetime.now()
+
+                novy = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datum_obj}])
+                
                 # Přidáme k editované tabulce
                 updated_df = pd.concat([edited_df, novy], ignore_index=True)
                 st.session_state['df'] = updated_df
@@ -162,7 +180,6 @@ def main():
     st.divider()
 
     # --- SEKCE 3: DASHBOARD (Výpočty) ---
-    # Používáme 'edited_df', aby se grafy měnily hned, jak něco přepíšeš v tabulce
     if not edited_df.empty:
         viz_data = []
         celkova_hodnota = 0
@@ -170,6 +187,7 @@ def main():
         
         # Progress bar
         my_bar = st.progress(0, text="Počítám zisky...")
+        total_rows = len(edited_df)
         
         for index, row in edited_df.iterrows():
             ticker = row['Ticker']
@@ -193,7 +211,8 @@ def main():
                 "Zisk": zisk,
                 "Datum": row.get('Datum', '-')
             })
-            my_bar.progress((index + 1) / len(edited_df))
+            if total_rows > 0:
+                my_bar.progress((index + 1) / total_rows)
         
         my_bar.empty()
         
