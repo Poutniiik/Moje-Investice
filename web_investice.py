@@ -63,7 +63,6 @@ def nacti_csv(nazev_souboru):
         file = repo.get_contents(nazev_souboru)
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
         
-        # Pokus o konverzi data, pokud sloupec existuje
         if 'Datum' in df.columns: 
             df['Datum'] = pd.to_datetime(df['Datum'], errors='coerce')
         if 'Date' in df.columns: 
@@ -108,21 +107,19 @@ def pohyb_penez(castka, mena, typ, poznamka, user):
     st.session_state['df_cash'] = df_cash
     uloz_data_uzivatele(df_cash, user, SOUBOR_CASH)
 
-# --- VÝVOJ HODNOTY (OPRAVENO) ---
+# --- VÝVOJ HODNOTY ---
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
     try:
         full_hist = nacti_csv(SOUBOR_VYVOJ)
     except:
         full_hist = pd.DataFrame(columns=["Date", "TotalUSD", "Owner"])
     
-    # 🛡️ OPRAVA: Vynutíme formát data hned na začátku
     if not full_hist.empty:
         full_hist['Date'] = pd.to_datetime(full_hist['Date'])
 
     today = datetime.now().strftime("%Y-%m-%d")
     user_hist = full_hist[full_hist['Owner'] == str(user)].copy()
     
-    # 🛡️ OPRAVA: Bezpečné porovnání data
     dnes_uz_zapsano = False
     if not user_hist.empty:
         last_date = user_hist.iloc[-1]['Date']
@@ -173,7 +170,16 @@ def proved_prodej(ticker, kusy_k_prodeji, prodejni_cena, user, mena_akcie):
     uloz_data_uzivatele(df_hist, user, SOUBOR_HISTORIE)
     return True, f"Prodáno! +{trzba:,.2f} {mena_akcie}"
 
-# --- INFO ---
+# --- INFO A SEKTORY (NOVÉ!) ---
+@st.cache_data(ttl=86400) # Ukládáme na 24h, sektory se nemění
+def ziskej_sektor(ticker):
+    """Zjistí sektor akcie (např. Technology)."""
+    try:
+        # Používáme full info, je to pomalejší, ale je tam sektor
+        return yf.Ticker(str(ticker)).info.get('sector', 'Ostatní')
+    except:
+        return 'Ostatní'
+
 @st.cache_data(ttl=3600)
 def ziskej_kurzy():
     kurzy = {"USD": 1.0}
@@ -188,6 +194,7 @@ def ziskej_info_o_akcii(ticker):
     if not ticker or pd.isna(ticker): return None, "USD"
     try:
         akcie = yf.Ticker(str(ticker))
+        # fast_info je super rychlé na cenu a měnu
         return akcie.fast_info.last_price, akcie.fast_info.currency
     except: return None, "USD"
 
@@ -336,12 +343,15 @@ def main():
         
         if not data_pro_vypocet.empty:
             kurzy = ziskej_kurzy()
-            bar = st.progress(0, "Počítám...")
+            bar = st.progress(0, "Počítám a stahuji sektory...")
             for i, (idx, row) in enumerate(data_pro_vypocet.iterrows()):
                 if pd.isna(row['Ticker']) or pd.isna(row['Pocet']): continue
                 tkr = str(row['Ticker'])
                 cena_ted, mena = ziskej_info_o_akcii(tkr)
                 cena_ted = cena_ted if cena_ted else row['Cena']
+                
+                # NOVÉ: ZÍSKÁNÍ SEKTORU
+                sektor = ziskej_sektor(tkr)
                 
                 hod = row['Pocet'] * cena_ted
                 inv = row['Pocet'] * row['Cena']
@@ -358,8 +368,17 @@ def main():
                 celk_hod_usd += hod * konv
                 celk_inv_usd += inv * konv
                 
-                viz_data.append({"Ticker": tkr, "Kusy": row['Pocet'], "Průměrná nákupka": row['Cena'], 
-                                 "Hodnota": hod, "Zisk": zisk, "Měna": mena, "HodnotaUSD": hod*konv})
+                viz_data.append({
+                    "Ticker": tkr, 
+                    "Kusy": row['Pocet'], 
+                    "Nákupní cena": row['Cena'], 
+                    "Cena teď": cena_ted,
+                    "Hodnota": hod, 
+                    "Zisk": zisk, 
+                    "Měna": mena, 
+                    "HodnotaUSD": hod*konv,
+                    "Sektor": sektor # Přidáno do dat
+                })
                 bar.progress((i+1)/len(data_pro_vypocet))
             bar.empty()
 
@@ -391,17 +410,34 @@ def main():
         st.divider()
         if viz_data:
             gf = pd.DataFrame(viz_data)
-            st.dataframe(gf[["Ticker", "Měna", "Kusy", "Průměrná nákupka", "Hodnota", "Zisk"]]
-                         .style.format({"Průměrná nákupka": "{:.2f}", "Hodnota": "{:,.2f}", "Zisk": "{:+,.2f}"})
-                         .map(lambda x: 'color: green' if x > 0 else 'color: red', subset=['Zisk']), use_container_width=True)
+            st.dataframe(
+                gf[["Ticker", "Měna", "Sektor", "Kusy", "Nákupní cena", "Cena teď", "Hodnota", "Zisk"]]
+                .style.format({
+                    "Kusy": "{:.4f}",
+                    "Nákupní cena": "{:.2f}",
+                    "Cena teď": "{:.2f}",
+                    "Hodnota": "{:,.2f}",
+                    "Zisk": "{:+,.2f}"
+                })
+                .map(lambda x: 'color: green' if x > 0 else 'color: red', subset=['Zisk']),
+                use_container_width=True
+            )
             
             st.divider()
-            g1, g2 = st.columns(2)
+            
+            # --- ZMĚNA: NYNÍ 3 GRAFY VEDLE SEBE ---
+            g1, g2, g3 = st.columns(3)
             with g1:
                 st.caption("Rozložení (USD)")
                 fig = px.pie(gf, values='HodnotaUSD', names='Ticker', hole=0.4)
+                fig.update_layout(showlegend=False) # Skryjeme legendu ať se to vejde
                 st.plotly_chart(fig, use_container_width=True)
             with g2:
+                st.caption("Sektory (Diverzifikace)")
+                fig = px.pie(gf, values='HodnotaUSD', names='Sektor', hole=0.4)
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+            with g3:
                 st.caption("Ziskovost (Orig. měna)")
                 fig = px.bar(gf, x='Ticker', y='Zisk', color='Zisk', color_continuous_scale=['red', 'green'])
                 st.plotly_chart(fig, use_container_width=True)
@@ -439,10 +475,12 @@ def main():
                 sel_t = st.selectbox("Akcie", tickery)
                 ks = df[df['Ticker'] == sel_t]['Pocet'].sum()
                 akt_cena, akt_mena = ziskej_info_o_akcii(sel_t)
-                st.write(f"Máš: **{ks}** ks. Cena: **{akt_cena:.2f} {akt_mena}**")
+                st.write(f"Máš: **{ks}** ks. Cena teď: **{akt_cena:.2f} {akt_mena}**")
+                
                 c1, c2 = st.columns(2)
                 q = c1.number_input("Kolik prodat?", 0.0001, float(ks))
                 pr = c2.number_input("Prodejní cena", 0.01, float(akt_cena) if akt_cena else 0.0)
+                
                 if st.form_submit_button("PRODAT"):
                     ok, msg = proved_prodej(sel_t, q, pr, USER, akt_mena)
                     if ok: st.success(msg); st.rerun()
