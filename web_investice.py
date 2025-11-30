@@ -10,7 +10,7 @@ import hashlib # Pro šifrování hesel
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Investiční App", layout="wide", page_icon="📈")
 
-REPO_NAZEV = "Poutniik/Moje-Investice" 
+REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv" # Data akcií
 SOUBOR_UZIVATELE = "users_db.csv"  # Data uživatelů
 
@@ -315,3 +315,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
