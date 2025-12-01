@@ -556,67 +556,79 @@ def main():
         
     elif page == "💎 Dividendy":
         st.title("💎 DIVIDENDY")
+
+        # --- ČÁST 1: ZELENÝ GRAF A CELKOVÝ PŘEHLED ---
         if not df_div.empty:
-            # 1. Převedeme vše na CZK pro grafy (použijeme naše pevné kurzy)
+            # Převedeme data na datum
             df_div['Datum'] = pd.to_datetime(df_div['Datum'])
-            df_div['Mesic'] = df_div['Datum'].dt.strftime('%Y-%m') # Vytvoříme sloupec "2025-12"
-            
+            df_div['Mesic'] = df_div['Datum'].dt.strftime('%Y-%m')
+
+            # Funkce pro přepočet na CZK (jen pro graf)
             def prepocet_na_czk(row):
                 m = row['Mena']; c = row['Castka']
                 if m == 'CZK': return c
                 elif m == 'USD': return c * 20.85
-                elif m == 'EUR': return c * 24.20 # Cca kurz eura
+                elif m == 'EUR': return c * 24.20
                 return c
             
+            # Vytvoříme sloupec s korunami
             df_div['CastkaCZK'] = df_div.apply(prepocet_na_czk, axis=1)
-            
-            # 2. Seskupíme podle měsíců
             monthly_data = df_div.groupby('Mesic')['CastkaCZK'].sum()
-            
-            # 3. Zobrazíme graf a metriky
+
+            # Zobrazení grafu
             k1, k2 = st.columns([2, 1])
             with k1:
                 st.subheader("📅 Pasivní příjem (CZK)")
-                st.bar_chart(monthly_data, color="#00FF00") # Zelený graf
+                st.bar_chart(monthly_data, color="#00FF00")
             with k2:
                 celkem_divi = df_div['CastkaCZK'].sum()
                 st.metric("CELKEM VYPLACENO", f"{celkem_divi:,.0f} Kč", "Super práce! 🚀")
                 st.write("Poslední měsíce:")
-                st.dataframe(monthly_data.sort_index(ascending=False).head(5), use_container_width=True)
-            
+                st.dataframe(monthly_data.sort_index(ascending=False).head(3), use_container_width=True)
             st.divider()
-        # 👆 KONEC NOVÉHO BLOKU 👆
+
+        # --- ČÁST 2: FORMULÁŘ A TABULKA ---
         c1, c2 = st.columns([1, 2])
+        
+        # Levý sloupec: Přidání dividendy
         with c1:
             st.subheader("Připsat dividendu")
             with st.form("div"):
-                t = st.text_input("Ticker").upper(); a = st.number_input("Částka", 0.01); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
-                if st.form_submit_button("PŘIPSAT"): pridat_dividendu(t, a, c, USER); st.toast("Připsáno", icon="💎"); st.rerun()
+                t = st.text_input("Ticker").upper()
+                a = st.number_input("Částka", 0.01)
+                c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
+                if st.form_submit_button("PŘIPSAT"):
+                    pridat_dividendu(t, a, c, USER)
+                    st.toast("Připsáno", icon="💎")
+                    st.rerun()
+
+        # Pravý sloupec: Historie a detailní součty
         with c2:
             if not df_div.empty:
                 st.subheader("📝 Historie plateb")
-        # Vybereme jen sloupce, co chceme vidět
-        ukazat_df = df_div[["Datum", "Ticker", "Castka", "Mena", "CastkaCZK"]].copy()
-        
-        # Seřadíme od nejnovějšího
-        ukazat_df = ukazat_df.sort_values("Datum", ascending=False)
-        
-        # A zobrazíme to krásně naformátované
-        st.dataframe(
-            ukazat_df.style.format({
-                "Castka": "{:,.2f}",       # Původní částka na 2 desetinná
-                "CastkaCZK": "{:,.0f} Kč", # České koruny bez desetinných míst
-                "Datum": "{:%d.%m.%Y}"     # Datum hezky česky
-            }), 
-            use_container_width=True,
-            hide_index=True # Schováme ten levý sloupeček s čísly řádků (0,1,2...)
-        )
+                
+                # Vylepšená tabulka
+                ukazat_df = df_div[["Datum", "Ticker", "Castka", "Mena", "CastkaCZK"]].copy()
+                ukazat_df = ukazat_df.sort_values("Datum", ascending=False)
+                
+                st.dataframe(
+                    ukazat_df.style.format({
+                        "Castka": "{:,.2f}",
+                        "CastkaCZK": "{:,.0f} Kč",
+                        "Datum": "{:%d.%m.%Y}"
+                    }), 
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Staré součty podle měn (aby ti to nechybělo)
+                st.divider()
+                meny_divi = df_div['Mena'].unique().tolist()
                 if meny_divi:
-                    st.divider()
                     cols = st.columns(len(meny_divi))
                     for i, m in enumerate(meny_divi):
                         suma = df_div[df_div['Mena'] == m]['Castka'].sum()
-                        sym = "$" if m=="USD" else ("Kč" if m=="CZK" else "€" if m=="EUR" else m)
+                        sym = "$" if m=="USD" else ("Kč" if m=="CZK" else "€")
                         cols[i].metric(f"Celkem ({m})", f"{suma:,.2f} {sym}")
 
     elif page == "⚙️ Správa Dat":
@@ -633,6 +645,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
