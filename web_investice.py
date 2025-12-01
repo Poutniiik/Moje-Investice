@@ -308,10 +308,7 @@ def main():
     # --- SIDEBAR ---
     with st.sidebar:
         st.write(f"👤 **{USER.upper()}**")
-        # 👇 DIAGNOSTIKA KURZŮ (Pak to smažeme)
-        st.caption("🛠️ DEBUG DATA:")
-        st.code(f"USD/CZK: {kurzy.get('CZK')}\nEUR/USD: {kurzy.get('EUR')}")
-        # 👆 KONEC DIAGNOSTIKY
+        
         # 💰 ZDE JE NÁVRAT ZŮSTATKŮ DO MENU 💰
         if zustatky:
             st.caption("Stav peněženky:")
@@ -542,6 +539,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
