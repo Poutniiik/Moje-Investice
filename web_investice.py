@@ -18,7 +18,7 @@ SOUBOR_CASH = "cash_data.csv"
 SOUBOR_VYVOJ = "value_history.csv"
 SOUBOR_WATCHLIST = "watchlist.csv"
 
-# --- STYLY ---
+# --- STYLY (CSS) ---
 st.markdown("""
 <style>
     .stApp {background-color: #0E1117; font-family: 'Roboto Mono', monospace;}
@@ -28,6 +28,8 @@ st.markdown("""
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1px;}
     hr {border-color: #30363D;}
     div[data-testid="column"] button {border: 1px solid #FF4B4B; color: #FF4B4B;}
+    /* Tooltip styl */
+    div[data-testid="stTooltipIcon"] {color: #58A6FF;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -78,7 +80,7 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
 
 def nacti_uzivatele(): return nacti_csv(SOUBOR_UZIVATELE)
 
-# --- WATCHLIST LOGIKA (S CALLBACKEM) ---
+# --- WATCHLIST ---
 def pridat_do_watchlistu(ticker, user):
     df_w = st.session_state['df_watch']
     if ticker not in df_w['Ticker'].values:
@@ -86,6 +88,8 @@ def pridat_do_watchlistu(ticker, user):
         updated = pd.concat([df_w, new], ignore_index=True)
         st.session_state['df_watch'] = updated
         uloz_data_uzivatele(updated, user, SOUBOR_WATCHLIST)
+        return True
+    return False
 
 def odebrat_z_watchlistu(ticker, user):
     df_w = st.session_state['df_watch']
@@ -186,16 +190,17 @@ def main():
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
                             st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u}); st.rerun()
-                        else: st.error("Špatné heslo nebo jméno.")
+                        else: st.toast("Chyba přihlášení", icon="❌") # 🍞 TOAST
             with t2:
                 with st.form("r"):
-                    nu=st.text_input("Nové jméno"); np=st.text_input("Nové heslo", type="password"); nr=st.text_input("Záchranný kód (pro obnovu)")
+                    nu=st.text_input("Nové jméno"); np=st.text_input("Nové heslo", type="password"); 
+                    nr=st.text_input("Záchranný kód", help="Slouží pro obnovu zapomenutého hesla. Dobře si ho zapamatuj!") # ℹ️ TOOLTIP
                     if st.form_submit_button("VYTVOŘIT ÚČET", use_container_width=True):
                         df_u = nacti_uzivatele()
-                        if not df_u.empty and nu in df_u['username'].values: st.error("Jméno již existuje.")
+                        if not df_u.empty and nu in df_u['username'].values: st.toast("Jméno již existuje.", icon="⚠️")
                         else:
                             new = pd.DataFrame([{"username": nu, "password": zasifruj(np), "recovery_key": zasifruj(nr)}])
-                            uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.success("Účet vytvořen!")
+                            uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
         return
 
     # --- DASHBOARD ---
@@ -218,7 +223,6 @@ def main():
         st.divider()
         st.subheader("🔍 SLEDOVANÉ")
         
-        # Přidávání bez rerunu formuláře
         with st.form("w_add", clear_on_submit=True):
             new_w = st.text_input("Symbol", placeholder="NVDA").upper()
             if st.form_submit_button("Přidat"):
@@ -230,9 +234,8 @@ def main():
                 info = wd.get(t)
                 c1, c2 = st.columns([3, 1])
                 c1.metric(t, f"{info['price']:.2f} {info['curr']}" if info else "?")
-                # Tady je ten trik s on_click!
                 c2.write(""); c2.write("")
-                c2.button("🗑️", key=f"del_{t}", on_click=odebrat_z_watchlistu, args=(t, USER))
+                if c2.button("🗑️", key=f"del_{t}", on_click=odebrat_z_watchlistu, args=(t, USER)): pass
         else:
             st.caption("Seznam je prázdný.")
 
@@ -301,14 +304,16 @@ def main():
                 )
                 if not df[["Ticker", "Pocet", "Cena", "Datum"]].reset_index(drop=True).equals(edited_df.reset_index(drop=True)):
                     if st.button("💾 ULOŽIT ZMĚNY NA GITHUB"):
-                        st.session_state['df'] = edited_df; uloz_data_uzivatele(edited_df, USER, SOUBOR_DATA); st.success("Uloženo"); st.rerun()
+                        st.session_state['df'] = edited_df; uloz_data_uzivatele(edited_df, USER, SOUBOR_DATA); 
+                        st.toast("Změny uloženy!", icon="✅"); st.rerun() # 🍞 TOAST
             else:
                 if viz_data:
                     vdf = pd.DataFrame(viz_data)
+                    # 🎨 GRADIENTNÍ TABULKA
                     st.dataframe(
                         vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Hodnota", "Zisk"]]
                         .style.format({"Průměr": "{:.2f}", "Cena": "{:.2f}", "Hodnota": "{:,.0f}", "Zisk": "{:+,.0f}"})
-                        .map(lambda x: 'color: green' if x>0 else 'color: red', subset=['Zisk']), 
+                        .background_gradient(cmap="RdYlGn", subset=["Zisk"], vmin=-1000, vmax=1000), # 🎨 TEPELNÁ MAPA
                         use_container_width=True
                     )
                 else: st.info("Zatím žádné investice.")
@@ -329,10 +334,14 @@ def main():
             st.subheader("🏦 Bankovní operace")
             with st.form("d"):
                 a = st.number_input("Částka", 1.0); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
-                if st.form_submit_button("💰 VLOŽIT PENÍZE"): pohyb_penez(a, c, "Vklad", "Man", USER); st.success("Vloženo"); st.rerun()
+                if st.form_submit_button("💰 VLOŽIT PENÍZE"): 
+                    pohyb_penez(a, c, "Vklad", "Man", USER); 
+                    st.toast("Vklad úspěšný", icon="💰"); st.rerun() # 🍞 TOAST
             with st.form("w"):
                 a = st.number_input("Částka", 1.0); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
-                if st.form_submit_button("💸 VYBRAT PENÍZE"): pohyb_penez(-a, c, "Vyber", "Man", USER); st.success("Vybráno"); st.rerun()
+                if st.form_submit_button("💸 VYBRAT PENÍZE"): 
+                    pohyb_penez(-a, c, "Vyber", "Man", USER); 
+                    st.toast("Výběr úspěšný", icon="💸"); st.rerun() # 🍞 TOAST
         with c2:
             st.subheader("Historie transakcí")
             st.dataframe(df_cash.sort_values("Datum", ascending=False), use_container_width=True)
@@ -349,13 +358,14 @@ def main():
                     if st.form_submit_button("💸 PRODAT"):
                         _, m = ziskej_info(t); m = m if m else "USD"
                         ok, msg = proved_prodej(t, q, pr, USER, m)
-                        if ok: st.success("OK"); st.rerun()
-                        else: st.error(msg)
+                        if ok: st.toast("Prodáno!", icon="✅"); st.rerun()
+                        else: st.toast(msg, icon="⚠️")
             
             with c_buy:
                 st.subheader("Nákup (Z peněženky)")
                 with st.form("b"):
-                    t = st.text_input("Symbol (Ticker)").upper(); p = st.number_input("Počet kusů", 0.001); c = st.number_input("Nákupní cena", 0.1)
+                    t = st.text_input("Symbol (Ticker)", help="Např. AAPL, TSLA, CEZ.PR").upper(); # ℹ️ TOOLTIP
+                    p = st.number_input("Počet kusů", 0.001); c = st.number_input("Nákupní cena", 0.1)
                     if st.form_submit_button("🛒 KOUPIT"):
                         _, m = ziskej_info(t); m = m if m else "USD"
                         cost = p*c; bal = zustatky.get(m, 0)
@@ -363,8 +373,9 @@ def main():
                             pohyb_penez(-cost, m, "Nákup", f"Buy {t}", USER)
                             new = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER}])
                             upd = pd.concat([df, new], ignore_index=True)
-                            st.session_state['df'] = upd; uloz_data_uzivatele(upd, USER, SOUBOR_DATA); st.success("Koupeno"); st.rerun()
-                        else: st.error(f"Nedostatek {m}")
+                            st.session_state['df'] = upd; uloz_data_uzivatele(upd, USER, SOUBOR_DATA); 
+                            st.toast(f"Akcie {t} nakoupena!", icon="🛒"); st.rerun()
+                        else: st.toast(f"Nedostatek {m}", icon="❌")
         else: st.info("Nejdřív vlož peníze a nakup akcie v záložce Portfolio (nebo zde).")
 
     with t4:
@@ -382,7 +393,7 @@ def main():
                 }
             )
             if not st.session_state['df_hist'].equals(ed):
-                if st.button("💾 ULOŽIT ÚPRAVY DENÍKU"): st.session_state['df_hist'] = ed; uloz_data_uzivatele(ed, USER, SOUBOR_HISTORIE); st.success("Uloženo"); st.rerun()
+                if st.button("💾 ULOŽIT ÚPRAVY DENÍKU"): st.session_state['df_hist'] = ed; uloz_data_uzivatele(ed, USER, SOUBOR_HISTORIE); st.toast("Deník upraven", icon="💾"); st.rerun()
         else: st.info("Žádná historie obchodů.")
 
 if __name__ == "__main__":
