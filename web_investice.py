@@ -24,10 +24,9 @@ st.markdown("""
     .stApp {background-color: #0E1117; font-family: 'Roboto Mono', monospace;}
     div[data-testid="stMetric"] {background-color: #161B22; border: 1px solid #30363D; padding: 15px; border-radius: 5px; color: #E6EDF3;}
     div[data-testid="stMetricLabel"] {font-size: 0.9rem; color: #8B949E; font-weight: bold; text-transform: uppercase;}
-    div[data-testid="stMetricValue"] {font-size: 1.3rem; color: #E6EDF3; font-weight: bold;}
+    div[data-testid="stMetricValue"] {font-size: 1.2rem; color: #E6EDF3; font-weight: bold;}
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1px;}
     hr {border-color: #30363D;}
-    /* Tlačítko koše v sidebaru */
     div[data-testid="column"] button {border: 1px solid #FF4B4B; color: #FF4B4B;}
 </style>
 """, unsafe_allow_html=True)
@@ -79,7 +78,7 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
 
 def nacti_uzivatele(): return nacti_csv(SOUBOR_UZIVATELE)
 
-# --- WATCHLIST ---
+# --- WATCHLIST LOGIKA (S CALLBACKEM) ---
 def pridat_do_watchlistu(ticker, user):
     df_w = st.session_state['df_watch']
     if ticker not in df_w['Ticker'].values:
@@ -87,8 +86,6 @@ def pridat_do_watchlistu(ticker, user):
         updated = pd.concat([df_w, new], ignore_index=True)
         st.session_state['df_watch'] = updated
         uloz_data_uzivatele(updated, user, SOUBOR_WATCHLIST)
-        return True
-    return False
 
 def odebrat_z_watchlistu(ticker, user):
     df_w = st.session_state['df_watch']
@@ -214,28 +211,28 @@ def main():
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
-    # --- SIDEBAR (WATCHLIST UPRAVENO) ---
+    # --- SIDEBAR (WATCHLIST) ---
     with st.sidebar:
         st.write(f"👤 **{USER.upper()}**")
         if st.button("ODHLÁSIT SE"): st.session_state.clear(); st.rerun()
         st.divider()
         st.subheader("🔍 SLEDOVANÉ")
         
-        new_w = st.text_input("Přidat symbol (např. NVDA)", placeholder="NVDA").upper()
-        if new_w:
-            if pridat_do_watchlistu(new_w, USER): st.rerun()
+        # Přidávání bez rerunu formuláře
+        with st.form("w_add", clear_on_submit=True):
+            new_w = st.text_input("Symbol", placeholder="NVDA").upper()
+            if st.form_submit_button("Přidat"):
+                if new_w: pridat_do_watchlistu(new_w, USER); st.rerun()
             
         if not df_watch.empty:
             wd = get_live_data_batch(df_watch['Ticker'].tolist())
             for t in df_watch['Ticker']:
                 info = wd.get(t)
                 c1, c2 = st.columns([3, 1])
-                # Upraveno: Mezera pro zarovnání tlačítka
                 c1.metric(t, f"{info['price']:.2f} {info['curr']}" if info else "?")
-                # Tlačítko koše
-                c2.write("")
-                c2.write("")
-                if c2.button("🗑️", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
+                # Tady je ten trik s on_click!
+                c2.write(""); c2.write("")
+                c2.button("🗑️", key=f"del_{t}", on_click=odebrat_z_watchlistu, args=(t, USER))
         else:
             st.caption("Seznam je prázdný.")
 
@@ -390,5 +387,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
