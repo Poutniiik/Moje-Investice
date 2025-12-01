@@ -611,7 +611,6 @@ def main():
             use_container_width=True,
             hide_index=True # Schováme ten levý sloupeček s čísly řádků (0,1,2...)
         )
-                meny_divi = df_div['Mena'].unique().tolist()
                 if meny_divi:
                     st.divider()
                     cols = st.columns(len(meny_divi))
@@ -634,6 +633,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
