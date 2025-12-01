@@ -8,9 +8,9 @@ from datetime import datetime
 import hashlib
 
 # --- KONFIGURACE ---
-st.set_page_config(page_title="Můj Terminál", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
 
-REPO_NAZEV = "Poutniiik/Moje-Investice" 
+REPO_NAZEV = "Poutniik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
 SOUBOR_HISTORIE = "history_data.csv"
@@ -24,9 +24,11 @@ st.markdown("""
     .stApp {background-color: #0E1117; font-family: 'Roboto Mono', monospace;}
     div[data-testid="stMetric"] {background-color: #161B22; border: 1px solid #30363D; padding: 15px; border-radius: 5px; color: #E6EDF3;}
     div[data-testid="stMetricLabel"] {font-size: 0.9rem; color: #8B949E; font-weight: bold; text-transform: uppercase;}
-    div[data-testid="stMetricValue"] {font-size: 1.3rem; color: #E6EDF3; font-weight: bold;}
+    div[data-testid="stMetricValue"] {font-size: 1.5rem; color: #E6EDF3; font-weight: bold;}
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1px;}
     hr {border-color: #30363D;}
+    /* Tlačítko koše v sidebaru */
+    div[data-testid="column"] button {border: 1px solid #FF4B4B; color: #FF4B4B;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -173,9 +175,9 @@ def main():
     if 'prihlasen' not in st.session_state: st.session_state['prihlasen'] = False
     if 'user' not in st.session_state: st.session_state['user'] = ""
 
-    # LOGIN SCREEN (ČESKY)
+    # LOGIN SCREEN
     if not st.session_state['prihlasen']:
-        c1,c2,c3 = st.columns([1,2,1])
+        c1,c2,c3 = st.columns([1, 2, 1])
         with c2:
             st.title("🔐 INVESTIČNÍ TERMINÁL")
             t1, t2 = st.tabs(["PŘIHLÁŠENÍ", "REGISTRACE"])
@@ -212,7 +214,7 @@ def main():
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
-    # --- SIDEBAR (WATCHLIST) ---
+    # --- SIDEBAR (WATCHLIST UPRAVENO) ---
     with st.sidebar:
         st.write(f"👤 **{USER.upper()}**")
         if st.button("ODHLÁSIT SE"): st.session_state.clear(); st.rerun()
@@ -228,8 +230,12 @@ def main():
             for t in df_watch['Ticker']:
                 info = wd.get(t)
                 c1, c2 = st.columns([3, 1])
+                # Upraveno: Mezera pro zarovnání tlačítka
                 c1.metric(t, f"{info['price']:.2f} {info['curr']}" if info else "?")
-                if c2.button("✖", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
+                # Tlačítko koše
+                c2.write("")
+                c2.write("")
+                if c2.button("🗑️", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
         else:
             st.caption("Seznam je prázdný.")
 
@@ -270,7 +276,7 @@ def main():
         zmena_24h = celk_hod_usd - vcera
         pct_24h = (zmena_24h / vcera * 100) if vcera > 0 else 0
 
-    # KPI KARTY (ČESKY)
+    # KPI KARTY
     k1, k2, k3 = st.columns(3)
     k1.metric("ČISTÉ JMĚNÍ (USD)", f"$ {celk_hod_usd:,.0f}", f"{celk_hod_usd-celk_inv_usd:+,.0f} Zisk")
     k2.metric("ZMĚNA 24H", f"${zmena_24h:+,.0f}", f"{pct_24h:+.2f}%")
@@ -384,5 +390,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
