@@ -6,7 +6,6 @@ from github import Github
 from io import StringIO
 from datetime import datetime
 import hashlib
-import requests_cache
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -26,7 +25,7 @@ st.markdown("""
     .stApp {background-color: #0E1117; font-family: 'Roboto Mono', monospace;}
     div[data-testid="stMetric"] {background-color: #161B22; border: 1px solid #30363D; padding: 15px; border-radius: 5px; color: #E6EDF3;}
     div[data-testid="stMetricLabel"] {font-size: 0.9rem; color: #8B949E; font-weight: bold; text-transform: uppercase;}
-    div[data-testid="stMetricValue"] {font-size: 1.2rem; color: #E6EDF3; font-weight: bold;}
+    div[data-testid="stMetricValue"] {font-size: 1.5rem; color: #E6EDF3; font-weight: bold;}
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1px;}
     hr {border-color: #30363D;}
     div[data-testid="column"] button {border: 1px solid #FF4B4B; color: #FF4B4B;}
@@ -59,8 +58,10 @@ def nacti_csv(nazev_souboru):
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
         for col in ['Datum', 'Date']:
             if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
+        
         for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD']:
             if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         df['Owner'] = df['Owner'].astype(str)
         return df
@@ -159,75 +160,41 @@ def proved_prodej(ticker, kusy, cena, user, mena):
     uloz_data_uzivatele(df_p, user, SOUBOR_DATA); uloz_data_uzivatele(df_h, user, SOUBOR_HISTORIE)
     return True, f"Prodáno! +{trzba:,.2f}"
 
-# --- 🛠️ FIX YAHOO SPOJENÍ ---
-@st.cache_resource
-def get_session():
-    session = requests_cache.CachedSession('yfinance.cache')
-    session.headers['User-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-    return session
-
-# --- INFO & TURBO MODE ---
-@st.cache_data(ttl=900)
-def ziskej_ceny_hromadne(tickers):
-    data = {}
-    if not tickers: return data
+# --- LIVE DATA FUNKCE ---
+# Toto je ta nejjednodušší a nejspolehlivější metoda
+def ziskej_info_simple(ticker):
+    mena = "USD"
+    if str(ticker).endswith(".PR"): mena = "CZK"
+    elif str(ticker).endswith(".DE") or str(ticker).endswith(".PA"): mena = "EUR"
+    
     try:
-        session = get_session() # Použití maskované session
-        ts = list(set(tickers + ["CZK=X", "EURUSD=X", "^GSPC", "^GDAXI", "FPX.PR"]))
-        # Stahujeme přes session
-        df_y = yf.download(ts, period="1d", group_by='ticker', progress=False, session=session)
+        t = yf.Ticker(str(ticker))
+        # Zkusíme fast_info (nejrychlejší)
+        price = t.fast_info.last_price
+        if price: return price, mena
         
-        for t in ts:
-            try:
-                price = df_y[t]['Close'].iloc[-1] if len(ts) > 1 else df_y['Close'].iloc[-1]
-                curr = "USD"
-                if ".PR" in t: curr = "CZK"
-                elif ".DE" in t: curr = "EUR"
-                if pd.notnull(price): data[t] = {"price": float(price), "curr": curr}
-            except: pass
+        # Fallback na historii (pomalejší, ale jistota)
+        hist = t.history(period="1d")
+        if not hist.empty:
+            return hist['Close'].iloc[-1], mena
+            
     except: pass
-    return data
+    return None, mena
 
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=3600)
 def ziskej_sektor(ticker):
-    try: 
-        session = get_session()
-        t = yf.Ticker(str(ticker), session=session)
-        return t.info.get('sector', 'Ostatní')
+    try: return yf.Ticker(str(ticker)).info.get('sector', 'Ostatní')
     except: return 'Ostatní'
 
 @st.cache_data(ttl=3600)
 def ziskej_kurzy():
     kurzy = {"USD": 1.0, "CZK": 24.5, "EUR": 1.05}
     try:
-        session = get_session()
-        d = yf.download(["CZK=X", "EURUSD=X"], period="1d", progress=False, session=session)['Close'].iloc[-1]
+        d = yf.download(["CZK=X", "EURUSD=X"], period="1d", progress=False)['Close'].iloc[-1]
         if pd.notnull(d["CZK=X"]): kurzy["CZK"] = float(d["CZK=X"])
         if pd.notnull(d["EURUSD=X"]): kurzy["EUR"] = float(d["EURUSD=X"])
     except: pass
     return kurzy
-
-def ziskej_info(ticker):
-    mena = "USD"
-    if str(ticker).endswith(".PR"): mena = "CZK"
-    elif str(ticker).endswith(".DE"): mena = "EUR"
-    
-    try: 
-        session = get_session()
-        t = yf.Ticker(str(ticker), session=session)
-        # Fast info nebere session, zkusíme klasiku
-        try: price = t.fast_info.last_price
-        except: price = t.history(period="1d")['Close'].iloc[-1]
-        
-        return price, mena
-    except: return None, mena
-
-def get_live_data_batch(tickers):
-    data = {}
-    for t in tickers:
-        p, m = ziskej_info(t)
-        if p: data[t] = {"price": p, "curr": m}
-    return data
 
 def proved_smenu(castka, z_meny, do_meny, user):
     kurzy = ziskej_kurzy()
@@ -275,7 +242,7 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
         return
 
-    # --- DASHBOARD INIT ---
+    # --- DASHBOARD ---
     USER = st.session_state['user']
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
@@ -289,27 +256,15 @@ def main():
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
-    # 🏎️ TURBO FETCHING
-    all_tickers = []
-    if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
-    if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
-    LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
-    
-    if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
-    if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
-
     # --- SIDEBAR ---
     with st.sidebar:
         st.write(f"👤 **{USER.upper()}**")
-        
-        # 💰 ZŮSTATKY ZPĚT V MENU
         if zustatky:
             st.caption("Stav peněženky:")
             for mena, castka in zustatky.items():
-                if castka > 0.01 or castka < -0.01:
+                if abs(castka) > 0.01:
                     sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
                     st.write(f"💵 **{castka:,.2f} {sym}**")
-        
         st.divider()
         page = st.radio("MENU", ["🏠 Přehled", "📈 Analýza", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"])
         st.divider()
@@ -321,13 +276,9 @@ def main():
                 if new_w: pridat_do_watchlistu(new_w, USER); st.rerun()
             
         if not df_watch.empty:
+            # Watchlist se stahuje jednotlivě, aby to bylo spolehlivé
             for t in df_watch['Ticker']:
-                info = LIVE_DATA.get(t, {})
-                price = info.get('price'); curr = info.get('curr', '?')
-                # Tady taky opravíme měnu pro watchlist
-                if ".PR" in t: curr = "CZK"
-                elif ".DE" in t: curr = "EUR"
-                
+                price, curr = ziskej_info_simple(t)
                 c1, c2 = st.columns([3, 1])
                 c1.metric(t, f"{price:.2f} {curr}" if price else "?")
                 c2.write(""); c2.write("")
@@ -337,29 +288,27 @@ def main():
         st.divider()
         if st.button("ODHLÁSIT SE"): st.session_state.clear(); st.rerun()
 
-    # VÝPOČTY
+    # VÝPOČTY (HLAVNÍ SMYČKA)
     viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
+    
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
         df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
 
+        # TLAČÍTKO NA AKTUALIZACI DAT
+        if st.button("🔄 AKTUALIZOVAT CENY Z BURZY"):
+            st.cache_data.clear()
+            st.rerun()
+
         bar = st.progress(0, "ANALÝZA TRHU...")
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
-            inf = LIVE_DATA.get(tkr, {})
-            p = inf.get('price')
             
-            # ZÁCHRANNÁ SÍŤ PRO CENU A MĚNU (INDIVIDUÁLNÍ FETCH)
-            if not p:
-                p, _ = ziskej_info(tkr)
+            # 🚀 TADY JE ZMĚNA: Stahujeme přímo, bez hromadné cache
+            p, m = ziskej_info_simple(tkr)
             
-            if not p: p = row['Cena'] # Fallback na nákupní
-            
-            # Měna natvrdo
-            m = "USD"
-            if ".PR" in tkr: m = "CZK"
-            elif ".DE" in tkr: m = "EUR"
+            if p is None: p = row['Cena'] # Fallback
             
             sektor = ziskej_sektor(tkr)
             
@@ -409,14 +358,6 @@ def main():
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
-        st.subheader("🌍 Světové Indexy (24h)")
-        idx_data = get_live_data_batch(["^GSPC", "^GDAXI", "FPX.PR"]) 
-        m1, m2, m3 = st.columns(3)
-        if "^GSPC" in idx_data: m1.metric("S&P 500 (USA)", f"{idx_data['^GSPC']['price']:,.0f}")
-        if "^GDAXI" in idx_data: m2.metric("DAX (EU)", f"{idx_data['^GDAXI']['price']:,.0f}")
-        if "FPX.PR" in idx_data: m3.metric("PX (CZ)", f"{idx_data['FPX.PR']['price']:,.0f} Kč")
-        st.divider()
-
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             c1, c2 = st.columns(2)
@@ -474,10 +415,9 @@ def main():
             with st.form("b"):
                 t = st.text_input("Symbol").upper(); p = st.number_input("Ks", 0.001); c = st.number_input("Cena", 0.1)
                 if st.form_submit_button("KOUPIT"):
-                    # Vynutit měnu pro nákup
-                    m = "USD"
-                    if ".PR" in t: m = "CZK"
-                    elif ".DE" in t: m = "EUR"
+                    # Fix měny pro nákup
+                    _, m = ziskej_info_simple(t) # Použití simple funkce
+                    if m is None or m == "N/A": m = "USD"
                     
                     cost = p*c; bal = zustatky.get(m, 0)
                     if bal >= cost:
@@ -494,11 +434,7 @@ def main():
                 with st.form("s"):
                     t = st.selectbox("Vyber akcii", tickery); q = st.number_input("Ks", 0.001); pr = st.number_input("Cena", 0.1)
                     if st.form_submit_button("PRODAT"):
-                        _, m = ziskej_info(t)
-                        if ".PR" in t: m = "CZK"
-                        elif ".DE" in t: m = "EUR"
-                        else: m = "USD"
-                        
+                        _, m = ziskej_info_simple(t)
                         ok, msg = proved_prodej(t, q, pr, USER, m)
                         if ok: st.toast("Prodáno", icon="✅"); st.rerun()
                         else: st.toast(msg, icon="⚠️")
