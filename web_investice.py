@@ -10,7 +10,6 @@ import hashlib
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
 
-# ✅ OPRAVENO: Správný název repozitáře (dvě 'i')
 REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
@@ -26,12 +25,11 @@ st.markdown("""
     .stApp {background-color: #0E1117; font-family: 'Roboto Mono', monospace;}
     div[data-testid="stMetric"] {background-color: #161B22; border: 1px solid #30363D; padding: 15px; border-radius: 5px; color: #E6EDF3;}
     div[data-testid="stMetricLabel"] {font-size: 0.9rem; color: #8B949E; font-weight: bold; text-transform: uppercase;}
-    div[data-testid="stMetricValue"] {font-size: 1.5rem; color: #E6EDF3; font-weight: bold;}
+    div[data-testid="stMetricValue"] {font-size: 1.2rem; color: #E6EDF3; font-weight: bold;}
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1px;}
     hr {border-color: #30363D;}
     div[data-testid="column"] button {border: 1px solid #FF4B4B; color: #FF4B4B;}
     div[data-testid="stTooltipIcon"] {color: #58A6FF;}
-    section[data-testid="stSidebar"] .stRadio label {font-size: 1.1rem; font-weight: bold; color: #E6EDF3;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,15 +55,8 @@ def nacti_csv(nazev_souboru):
         repo = get_repo()
         file = repo.get_contents(nazev_souboru)
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
-        
-        # Oprava datumu
         for col in ['Datum', 'Date']:
             if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
-            
-        # ✅ POJISTKA: Převod čísel na čísla (kdyby se načetly jako text)
-        for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD']:
-            if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
-
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         df['Owner'] = df['Owner'].astype(str)
         return df
@@ -111,19 +102,18 @@ def odebrat_z_watchlistu(ticker, user):
 def get_zustatky(user):
     df_cash = st.session_state.get('df_cash', pd.DataFrame())
     if df_cash.empty: return {}
-    # ✅ Tady ta pojistka s pd.to_numeric zajistí, že sčítáme čísla
     return df_cash.groupby('Mena')['Castka'].sum().to_dict()
 
 def pohyb_penez(castka, mena, typ, poznamka, user):
     df_cash = st.session_state['df_cash']
-    novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
+    novy = pd.DataFrame([{"Typ": typ, "Castka": castka, "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
     df_cash = pd.concat([df_cash, novy], ignore_index=True)
     st.session_state['df_cash'] = df_cash
     uloz_data_uzivatele(df_cash, user, SOUBOR_CASH)
 
 def pridat_dividendu(ticker, castka, mena, user):
     df_div = st.session_state['df_div']
-    novy = pd.DataFrame([{"Ticker": ticker, "Castka": float(castka), "Mena": mena, "Datum": datetime.now(), "Owner": user}])
+    novy = pd.DataFrame([{"Ticker": ticker, "Castka": castka, "Mena": mena, "Datum": datetime.now(), "Owner": user}])
     df_div = pd.concat([df_div, novy], ignore_index=True)
     st.session_state['df_div'] = df_div
     uloz_data_uzivatele(df_div, user, SOUBOR_DIVIDENDY)
@@ -208,6 +198,23 @@ def get_live_data_batch(tickers):
         if p: data[t] = {"price": p, "curr": m}
     return data
 
+# --- SMĚNÁRNA LOGIKA ---
+def proved_smenu(castka, z_meny, do_meny, user):
+    kurzy = ziskej_kurzy()
+    # Přepočet na USD a pak na cílovou měnu
+    if z_meny == "USD": castka_usd = castka
+    elif z_meny == "CZK": castka_usd = castka / kurzy["CZK"]
+    elif z_meny == "EUR": castka_usd = castka * kurzy["EUR"]
+    
+    if do_meny == "USD": vysledna = castka_usd
+    elif do_meny == "CZK": vysledna = castka_usd * kurzy["CZK"]
+    elif do_meny == "EUR": vysledna = castka_usd / kurzy["EUR"]
+    
+    # Odečtení z jedné, připsání do druhé
+    pohyb_penez(-castka, z_meny, "Směna", f"Směna na {do_meny}", user)
+    pohyb_penez(vysledna, do_meny, "Směna", f"Směna z {z_meny}", user)
+    return True, f"Směněno {castka} {z_meny} -> {vysledna:.2f} {do_meny}"
+
 # --- MAIN APP ---
 def main():
     if 'prihlasen' not in st.session_state: st.session_state['prihlasen'] = False
@@ -260,7 +267,7 @@ def main():
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
     
-    kurzy = {"USD": 1.0, "CZK": 24.5, "EUR": 1.05}
+    # Aktualizace kurzů z live dat
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
@@ -333,7 +340,7 @@ def main():
         k3.metric("HOTOVOST (USD EST)", f"${cash_usd:,.0f}", "Připraveno")
         
         st.divider()
-        st.subheader("💰 Peněženky")
+        st.subheader("💰 Peněženky (Investováno vs Zisk)")
         cols = st.columns(len(stats_meny)) if stats_meny else [st.container()]
         for i, m in enumerate(stats_meny):
             d = stats_meny[m]
@@ -344,10 +351,10 @@ def main():
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             st.dataframe(vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Hodnota", "Zisk"]].style.format({"Průměr": "{:.2f}", "Cena": "{:.2f}", "Hodnota": "{:,.0f}", "Zisk": "{:+,.0f}"}).background_gradient(cmap="RdYlGn", subset=["Zisk"], vmin=-1000, vmax=1000), use_container_width=True)
-        else: st.info("Portfolio je prázdné.")
+        else: st.info("Portfolio je prázdné. Jdi do sekce Obchod.")
 
     elif page == "📈 Analýza":
-        st.title("📈 ANALÝZA")
+        st.title("📈 HLOUBKOVÁ ANALÝZA")
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             c1, c2 = st.columns(2)
@@ -356,7 +363,7 @@ def main():
                 fig = px.treemap(vdf, path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'], values='HodnotaUSD', color='Zisk', color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0)
                 st.plotly_chart(fig, use_container_width=True)
             with c2:
-                st.caption("VÝVOJ HODNOTY")
+                st.caption("VÝVOJ HODNOTY (Časová osa)")
                 if not hist_vyvoje.empty: st.line_chart(hist_vyvoje.set_index("Date")['TotalUSD'])
             st.divider()
             c3, c4 = st.columns(2)
@@ -371,20 +378,41 @@ def main():
         else: st.info("Žádná data.")
 
     elif page == "💸 Obchod & Peníze":
-        st.title("💸 OBCHOD")
-        t_bank, t_buy, t_sell = st.tabs(["🏦 PENĚŽENKA", "🛒 NÁKUP", "📉 PRODEJ"])
+        st.title("💸 BANKA A OBCHODOVÁNÍ")
+        t_bank, t_ex, t_buy, t_sell = st.tabs(["🏦 PENĚŽENKA", "💱 SMĚNÁRNA", "🛒 NÁKUP", "📉 PRODEJ"])
+        
         with t_bank:
             c1, c2 = st.columns(2)
             with c1:
+                st.subheader("Vklad / Výběr")
                 with st.form("d"):
                     a = st.number_input("Částka", 1.0); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
                     if st.form_submit_button("💰 VLOŽIT"): pohyb_penez(a, c, "Vklad", "Man", USER); st.toast("Vloženo", icon="✅"); st.rerun()
                 with st.form("w"):
-                    a = st.number_input("Částka", 1.0); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
+                    a = st.number_input("Částka výběru", 1.0); c = st.selectbox("Měna výběru", ["USD", "CZK", "EUR"])
                     if st.form_submit_button("💸 VYBRAT"): pohyb_penez(-a, c, "Vyber", "Man", USER); st.toast("Vybráno", icon="✅"); st.rerun()
             with c2:
                 st.write("Historie transakcí:"); st.dataframe(df_cash.sort_values("Datum", ascending=False), use_container_width=True)
+        
+        # 🆕 SMĚNÁRNA
+        with t_ex:
+            st.subheader("Směna měn")
+            st.info(f"Aktuální kurzy: 1 USD = {kurzy.get('CZK', 24):.2f} CZK | 1 EUR = {kurzy.get('EUR', 1.05):.2f} USD")
+            with st.form("exchange"):
+                c1, c2, c3 = st.columns(3)
+                with c1: castka_ex = st.number_input("Směnit částku", 1.0)
+                with c2: z_meny = st.selectbox("Z měny", ["USD", "CZK", "EUR"])
+                with c3: do_meny = st.selectbox("Do měny", ["CZK", "USD", "EUR"])
+                
+                if st.form_submit_button("💱 PROVÉST SMĚNU"):
+                    dispo = zustatky.get(z_meny, 0)
+                    if dispo >= castka_ex:
+                        ok, msg = proved_smenu(castka_ex, z_meny, do_meny, USER)
+                        st.toast(msg, icon="✅"); st.rerun()
+                    else: st.toast(f"Chybí ti {z_meny}", icon="❌")
+
         with t_buy:
+            st.subheader("Nákup akcií")
             with st.form("b"):
                 t = st.text_input("Symbol").upper(); p = st.number_input("Ks", 0.001); c = st.number_input("Cena", 0.1)
                 if st.form_submit_button("KOUPIT"):
@@ -395,12 +423,14 @@ def main():
                         new = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER}])
                         upd = pd.concat([df, new], ignore_index=True)
                         st.session_state['df'] = upd; uloz_data_uzivatele(upd, USER, SOUBOR_DATA); st.toast("OK", icon="🛒"); st.rerun()
-                    else: st.toast(f"Chybí {m}", icon="❌")
+                    else: st.toast(f"Nemáš {m}. Jdi do směnárny!", icon="❌")
+        
         with t_sell:
+            st.subheader("Prodej akcií")
             if not df.empty:
                 tickery = df['Ticker'].unique().tolist()
                 with st.form("s"):
-                    t = st.selectbox("Akcie", tickery); q = st.number_input("Ks", 0.001); pr = st.number_input("Cena", 0.1)
+                    t = st.selectbox("Vyber akcii", tickery); q = st.number_input("Ks", 0.001); pr = st.number_input("Cena", 0.1)
                     if st.form_submit_button("PRODAT"):
                         inf = LIVE_DATA.get(t, {}); m = inf.get('curr', "USD")
                         ok, msg = proved_prodej(t, q, pr, USER, m)
@@ -411,13 +441,13 @@ def main():
         st.title("💎 DIVIDENDY")
         c1, c2 = st.columns([1, 2])
         with c1:
+            st.subheader("Připsat dividendu")
             with st.form("div"):
                 t = st.text_input("Ticker").upper(); a = st.number_input("Částka", 0.01); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
                 if st.form_submit_button("PŘIPSAT"): pridat_dividendu(t, a, c, USER); st.toast("Připsáno", icon="💎"); st.rerun()
         with c2:
             if not df_div.empty:
                 st.dataframe(df_div.sort_values("Datum", ascending=False), use_container_width=True)
-                # --- DYNAMICKÝ PŘEHLED DIVIDEND ---
                 meny_divi = df_div['Mena'].unique().tolist()
                 if meny_divi:
                     st.divider()
