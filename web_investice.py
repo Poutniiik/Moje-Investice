@@ -18,6 +18,17 @@ SOUBOR_CASH = "cash_data.csv"
 SOUBOR_VYVOJ = "value_history.csv"
 SOUBOR_WATCHLIST = "watchlist.csv"
 SOUBOR_DIVIDENDY = "dividends.csv"
+# --- KONFIGURACE CÍLŮ (Tady si nastav procenta podle sebe) ---
+# Součet by měl dát ideálně 100 %, ale aplikace si poradí i tak.
+# Důležité: Názvy sektorů musíš psát PŘESNĚ stejně jako v tabulce (velká písmena, čeština).
+CILOVE_SEKTORY = {
+    "Technologie": 30,      # Chci mít 30% v technologiích
+    "Energie": 20,          # 20% v energetice
+    "Spotřební zboží": 15,  # atd...
+    "Finance": 15,
+    "Krypto": 10,
+    "Ostatní": 10
+}
 
 # --- STYLY ---
 st.markdown("""
@@ -539,6 +550,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
