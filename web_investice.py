@@ -183,35 +183,27 @@ def ziskej_ceny_hromadne(tickers):
 
 @st.cache_data(ttl=86400)
 def ziskej_sektor(ticker):
-    # 1. Ruční definice pro známé crypto (yfinance info je na crypto nespolehlivé)
-    krypto_seznam = ["BTC-USD", "ETH-USD", "SOL-USD", "ADA-USD", "XRP-USD"]
-    # Pokud ticker obsahuje "-USD" a není to běžná akcie, často je to krypto
-    if ticker in krypto_seznam or (str(ticker).endswith("-USD") and len(str(ticker)) < 9):
+    # 1. Krypto natvrdo (to funguje vždy)
+    if str(ticker).endswith("-USD") or ticker in ["BTC-USD", "ETH-USD"]:
         return "Krypto"
 
-    # 2. Dotaz na Yahoo Finance
+    # 2. Pokus o stažení
     try:
         t = yf.Ticker(str(ticker))
-        # Získáme slovník info
-        info = t.info 
+        info = t.info # Tady to pravděpodobně selže nebo vrátí {}
         
-        # Zkusíme zjistit typ aktiva (Quote Type)
-        typ = info.get('quoteType', 'UNKNOWN')
+        if not info: # Pokud Yahoo vrátí prázdno
+            return "⚠️ BLOKOVÁNO"
         
-        if typ == 'CRYPTOCURRENCY':
-            return "Krypto"
-        elif typ == 'ETF':
-            # U ETF chceme spíš kategorii než sektor
-            return info.get('category', 'ETF')
-        
-        # Pro akcie vrátíme sektor
-        sektor = info.get('sector', 'Neznámý')
-        return sektor
+        if 'sector' in info:
+            return info['sector']
+        else:
+            # Vypíše, co nám vlastně vrátili, pokud tam není sektor
+            return f"Chybí data (Type: {info.get('quoteType', '?')})"
 
     except Exception as e:
-        # TOTO je důležité: Vypíše chybu do logu (terminálu), abys věděl, co se děje
-        print(f"⚠️ Chyba při stahování sektoru pro {ticker}: {e}")
-        return 'Ostatní'
+        # Vypíše chybu přímo do buňky v tabulce
+        return f"ERR: {str(e)[0:15]}..."
 
 @st.cache_data(ttl=3600)
 def ziskej_kurzy():
@@ -526,3 +518,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
