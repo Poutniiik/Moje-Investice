@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.express as px
-import plotly.graph_objects as go
 from github import Github
 from io import StringIO
 from datetime import datetime
@@ -11,7 +10,7 @@ import hashlib
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
 
-REPO_NAZEV = "Poutniiik/Moje-Investice" 
+REPO_NAZEV = "Poutniik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
 SOUBOR_HISTORIE = "history_data.csv"
@@ -31,7 +30,6 @@ st.markdown("""
     hr {border-color: #30363D;}
     div[data-testid="column"] button {border: 1px solid #FF4B4B; color: #FF4B4B;}
     div[data-testid="stTooltipIcon"] {color: #58A6FF;}
-    section[data-testid="stSidebar"] .stRadio label {font-size: 1.1rem; font-weight: bold; color: #E6EDF3;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -59,8 +57,6 @@ def nacti_csv(nazev_souboru):
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
         for col in ['Datum', 'Date']:
             if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
-        for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD']:
-            if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         df['Owner'] = df['Owner'].astype(str)
         return df
@@ -110,14 +106,14 @@ def get_zustatky(user):
 
 def pohyb_penez(castka, mena, typ, poznamka, user):
     df_cash = st.session_state['df_cash']
-    novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
+    novy = pd.DataFrame([{"Typ": typ, "Castka": castka, "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
     df_cash = pd.concat([df_cash, novy], ignore_index=True)
     st.session_state['df_cash'] = df_cash
     uloz_data_uzivatele(df_cash, user, SOUBOR_CASH)
 
 def pridat_dividendu(ticker, castka, mena, user):
     df_div = st.session_state['df_div']
-    novy = pd.DataFrame([{"Ticker": ticker, "Castka": float(castka), "Mena": mena, "Datum": datetime.now(), "Owner": user}])
+    novy = pd.DataFrame([{"Ticker": ticker, "Castka": castka, "Mena": mena, "Datum": datetime.now(), "Owner": user}])
     df_div = pd.concat([df_div, novy], ignore_index=True)
     st.session_state['df_div'] = df_div
     uloz_data_uzivatele(df_div, user, SOUBOR_DIVIDENDY)
@@ -159,20 +155,23 @@ def proved_prodej(ticker, kusy, cena, user, mena):
     uloz_data_uzivatele(df_p, user, SOUBOR_DATA); uloz_data_uzivatele(df_h, user, SOUBOR_HISTORIE)
     return True, f"Prodáno! +{trzba:,.2f}"
 
-# --- INFO & TURBO MODE ---
+# --- INFO & TURBO MODE (CACHE) ---
 @st.cache_data(ttl=900)
 def ziskej_ceny_hromadne(tickers):
     data = {}
     if not tickers: return data
     try:
-        ts = list(set(tickers + ["CZK=X", "EURUSD=X", "^GSPC", "^GDAXI", "FPX.PR"]))
+        ts = list(set(tickers + ["CZK=X", "EURUSD=X"]))
         df_y = yf.download(ts, period="1d", group_by='ticker', progress=False)
         for t in ts:
             try:
                 price = df_y[t]['Close'].iloc[-1] if len(ts) > 1 else df_y['Close'].iloc[-1]
-                # Měna se v hromadném stahování špatně určuje, dáme default USD
-                # Správnou měnu opravíme v hlavním cyklu
-                if pd.notnull(price): data[t] = {"price": float(price), "curr": "USD"}
+                # 🛠️ FIX MĚNY NATVRDO
+                curr = "USD"
+                if ".PR" in t: curr = "CZK"
+                elif ".DE" in t: curr = "EUR"
+                
+                if pd.notnull(price): data[t] = {"price": float(price), "curr": curr}
             except: pass
     except: pass
     return data
@@ -193,15 +192,15 @@ def ziskej_kurzy():
     return kurzy
 
 def ziskej_info(ticker):
-    # 🛡️ ZÁCHRANNÁ MĚNA (natvrdo podle koncovky)
-    # Toto zajistí, že ČEZ bude vždy CZK a SAP vždy EUR
+    # 🛠️ FIX MĚNY NATVRDO
     mena = "USD"
     if ".PR" in str(ticker): mena = "CZK"
-    elif ".DE" in str(ticker) or ".PA" in str(ticker): mena = "EUR"
+    elif ".DE" in str(ticker): mena = "EUR"
     
     try: 
         t = yf.Ticker(str(ticker))
         price = t.fast_info.last_price
+        # Ponecháme naši měnu, pokud Yahoo nepošle nic
         return price, mena
     except: return None, mena
 
@@ -211,20 +210,6 @@ def get_live_data_batch(tickers):
         p, m = ziskej_info(t)
         if p: data[t] = {"price": p, "curr": m}
     return data
-
-def proved_smenu(castka, z_meny, do_meny, user):
-    kurzy = ziskej_kurzy()
-    if z_meny == "USD": castka_usd = castka
-    elif z_meny == "CZK": castka_usd = castka / kurzy["CZK"]
-    elif z_meny == "EUR": castka_usd = castka * kurzy["EUR"]
-    
-    if do_meny == "USD": vysledna = castka_usd
-    elif do_meny == "CZK": vysledna = castka_usd * kurzy["CZK"]
-    elif do_meny == "EUR": vysledna = castka_usd / kurzy["EUR"]
-    
-    pohyb_penez(-castka, z_meny, "Směna", f"Směna na {do_meny}", user)
-    pohyb_penez(vysledna, do_meny, "Směna", f"Směna z {z_meny}", user)
-    return True, f"Směněno: {vysledna:,.2f} {do_meny}"
 
 # --- MAIN APP ---
 def main():
@@ -304,10 +289,6 @@ def main():
             for t in df_watch['Ticker']:
                 info = LIVE_DATA.get(t, {})
                 price = info.get('price'); curr = info.get('curr', '?')
-                # Tady taky opravíme měnu pro watchlist
-                if ".PR" in t: curr = "CZK"
-                elif ".DE" in t: curr = "EUR"
-                
                 c1, c2 = st.columns([3, 1])
                 c1.metric(t, f"{price:.2f} {curr}" if price else "?")
                 c2.write(""); c2.write("")
@@ -324,13 +305,12 @@ def main():
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
         df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
 
-        bar = st.progress(0, "ANALÝZA TRHU...")
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
             inf = LIVE_DATA.get(tkr, {})
             p = inf.get('price', row['Cena'])
             
-            # 🛡️ MĚNA NATVRDO
+            # 🛠️ FIX MĚNY PŘI ZOBRAZENÍ
             m = "USD"
             if ".PR" in tkr: m = "CZK"
             elif ".DE" in tkr: m = "EUR"
@@ -344,8 +324,6 @@ def main():
             if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
             stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
             viz_data.append({"Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena']})
-            bar.progress((i+1)/len(df_g))
-        bar.empty()
 
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
@@ -382,15 +360,7 @@ def main():
         else: st.info("Portfolio je prázdné. Jdi do sekce Obchod.")
 
     elif page == "📈 Analýza":
-        st.title("📈 TRŽNÍ ANALÝZA")
-        st.subheader("🌍 Světové Indexy (24h)")
-        idx_data = get_live_data_batch(["^GSPC", "^GDAXI", "FPX.PR"]) 
-        m1, m2, m3 = st.columns(3)
-        if "^GSPC" in idx_data: m1.metric("S&P 500 (USA)", f"{idx_data['^GSPC']['price']:,.0f}")
-        if "^GDAXI" in idx_data: m2.metric("DAX (EU)", f"{idx_data['^GDAXI']['price']:,.0f}")
-        if "FPX.PR" in idx_data: m3.metric("PX (CZ)", f"{idx_data['FPX.PR']['price']:,.0f} Kč")
-        st.divider()
-
+        st.title("📈 HLOUBKOVÁ ANALÝZA")
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             c1, c2 = st.columns(2)
@@ -399,21 +369,8 @@ def main():
                 fig = px.treemap(vdf, path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'], values='HodnotaUSD', color='Zisk', color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0)
                 st.plotly_chart(fig, use_container_width=True)
             with c2:
-                st.caption("VÝVOJ HODNOTY vs TRH")
-                if not hist_vyvoje.empty:
-                    start_date = hist_vyvoje.iloc[0]['Date']
-                    sp500_hist = yf.download("^GSPC", start=start_date, progress=False)['Close']
-                    fig = px.area(hist_vyvoje, x='Date', y='TotalUSD', title="Tvé Portfolio")
-                    if not sp500_hist.empty:
-                        try:
-                            start_val_port = hist_vyvoje.iloc[0]['TotalUSD']
-                            start_val_sp = sp500_hist.iloc[0]
-                            if start_val_sp > 0:
-                                sp500_norm = sp500_hist * (start_val_port / start_val_sp)
-                                fig.add_scatter(x=sp500_norm.index, y=sp500_norm, mode='lines', name='S&P 500', line=dict(color='gray', dash='dot'))
-                        except: pass
-                    st.plotly_chart(fig, use_container_width=True)
-                else: st.write("Zatím málo dat.")
+                st.caption("VÝVOJ HODNOTY (Časová osa)")
+                if not hist_vyvoje.empty: st.line_chart(hist_vyvoje.set_index("Date")['TotalUSD'])
             st.divider()
             c3, c4 = st.columns(2)
             with c3:
@@ -429,6 +386,7 @@ def main():
     elif page == "💸 Obchod & Peníze":
         st.title("💸 BANKA A OBCHODOVÁNÍ")
         t_bank, t_ex, t_buy, t_sell = st.tabs(["🏦 PENĚŽENKA", "💱 SMĚNÁRNA", "🛒 NÁKUP", "📉 PRODEJ"])
+        
         with t_bank:
             c1, c2 = st.columns(2)
             with c1:
@@ -440,6 +398,7 @@ def main():
                     if st.form_submit_button("💸 VYBRAT PENÍZE"): pohyb_penez(-a, c, "Vyber", "Man", USER); st.toast("Vybráno", icon="✅"); st.rerun()
             with c2:
                 st.write("Historie transakcí:"); st.dataframe(df_cash.sort_values("Datum", ascending=False), use_container_width=True)
+        
         with t_ex:
             st.subheader("Směna měn")
             st.info(f"Kurzy: 1 USD = {kurzy.get('CZK', 24):.2f} CZK | 1 EUR = {kurzy.get('EUR', 1.05):.2f} USD")
@@ -453,15 +412,17 @@ def main():
                     if dispo >= castka_ex:
                         ok, msg = proved_smenu(castka_ex, z_meny, do_meny, USER); st.toast(msg, icon="✅"); st.rerun()
                     else: st.toast(f"Chybí ti {z_meny}", icon="❌")
+
         with t_buy:
             st.subheader("Nákup akcií")
             with st.form("b"):
                 t = st.text_input("Symbol").upper(); p = st.number_input("Ks", 0.001); c = st.number_input("Cena", 0.1)
                 if st.form_submit_button("KOUPIT"):
-                    # Měna natvrdo pro nákup
-                    m = "USD"
+                    _, m = ziskej_info(t)
+                    # Vynutit měnu pro nákup
                     if ".PR" in t: m = "CZK"
                     elif ".DE" in t: m = "EUR"
+                    else: m = "USD"
                     
                     cost = p*c; bal = zustatky.get(m, 0)
                     if bal >= cost:
@@ -470,6 +431,7 @@ def main():
                         upd = pd.concat([df, new], ignore_index=True)
                         st.session_state['df'] = upd; uloz_data_uzivatele(upd, USER, SOUBOR_DATA); st.toast("OK", icon="🛒"); st.rerun()
                     else: st.toast(f"Nedostatek {m}! Jdi do směnárny.", icon="❌")
+        
         with t_sell:
             st.subheader("Prodej akcií")
             if not df.empty:
@@ -477,9 +439,11 @@ def main():
                 with st.form("s"):
                     t = st.selectbox("Vyber akcii", tickery); q = st.number_input("Ks", 0.001); pr = st.number_input("Cena", 0.1)
                     if st.form_submit_button("PRODAT"):
-                        m = "USD"
+                        _, m = ziskej_info(t)
                         if ".PR" in t: m = "CZK"
                         elif ".DE" in t: m = "EUR"
+                        else: m = "USD"
+                        
                         ok, msg = proved_prodej(t, q, pr, USER, m)
                         if ok: st.toast("Prodáno", icon="✅"); st.rerun()
                         else: st.toast(msg, icon="⚠️")
