@@ -286,11 +286,23 @@ def main():
     # --- SIDEBAR ---
     with st.sidebar:
         st.write(f"👤 **{USER.upper()}**")
+        
+        # 💰 ZDE JE NÁVRAT ZŮSTATKŮ DO MENU 💰
+        if zustatky:
+            st.caption("Stav peněženky:")
+            for mena, castka in zustatky.items():
+                if castka > 0.01: # Ukazujeme jen nenulové
+                    sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
+                    st.write(f"💵 **{castka:,.2f} {sym}**")
+        else:
+            st.caption("Peněženka prázdná")
+            
         st.divider()
         page = st.radio("MENU", ["🏠 Přehled", "📈 Analýza", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"])
         st.divider()
         
         st.subheader("🔍 SLEDOVANÉ")
+        # ... zbytek kódu watchlistu zůstává stejný ...
         with st.form("w_add", clear_on_submit=True):
             new_w = st.text_input("Symbol", placeholder="NVDA").upper()
             if st.form_submit_button("Přidat"):
@@ -487,3 +499,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
