@@ -25,7 +25,7 @@ st.markdown("""
     .stApp {background-color: #0E1117; font-family: 'Roboto Mono', monospace;}
     div[data-testid="stMetric"] {background-color: #161B22; border: 1px solid #30363D; padding: 15px; border-radius: 5px; color: #E6EDF3;}
     div[data-testid="stMetricLabel"] {font-size: 0.9rem; color: #8B949E; font-weight: bold; text-transform: uppercase;}
-    div[data-testid="stMetricValue"] {font-size: 1.2rem; color: #E6EDF3; font-weight: bold;}
+    div[data-testid="stMetricValue"] {font-size: 1.5rem; color: #E6EDF3; font-weight: bold;}
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1px;}
     hr {border-color: #30363D;}
     div[data-testid="column"] button {border: 1px solid #FF4B4B; color: #FF4B4B;}
@@ -57,6 +57,11 @@ def nacti_csv(nazev_souboru):
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
         for col in ['Datum', 'Date']:
             if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
+        
+        # Pojistka na čísla
+        for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD']:
+            if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         df['Owner'] = df['Owner'].astype(str)
         return df
@@ -106,14 +111,14 @@ def get_zustatky(user):
 
 def pohyb_penez(castka, mena, typ, poznamka, user):
     df_cash = st.session_state['df_cash']
-    novy = pd.DataFrame([{"Typ": typ, "Castka": castka, "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
+    novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
     df_cash = pd.concat([df_cash, novy], ignore_index=True)
     st.session_state['df_cash'] = df_cash
     uloz_data_uzivatele(df_cash, user, SOUBOR_CASH)
 
 def pridat_dividendu(ticker, castka, mena, user):
     df_div = st.session_state['df_div']
-    novy = pd.DataFrame([{"Ticker": ticker, "Castka": castka, "Mena": mena, "Datum": datetime.now(), "Owner": user}])
+    novy = pd.DataFrame([{"Ticker": ticker, "Castka": float(castka), "Mena": mena, "Datum": datetime.now(), "Owner": user}])
     df_div = pd.concat([df_div, novy], ignore_index=True)
     st.session_state['df_div'] = df_div
     uloz_data_uzivatele(df_div, user, SOUBOR_DIVIDENDY)
@@ -166,7 +171,11 @@ def ziskej_ceny_hromadne(tickers):
         for t in ts:
             try:
                 price = df_y[t]['Close'].iloc[-1] if len(ts) > 1 else df_y['Close'].iloc[-1]
-                curr = "CZK" if ".PR" in t else ("EUR" if ".DE" in t else "USD")
+                # Detekce měny
+                curr = "USD"
+                if ".PR" in t: curr = "CZK"
+                elif ".DE" in t: curr = "EUR"
+                
                 if pd.notnull(price): data[t] = {"price": float(price), "curr": curr}
             except: pass
     except: pass
@@ -188,32 +197,36 @@ def ziskej_kurzy():
     return kurzy
 
 def ziskej_info(ticker):
-    try: t = yf.Ticker(str(ticker)); return t.fast_info.last_price, t.fast_info.currency
-    except: return None, "USD"
-
-def get_live_data_batch(tickers):
-    data = {}
-    for t in tickers:
-        p, m = ziskej_info(t)
-        if p: data[t] = {"price": p, "curr": m}
-    return data
+    # 🚀 TADY JE TA OPRAVA MĚNY NA TVRDO
+    mena = "USD" # Default
+    if str(ticker).endswith(".PR"): mena = "CZK"
+    elif str(ticker).endswith(".DE"): mena = "EUR"
+    
+    try: 
+        t = yf.Ticker(str(ticker))
+        price = t.fast_info.last_price
+        # Pokud API vrátí měnu, použijeme ji, jinak náš fallback
+        api_curr = t.fast_info.currency
+        if api_curr and api_curr != "N/A": mena = api_curr
+        return price, mena
+    except: return None, mena
 
 # --- SMĚNÁRNA LOGIKA ---
 def proved_smenu(castka, z_meny, do_meny, user):
     kurzy = ziskej_kurzy()
-    # Přepočet na USD a pak na cílovou měnu
+    # 1. Převedeme na USD
     if z_meny == "USD": castka_usd = castka
     elif z_meny == "CZK": castka_usd = castka / kurzy["CZK"]
     elif z_meny == "EUR": castka_usd = castka * kurzy["EUR"]
     
+    # 2. Převedeme z USD na cílovou
     if do_meny == "USD": vysledna = castka_usd
     elif do_meny == "CZK": vysledna = castka_usd * kurzy["CZK"]
     elif do_meny == "EUR": vysledna = castka_usd / kurzy["EUR"]
     
-    # Odečtení z jedné, připsání do druhé
     pohyb_penez(-castka, z_meny, "Směna", f"Směna na {do_meny}", user)
     pohyb_penez(vysledna, do_meny, "Směna", f"Směna z {z_meny}", user)
-    return True, f"Směněno {castka} {z_meny} -> {vysledna:.2f} {do_meny}"
+    return True, f"Směněno: {vysledna:,.2f} {do_meny}"
 
 # --- MAIN APP ---
 def main():
@@ -247,7 +260,7 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
         return
 
-    # --- DASHBOARD INIT ---
+    # --- DASHBOARD ---
     USER = st.session_state['user']
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
@@ -267,7 +280,6 @@ def main():
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
     
-    # Aktualizace kurzů z live dat
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
@@ -306,9 +318,15 @@ def main():
 
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
+            # Zkusíme najít data v hromadném balíku
             inf = LIVE_DATA.get(tkr, {})
-            p = inf.get('price', row['Cena'])
-            m = inf.get('curr', 'USD')
+            
+            # ZÁCHRANNÁ SÍŤ PRO CENU A MĚNU
+            p, m = ziskej_info(tkr) # Zkusíme individuální dotaz
+            
+            if p is None: p = row['Cena'] # Pokud selže, použijeme nákupku
+            if m is None or m == "N/A": m = "USD" # Pokud selže měna, USD
+            
             sektor = ziskej_sektor(tkr)
             
             hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
@@ -384,26 +402,24 @@ def main():
         with t_bank:
             c1, c2 = st.columns(2)
             with c1:
-                st.subheader("Vklad / Výběr")
                 with st.form("d"):
                     a = st.number_input("Částka", 1.0); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
-                    if st.form_submit_button("💰 VLOŽIT"): pohyb_penez(a, c, "Vklad", "Man", USER); st.toast("Vloženo", icon="✅"); st.rerun()
+                    if st.form_submit_button("💰 VLOŽIT PENÍZE"): pohyb_penez(a, c, "Vklad", "Man", USER); st.toast("Vloženo", icon="✅"); st.rerun()
                 with st.form("w"):
-                    a = st.number_input("Částka výběru", 1.0); c = st.selectbox("Měna výběru", ["USD", "CZK", "EUR"])
-                    if st.form_submit_button("💸 VYBRAT"): pohyb_penez(-a, c, "Vyber", "Man", USER); st.toast("Vybráno", icon="✅"); st.rerun()
+                    a = st.number_input("Částka", 1.0); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
+                    if st.form_submit_button("💸 VYBRAT PENÍZE"): pohyb_penez(-a, c, "Vyber", "Man", USER); st.toast("Vybráno", icon="✅"); st.rerun()
             with c2:
                 st.write("Historie transakcí:"); st.dataframe(df_cash.sort_values("Datum", ascending=False), use_container_width=True)
         
-        # 🆕 SMĚNÁRNA
+        # 💱 SMĚNÁRNA
         with t_ex:
             st.subheader("Směna měn")
-            st.info(f"Aktuální kurzy: 1 USD = {kurzy.get('CZK', 24):.2f} CZK | 1 EUR = {kurzy.get('EUR', 1.05):.2f} USD")
+            st.info(f"Kurzy: 1 USD = {kurzy.get('CZK', 24):.2f} CZK | 1 EUR = {kurzy.get('EUR', 1.05):.2f} USD")
             with st.form("exchange"):
                 c1, c2, c3 = st.columns(3)
                 with c1: castka_ex = st.number_input("Směnit částku", 1.0)
                 with c2: z_meny = st.selectbox("Z měny", ["USD", "CZK", "EUR"])
                 with c3: do_meny = st.selectbox("Do měny", ["CZK", "USD", "EUR"])
-                
                 if st.form_submit_button("💱 PROVÉST SMĚNU"):
                     dispo = zustatky.get(z_meny, 0)
                     if dispo >= castka_ex:
@@ -416,14 +432,15 @@ def main():
             with st.form("b"):
                 t = st.text_input("Symbol").upper(); p = st.number_input("Ks", 0.001); c = st.number_input("Cena", 0.1)
                 if st.form_submit_button("KOUPIT"):
-                    inf = LIVE_DATA.get(t, {}); m = inf.get('curr', "USD")
+                    # Tady si vynutíme správnou měnu
+                    _, m = ziskej_info(t)
                     cost = p*c; bal = zustatky.get(m, 0)
                     if bal >= cost:
                         pohyb_penez(-cost, m, "Nákup", f"Buy {t}", USER)
                         new = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER}])
                         upd = pd.concat([df, new], ignore_index=True)
                         st.session_state['df'] = upd; uloz_data_uzivatele(upd, USER, SOUBOR_DATA); st.toast("OK", icon="🛒"); st.rerun()
-                    else: st.toast(f"Nemáš {m}. Jdi do směnárny!", icon="❌")
+                    else: st.toast(f"Nedostatek {m}! Jdi do směnárny.", icon="❌")
         
         with t_sell:
             st.subheader("Prodej akcií")
@@ -432,7 +449,7 @@ def main():
                 with st.form("s"):
                     t = st.selectbox("Vyber akcii", tickery); q = st.number_input("Ks", 0.001); pr = st.number_input("Cena", 0.1)
                     if st.form_submit_button("PRODAT"):
-                        inf = LIVE_DATA.get(t, {}); m = inf.get('curr', "USD")
+                        _, m = ziskej_info(t)
                         ok, msg = proved_prodej(t, q, pr, USER, m)
                         if ok: st.toast("Prodáno", icon="✅"); st.rerun()
                         else: st.toast(msg, icon="⚠️")
