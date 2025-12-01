@@ -594,7 +594,23 @@ def main():
                 if st.form_submit_button("PŘIPSAT"): pridat_dividendu(t, a, c, USER); st.toast("Připsáno", icon="💎"); st.rerun()
         with c2:
             if not df_div.empty:
-                st.dataframe(df_div.sort_values("Datum", ascending=False), use_container_width=True)
+                st.subheader("📝 Historie plateb")
+        # Vybereme jen sloupce, co chceme vidět
+        ukazat_df = df_div[["Datum", "Ticker", "Castka", "Mena", "CastkaCZK"]].copy()
+        
+        # Seřadíme od nejnovějšího
+        ukazat_df = ukazat_df.sort_values("Datum", ascending=False)
+        
+        # A zobrazíme to krásně naformátované
+        st.dataframe(
+            ukazat_df.style.format({
+                "Castka": "{:,.2f}",       # Původní částka na 2 desetinná
+                "CastkaCZK": "{:,.0f} Kč", # České koruny bez desetinných míst
+                "Datum": "{:%d.%m.%Y}"     # Datum hezky česky
+            }), 
+            use_container_width=True,
+            hide_index=True # Schováme ten levý sloupeček s čísly řádků (0,1,2...)
+        )
                 meny_divi = df_div['Mena'].unique().tolist()
                 if meny_divi:
                     st.divider()
@@ -618,6 +634,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
