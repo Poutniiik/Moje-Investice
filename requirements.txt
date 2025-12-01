@@ -1,6 +1,6 @@
 streamlit>=1.28.0
 pandas
-yfinance
+yfinance>=0.2.40
 plotly
 PyGithub
 matplotlib
