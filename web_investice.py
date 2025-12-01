@@ -380,22 +380,38 @@ def main():
     
     zmena_24h = 0; pct_24h = 0
     if len(hist_vyvoje) > 1:
+        kurz_czk = kurzy.get("CZK", 24.5) # Získáme aktuální kurz, nebo použijeme 24.5 jako pojistku
+    celk_hod_czk = celk_hod_usd * kurz_czk
+    celk_inv_czk = celk_inv_usd * kurz_czk
+    zisk_czk = celk_hod_czk - celk_inv_czk
         vcera = hist_vyvoje.iloc[-2]['TotalUSD']
         if pd.notnull(vcera) and vcera > 0:
             zmena_24h = celk_hod_usd - vcera
             pct_24h = (zmena_24h / vcera * 100)
 
     # --- STRÁNKY ---
-    if page == "🏠 Přehled":
+   if page == "🏠 Přehled":
         st.title(f"🏠 PŘEHLED: {USER.upper()}")
-        k1, k2, k3 = st.columns(3)
-        k1.metric("ČISTÉ JMĚNÍ (USD)", f"$ {celk_hod_usd:,.0f}", f"{celk_hod_usd-celk_inv_usd:+,.0f} Zisk")
-        k2.metric("ZMĚNA 24H", f"${zmena_24h:+,.0f}", f"{pct_24h:+.2f}%")
+        
+        # Změna: Děláme 4 sloupce místo 3
+        k1, k2, k3, k4 = st.columns(4)
+        
+        # 1. USD
+        k1.metric("JMĚNÍ (USD)", f"$ {celk_hod_usd:,.0f}", f"{celk_hod_usd-celk_inv_usd:+,.0f} Zisk")
+        
+        # 2. CZK (Novinka!)
+        k2.metric("JMĚNÍ (CZK)", f"{celk_hod_czk:,.0f} Kč", f"{zisk_czk:+,.0f} Kč")
+        
+        # 3. Změna 24h
+        k3.metric("ZMĚNA 24H", f"${zmena_24h:+,.0f}", f"{pct_24h:+.2f}%")
+        
+        # 4. Hotovost
         try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 24.5)) + (zustatky.get('EUR', 0)*kurzy.get("EUR", 1.05))
         except: cash_usd = 0
-        k3.metric("HOTOVOST (USD EST)", f"${cash_usd:,.0f}", "Připraveno")
+        k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
         
         st.divider()
+        # ... zbytek kódu (Peněženky atd.) nech beze změny ...
         st.subheader("💰 Peněženky (Investováno vs Zisk)")
         cols = st.columns(len(stats_meny)) if stats_meny else [st.container()]
         for i, m in enumerate(stats_meny):
@@ -526,3 +542,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
