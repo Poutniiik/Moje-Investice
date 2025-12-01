@@ -556,6 +556,36 @@ def main():
         
     elif page == "💎 Dividendy":
         st.title("💎 DIVIDENDY")
+        if not df_div.empty:
+            # 1. Převedeme vše na CZK pro grafy (použijeme naše pevné kurzy)
+            df_div['Datum'] = pd.to_datetime(df_div['Datum'])
+            df_div['Mesic'] = df_div['Datum'].dt.strftime('%Y-%m') # Vytvoříme sloupec "2025-12"
+            
+            def prepocet_na_czk(row):
+                m = row['Mena']; c = row['Castka']
+                if m == 'CZK': return c
+                elif m == 'USD': return c * 20.85
+                elif m == 'EUR': return c * 24.20 # Cca kurz eura
+                return c
+            
+            df_div['CastkaCZK'] = df_div.apply(prepocet_na_czk, axis=1)
+            
+            # 2. Seskupíme podle měsíců
+            monthly_data = df_div.groupby('Mesic')['CastkaCZK'].sum()
+            
+            # 3. Zobrazíme graf a metriky
+            k1, k2 = st.columns([2, 1])
+            with k1:
+                st.subheader("📅 Pasivní příjem (CZK)")
+                st.bar_chart(monthly_data, color="#00FF00") # Zelený graf
+            with k2:
+                celkem_divi = df_div['CastkaCZK'].sum()
+                st.metric("CELKEM VYPLACENO", f"{celkem_divi:,.0f} Kč", "Super práce! 🚀")
+                st.write("Poslední měsíce:")
+                st.dataframe(monthly_data.sort_index(ascending=False).head(5), use_container_width=True)
+            
+            st.divider()
+        # 👆 KONEC NOVÉHO BLOKU 👆
         c1, c2 = st.columns([1, 2])
         with c1:
             st.subheader("Připsat dividendu")
@@ -588,6 +618,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
