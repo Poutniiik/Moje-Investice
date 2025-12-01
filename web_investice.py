@@ -62,6 +62,9 @@ def nacti_csv(nazev_souboru):
         for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD']:
             if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
 
+        if 'Sektor' not in df.columns and nazev_souboru == SOUBOR_DATA:
+            df['Sektor'] = "Doplnit"
+        
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         df['Owner'] = df['Owner'].astype(str)
         return df
@@ -358,7 +361,11 @@ def main():
             if p is None: p = row['Cena'] # Pokud selže, použijeme nákupku
             if m is None or m == "N/A": m = "USD" # Pokud selže měna, USD
             
-            sektor = ziskej_sektor(tkr)
+            try:
+                # Najde první výskyt sektoru pro tento ticker v tvé tabulce
+                sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
+            except:
+                sektor = "Ostatní"
             
             hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
             try: k = 1.0 / kurzy.get("CZK", 24.5) if m=="CZK" else (kurzy.get("EUR", 1.05) if m=="EUR" else 1.0)
@@ -509,8 +516,9 @@ def main():
         st.title("⚙️ EDITACE")
         t1, t2 = st.tabs(["Portfolio", "Historie"])
         with t1:
-            ed = st.data_editor(df[["Ticker", "Pocet", "Cena", "Datum"]], num_rows="dynamic", use_container_width=True)
-            if not df[["Ticker", "Pocet", "Cena", "Datum"]].reset_index(drop=True).equals(ed.reset_index(drop=True)):
+           ed = st.data_editor(df[["Ticker", "Pocet", "Cena", "Datum", "Sektor"]], num_rows="dynamic", use_container_width=True)
+            
+        if not df[["Ticker", "Pocet", "Cena", "Datum", "Sektor"]].reset_index(drop=True).equals(ed.reset_index(drop=True)):
                 if st.button("💾 ULOŽIT PORTFOLIO"): st.session_state['df'] = ed; uloz_data_uzivatele(ed, USER, SOUBOR_DATA); st.toast("Uloženo", icon="✅"); st.rerun()
         with t2:
             st.session_state['df_hist'] = st.data_editor(st.session_state['df_hist'], num_rows="dynamic", use_container_width=True, key="he")
@@ -518,4 +526,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
