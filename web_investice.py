@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.express as px
-import plotly.graph_objects as go
 from github import Github
 from io import StringIO
 from datetime import datetime
@@ -26,7 +25,7 @@ st.markdown("""
     .stApp {background-color: #0E1117; font-family: 'Roboto Mono', monospace;}
     div[data-testid="stMetric"] {background-color: #161B22; border: 1px solid #30363D; padding: 15px; border-radius: 5px; color: #E6EDF3;}
     div[data-testid="stMetricLabel"] {font-size: 0.9rem; color: #8B949E; font-weight: bold; text-transform: uppercase;}
-    div[data-testid="stMetricValue"] {font-size: 1.2rem; color: #E6EDF3; font-weight: bold;}
+    div[data-testid="stMetricValue"] {font-size: 1.5rem; color: #E6EDF3; font-weight: bold;}
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1px;}
     hr {border-color: #30363D;}
     div[data-testid="column"] button {border: 1px solid #FF4B4B; color: #FF4B4B;}
@@ -162,6 +161,7 @@ def proved_prodej(ticker, kusy, cena, user, mena):
     return True, f"Prodáno! +{trzba:,.2f}"
 
 # --- LIVE DATA FUNKCE ---
+# Toto je ta nejjednodušší a nejspolehlivější metoda
 def ziskej_info_simple(ticker):
     mena = "USD"
     if str(ticker).endswith(".PR"): mena = "CZK"
@@ -169,16 +169,19 @@ def ziskej_info_simple(ticker):
     
     try:
         t = yf.Ticker(str(ticker))
+        # Zkusíme fast_info (nejrychlejší)
         price = t.fast_info.last_price
         if price: return price, mena
         
+        # Fallback na historii (pomalejší, ale jistota)
         hist = t.history(period="1d")
         if not hist.empty:
             return hist['Close'].iloc[-1], mena
+            
     except: pass
     return None, mena
 
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=3600)
 def ziskej_sektor(ticker):
     try: return yf.Ticker(str(ticker)).info.get('sector', 'Ostatní')
     except: return 'Ostatní'
@@ -239,7 +242,7 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
         return
 
-    # --- DASHBOARD INIT ---
+    # --- DASHBOARD ---
     USER = st.session_state['user']
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
@@ -273,6 +276,7 @@ def main():
                 if new_w: pridat_do_watchlistu(new_w, USER); st.rerun()
             
         if not df_watch.empty:
+            # Watchlist se stahuje jednotlivě, aby to bylo spolehlivé
             for t in df_watch['Ticker']:
                 price, curr = ziskej_info_simple(t)
                 c1, c2 = st.columns([3, 1])
@@ -284,22 +288,27 @@ def main():
         st.divider()
         if st.button("ODHLÁSIT SE"): st.session_state.clear(); st.rerun()
 
-    # VÝPOČTY
+    # VÝPOČTY (HLAVNÍ SMYČKA)
     viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
+    
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
         df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
 
-        # TLAČÍTKO NA AKTUALIZACI
-        col_up, _ = st.columns([1,4])
-        if col_up.button("🔄 AKTUALIZOVAT CENY"): st.rerun()
+        # TLAČÍTKO NA AKTUALIZACI DAT
+        if st.button("🔄 AKTUALIZOVAT CENY Z BURZY"):
+            st.cache_data.clear()
+            st.rerun()
 
         bar = st.progress(0, "ANALÝZA TRHU...")
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
+            
+            # 🚀 TADY JE ZMĚNA: Stahujeme přímo, bez hromadné cache
             p, m = ziskej_info_simple(tkr)
-            if p is None: p = row['Cena']
+            
+            if p is None: p = row['Cena'] # Fallback
             
             sektor = ziskej_sektor(tkr)
             
@@ -349,21 +358,6 @@ def main():
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
-        
-        # --- BENCHMARK (INDEXY) ZNOVU PŘIDÁNO ---
-        st.subheader("🌍 Světové Indexy (24h)")
-        m1, m2, m3 = st.columns(3)
-        # Načteme indexy bezpečně (jako watchlist)
-        sp, _ = ziskej_info_simple("^GSPC")
-        dax, _ = ziskej_info_simple("^GDAXI")
-        px, _ = ziskej_info_simple("FPX.PR")
-        
-        m1.metric("S&P 500 (USA)", f"{sp:,.0f}" if sp else "?")
-        m2.metric("DAX (EU)", f"{dax:,.0f}" if dax else "?")
-        m3.metric("PX (CZ)", f"{px:,.0f} Kč" if px else "?")
-        st.divider()
-        # ----------------------------------------
-
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             c1, c2 = st.columns(2)
@@ -372,25 +366,8 @@ def main():
                 fig = px.treemap(vdf, path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'], values='HodnotaUSD', color='Zisk', color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0)
                 st.plotly_chart(fig, use_container_width=True)
             with c2:
-                st.caption("VÝVOJ HODNOTY vs TRH (S&P 500)")
-                if not hist_vyvoje.empty:
-                    # Benchmark
-                    start_date = hist_vyvoje.iloc[0]['Date']
-                    try:
-                        sp500 = yf.Ticker("^GSPC").history(start=start_date)['Close']
-                        fig = px.area(hist_vyvoje, x='Date', y='TotalUSD', title="Tvé Portfolio")
-                        
-                        if not sp500.empty:
-                             # Normalizace
-                            start_val_port = hist_vyvoje.iloc[0]['TotalUSD']
-                            start_val_sp = sp500.iloc[0]
-                            if start_val_sp > 0:
-                                sp500_norm = sp500 * (start_val_port / start_val_sp)
-                                fig.add_scatter(x=sp500_norm.index, y=sp500_norm, mode='lines', name='S&P 500 (Index)', line=dict(color='gray', dash='dot'))
-                    except: 
-                        fig = px.area(hist_vyvoje, x='Date', y='TotalUSD')
-                    
-                    st.plotly_chart(fig, use_container_width=True)
+                st.caption("VÝVOJ HODNOTY (Časová osa)")
+                if not hist_vyvoje.empty: st.line_chart(hist_vyvoje.set_index("Date")['TotalUSD'])
             st.divider()
             c3, c4 = st.columns(2)
             with c3:
@@ -438,8 +415,10 @@ def main():
             with st.form("b"):
                 t = st.text_input("Symbol").upper(); p = st.number_input("Ks", 0.001); c = st.number_input("Cena", 0.1)
                 if st.form_submit_button("KOUPIT"):
-                    _, m = ziskej_info_simple(t) # Použití jednoduché funkce
+                    # Fix měny pro nákup
+                    _, m = ziskej_info_simple(t) # Použití simple funkce
                     if m is None or m == "N/A": m = "USD"
+                    
                     cost = p*c; bal = zustatky.get(m, 0)
                     if bal >= cost:
                         pohyb_penez(-cost, m, "Nákup", f"Buy {t}", USER)
@@ -493,3 +472,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
