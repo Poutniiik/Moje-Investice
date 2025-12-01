@@ -437,6 +437,44 @@ def main():
         st.title("📈 HLOUBKOVÁ ANALÝZA")
         if viz_data:
             vdf = pd.DataFrame(viz_data)
+            # --- ZAČÁTEK REBALANCINGU ---
+            st.divider()
+            st.subheader("⚖️ REBALANCING (Rady pro tebe)")
+            
+            # 1. Spočítáme celkovou hodnotu jen pro sektory
+            total_assets = vdf['HodnotaUSD'].sum()
+            
+            # 2. Uděláme si 3 sloupce pro hezký vzhled
+            r1, r2, r3 = st.columns(3)
+            col_iter = [r1, r2, r3] # Abychom mohli sloupce střídat
+            
+            # 3. Projdeme tvé cíle a porovnáme s realitou
+            for i, (sektor_nazev, cil_pct) in enumerate(CILOVE_SEKTORY.items()):
+                aktualni_col = col_iter[i % 3] # Střídáme sloupce
+                
+                # Zjistíme, kolik dolarů máš v tomto sektoru
+                row = vdf[vdf['Sektor'] == sektor_nazev]
+                hodnota_sektoru = row['HodnotaUSD'].sum() if not row.empty else 0
+                
+                # Spočítáme aktuální procento
+                realita_pct = (hodnota_sektoru / total_assets * 100) if total_assets > 0 else 0
+                rozdil = realita_pct - cil_pct
+                
+                with aktualni_col:
+                    st.write(f"**{sektor_nazev}**")
+                    # Progress bar (ukazatel)
+                    st.progress(min(realita_pct / 100, 1.0))
+                    st.caption(f"Cíl: {cil_pct}% | Máš: {realita_pct:.1f}%")
+                    
+                    # Rada mentora: Co s tím dělat?
+                    if rozdil > 2:
+                        st.warning(f"📉 PRODEJ ({rozdil:+.1f}%)")
+                    elif rozdil < -2:
+                        st.success(f"🛒 DOKUP ({abs(rozdil):.1f}%)")
+                    else:
+                        st.info("✅ OK")
+            st.divider()
+            # --- KONEC REBALANCINGU ---
             c1, c2 = st.columns(2)
             with c1:
                 st.caption("MAPA TRHU (Sektory)")
@@ -550,6 +588,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
