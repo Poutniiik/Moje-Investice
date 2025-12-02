@@ -350,6 +350,10 @@ def main():
             p, m = ziskej_info(tkr)
             if p is None: p = row['Cena']
             if m is None or m == "N/A": m = "USD"
+            
+            # 👇 TADY VOLÁME TU NOVOU FUNKCI
+            div_vynos = ziskej_yield(tkr) 
+            
             try:
                 raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
                 sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
@@ -373,9 +377,11 @@ def main():
             if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
             stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
             
+            # 👇 PŘIDALI JSME "Divi" DO SEZNAMU
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
-                "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv
+                "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], 
+                "Dan": dan_status, "Investice": inv, "Divi": div_vynos
             })
 
     hist_vyvoje = st.session_state['hist_vyvoje']
@@ -753,4 +759,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
