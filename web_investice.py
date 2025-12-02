@@ -490,7 +490,6 @@ def main():
             
             # ZÁCHRANNÁ SÍŤ PRO CENU A MĚNU
             p, m = ziskej_info(tkr) # Zkusíme individuální dotaz
-            
             if p is None: p = row['Cena'] # Pokud selže, použijeme nákupku
             if m is None or m == "N/A": m = "USD" # Pokud selže měna, USD
             
@@ -876,6 +875,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
