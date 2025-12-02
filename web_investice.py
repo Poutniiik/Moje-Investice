@@ -13,6 +13,7 @@ import requests
 import feedparser
 from streamlit_lottie import st_lottie
 import google.generativeai as genai
+import plotly.graph_objects as go # Potřeba pro tachometr
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -103,8 +104,10 @@ def ziskej_fear_greed():
         score = int(data['fear_and_greed']['score'])
         rating = data['fear_and_greed']['rating']
         datum = datetime.fromisoformat(data['fear_and_greed']['timestamp']).strftime("%d.%m. %H:%M")
-        return score, rating, datum
-    except: return None, None, None
+        # Zkusíme získat i předchozí hodnotu pro šipku
+        prev_score = int(data['fear_and_greed']['previous_close'])
+        return score, rating, datum, prev_score
+    except: return None, None, None, None
 
 @st.cache_data(ttl=1800) 
 def ziskej_zpravy():
@@ -507,26 +510,48 @@ def main():
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
         
-        # --- FEAR & GREED TACHOMETR ---
-        score, rating, datum_fg = ziskej_fear_greed()
+        # --- FEAR & GREED TACHOMETR (OPRAVENO) ---
+        score, rating, datum_fg, prev_score = ziskej_fear_greed()
         if score is not None:
-            import plotly.graph_objects as go
             st.write(""); st.subheader("😨 PSYCHOLOGIE TRHU (Fear & Greed)")
             with st.container(border=True):
+                # Nastavení barvy šipky
+                ref = prev_score if prev_score else 50
+                delta_color = "green" if score > ref else "red" # Vyšší score = větší chamtivost (zde špatné)
+                # Ale chceme: Roste score -> roste optimismus -> zelená šipka (technicky)
+                
                 fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number", value = score,
+                    mode = "gauge+number+delta", value = score,
                     domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': f"Aktuálně: {rating.upper()}"},
+                    title = {'text': f"Aktuálně: {rating.upper()}", 'font': {'size': 24}},
+                    delta = {'reference': ref, 'increasing': {'color': "green"}, 'decreasing': {'color': "red"}},
                     gauge = {
-                        'axis': {'range': [None, 100]},
-                        'bar': {'color': "white"},
-                        'steps': [{'range': [0, 25], 'color': '#FF4B4B'}, {'range': [75, 100], 'color': '#008000'}],
+                        'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
+                        'bar': {'color': "white", 'thickness': 0.2},
+                        'bgcolor': "white", 'borderwidth': 2, 'bordercolor': "gray",
+                        'steps': [
+                            {'range': [0, 25], 'color': '#FF4B4B'},  # Extrémní strach
+                            {'range': [25, 45], 'color': '#FFA07A'}, # Strach
+                            {'range': [45, 55], 'color': '#FFFF00'}, # Neutrál
+                            {'range': [55, 75], 'color': '#90EE90'}, # Chamtivost
+                            {'range': [75, 100], 'color': '#008000'} # Extrémní chamtivost
+                        ],
                     }
                 ))
-                fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=30, b=20))
+                fig_gauge.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", 'family': "Roboto Mono"}, height=250, margin=dict(l=20, r=20, t=50, b=20))
+                
                 c_g1, c_g2 = st.columns([2, 1])
                 with c_g1: st.plotly_chart(fig_gauge, use_container_width=True)
-                with c_g2: st.info(f"**Hodnota: {score}/100**\n\n📅 {datum_fg}")
+                with c_g2: 
+                    st.info(f"""
+                    **Hodnota: {score}/100**
+                    
+                    📅 {datum_fg}
+                    
+                    *Výklad:*
+                    - **< 25**: Trh se bojí (Levné nákupy?)
+                    - **> 75**: Trh je nenažraný (Riziko pádu?)
+                    """)
         
         st.divider()
         if viz_data:
@@ -577,13 +602,13 @@ def main():
                     else: st.info("✅ OK")
 
             st.divider()
-            st.subheader("🔮 VĚŠTEC")
+            st.subheader("🔮 VĚŠTEC: Budoucí bohatství")
             with st.container(border=True):
                 col_v1, col_v2 = st.columns([1, 2])
                 with col_v1:
                     vklad = st.number_input("Měsíční vklad (Kč)", value=5000, step=500)
                     roky = st.slider("Počet let", 5, 40, 15)
-                    urok = st.slider("Očekávaný úrok (%)", 1.0, 15.0, 8.0)
+                    urok = st.slider("Očekávaný úrok p.a. (%)", 1.0, 15.0, 8.0)
                 with col_v2:
                     data_budoucnost = []; aktualni_hodnota = celk_hod_czk; vlozeno = celk_hod_czk
                     for r in range(1, roky + 1):
@@ -595,7 +620,7 @@ def main():
             
             # --- CRASH TEST ---
             st.divider()
-            st.subheader("💥 CRASH TEST")
+            st.subheader("💥 CRASH TEST: Jsi připraven na krizi?")
             with st.container(border=True):
                 propad = st.slider("Simulace pádu trhu (%)", 5, 80, 20, step=5)
                 ztrata_czk = (celk_hod_usd * (propad / 100)) * kurz_czk
@@ -696,10 +721,17 @@ def main():
         t1, t2 = st.tabs(["Portfolio", "Historie"])
         with t1:
             ed = st.data_editor(df[["Ticker", "Pocet", "Cena", "Datum", "Sektor"]], num_rows="dynamic", use_container_width=True)
-            if st.button("💾 ULOŽIT PORTFOLIO"): st.session_state['df'] = ed; uloz_data_uzivatele(ed, USER, SOUBOR_DATA); st.toast("Uloženo", icon="✅"); st.rerun()
+            if st.button("💾 ULOŽIT PORTFOLIO"): 
+                st.session_state['df'] = ed
+                uloz_data_uzivatele(ed, USER, SOUBOR_DATA)
+                st.toast("Uloženo", icon="✅")
+                st.rerun()
         with t2:
             st.session_state['df_hist'] = st.data_editor(st.session_state['df_hist'], num_rows="dynamic", use_container_width=True, key="he")
-            if st.button("💾 ULOŽIT HISTORII"): uloz_data_uzivatele(st.session_state['df_hist'], USER, SOUBOR_HISTORIE); st.toast("Uloženo", icon="✅"); st.rerun()
+            if st.button("💾 ULOŽIT HISTORII"): 
+                uloz_data_uzivatele(st.session_state['df_hist'], USER, SOUBOR_HISTORIE)
+                st.toast("Uloženo", icon="✅")
+                st.rerun()
         
         st.divider()
         st.subheader("📦 ZÁLOHA")
