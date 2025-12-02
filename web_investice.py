@@ -7,6 +7,7 @@ from io import StringIO
 from datetime import datetime
 import hashlib
 import zipfile  # 👈 TENTO ŘÁDEK PŘIDEJ NAHORU K IMPORTŮM
+import time
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -719,6 +720,8 @@ def main():
                 if st.form_submit_button("PŘIPSAT"):
                     pridat_dividendu(t, a, c, USER)
                     st.toast("Připsáno", icon="💎")
+                    st.balloons()
+                    time.sleep(2)
                     st.rerun()
 
         # Pravý sloupec: Historie a detailní součty
@@ -796,6 +799,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
