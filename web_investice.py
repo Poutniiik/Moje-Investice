@@ -420,6 +420,7 @@ def main():
              st.rerun()
 
     # VÝPOČTY
+    
     viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
@@ -482,7 +483,7 @@ def main():
                 "Kusy": row['Pocet'], 
                 "Průměr": row['Cena'],
                 "Dan": dan_status,
-                "Investice": inv # Přidáno pro jistotu
+                "Investice": inv
             })
 
     hist_vyvoje = st.session_state['hist_vyvoje']
@@ -875,6 +876,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
