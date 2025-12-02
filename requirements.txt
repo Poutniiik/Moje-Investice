@@ -7,3 +7,4 @@ matplotlib
 requests-cache
 requests
 streamlit-lottie
+google-generativeai
