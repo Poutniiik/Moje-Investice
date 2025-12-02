@@ -428,30 +428,41 @@ def main():
         k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
         
         st.divider()
+        
+        # 👇 1. NOVINKA: KARTY INVESTIC PODLE MĚN 👇
+        if viz_data:
+            # Spočítáme to
+            inv_usd = 0; inv_eur = 0; inv_czk = 0
+            for item in viz_data:
+                # Investice = Počet kusů * Nákupní cena (Průměr)
+                investice = item['Kusy'] * item['Průměr']
+                if item['Měna'] == "USD": inv_usd += investice
+                elif item['Měna'] == "EUR": inv_eur += investice
+                elif item['Měna'] == "CZK": inv_czk += investice
+            
+            # Zobrazíme 3 sloupce s velkými čísly
+            st.subheader("💰 INVESTOVANÝ KAPITÁL (Dle měny)")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Investováno USD", f"$ {inv_usd:,.0f}")
+            m2.metric("Investováno EUR", f"€ {inv_eur:,.0f}")
+            m3.metric("Investováno CZK", f"{inv_czk:,.0f} Kč")
+            
+        st.divider()
+
+        # 👇 2. NÁVRAT KE STARÉ HEZKÉ TABULCE S BARVIČKAMI 👇
+        st.subheader("📋 Detailní pozice")
         if viz_data:
             vdf = pd.DataFrame(viz_data)
-            
-            # 👇 TADY PŘIDÁVÁME SLOUPEC "Investice"
-            # (Ten už jsme měli spočítaný v proměnné 'inv', jen nebyl v tabulce)
-            vdf['Investice'] = vdf['Kusy'] * vdf['Průměr']
-
-            # 👇 FORMÁTOVÁNÍ: Přidáme symboly měn přímo k číslům
-            def format_mena(row, col_name):
-                val = row[col_name]
-                sym = "$" if row['Měna'] == "USD" else ("€" if row['Měna'] == "EUR" else "Kč")
-                return f"{val:,.2f} {sym}" if col_name in ['Průměr', 'Cena'] else f"{val:,.0f} {sym}"
-
-            # Aplikujeme formátování pro zobrazení (vytvoříme si kopii pro hezký vzhled)
-            show_df = vdf.copy()
-            for c in ['Investice', 'Hodnota', 'Zisk', 'Průměr', 'Cena']:
-                show_df[c] = show_df.apply(lambda x: format_mena(x, c), axis=1)
-
-            # 👇 ZOBRAZENÍ TABULKY (Včetně nového sloupce Investice)
+            # Vrátíme starý dobrý styl s barvičkami
             st.dataframe(
-                show_df[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Investice", "Hodnota", "Zisk"]],
+                vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Hodnota", "Zisk"]]
+                .style
+                .format({"Průměr": "{:.2f}", "Cena": "{:.2f}", "Hodnota": "{:,.0f}", "Zisk": "{:+,.0f}"})
+                .background_gradient(cmap="RdYlGn", subset=["Zisk"], vmin=-1000, vmax=1000), 
                 use_container_width=True
             )
-        else: st.info("Portfolio je prázdné. Jdi do sekce Obchod.")
+        else: 
+            st.info("Portfolio je prázdné. Jdi do sekce Obchod.")
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
@@ -665,6 +676,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
