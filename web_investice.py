@@ -384,7 +384,7 @@ def main():
 
         st.divider()
         # 4. Odhlášení (dole, červené)
-        if st.button("🚪 ODHLÁSIT SE", use_container_width=True, type="primary"):
+        if st.button("🚪 ODHLÁSIT SE", use_container_width=True):
              st.session_state.clear()
              st.rerun()
 
@@ -710,6 +710,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
