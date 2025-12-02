@@ -97,18 +97,35 @@ def load_lottieurl(url):
 @st.cache_data(ttl=1800) # Cache na 30 minut
 def ziskej_zpravy():
     news = []
+    # Tváříme se jako běžný prohlížeč (Chrome na Windows), aby nás neblokovali
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    
     for url in RSS_ZDROJE:
         try:
-            feed = feedparser.parse(url)
-            for entry in feed.entries[:5]: # Bereme 5 nejnovějších z každého zdroje
-                news.append({
-                    "title": entry.title,
-                    "link": entry.link,
-                    "published": entry.get('published', datetime.now().strftime("%d.%m.%Y")),
-                    "summary": entry.get('summary', '')[:200] + "..." # Zkrátíme popis
-                })
-        except: pass
-    return news # Seznam slovníků
+            # 1. Stáhneme data "jako člověk" přes requests
+            response = requests.get(url, headers=headers, timeout=5)
+            response.encoding = 'utf-8' # Vynutíme češtinu
+            
+            # 2. Předhodíme to čtečce
+            if response.status_code == 200:
+                feed = feedparser.parse(response.content)
+                for entry in feed.entries[:5]: # Bereme 5 nejnovějších
+                    # Ošetření chybějícího data
+                    datum = entry.get('published', datetime.now().strftime("%d.%m.%Y"))
+                    
+                    news.append({
+                        "title": entry.title,
+                        "link": entry.link,
+                        "published": datum,
+                        "summary": entry.get('summary', '')[:200] + "..."
+                    })
+        except Exception as e:
+            print(f"Chyba stahování z {url}: {e}") # Pro debug do konzole
+            pass
+            
+    return news
 
 # --- DATABÁZE ---
 def uloz_csv(df, nazev_souboru, zprava):
@@ -674,3 +691,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
