@@ -706,7 +706,6 @@ def main():
                 fig = px.treemap(vdf, path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'], values='HodnotaUSD', color='Zisk', color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0)
                 st.plotly_chart(fig, use_container_width=True)
             with c2:
-                with c2:
                 st.caption("🥊 SOUBOJ S TRHEM (S&P 500)")
                 if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
                     # 1. Příprava tvých dat
@@ -955,6 +954,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
