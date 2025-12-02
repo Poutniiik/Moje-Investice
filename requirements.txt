@@ -5,3 +5,5 @@ plotly
 PyGithub
 matplotlib
 requests-cache
+requests
+streamlit-lottie
