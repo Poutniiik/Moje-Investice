@@ -706,8 +706,59 @@ def main():
                 fig = px.treemap(vdf, path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'], values='HodnotaUSD', color='Zisk', color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0)
                 st.plotly_chart(fig, use_container_width=True)
             with c2:
-                st.caption("VÝVOJ HODNOTY (Časová osa)")
-                if not hist_vyvoje.empty: st.line_chart(hist_vyvoje.set_index("Date")['TotalUSD'])
+                with c2:
+                st.caption("🥊 SOUBOJ S TRHEM (S&P 500)")
+                if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
+                    # 1. Příprava tvých dat
+                    my_data = hist_vyvoje.copy()
+                    my_data['Date'] = pd.to_datetime(my_data['Date'])
+                    my_data = my_data.sort_values('Date')
+                    
+                    # 2. Stažení dat S&P 500 (^GSPC) pro stejné období
+                    start_date = my_data['Date'].iloc[0].strftime('%Y-%m-%d')
+                    # Stahujeme o pár dní víc, aby se chytil i víkend
+                    sp500 = yf.download("^GSPC", start=start_date, progress=False)['Close']
+                    
+                    # 3. Normalizace na procenta (Start na 0%)
+                    # Tvoje portfolio
+                    start_val = my_data['TotalUSD'].iloc[0]
+                    if start_val > 0:
+                        my_data['Můj Vývoj'] = ((my_data['TotalUSD'] / start_val) - 1) * 100
+                    else:
+                        my_data['Můj Vývoj'] = 0
+
+                    # S&P 500
+                    # Musíme srovnat indexy (datumy)
+                    df_chart = pd.DataFrame(index=my_data['Date'])
+                    df_chart['Já'] = my_data.set_index('Date')['Můj Vývoj']
+                    
+                    # Napojení S&P 500 (musíme to trochu "ohnout" přes merge asof, nebo jednoduše reindexovat)
+                    # Zjednodušená verze: Vezmeme zavírací ceny k tvým datumům
+                    sp500_vals = []
+                    sp_start = sp500.iloc[0] if not sp500.empty else 1
+                    
+                    # Vytvoříme srovnávací data pro SP500
+                    sp_norm = ((sp500 / sp_start) - 1) * 100
+                    
+                    # Sloučíme to do jednoho grafu (trochu magií s pandas, aby to sedělo časově)
+                    # Nejjednodušší: Uděláme nový DF s oběma křivkami
+                    # Aby to fungovalo, převedeme tvůj index na datum (bez času)
+                    my_data['DateOnly'] = my_data['Date'].dt.date
+                    sp500_df = sp_norm.reset_index()
+                    sp500_df.columns = ['DateOnly', 'S&P 500']
+                    sp500_df['DateOnly'] = sp500_df['DateOnly'].dt.date
+                    
+                    # Spojíme
+                    final_chart = pd.merge(my_data, sp500_df, on='DateOnly', how='left').fillna(method='ffill')
+                    
+                    # Zobrazíme jen sloupce s procenty
+                    st.line_chart(final_chart.set_index('Date')[['Můj Vývoj', 'S&P 500']])
+                    
+                elif not hist_vyvoje.empty:
+                    # Když máš jen jeden záznam, nejde dělat graf vývoje
+                    st.info("Nasbírej data alespoň ze 2 dnů pro srovnání.")
+                else:
+                    st.info("Žádná historie.")
             st.divider()
             c3, c4 = st.columns(2)
             with c3:
@@ -904,6 +955,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
