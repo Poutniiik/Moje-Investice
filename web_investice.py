@@ -656,8 +656,6 @@ def main():
                     st.area_chart(pd.DataFrame(data_budoucnost).set_index("Rok"), color=["#00FF00", "#333333"])
                     st.metric(f"Hodnota v roce {datetime.now().year + roky}", f"{aktualni_hodnota:,.0f} Kč", f"Zisk: {aktualni_hodnota - vlozeno:,.0f} Kč")
         else: st.info("Žádná data.")
-
-    # ... (zde končí Věštec) ...
             
             # 👇 NOVÝ BLOK: CRASH TEST 👇
             st.divider()
@@ -805,6 +803,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
