@@ -255,11 +255,16 @@ def ziskej_ceny_hromadne(tickers):
 def ziskej_kurzy(): return {"USD": 1.0, "CZK": 20.85, "EUR": 1.16}
 
 # 👇 NOVÁ FUNKCE PRO DIVIDENDY 👇
-@st.cache_data(ttl=86400) # Uložíme to na 24h, ať nebrzdíme aplikaci
+@st.cache_data(ttl=86400)
 def ziskej_yield(ticker):
     try:
         t = yf.Ticker(str(ticker))
         d = t.info.get('dividendYield')
+        
+        # 👇 OPRAVA: Pokud je číslo podezřele velké, vydělíme ho 100
+        if d and d > 0.5: # Žádná firma nemá dividendu 50%+, takže je to chyba měřítka
+            return d / 100
+            
         return d if d else 0
     except: return 0
 # 👆 KONEC NOVÉ FUNKCE 👆
@@ -772,6 +777,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
