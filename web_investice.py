@@ -13,6 +13,7 @@ import requests
 import feedparser # 👈 NOVINKA PRO ZPRÁVY
 from streamlit_lottie import st_lottie
 import google.generativeai as genai
+import plotly.graph_objects as go # 👈 PRO TACHOMETR
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -132,6 +133,23 @@ def ziskej_zpravy():
             pass
             
     return news
+
+# --- FEAR & GREED INDEX (PSYCHOLOGIE TRHU) ---
+@st.cache_data(ttl=3600) # Uložíme na hodinu
+def ziskej_fear_greed():
+    # Tajný endpoint CNN (psst!)
+    url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    try:
+        r = requests.get(url, headers=headers, timeout=5)
+        data = r.json()
+        score = int(data['fear_and_greed']['score'])
+        rating = data['fear_and_greed']['rating']
+        timestamp = data['fear_and_greed']['timestamp']
+        datum = datetime.fromisoformat(timestamp).strftime("%d.%m. %H:%M")
+        return score, rating, datum
+    except:
+        return None, None, None
 
 # --- DATABÁZE ---
 def uloz_csv(df, nazev_souboru, zprava):
@@ -520,6 +538,60 @@ def main():
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
+        # 👇 TACHOMETR STRACHU A CHAMTIVOSTI 👇
+        score, rating, datum_fg = ziskej_fear_greed()
+        
+        if score is not None:
+            st.write("")
+            with st.container(border=True):
+                st.subheader("😨 PSYCHOLOGIE TRHU (Fear & Greed)")
+                
+                # Vykreslení tachometru
+                fig_gauge = go.Figure(go.Indicator(
+                    mode = "gauge+number+delta",
+                    value = score,
+                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    title = {'text': f"Aktuálně: {rating.upper()}", 'font': {'size': 24}},
+                    delta = {'reference': 50, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}}, # Červená když roste chamtivost
+                    gauge = {
+                        'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
+                        'bar': {'color': "white", 'thickness': 0.2}, # Ručička
+                        'bgcolor': "white",
+                        'borderwidth': 2,
+                        'bordercolor': "gray",
+                        'steps': [
+                            {'range': [0, 25], 'color': '#FF4B4B'},  # Extrémní strach (Červená)
+                            {'range': [25, 45], 'color': '#FFA07A'}, # Strach
+                            {'range': [45, 55], 'color': '#FFFF00'}, # Neutrál (Žlutá)
+                            {'range': [55, 75], 'color': '#90EE90'}, # Chamtivost
+                            {'range': [75, 100], 'color': '#008000'} # Extrémní chamtivost (Zelená)
+                        ],
+                    }
+                ))
+                # Nastavení velikosti a průhlednosti
+                fig_gauge.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)", 
+                    font={'color': "white", 'family': "Roboto Mono"},
+                    height=250,
+                    margin=dict(l=20, r=20, t=50, b=20)
+                )
+                
+                c_g1, c_g2 = st.columns([2, 1])
+                with c_g1:
+                    st.plotly_chart(fig_gauge, use_container_width=True)
+                with c_g2:
+                    st.info(
+                        f"""
+                        **Hodnota: {score}/100**
+                        
+                        📅 {datum_fg}
+                        
+                        *Výklad:*
+                        - **< 25**: Trh se bojí (Levné nákupy?)
+                        - **> 75**: Trh je nenažraný (Riziko pádu?)
+                        """
+                    )
+        # 👆 KONEC TACHOMETRU 👆
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             c1, c2 = st.columns(2)
@@ -697,6 +769,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
