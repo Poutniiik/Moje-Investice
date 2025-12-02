@@ -559,7 +559,6 @@ def main():
                 .background_gradient(cmap="RdYlGn", subset=["Zisk", "Dnes"], vmin=-0.05, vmax=0.05), # Obarvíme Zisk i Dnes
                 use_container_width=True
             )
-            )
         else: st.info("Portfolio je prázdné.")
 
     elif page == "📈 Analýza":
@@ -798,6 +797,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
