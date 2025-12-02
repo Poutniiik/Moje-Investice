@@ -6,6 +6,7 @@ from github import Github
 from io import StringIO
 from datetime import datetime
 import hashlib
+import zipfile  # 👈 TENTO ŘÁDEK PŘIDEJ NAHORU K IMPORTŮM
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -720,8 +721,41 @@ def main():
             st.session_state['df_hist'] = st.data_editor(st.session_state['df_hist'], num_rows="dynamic", use_container_width=True, key="he")
             if st.button("💾 ULOŽIT HISTORII"): uloz_data_uzivatele(st.session_state['df_hist'], USER, SOUBOR_HISTORIE); st.toast("Uloženo", icon="✅"); st.rerun()
 
+# 👇 NOVÁ SEKCE PRO ZÁLOHOVÁNÍ 👇
+        st.divider()
+        st.subheader("📦 ZÁLOHA A OBNOVA")
+        st.caption("Jedním kliknutím si stáhni všechna data k sobě do bezpečí.")
+
+        # Příprava ZIP souboru v paměti
+        import io # Pro práci se souborem v paměti
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            # Uložíme postupně všechny tabulky, co máme načtené
+            if 'df' in st.session_state: 
+                zip_file.writestr(SOUBOR_DATA, st.session_state['df'].to_csv(index=False))
+            if 'df_hist' in st.session_state: 
+                zip_file.writestr(SOUBOR_HISTORIE, st.session_state['df_hist'].to_csv(index=False))
+            if 'df_cash' in st.session_state: 
+                zip_file.writestr(SOUBOR_CASH, st.session_state['df_cash'].to_csv(index=False))
+            if 'df_div' in st.session_state: 
+                zip_file.writestr(SOUBOR_DIVIDENDY, st.session_state['df_div'].to_csv(index=False))
+            if 'df_watch' in st.session_state: 
+                zip_file.writestr(SOUBOR_WATCHLIST, st.session_state['df_watch'].to_csv(index=False))
+
+        # Tlačítko pro stažení
+        st.download_button(
+            label="💾 STÁHNOUT KOMPLETNÍ ZÁLOHU (.ZIP)",
+            data=zip_buffer.getvalue(),
+            file_name=f"zaloha_investice_{datetime.now().strftime('%Y%m%d')}.zip",
+            mime="application/zip",
+            help="Stáhne portfolio, historii, watchlist i dividendy v jednom balíčku.",
+            type="primary" # Zelené výrazné tlačítko
+        )
+
 if __name__ == "__main__":
     main()
+
 
 
 
