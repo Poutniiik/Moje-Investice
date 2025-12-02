@@ -657,6 +657,42 @@ def main():
                     st.metric(f"Hodnota v roce {datetime.now().year + roky}", f"{aktualni_hodnota:,.0f} Kč", f"Zisk: {aktualni_hodnota - vlozeno:,.0f} Kč")
         else: st.info("Žádná data.")
 
+    # ... (zde končí Věštec) ...
+            
+            # 👇 NOVÝ BLOK: CRASH TEST 👇
+            st.divider()
+            st.subheader("💥 CRASH TEST: Jsi připraven na krizi?")
+            
+            with st.container(border=True):
+                # Posuvník katastrofy
+                propad = st.slider("Simulace pádu trhu (%)", 5, 80, 20, step=5, help="O kolik % spadnou akcie?")
+                
+                # Výpočet
+                ztrata_usd = celk_hod_usd * (propad / 100)
+                ztrata_czk = ztrata_usd * kurz_czk
+                zbytek_czk = (celk_hod_usd - ztrata_usd) * kurz_czk
+                
+                # Sloupce pro zobrazení
+                k_crash1, k_crash2 = st.columns(2)
+                
+                with k_crash1:
+                    st.error(f"📉 ZTRÁTA: -{ztrata_czk:,.0f} Kč")
+                    st.warning(f"💰 ZBYDE TI: {zbytek_czk:,.0f} Kč")
+                
+                with k_crash2:
+                    # Slovní hodnocení situace
+                    if propad <= 10:
+                        st.info("😅 **Korekce:** To je normální pondělí. Nic se neděje.")
+                    elif propad <= 25:
+                        st.warning("😬 **Medvědí trh:** Tohle už bolí. Hlavně neprodávej!")
+                    elif propad <= 40:
+                        st.error("😱 **Krize:** Teče krev. Ideální čas na nákupy ve slevě!")
+                    else:
+                        st.error("💀 **Finanční apokalypsa:** Doufej, že máš zásoby konzerv a brokovnici.")
+                    
+                    # Grafická vizualizace "krvácení"
+                    st.progress(1.0 - (propad / 100))
+
     # --- SEKCE ZPRÁVY (NOVINKA) ---
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
@@ -769,6 +805,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
