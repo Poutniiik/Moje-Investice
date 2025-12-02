@@ -287,7 +287,7 @@ def ziskej_radu_ai(portfolio_text, total_czk):
     if not AI_AVAILABLE: return "⚠️ Chybí API klíč! Nastav ho v .streamlit/secrets.toml"
     
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         prompt = f"""
         Jsi zkušený, přísný, ale férový investiční mentor.
         Můj celkový kapitál je {total_czk:,.0f} CZK.
@@ -1017,6 +1017,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
