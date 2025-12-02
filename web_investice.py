@@ -473,6 +473,47 @@ def main():
         try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 24.5)) + (zustatky.get('EUR', 0)*kurzy.get("EUR", 1.05))
         except: cash_usd = 0
         k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
+
+        # 👇 GAMIFIKACE: SÍŇ SLÁVY 👇
+        st.write("") # Mezera
+        st.subheader("🏆 SÍŇ SLÁVY")
+        
+        # 1. Spočítáme celkové dividendy v CZK (pro odznak Rentiéra)
+        total_divi_czk = 0
+        if not df_div.empty:
+            for _, r in df_div.iterrows():
+                m = r['Mena']; c = r['Castka']
+                k = 20.85 if m == "USD" else (24.20 if m == "EUR" else 1.0)
+                total_divi_czk += c * k
+
+        # 2. Nastavíme pravidla pro odznaky
+        # (Používáme st.columns, aby byly hezky vedle sebe)
+        o1, o2, o3, o4 = st.columns(4)
+
+        # 🥉 ODZNAK 1: ZAČÁTEČNÍK (Máš alespoň 1 akcii)
+        if not df.empty:
+            o1.success("🥉 **ZAČÁTEČNÍK**\n\nPrvní investice")
+        else:
+            o1.caption("🔒 Zamčeno\n\n(Kup první akcii)")
+
+        # 🥈 ODZNAK 2: STRATÉG (Máš alespoň 3 různé firmy)
+        pocet_firem = len(df['Ticker'].unique()) if not df.empty else 0
+        if pocet_firem >= 3:
+            o2.info(f"🥈 **STRATÉG**\n\n{pocet_firem} firem v portfoliu")
+        else:
+            o2.caption(f"🔒 Zamčeno\n\n(Máš jen {pocet_firem}/3 firem)")
+
+        # 🥇 ODZNAK 3: BOHÁČ (Jmění > 100 000 Kč)
+        if celk_hod_czk > 100000:
+            o3.warning("🥇 **BOHÁČ**\n\nJmění > 100k")
+        else:
+            o3.caption(f"🔒 Zamčeno\n\n({celk_hod_czk/1000:.0f}k / 100k)")
+
+        # 💎 ODZNAK 4: RENTIÉR (Dividendy > 500 Kč)
+        if total_divi_czk > 500:
+            o4.error("💎 **RENTIÉR**\n\nDivi > 500 Kč")
+        else:
+            o4.caption(f"🔒 Zamčeno\n\n({total_divi_czk:.0f} / 500 Kč)")
         
         st.divider()
         
@@ -755,6 +796,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
