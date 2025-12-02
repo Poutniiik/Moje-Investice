@@ -355,28 +355,40 @@ def main():
                         st.toast(f"{new_w} přidáno!", icon="👀")
                         st.rerun()
 
-        # B) Výpis karet (s rámečkem)
+       # B) Výpis karet
         if not df_watch.empty:
             for t in df_watch['Ticker']:
-                # Získáme data
+                # 1. Zkusíme data z hromadného balíku (Rychlé)
                 info = LIVE_DATA.get(t, {})
                 price = info.get('price')
                 curr = info.get('curr', '?')
-                
-                # Vykreslíme "Kartu" (container s rámečkem)
+
+                # 2. ZÁCHRANA: Pokud cena chybí, zkusíme individuální dotaz (Pomalé, ale jisté)
+                if not price:
+                     try:
+                         # Použijeme tu funkci, co používá hlavní tabulka
+                         p, m = ziskej_info(t)
+                         if p: 
+                             price = p
+                             curr = m
+                     except: pass
+
+                # Vykreslíme "Kartu"
                 with st.container(border=True):
                     c1, c2 = st.columns([4, 1])
                     with c1:
-                        # Název a cena pod sebou
-                        st.markdown(f"**{t}**")
+                        st.markdown(f"**{t}**") 
+                        
                         if price:
+                            # Tady už by to mělo klapnout
                             st.markdown(f"### {price:,.2f} {curr}")
                         else:
-                            st.caption("Načítám...")
+                            st.caption("⚠️ Data nedostupná") 
+                            
                     with c2:
-                        # Tlačítko pro smazání (zarovnané na střed)
                         st.write("") 
-                        if st.button("❌", key=f"del_{t}", help="Odebrat ze sledovaných"):
+                        # Tlačítko pro smazání
+                        if st.button("❌", key=f"del_{t}"):
                             odebrat_z_watchlistu(t, USER)
                             st.rerun()
         else:
@@ -710,6 +722,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
