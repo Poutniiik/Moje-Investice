@@ -316,43 +316,77 @@ def main():
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
-    # --- SIDEBAR ---
+   # --- SIDEBAR ---
     with st.sidebar:
-        st.write(f"👤 **{USER.upper()}**")
+        # 1. Horní sekce s uživatelem a zůstatky
+        st.header(f"👤 {USER.upper()}")
         
-        # 💰 ZDE JE NÁVRAT ZŮSTATKŮ DO MENU 💰
+        # Zobrazení peněženky v hezčích "bublinách"
         if zustatky:
             st.caption("Stav peněženky:")
-            for mena, castka in zustatky.items():
-                if castka > 0.01: # Ukazujeme jen nenulové
+            # Seřadíme, ať jsou hlavní měny nahoře
+            for mena in ["USD", "CZK", "EUR"]:
+                if mena in zustatky and zustatky[mena] > 0.01:
+                    castka = zustatky[mena]
                     sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
-                    st.write(f"💵 **{castka:,.2f} {sym}**")
+                    # Použijeme info boxík pro každou měnu
+                    st.info(f"**{castka:,.2f} {sym}**", icon="💰")
         else:
-            st.caption("Peněženka prázdná")
+            st.warning("Peněženka prázdná")
             
-        st.divider()
-        page = st.radio("MENU", ["🏠 Přehled", "📈 Analýza", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"])
         st.divider()
         
-        st.subheader("🔍 SLEDOVANÉ")
-        # ... zbytek kódu watchlistu zůstává stejný ...
-        with st.form("w_add", clear_on_submit=True):
-            new_w = st.text_input("Symbol", placeholder="NVDA").upper()
-            if st.form_submit_button("Přidat"):
-                if new_w: pridat_do_watchlistu(new_w, USER); st.rerun()
-            
+        # 2. Navigace (Menu)
+        st.subheader("🧭 NAVIGACE")
+        page = st.radio("Přejít na:", ["🏠 Přehled", "📈 Analýza", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"], label_visibility="collapsed")
+        
+        st.divider()
+        
+        # 3. WATCHLIST (Vylepšený)
+        st.subheader("👀 SLEDOVANÉ")
+        
+        # A) Formulář pro přidání (Dáme ho do "expanderu", ať nezabírá místo, když ho nepotřebuješ)
+        with st.expander("➕ Přidat akcii", expanded=False):
+            with st.form("w_add", clear_on_submit=True):
+                new_w = st.text_input("Symbol", placeholder="NVDA").upper()
+                if st.form_submit_button("Sledovat"):
+                    if new_w: 
+                        pridat_do_watchlistu(new_w, USER)
+                        st.toast(f"{new_w} přidáno!", icon="👀")
+                        st.rerun()
+
+        # B) Výpis karet (s rámečkem)
         if not df_watch.empty:
             for t in df_watch['Ticker']:
+                # Získáme data
                 info = LIVE_DATA.get(t, {})
-                price = info.get('price'); curr = info.get('curr', '?')
-                c1, c2 = st.columns([3, 1])
-                c1.metric(t, f"{price:.2f} {curr}" if price else "?")
-                c2.write(""); c2.write("")
-                if c2.button("🗑️", key=f"del_{t}", on_click=odebrat_z_watchlistu, args=(t, USER)): pass
+                price = info.get('price')
+                curr = info.get('curr', '?')
+                
+                # Vykreslíme "Kartu" (container s rámečkem)
+                with st.container(border=True):
+                    c1, c2 = st.columns([4, 1])
+                    with c1:
+                        # Název a cena pod sebou
+                        st.markdown(f"**{t}**")
+                        if price:
+                            st.markdown(f"### {price:,.2f} {curr}")
+                        else:
+                            st.caption("Načítám...")
+                    with c2:
+                        # Tlačítko pro smazání (zarovnané na střed)
+                        st.write("") 
+                        if st.button("❌", key=f"del_{t}", help="Odebrat ze sledovaných"):
+                            odebrat_z_watchlistu(t, USER)
+                            st.rerun()
         else:
-            st.caption("Seznam je prázdný.")
+            st.caption("Zatím nic nesleduješ.")
+
         st.divider()
-        if st.button("ODHLÁSIT SE"): st.session_state.clear(); st.rerun()
+        # 4. Odhlášení (dole, červené)
+        if st.button("🚪 ODHLÁSIT SE", use_container_width=True, type="primary"):
+             st.session_state.clear()
+             st.rerun()
 
     # VÝPOČTY
     viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
@@ -676,6 +710,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
