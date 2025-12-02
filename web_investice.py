@@ -10,10 +10,9 @@ import time
 import zipfile
 import io
 import requests
-import feedparser # 👈 NOVINKA PRO ZPRÁVY
+import feedparser
 from streamlit_lottie import st_lottie
 import google.generativeai as genai
-import plotly.graph_objects as go # 👈 PRO TACHOMETR
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -27,8 +26,7 @@ SOUBOR_VYVOJ = "value_history.csv"
 SOUBOR_WATCHLIST = "watchlist.csv"
 SOUBOR_DIVIDENDY = "dividends.csv"
 
-# --- ZDROJE ZPRÁV (RSS) ---
-# Použijeme Google News - je to nejspolehlivější a agreguje to všechno
+# --- ZDROJE ZPRÁV ---
 RSS_ZDROJE = [
     "https://news.google.com/rss/search?q=akcie+burza+ekonomika&hl=cs&gl=CZ&ceid=CZ:cs",
     "https://servis.idnes.cz/rss.aspx?c=ekonomika", 
@@ -42,18 +40,17 @@ Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z t
 
 MAPA APLIKACE:
 1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy.
-2. '📈 Analýza': Grafy, Srovnání s S&P 500, Rebalancing, Věštec.
-3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí sentimentu.
+2. '📈 Analýza': Grafy, Srovnání s S&P 500, Rebalancing, Věštec, Crash Test, Psychologie trhu.
+3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
 4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
 5. '💎 Dividendy': Historie a graf dividend.
 6. '⚙️ Správa Dat': Zálohy a editace.
 
 POKYNY:
 - Buď stručný, přátelský a používej emojis.
-- Pokud dostaneš seznam zpráv, shrň náladu na trhu (Bullish/Bearish).
 """
 
-# --- KONFIGURACE CÍLŮ ---
+# --- CÍLE PORTFOLIA ---
 CILOVE_SEKTORY = {
     "Technologie": 30, "Energie": 20, "Spotřební zboží": 15,
     "Finance": 15, "Krypto": 10, "Ostatní": 10
@@ -95,49 +92,9 @@ def load_lottieurl(url):
         return r.json()
     except: return None
 
-# --- ZPRAVODAJSTVÍ ---
-@st.cache_data(ttl=1800) 
-def ziskej_zpravy():
-    news = []
-    # Jednoduchý User-Agent
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    
-    for url in RSS_ZDROJE:
-        try:
-            # 1. Stažení
-            response = requests.get(url, headers=headers, timeout=5)
-            
-            # 2. Analýza
-            if response.status_code == 200:
-                feed = feedparser.parse(response.content)
-                # Pokud feedparser nic nenašel, zkusíme to říct
-                if not feed.entries:
-                    print(f"Zdroj {url} vrátil prázdný seznam.")
-                    continue
-                    
-                for entry in feed.entries[:5]: 
-                    # Zkusíme najít datum, nebo dáme dnešek
-                    datum = entry.get('published', datetime.now().strftime("%d.%m.%Y"))
-                    
-                    news.append({
-                        "title": entry.title,
-                        "link": entry.link,
-                        "published": datum,
-                        "summary": entry.get('summary', 'Klikni pro více info...')[:200]
-                    })
-            else:
-                print(f"Chyba {response.status_code} pro {url}")
-                
-        except Exception as e:
-            print(f"Kritická chyba u {url}: {e}")
-            pass
-            
-    return news
-
-# --- FEAR & GREED INDEX (PSYCHOLOGIE TRHU) ---
-@st.cache_data(ttl=3600) # Uložíme na hodinu
+# --- EXTERNÍ DATA (Fear & Greed, Zprávy) ---
+@st.cache_data(ttl=3600)
 def ziskej_fear_greed():
-    # Tajný endpoint CNN (psst!)
     url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
@@ -145,11 +102,24 @@ def ziskej_fear_greed():
         data = r.json()
         score = int(data['fear_and_greed']['score'])
         rating = data['fear_and_greed']['rating']
-        timestamp = data['fear_and_greed']['timestamp']
-        datum = datetime.fromisoformat(timestamp).strftime("%d.%m. %H:%M")
+        datum = datetime.fromisoformat(data['fear_and_greed']['timestamp']).strftime("%d.%m. %H:%M")
         return score, rating, datum
-    except:
-        return None, None, None
+    except: return None, None, None
+
+@st.cache_data(ttl=1800) 
+def ziskej_zpravy():
+    news = []
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    for url in RSS_ZDROJE:
+        try:
+            response = requests.get(url, headers=headers, timeout=5)
+            if response.status_code == 200:
+                feed = feedparser.parse(response.content)
+                for entry in feed.entries[:5]: 
+                    datum = entry.get('published', datetime.now().strftime("%d.%m.%Y"))
+                    news.append({"title": entry.title, "link": entry.link, "published": datum})
+        except: pass
+    return news
 
 # --- DATABÁZE ---
 def uloz_csv(df, nazev_souboru, zprava):
@@ -350,14 +320,13 @@ def main():
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
-    # VÝPOČTY PRO AI KONTEXT
+    # VÝPOČTY
     all_tickers = []; viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
 
-    # Hlavní smyčka výpočtů
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
@@ -412,7 +381,6 @@ def main():
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         
-        # Peněženka
         if zustatky:
             st.caption("Stav peněženky:")
             for mena in ["USD", "CZK", "EUR"]:
@@ -426,12 +394,12 @@ def main():
         st.subheader("🧭 NAVIGACE")
         page = st.radio("Menu:", ["🏠 Přehled", "📈 Analýza", "📰 Zprávy", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"], label_visibility="collapsed")
         
-        # --- 🤖 AI CHATBOT V SIDEBARU ---
+        # --- 🤖 AI CHATBOT ---
         st.divider()
         st.subheader("🤖 AI Průvodce")
         
         if "chat_messages" not in st.session_state:
-            st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Zeptej se mě na portfolio, zprávy nebo kde co najdeš."}]
+            st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce."}]
 
         with st.container(border=True, height=300):
             for msg in st.session_state["chat_messages"]:
@@ -456,7 +424,7 @@ def main():
                     response = AI_MODEL.generate_content(full_prompt)
                     ai_reply = response.text
                 except Exception as e:
-                    ai_reply = f"Omlouvám se, došlo k chybě: {str(e)}"
+                    ai_reply = f"Chyba: {str(e)}"
                 
                 st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
                 st.rerun()
@@ -538,60 +506,29 @@ def main():
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
-        # 👇 TACHOMETR STRACHU A CHAMTIVOSTI 👇
-        score, rating, datum_fg = ziskej_fear_greed()
         
+        # --- FEAR & GREED TACHOMETR ---
+        score, rating, datum_fg = ziskej_fear_greed()
         if score is not None:
-            st.write("")
+            import plotly.graph_objects as go
+            st.write(""); st.subheader("😨 PSYCHOLOGIE TRHU (Fear & Greed)")
             with st.container(border=True):
-                st.subheader("😨 PSYCHOLOGIE TRHU (Fear & Greed)")
-                
-                # Vykreslení tachometru
                 fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number+delta",
-                    value = score,
+                    mode = "gauge+number", value = score,
                     domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': f"Aktuálně: {rating.upper()}", 'font': {'size': 24}},
-                    delta = {'reference': 50, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}}, # Červená když roste chamtivost
+                    title = {'text': f"Aktuálně: {rating.upper()}"},
                     gauge = {
-                        'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
-                        'bar': {'color': "white", 'thickness': 0.2}, # Ručička
-                        'bgcolor': "white",
-                        'borderwidth': 2,
-                        'bordercolor': "gray",
-                        'steps': [
-                            {'range': [0, 25], 'color': '#FF4B4B'},  # Extrémní strach (Červená)
-                            {'range': [25, 45], 'color': '#FFA07A'}, # Strach
-                            {'range': [45, 55], 'color': '#FFFF00'}, # Neutrál (Žlutá)
-                            {'range': [55, 75], 'color': '#90EE90'}, # Chamtivost
-                            {'range': [75, 100], 'color': '#008000'} # Extrémní chamtivost (Zelená)
-                        ],
+                        'axis': {'range': [None, 100]},
+                        'bar': {'color': "white"},
+                        'steps': [{'range': [0, 25], 'color': '#FF4B4B'}, {'range': [75, 100], 'color': '#008000'}],
                     }
                 ))
-                # Nastavení velikosti a průhlednosti
-                fig_gauge.update_layout(
-                    paper_bgcolor="rgba(0,0,0,0)", 
-                    font={'color': "white", 'family': "Roboto Mono"},
-                    height=250,
-                    margin=dict(l=20, r=20, t=50, b=20)
-                )
-                
+                fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=30, b=20))
                 c_g1, c_g2 = st.columns([2, 1])
-                with c_g1:
-                    st.plotly_chart(fig_gauge, use_container_width=True)
-                with c_g2:
-                    st.info(
-                        f"""
-                        **Hodnota: {score}/100**
-                        
-                        📅 {datum_fg}
-                        
-                        *Výklad:*
-                        - **< 25**: Trh se bojí (Levné nákupy?)
-                        - **> 75**: Trh je nenažraný (Riziko pádu?)
-                        """
-                    )
-        # 👆 KONEC TACHOMETRU 👆
+                with c_g1: st.plotly_chart(fig_gauge, use_container_width=True)
+                with c_g2: st.info(f"**Hodnota: {score}/100**\n\n📅 {datum_fg}")
+        
+        st.divider()
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             c1, c2 = st.columns(2)
@@ -640,13 +577,13 @@ def main():
                     else: st.info("✅ OK")
 
             st.divider()
-            st.subheader("🔮 VĚŠTEC: Budoucí bohatství")
+            st.subheader("🔮 VĚŠTEC")
             with st.container(border=True):
                 col_v1, col_v2 = st.columns([1, 2])
                 with col_v1:
                     vklad = st.number_input("Měsíční vklad (Kč)", value=5000, step=500)
                     roky = st.slider("Počet let", 5, 40, 15)
-                    urok = st.slider("Očekávaný úrok p.a. (%)", 1.0, 15.0, 8.0)
+                    urok = st.slider("Očekávaný úrok (%)", 1.0, 15.0, 8.0)
                 with col_v2:
                     data_budoucnost = []; aktualni_hodnota = celk_hod_czk; vlozeno = celk_hod_czk
                     for r in range(1, roky + 1):
@@ -655,67 +592,39 @@ def main():
                         data_budoucnost.append({"Rok": datetime.now().year + r, "Hodnota": round(aktualni_hodnota), "Vklady": round(vlozeno)})
                     st.area_chart(pd.DataFrame(data_budoucnost).set_index("Rok"), color=["#00FF00", "#333333"])
                     st.metric(f"Hodnota v roce {datetime.now().year + roky}", f"{aktualni_hodnota:,.0f} Kč", f"Zisk: {aktualni_hodnota - vlozeno:,.0f} Kč")
-        else: st.info("Žádná data.")
             
+            # --- CRASH TEST ---
             st.divider()
-            st.subheader("💥 CRASH TEST: Jsi připraven na krizi?")
-            
-                with st.container(border=True):
-                # Posuvník katastrofy
-                propad = st.slider("Simulace pádu trhu (%)", 5, 80, 20, step=5, help="O kolik % spadnou akcie?")
-                
-                # Výpočet
-                ztrata_usd = celk_hod_usd * (propad / 100)
-                ztrata_czk = ztrata_usd * kurz_czk
-                zbytek_czk = (celk_hod_usd - ztrata_usd) * kurz_czk
-                
-                # Sloupce pro zobrazení
-                k_crash1, k_crash2 = st.columns(2)
-                
-                with k_crash1:
-                    st.error(f"📉 ZTRÁTA: -{ztrata_czk:,.0f} Kč")
-                    st.warning(f"💰 ZBYDE TI: {zbytek_czk:,.0f} Kč")
-                
-                with k_crash2:
-                    # Slovní hodnocení situace
-                    if propad <= 10:
-                        st.info("😅 **Korekce:** To je normální pondělí. Nic se neděje.")
-                    elif propad <= 25:
-                        st.warning("😬 **Medvědí trh:** Tohle už bolí. Hlavně neprodávej!")
-                    elif propad <= 40:
-                        st.error("😱 **Krize:** Teče krev. Ideální čas na nákupy ve slevě!")
-                    else:
-                        st.error("💀 **Finanční apokalypsa:** Doufej, že máš zásoby konzerv a brokovnici.")
-                    
-                    # Grafická vizualizace "krvácení"
-                    st.progress(1.0 - (propad / 100))
+            st.subheader("💥 CRASH TEST")
+            with st.container(border=True):
+                propad = st.slider("Simulace pádu trhu (%)", 5, 80, 20, step=5)
+                ztrata_czk = (celk_hod_usd * (propad / 100)) * kurz_czk
+                zbytek_czk = (celk_hod_usd * (1 - propad / 100)) * kurz_czk
+                c_cr1, c_cr2 = st.columns(2)
+                with c_cr1: st.error(f"📉 ZTRÁTA: -{ztrata_czk:,.0f} Kč"); st.warning(f"💰 ZBYDE TI: {zbytek_czk:,.0f} Kč")
+                with c_cr2: st.progress(1.0 - (propad / 100))
 
-    # --- SEKCE ZPRÁVY (NOVINKA) ---
+        else: st.info("Žádná data.")
+
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         news = ziskej_zpravy()
-        
-        # AI Shrnutí
         if AI_AVAILABLE and news:
             if st.button("🧠 AI: SHRNUTÍ TRHU", type="primary"):
                 with st.spinner("Čtu noviny..."):
                     titles = [n['title'] for n in news]
-                    prompt = f"Tady jsou titulky zpráv z burzy: {titles}. Jaká je nálada na trhu? Shrň to jednou větou a přidej emoji."
+                    prompt = f"Tady jsou titulky zpráv: {titles}. Jaká je nálada na trhu? Shrň to jednou větou."
                     try:
                         res = AI_MODEL.generate_content(prompt)
                         st.info(res.text, icon="🤖")
                     except: st.error("AI chyba.")
-        
-        # Výpis zpráv (Bez ošklivého HTML shrnutí)
         if news:
             for n in news:
                 with st.container(border=True):
                     st.subheader(n['title'])
                     st.caption(f"📅 {n['published']}")
-                    # Tu řádku s 'summary' jsme vyhodili, protože dělala bordel
                     st.link_button("Číst celý článek", n['link'])
-        else:
-            st.info("Žádné nové zprávy.")
+        else: st.info("Žádné nové zprávy.")
 
     elif page == "💸 Obchod & Peníze":
         st.title("💸 BANKA A OBCHODOVÁNÍ")
@@ -802,11 +711,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
