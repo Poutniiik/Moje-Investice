@@ -421,6 +421,7 @@ def main():
 
     # VÝPOČTY
     
+    # VÝPOČTY
     viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
@@ -431,19 +432,20 @@ def main():
             tkr = row['Ticker']
             inf = LIVE_DATA.get(tkr, {})
             
-            # Získání ceny a měny
+            # 1. Záchranná síť (Cena a Měna)
+            # Musí tu být, kdyby hromadné stahování selhalo
             p, m = ziskej_info(tkr)
             if p is None: p = row['Cena']
             if m is None or m == "N/A": m = "USD"
             
-            # Sektor
+            # 2. Sektor (Bezpečné načtení)
             try:
                 raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
                 if pd.isna(raw_sektor) or str(raw_sektor).strip() == "": sektor = "Doplnit"
                 else: sektor = str(raw_sektor)
             except: sektor = "Doplnit"
 
-            # 🏛️ DAŇOVÝ SEMAFOR (3 roky / 1095 dní)
+            # 3. 🏛️ DAŇOVÝ SEMAFOR (NOVINKA)
             nakupy_data = df[df['Ticker'] == tkr]['Datum']
             dnes = datetime.now()
             limit_dni = 1095 
@@ -462,7 +464,7 @@ def main():
             elif vsechny_fail: dan_status = "🔴 Zdanit" 
             else: dan_status = "🟠 Mix"                 
 
-            # Výpočty hodnot
+            # 4. Finální výpočty
             hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
             try: k = 1.0 / kurzy.get("CZK", 24.5) if m=="CZK" else (kurzy.get("EUR", 1.05) if m=="EUR" else 1.0)
             except: k = 1.0
@@ -482,31 +484,9 @@ def main():
                 "Cena": p, 
                 "Kusy": row['Pocet'], 
                 "Průměr": row['Cena'],
-                "Dan": dan_status,
+                "Dan": dan_status, # Tady to ukládáme
                 "Investice": inv
             })
-
-    hist_vyvoje = st.session_state['hist_vyvoje']
-    if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
-            
-            # ZÁCHRANNÁ SÍŤ PRO CENU A MĚNU
-            p, m = ziskej_info(tkr) # Zkusíme individuální dotaz
-            if p is None: p = row['Cena'] # Pokud selže, použijeme nákupku
-            if m is None or m == "N/A": m = "USD" # Pokud selže měna, USD
-            
-            try:
-                # Najde první výskyt sektoru pro tento ticker v tvé tabulce
-                sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
-            except:
-                sektor = "Ostatní"
-            
-            hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
-            try: k = 1.0 / kurzy.get("CZK", 24.5) if m=="CZK" else (kurzy.get("EUR", 1.05) if m=="EUR" else 1.0)
-            except: k = 1.0
-            celk_hod_usd += hod*k; celk_inv_usd += inv*k
-            if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
-            stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
-            viz_data.append({"Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena']})
 
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
@@ -876,6 +856,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
