@@ -261,11 +261,16 @@ def ziskej_yield(ticker):
         t = yf.Ticker(str(ticker))
         d = t.info.get('dividendYield')
         
-        # 👇 OPRAVA: Pokud je číslo podezřele velké, vydělíme ho 100
-        if d and d > 0.5: # Žádná firma nemá dividendu 50%+, takže je to chyba měřítka
+        # 1. Pokud je to None nebo 0, vrátíme 0
+        if not d: return 0
+        
+        # 2. Pokud je to "divné číslo" (např. 0.37 u Applu, což yfinance někdy vrací jako 0.0037 a někdy ne)
+        # Uděláme jednoduchý test:
+        # Pokud je to víc než 0.30 (30%), tak je to pravděpodobně chyba formátu a vydělíme to 100.
+        if d > 0.30: 
             return d / 100
             
-        return d if d else 0
+        return d
     except: return 0
 # 👆 KONEC NOVÉ FUNKCE 👆
 
@@ -777,6 +782,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
