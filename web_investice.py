@@ -657,7 +657,6 @@ def main():
                     st.metric(f"Hodnota v roce {datetime.now().year + roky}", f"{aktualni_hodnota:,.0f} Kč", f"Zisk: {aktualni_hodnota - vlozeno:,.0f} Kč")
         else: st.info("Žádná data.")
             
-            # 👇 NOVÝ BLOK: CRASH TEST 👇
             st.divider()
             st.subheader("💥 CRASH TEST: Jsi připraven na krizi?")
             
@@ -803,6 +802,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
