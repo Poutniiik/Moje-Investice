@@ -661,7 +661,7 @@ def main():
             st.divider()
             st.subheader("💥 CRASH TEST: Jsi připraven na krizi?")
             
-            with st.container(border=True):
+                with st.container(border=True):
                 # Posuvník katastrofy
                 propad = st.slider("Simulace pádu trhu (%)", 5, 80, 20, step=5, help="O kolik % spadnou akcie?")
                 
@@ -803,6 +803,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
