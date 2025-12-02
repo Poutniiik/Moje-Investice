@@ -426,69 +426,67 @@ def main():
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
         df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
 
-       # ... (začátek sekce VÝPOČTY, viz_data = [] atd. zůstává) ...
+        for i, (idx, row) in enumerate(df_g.iterrows()):
+            tkr = row['Ticker']
+            inf = LIVE_DATA.get(tkr, {})
+            
+            # Získání ceny a měny
+            p, m = ziskej_info(tkr)
+            if p is None: p = row['Cena']
+            if m is None or m == "N/A": m = "USD"
+            
+            # Sektor
+            try:
+                raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
+                if pd.isna(raw_sektor) or str(raw_sektor).strip() == "": sektor = "Doplnit"
+                else: sektor = str(raw_sektor)
+            except: sektor = "Doplnit"
 
-    # 👇 TOTO JE NOVÁ SMYČKA S DAŇOVÝM TESTEM 👇
-    for i, (idx, row) in enumerate(df_g.iterrows()):
-        tkr = row['Ticker']
-        inf = LIVE_DATA.get(tkr, {})
-        
-        # Získání ceny a měny (Starý kód "Záchranná síť")
-        p, m = ziskej_info(tkr)
-        if p is None: p = row['Cena']
-        if m is None or m == "N/A": m = "USD"
-        
-        # Sektor (Náš opravený bezpečný kód)
-        try:
-            raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
-            if pd.isna(raw_sektor) or str(raw_sektor).strip() == "": sektor = "Doplnit"
-            else: sektor = str(raw_sektor)
-        except: sektor = "Doplnit"
+            # 🏛️ DAŇOVÝ SEMAFOR (3 roky / 1095 dní)
+            nakupy_data = df[df['Ticker'] == tkr]['Datum']
+            dnes = datetime.now()
+            limit_dni = 1095 
+            
+            vsechny_ok = True
+            vsechny_fail = True
+            
+            for d in nakupy_data:
+                stari_dni = (dnes - d).days
+                if stari_dni < limit_dni:
+                    vsechny_ok = False 
+                else:
+                    vsechny_fail = False 
+            
+            if vsechny_ok: dan_status = "🟢 Free"      
+            elif vsechny_fail: dan_status = "🔴 Zdanit" 
+            else: dan_status = "🟠 Mix"                 
 
-        # 🏛️ DAŇOVÝ SEMAFOR (NOVINKA) 🏛️
-        # Najdeme všechna data nákupů pro tuto akcii
-        nakupy_data = df[df['Ticker'] == tkr]['Datum']
-        dnes = datetime.now()
-        # 3 roky jsou cca 1095 dní
-        limit_dni = 1095 
-        
-        # Zjistíme status
-        vsechny_ok = True
-        vsechny_fail = True
-        
-        for d in nakupy_data:
-            stari_dni = (dnes - d).days
-            if stari_dni < limit_dni:
-                vsechny_ok = False # Našli jsme "mladou" akcii
-            else:
-                vsechny_fail = False # Našli jsme "starou" akcii (splněno)
-        
-        if vsechny_ok: dan_status = "🟢 Free"      # Vše > 3 roky
-        elif vsechny_fail: dan_status = "🔴 Zdanit" # Vše < 3 roky
-        else: dan_status = "🟠 Mix"                 # Něco tak, něco tak
+            # Výpočty hodnot
+            hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
+            try: k = 1.0 / kurzy.get("CZK", 24.5) if m=="CZK" else (kurzy.get("EUR", 1.05) if m=="EUR" else 1.0)
+            except: k = 1.0
+            
+            celk_hod_usd += hod*k; celk_inv_usd += inv*k
+            
+            if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
+            stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
+            
+            viz_data.append({
+                "Ticker": tkr, 
+                "Sektor": sektor, 
+                "HodnotaUSD": hod*k, 
+                "Zisk": z, 
+                "Měna": m, 
+                "Hodnota": hod, 
+                "Cena": p, 
+                "Kusy": row['Pocet'], 
+                "Průměr": row['Cena'],
+                "Dan": dan_status,
+                "Investice": inv # Přidáno pro jistotu
+            })
 
-        # Výpočty hodnot (Starý kód)
-        hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
-        try: k = 1.0 / kurzy.get("CZK", 24.5) if m=="CZK" else (kurzy.get("EUR", 1.05) if m=="EUR" else 1.0)
-        except: k = 1.0
-        celk_hod_usd += hod*k; celk_inv_usd += inv*k
-        
-        if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
-        stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
-        
-        # Přidáme "Dan" do dat
-        viz_data.append({
-            "Ticker": tkr, 
-            "Sektor": sektor, 
-            "HodnotaUSD": hod*k, 
-            "Zisk": z, 
-            "Měna": m, 
-            "Hodnota": hod, 
-            "Cena": p, 
-            "Kusy": row['Pocet'], 
-            "Průměr": row['Cena'],
-            "Dan": dan_status  # 👈 Nová položka
-        })
+    hist_vyvoje = st.session_state['hist_vyvoje']
+    if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
             
             # ZÁCHRANNÁ SÍŤ PRO CENU A MĚNU
             p, m = ziskej_info(tkr) # Zkusíme individuální dotaz
@@ -878,6 +876,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
