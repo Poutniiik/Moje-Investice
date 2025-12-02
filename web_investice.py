@@ -426,10 +426,69 @@ def main():
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
         df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
 
-        for i, (idx, row) in enumerate(df_g.iterrows()):
-            tkr = row['Ticker']
-            # Zkusíme najít data v hromadném balíku
-            inf = LIVE_DATA.get(tkr, {})
+       # ... (začátek sekce VÝPOČTY, viz_data = [] atd. zůstává) ...
+
+    # 👇 TOTO JE NOVÁ SMYČKA S DAŇOVÝM TESTEM 👇
+    for i, (idx, row) in enumerate(df_g.iterrows()):
+        tkr = row['Ticker']
+        inf = LIVE_DATA.get(tkr, {})
+        
+        # Získání ceny a měny (Starý kód "Záchranná síť")
+        p, m = ziskej_info(tkr)
+        if p is None: p = row['Cena']
+        if m is None or m == "N/A": m = "USD"
+        
+        # Sektor (Náš opravený bezpečný kód)
+        try:
+            raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
+            if pd.isna(raw_sektor) or str(raw_sektor).strip() == "": sektor = "Doplnit"
+            else: sektor = str(raw_sektor)
+        except: sektor = "Doplnit"
+
+        # 🏛️ DAŇOVÝ SEMAFOR (NOVINKA) 🏛️
+        # Najdeme všechna data nákupů pro tuto akcii
+        nakupy_data = df[df['Ticker'] == tkr]['Datum']
+        dnes = datetime.now()
+        # 3 roky jsou cca 1095 dní
+        limit_dni = 1095 
+        
+        # Zjistíme status
+        vsechny_ok = True
+        vsechny_fail = True
+        
+        for d in nakupy_data:
+            stari_dni = (dnes - d).days
+            if stari_dni < limit_dni:
+                vsechny_ok = False # Našli jsme "mladou" akcii
+            else:
+                vsechny_fail = False # Našli jsme "starou" akcii (splněno)
+        
+        if vsechny_ok: dan_status = "🟢 Free"      # Vše > 3 roky
+        elif vsechny_fail: dan_status = "🔴 Zdanit" # Vše < 3 roky
+        else: dan_status = "🟠 Mix"                 # Něco tak, něco tak
+
+        # Výpočty hodnot (Starý kód)
+        hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
+        try: k = 1.0 / kurzy.get("CZK", 24.5) if m=="CZK" else (kurzy.get("EUR", 1.05) if m=="EUR" else 1.0)
+        except: k = 1.0
+        celk_hod_usd += hod*k; celk_inv_usd += inv*k
+        
+        if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
+        stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
+        
+        # Přidáme "Dan" do dat
+        viz_data.append({
+            "Ticker": tkr, 
+            "Sektor": sektor, 
+            "HodnotaUSD": hod*k, 
+            "Zisk": z, 
+            "Měna": m, 
+            "Hodnota": hod, 
+            "Cena": p, 
+            "Kusy": row['Pocet'], 
+            "Průměr": row['Cena'],
+            "Dan": dan_status  # 👈 Nová položka
+        })
             
             # ZÁCHRANNÁ SÍŤ PRO CENU A MĚNU
             p, m = ziskej_info(tkr) # Zkusíme individuální dotaz
@@ -560,11 +619,14 @@ def main():
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             # Vrátíme starý dobrý styl s barvičkami
+            # 👇 ZOBRAZENÍ TABULKY S DAŇOVÝM SEMAFOREM
             st.dataframe(
-                vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Hodnota", "Zisk"]]
+                vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Hodnota", "Zisk", "Dan"]] # 👈 Přidáno "Dan"
                 .style
                 .format({"Průměr": "{:.2f}", "Cena": "{:.2f}", "Hodnota": "{:,.0f}", "Zisk": "{:+,.0f}"})
-                .background_gradient(cmap="RdYlGn", subset=["Zisk"], vmin=-1000, vmax=1000), 
+                .background_gradient(cmap="RdYlGn", subset=["Zisk"], vmin=-1000, vmax=1000)
+                # Trik pro obarvení textu v sloupci Dan (podmíněné formátování je složitější, takhle to stačí)
+                , 
                 use_container_width=True
             )
         else: 
@@ -816,6 +878,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
