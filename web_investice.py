@@ -10,6 +10,7 @@ import time
 import zipfile
 import io
 import requests
+import feedparser # 👈 NOVINKA PRO ZPRÁVY
 from streamlit_lottie import st_lottie
 import google.generativeai as genai
 
@@ -25,42 +26,29 @@ SOUBOR_VYVOJ = "value_history.csv"
 SOUBOR_WATCHLIST = "watchlist.csv"
 SOUBOR_DIVIDENDY = "dividends.csv"
 
-# --- MANUÁL PRO AI (MOZEK NAVIGACE) ---
+# --- ZDROJE ZPRÁV (RSS) ---
+RSS_ZDROJE = [
+    "https://www.kurzy.cz/zpravy/rss/",
+    "https://www.patria.cz/rss/zpravodajstvi.html",
+    "https://www.investicniweb.cz/rss"
+]
+
+# --- MANUÁL PRO AI ---
 APP_MANUAL = """
-Jsi inteligentní asistent v investiční aplikaci 'Terminal Pro'.
-Tvá role: Radit s investicemi A ZÁROVEŇ pomáhat s ovládáním aplikace.
+Jsi asistent v aplikaci 'Terminal Pro'.
+Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
 
-MAPA APLIKACE (Kde co najdeš):
-1. Stránka '🏠 Přehled':
-   - Hlavní dashboard: Celkové jmění (USD/CZK), Hotovost, Denní změna.
-   - Síň slávy: Odznaky za úspěchy (Boháč, Rentiér).
-   - Karty investic: Kolik bylo celkem vloženo v jaké měně.
-   - Detailní tabulka pozic: Seznam akcií, zisky, daňový semafor (zelená = osvobozeno od daně).
+MAPA APLIKACE:
+1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy.
+2. '📈 Analýza': Grafy, Srovnání s S&P 500, Rebalancing, Věštec.
+3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí sentimentu.
+4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
+5. '💎 Dividendy': Historie a graf dividend.
+6. '⚙️ Správa Dat': Zálohy a editace.
 
-2. Stránka '📈 Analýza':
-   - Mapa trhu (Treemap): Barevné čtverce podle velikosti pozice.
-   - Souboj s trhem: Graf porovnání tvého vývoje vs. S&P 500.
-   - Rebalancing: Ukazatele, jestli máš nadváhu v sektoru (např. Technologie).
-   - Věštec: Kalkulačka složeného úročení do budoucna.
-
-3. Stránka '💸 Obchod & Peníze':
-   - Peněženka: Vklady a výběry hotovosti.
-   - Směnárna: Převod mezi USD/CZK/EUR.
-   - Nákup/Prodej: Formuláře pro obchodování akcií.
-
-4. Stránka '💎 Dividendy':
-   - Připsat dividendu: Formulář pro zadání nové platby.
-   - Graf pasivního příjmu: Sloupcový graf po měsících.
-   - Historie: Tabulka všech přijatých dividend.
-
-5. Stránka '⚙️ Správa Dat':
-   - Editace: Ruční oprava chyb v portfoliu nebo historii.
-   - Záloha: Tlačítko pro stažení všech dat (.zip).
-
-POKYNY PRO TEBE:
-- Když se uživatel zeptá "Kde najdu X?", navad ho na konkrétní stránku.
-- Když se zeptá na portfolio, analyzuj data, která dostaneš v kontextu.
+POKYNY:
 - Buď stručný, přátelský a používej emojis.
+- Pokud dostaneš seznam zpráv, shrň náladu na trhu (Bullish/Bearish).
 """
 
 # --- KONFIGURACE CÍLŮ ---
@@ -73,7 +61,6 @@ CILOVE_SEKTORY = {
 try:
     GOOGLE_API_KEY = st.secrets["google"]["api_key"]
     genai.configure(api_key=GOOGLE_API_KEY)
-    # Zde použijeme model, který ti fungoval (2.5-flash nebo pro)
     AI_MODEL = genai.GenerativeModel('gemini-2.5-flash') 
     AI_AVAILABLE = True
 except:
@@ -89,6 +76,7 @@ st.markdown("""
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1px;}
     div[data-testid="column"] button {border: 1px solid #FF4B4B; color: #FF4B4B;}
     div[data-testid="stTooltipIcon"] {color: #58A6FF;}
+    a {text-decoration: none; color: #58A6FF !important;} 
 </style>
 """, unsafe_allow_html=True)
 
@@ -104,6 +92,23 @@ def load_lottieurl(url):
         if r.status_code != 200: return None
         return r.json()
     except: return None
+
+# --- ZPRAVODAJSTVÍ ---
+@st.cache_data(ttl=1800) # Cache na 30 minut
+def ziskej_zpravy():
+    news = []
+    for url in RSS_ZDROJE:
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:5]: # Bereme 5 nejnovějších z každého zdroje
+                news.append({
+                    "title": entry.title,
+                    "link": entry.link,
+                    "published": entry.get('published', datetime.now().strftime("%d.%m.%Y")),
+                    "summary": entry.get('summary', '')[:200] + "..." # Zkrátíme popis
+                })
+        except: pass
+    return news # Seznam slovníků
 
 # --- DATABÁZE ---
 def uloz_csv(df, nazev_souboru, zprava):
@@ -327,7 +332,6 @@ def main():
                 sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
             except: sektor = "Doplnit"
             
-            # Daně
             nakupy_data = df[df['Ticker'] == tkr]['Datum']
             dnes = datetime.now(); limit_dni = 1095 
             vsechny_ok = True; vsechny_fail = True
@@ -379,42 +383,34 @@ def main():
         
         st.divider()
         st.subheader("🧭 NAVIGACE")
-        page = st.radio("Menu:", ["🏠 Přehled", "📈 Analýza", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"], label_visibility="collapsed")
+        page = st.radio("Menu:", ["🏠 Přehled", "📈 Analýza", "📰 Zprávy", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"], label_visibility="collapsed")
         
         # --- 🤖 AI CHATBOT V SIDEBARU ---
         st.divider()
         st.subheader("🤖 AI Průvodce")
         
-        # Inicializace historie chatu
         if "chat_messages" not in st.session_state:
-            st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Zeptej se mě na portfolio nebo kde co najdeš."}]
+            st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Zeptej se mě na portfolio, zprávy nebo kde co najdeš."}]
 
-        # Zobrazení historie (v expanderu, aby nezabíral moc místa, nebo rovnou)
-        # Použijeme kontejner s pevnou výškou pro chat
         with st.container(border=True, height=300):
             for msg in st.session_state["chat_messages"]:
                 st.chat_message(msg["role"]).write(msg["content"])
 
-        # Vstup pro chat
         if prompt := st.chat_input("Napiš dotaz..."):
             if not AI_AVAILABLE:
                 st.error("Chybí API klíč.")
             else:
                 st.session_state["chat_messages"].append({"role": "user", "content": prompt})
-                st.rerun() # Rychlý refresh pro zobrazení dotazu
+                st.rerun()
 
-        # Zpracování odpovědi (pokud je poslední zpráva od usera)
         if st.session_state["chat_messages"][-1]["role"] == "user":
             with st.spinner("Přemýšlím..."):
                 last_user_msg = st.session_state["chat_messages"][-1]["content"]
-                
-                # Příprava kontextu pro AI
                 portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
                 if viz_data:
                     portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data])
                 
                 full_prompt = f"{APP_MANUAL}\n\nDATA UŽIVATELE:\n{portfolio_context}\n\nDOTAZ UŽIVATELE: {last_user_msg}"
-                
                 try:
                     response = AI_MODEL.generate_content(full_prompt)
                     ai_reply = response.text
@@ -452,7 +448,7 @@ def main():
         st.divider()
         if st.button("🚪 ODHLÁSIT", use_container_width=True): st.session_state.clear(); st.rerun()
 
-    # --- STRÁNKY (OBSAH) ---
+    # --- STRÁNKY ---
     if page == "🏠 Přehled":
         st.title(f"🏠 PŘEHLED: {USER.upper()}")
         k1, k2, k3, k4 = st.columns(4)
@@ -565,6 +561,33 @@ def main():
                     st.area_chart(pd.DataFrame(data_budoucnost).set_index("Rok"), color=["#00FF00", "#333333"])
                     st.metric(f"Hodnota v roce {datetime.now().year + roky}", f"{aktualni_hodnota:,.0f} Kč", f"Zisk: {aktualni_hodnota - vlozeno:,.0f} Kč")
         else: st.info("Žádná data.")
+
+    # --- SEKCE ZPRÁVY (NOVINKA) ---
+    elif page == "📰 Zprávy":
+        st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
+        news = ziskej_zpravy()
+        
+        # AI Shrnutí
+        if AI_AVAILABLE and news:
+            if st.button("🧠 AI: SHRNUTÍ TRHU", type="primary"):
+                with st.spinner("Čtu noviny..."):
+                    titles = [n['title'] for n in news]
+                    prompt = f"Tady jsou titulky zpráv z burzy: {titles}. Jaká je nálada na trhu? Shrň to jednou větou a přidej emoji."
+                    try:
+                        res = AI_MODEL.generate_content(prompt)
+                        st.info(res.text, icon="🤖")
+                    except: st.error("AI chyba.")
+        
+        # Výpis zpráv
+        if news:
+            for n in news:
+                with st.container(border=True):
+                    st.subheader(n['title'])
+                    st.caption(f"📅 {n['published']}")
+                    st.write(n['summary'])
+                    st.link_button("Číst celý článek", n['link'])
+        else:
+            st.info("Žádné nové zprávy.")
 
     elif page == "💸 Obchod & Peníze":
         st.title("💸 BANKA A OBCHODOVÁNÍ")
