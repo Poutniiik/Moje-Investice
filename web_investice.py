@@ -750,11 +750,12 @@ def main():
             file_name=f"zaloha_investice_{datetime.now().strftime('%Y%m%d')}.zip",
             mime="application/zip",
             help="Stáhne portfolio, historii, watchlist i dividendy v jednom balíčku.",
-            type="primary" # Zelené výrazné tlačítko
+            type="secondary" # Zelené výrazné tlačítko
         )
 
 if __name__ == "__main__":
     main()
+
 
 
 
