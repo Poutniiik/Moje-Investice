@@ -10,6 +10,7 @@ import zipfile  # 👈 TENTO ŘÁDEK PŘIDEJ NAHORU K IMPORTŮM
 import time
 import requests # Pro stahování animace z internetu
 from streamlit_lottie import st_lottie # Samotný přehrávač animací
+import google.generativeai as genai # 👈 PROPOJENÍ S MOZKEM GOOGLU
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -272,7 +273,38 @@ def proved_smenu(castka, z_meny, do_meny, user):
     pohyb_penez(vysledna, do_meny, "Směna", f"Směna z {z_meny}", user)
     return True, f"Směněno: {vysledna:,.2f} {do_meny}"
 
-# --- MAIN APP ---
+# --- AI SETUP & FUNKCE ---
+# 1. Zkusíme načíst klíč ze Secrets
+try:
+    GOOGLE_API_KEY = st.secrets["google"]["api_key"]
+    genai.configure(api_key=GOOGLE_API_KEY)
+    AI_AVAILABLE = True
+except:
+    AI_AVAILABLE = False
+
+# 2. Funkce, která se ptá AI
+def ziskej_radu_ai(portfolio_text, total_czk):
+    if not AI_AVAILABLE: return "⚠️ Chybí API klíč! Nastav ho v .streamlit/secrets.toml"
+    
+    try:
+        model = genai.GenerativeModel('gemini-pro')
+        prompt = f"""
+        Jsi zkušený, přísný, ale férový investiční mentor.
+        Můj celkový kapitál je {total_czk:,.0f} CZK.
+        
+        Tady je moje portfolio:
+        {portfolio_text}
+        
+        ÚKOL PRO TEBE:
+        1. Stručně zhodnoť diverzifikaci (riziko).
+        2. Najdi jednu věc, kterou dělám špatně nebo co chybí.
+        3. Dej mi jednu konkrétní radu co dál.
+        4. Používej emojis a buď stručný (max 5 vět).
+        """
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Chyba AI: {str(e)}"
 def main():
     if 'prihlasen' not in st.session_state: st.session_state['prihlasen'] = False
     if 'user' not in st.session_state: st.session_state['user'] = ""
@@ -612,6 +644,37 @@ def main():
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
+        # 👇 AI MENTOR (Vlož hned pod nadpis Analýzy)
+        st.write("")
+        with st.container(border=True):
+            c_ai1, c_ai2 = st.columns([1, 3])
+            with c_ai1:
+                st.subheader("🤖 AI Mentor")
+                if st.button("🧠 POŽÁDAT O RADU", type="primary"):
+                    if AI_AVAILABLE:
+                        with st.spinner("Analyzuji tvé miliony..."):
+                            # Připravíme text pro AI (seznam akcií)
+                            portfolio_str = ""
+                            if viz_data:
+                                for item in viz_data:
+                                    portfolio_str += f"- {item['Ticker']} ({item['Sektor']}): {item['HodnotaUSD']:.0f} USD\n"
+                            
+                            # Zavoláme funkci
+                            rada = ziskej_radu_ai(portfolio_str, celk_hod_czk)
+                            
+                            # Uložíme radu do paměti, aby nezmizela
+                            st.session_state['ai_rada'] = rada
+                    else:
+                        st.error("Chybí API klíč v Secrets!")
+            
+            with c_ai2:
+                # Zobrazení rady (pokud už nějakou máme)
+                if 'ai_rada' in st.session_state:
+                    st.info(st.session_state['ai_rada'], icon="🤖")
+                else:
+                    st.caption("Klikni na tlačítko a nech si poradit od umělé inteligence.")
+        st.divider()
+        # 👆 KONEC AI BLOKU
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             # --- ZAČÁTEK REBALANCINGU ---
@@ -954,6 +1017,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
