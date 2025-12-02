@@ -430,7 +430,27 @@ def main():
         st.divider()
         if viz_data:
             vdf = pd.DataFrame(viz_data)
-            st.dataframe(vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Hodnota", "Zisk"]].style.format({"Průměr": "{:.2f}", "Cena": "{:.2f}", "Hodnota": "{:,.0f}", "Zisk": "{:+,.0f}"}).background_gradient(cmap="RdYlGn", subset=["Zisk"], vmin=-1000, vmax=1000), use_container_width=True)
+            
+            # 👇 TADY PŘIDÁVÁME SLOUPEC "Investice"
+            # (Ten už jsme měli spočítaný v proměnné 'inv', jen nebyl v tabulce)
+            vdf['Investice'] = vdf['Kusy'] * vdf['Průměr']
+
+            # 👇 FORMÁTOVÁNÍ: Přidáme symboly měn přímo k číslům
+            def format_mena(row, col_name):
+                val = row[col_name]
+                sym = "$" if row['Měna'] == "USD" else ("€" if row['Měna'] == "EUR" else "Kč")
+                return f"{val:,.2f} {sym}" if col_name in ['Průměr', 'Cena'] else f"{val:,.0f} {sym}"
+
+            # Aplikujeme formátování pro zobrazení (vytvoříme si kopii pro hezký vzhled)
+            show_df = vdf.copy()
+            for c in ['Investice', 'Hodnota', 'Zisk', 'Průměr', 'Cena']:
+                show_df[c] = show_df.apply(lambda x: format_mena(x, c), axis=1)
+
+            # 👇 ZOBRAZENÍ TABULKY (Včetně nového sloupce Investice)
+            st.dataframe(
+                show_df[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Investice", "Hodnota", "Zisk"]],
+                use_container_width=True
+            )
         else: st.info("Portfolio je prázdné. Jdi do sekce Obchod.")
 
     elif page == "📈 Analýza":
@@ -645,6 +665,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
