@@ -278,13 +278,22 @@ def ziskej_info(ticker):
     mena = "USD"
     if str(ticker).endswith(".PR"): mena = "CZK"
     elif str(ticker).endswith(".DE"): mena = "EUR"
+    
     try: 
         t = yf.Ticker(str(ticker))
+        # Získáme aktuální cenu i včerejší zavírací cenu
         price = t.fast_info.last_price
+        prev_close = t.fast_info.previous_close
+        
+        # Spočítáme procentuální změnu (Dnes / Včera - 1)
+        zmena = ((price / prev_close) - 1) if prev_close else 0
+        
         api_curr = t.fast_info.currency
         if api_curr and api_curr != "N/A": mena = api_curr
-        return price, mena
-    except: return None, mena
+        
+        return price, mena, zmena # 👈 Vracíme 3 věci (nově i změnu)
+    except: 
+        return None, mena, 0 # Když to selže, změna je 0
 
 def proved_smenu(castka, z_meny, do_meny, user):
     kurzy = ziskej_kurzy()
@@ -357,18 +366,19 @@ def main():
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
             inf = LIVE_DATA.get(tkr, {})
-            p, m = ziskej_info(tkr)
+            
+            # 👇 TADY JE ZMĚNA: Bereme 3 hodnoty (p=cena, m=měna, d_zmena=denní změna)
+            p, m, d_zmena = ziskej_info(tkr) 
+            
             if p is None: p = row['Cena']
             if m is None or m == "N/A": m = "USD"
-            
-            # 👇 TADY VOLÁME TU NOVOU FUNKCI
-            div_vynos = ziskej_yield(tkr) 
             
             try:
                 raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
                 sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
             except: sektor = "Doplnit"
             
+            # Daně
             nakupy_data = df[df['Ticker'] == tkr]['Datum']
             dnes = datetime.now(); limit_dni = 1095 
             vsechny_ok = True; vsechny_fail = True
@@ -377,7 +387,10 @@ def main():
                 else: vsechny_fail = False 
             if vsechny_ok: dan_status = "🟢 Free"      
             elif vsechny_fail: dan_status = "🔴 Zdanit" 
-            else: dan_status = "🟠 Mix"                 
+            else: dan_status = "🟠 Mix" 
+            
+            # Dividendy (Voláme naši funkci z minula)
+            div_vynos = ziskej_yield(tkr)                
 
             hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
             try: k = 1.0 / kurzy.get("CZK", 20.85) if m=="CZK" else (kurzy.get("EUR", 1.16) if m=="EUR" else 1.0)
@@ -387,11 +400,11 @@ def main():
             if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
             stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
             
-            # 👇 PŘIDALI JSME "Divi" DO SEZNAMU
+            # Ukládáme data (přidáno "Dnes": d_zmena)
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], 
-                "Dan": dan_status, "Investice": inv, "Divi": div_vynos
+                "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena
             })
 
     hist_vyvoje = st.session_state['hist_vyvoje']
@@ -531,18 +544,21 @@ def main():
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             # 👇 PŘIDALI JSME "Divi" DO SLOUPCŮ A FORMÁTOVÁNÍ
+            # 👇 PŘIDÁNO "Dnes"
             st.dataframe(
-                vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Hodnota", "Zisk", "Divi", "Dan"]]
+                vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Dnes", "Hodnota", "Zisk", "Divi", "Dan"]]
                 .style
                 .format({
                     "Průměr": "{:.2f}", 
                     "Cena": "{:.2f}", 
                     "Hodnota": "{:,.0f}", 
-                    "Zisk": "{:+,.0f}",
-                    "Divi": "{:.2%}" # 👈 Zobrazíme jako procenta (např. 5.20%)
+                    "Zisk": "{:+,.0f}", 
+                    "Divi": "{:.2%}",
+                    "Dnes": "{:+.2%}" # 👈 Zobrazí +1.20% nebo -0.50%
                 })
-                .background_gradient(cmap="RdYlGn", subset=["Zisk"], vmin=-1000, vmax=1000), 
+                .background_gradient(cmap="RdYlGn", subset=["Zisk", "Dnes"], vmin=-0.05, vmax=0.05), # Obarvíme Zisk i Dnes
                 use_container_width=True
+            )
             )
         else: st.info("Portfolio je prázdné.")
 
@@ -782,6 +798,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
