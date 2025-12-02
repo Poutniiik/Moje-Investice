@@ -520,7 +520,20 @@ def main():
         st.subheader("📋 Detailní pozice")
         if viz_data:
             vdf = pd.DataFrame(viz_data)
-            st.dataframe(vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Hodnota", "Zisk", "Dan"]].style.format({"Průměr": "{:.2f}", "Cena": "{:.2f}", "Hodnota": "{:,.0f}", "Zisk": "{:+,.0f}"}).background_gradient(cmap="RdYlGn", subset=["Zisk"], vmin=-1000, vmax=1000), use_container_width=True)
+            # 👇 PŘIDALI JSME "Divi" DO SLOUPCŮ A FORMÁTOVÁNÍ
+            st.dataframe(
+                vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Hodnota", "Zisk", "Divi", "Dan"]]
+                .style
+                .format({
+                    "Průměr": "{:.2f}", 
+                    "Cena": "{:.2f}", 
+                    "Hodnota": "{:,.0f}", 
+                    "Zisk": "{:+,.0f}",
+                    "Divi": "{:.2%}" # 👈 Zobrazíme jako procenta (např. 5.20%)
+                })
+                .background_gradient(cmap="RdYlGn", subset=["Zisk"], vmin=-1000, vmax=1000), 
+                use_container_width=True
+            )
         else: st.info("Portfolio je prázdné.")
 
     elif page == "📈 Analýza":
@@ -759,5 +772,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
