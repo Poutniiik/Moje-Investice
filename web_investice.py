@@ -651,7 +651,55 @@ def main():
                     else:
                         st.info("✅ OK")
             st.divider()
-            # --- KONEC REBALANCINGU ---
+
+            # ... (pod rebalancing) ...
+            
+            # 👇 NOVÝ BLOK: VĚŠTEC 👇
+            st.divider()
+            st.subheader("🔮 VĚŠTEC: Budoucí bohatství")
+            
+            # Vytvoříme kontejner s rámečkem
+            with st.container(border=True):
+                col_v1, col_v2 = st.columns([1, 2])
+                
+                with col_v1:
+                    st.caption("Nastav si parametry:")
+                    vklad = st.number_input("Měsíční vklad (Kč)", value=5000, step=500)
+                    roky = st.slider("Počet let", 5, 40, 15)
+                    urok = st.slider("Očekávaný úrok p.a. (%)", 1.0, 15.0, 8.0, help="S&P 500 dělá průměrně cca 8-10 ročně.")
+                
+                with col_v2:
+                    # Výpočet složeného úročení
+                    data_budoucnost = []
+                    aktualni_hodnota = celk_hod_czk # Začínáme s tím, co už máš
+                    vlozeno = celk_hod_czk
+                    
+                    for r in range(1, roky + 1):
+                        # Každý rok přidáme 12x měsíční vklad
+                        rocni_vklad = vklad * 12
+                        vlozeno += rocni_vklad
+                        
+                        # Přičteme vklad a zúročíme
+                        aktualni_hodnota = (aktualni_hodnota + rocni_vklad) * (1 + urok/100)
+                        
+                        data_budoucnost.append({
+                            "Rok": datetime.now().year + r,
+                            "Hodnota portfolia": round(aktualni_hodnota),
+                            "Jen mé vklady": round(vlozeno)
+                        })
+                    
+                    # Vykreslení grafu
+                    df_bud = pd.DataFrame(data_budoucnost)
+                    st.area_chart(df_bud.set_index("Rok"), color=["#00FF00", "#333333"])
+                    
+                    # Výsledek textově
+                    zisk_navic = aktualni_hodnota - vlozeno
+                    st.metric(
+                        label=f"💰 Hodnota v roce {datetime.now().year + roky}", 
+                        value=f"{aktualni_hodnota:,.0f} Kč",
+                        delta=f"Úroky ti vydělají: {zisk_navic:,.0f} Kč"
+                    )
+            
             c1, c2 = st.columns(2)
             with c1:
                 st.caption("MAPA TRHU (Sektory)")
@@ -856,6 +904,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
