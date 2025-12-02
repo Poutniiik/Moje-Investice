@@ -27,9 +27,10 @@ SOUBOR_WATCHLIST = "watchlist.csv"
 SOUBOR_DIVIDENDY = "dividends.csv"
 
 # --- ZDROJE ZPRÁV (RSS) ---
+# Použijeme Google News - je to nejspolehlivější a agreguje to všechno
 RSS_ZDROJE = [
-    "https://www.kurzy.cz/zpravy/rss/",
-    "https://www.patria.cz/rss/zpravodajstvi.html",
+    "https://news.google.com/rss/search?q=akcie+burza+ekonomika&hl=cs&gl=CZ&ceid=CZ:cs",
+    "https://servis.idnes.cz/rss.aspx?c=ekonomika", 
     "https://www.investicniweb.cz/rss"
 ]
 
@@ -94,35 +95,40 @@ def load_lottieurl(url):
     except: return None
 
 # --- ZPRAVODAJSTVÍ ---
-@st.cache_data(ttl=1800) # Cache na 30 minut
+@st.cache_data(ttl=1800) 
 def ziskej_zpravy():
     news = []
-    # Tváříme se jako běžný prohlížeč (Chrome na Windows), aby nás neblokovali
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    # Jednoduchý User-Agent
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
     for url in RSS_ZDROJE:
         try:
-            # 1. Stáhneme data "jako člověk" přes requests
+            # 1. Stažení
             response = requests.get(url, headers=headers, timeout=5)
-            response.encoding = 'utf-8' # Vynutíme češtinu
             
-            # 2. Předhodíme to čtečce
+            # 2. Analýza
             if response.status_code == 200:
                 feed = feedparser.parse(response.content)
-                for entry in feed.entries[:5]: # Bereme 5 nejnovějších
-                    # Ošetření chybějícího data
+                # Pokud feedparser nic nenašel, zkusíme to říct
+                if not feed.entries:
+                    print(f"Zdroj {url} vrátil prázdný seznam.")
+                    continue
+                    
+                for entry in feed.entries[:5]: 
+                    # Zkusíme najít datum, nebo dáme dnešek
                     datum = entry.get('published', datetime.now().strftime("%d.%m.%Y"))
                     
                     news.append({
                         "title": entry.title,
                         "link": entry.link,
                         "published": datum,
-                        "summary": entry.get('summary', '')[:200] + "..."
+                        "summary": entry.get('summary', 'Klikni pro více info...')[:200]
                     })
+            else:
+                print(f"Chyba {response.status_code} pro {url}")
+                
         except Exception as e:
-            print(f"Chyba stahování z {url}: {e}") # Pro debug do konzole
+            print(f"Kritická chyba u {url}: {e}")
             pass
             
     return news
@@ -691,4 +697,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
