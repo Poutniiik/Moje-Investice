@@ -601,13 +601,13 @@ def main():
                         st.info(res.text, icon="🤖")
                     except: st.error("AI chyba.")
         
-        # Výpis zpráv
+        # Výpis zpráv (Bez ošklivého HTML shrnutí)
         if news:
             for n in news:
                 with st.container(border=True):
                     st.subheader(n['title'])
                     st.caption(f"📅 {n['published']}")
-                    st.write(n['summary'])
+                    # Tu řádku s 'summary' jsme vyhodili, protože dělala bordel
                     st.link_button("Číst celý článek", n['link'])
         else:
             st.info("Žádné nové zprávy.")
@@ -697,5 +697,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
