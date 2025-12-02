@@ -8,6 +8,8 @@ from datetime import datetime
 import hashlib
 import zipfile  # 👈 TENTO ŘÁDEK PŘIDEJ NAHORU K IMPORTŮM
 import time
+import requests # Pro stahování animace z internetu
+from streamlit_lottie import st_lottie # Samotný přehrávač animací
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -32,6 +34,13 @@ CILOVE_SEKTORY = {
     "Ostatní": 10
 }
 
+# --- FUNKCE PRO ANIMACE ---
+def load_lottieurl(url):
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    return r.json()
+    
 # --- STYLY ---
 st.markdown("""
 <style>
@@ -320,7 +329,15 @@ def main():
 
    # --- SIDEBAR ---
     with st.sidebar:
-        # 1. Horní sekce s uživatelem a zůstatky
+      # 👇 TADY ZAČÍNÁ ANIMACE 👇
+        # Stáhneme animaci (toto je odkaz na hýbající se graf/raketu)
+        lottie_coding = load_lottieurl("https://assets5.lottiefiles.com/packages/lf20_V9t630.json")
+        
+        # Zobrazíme ji (height je výška, key je unikátní ID)
+        if lottie_coding:
+             st_lottie(lottie_coding, height=150, key="animace_sidebar")
+        # 👆 TADY KONČÍ ANIMACE 👆
+        
         st.header(f"👤 {USER.upper()}")
         
         # Zobrazení peněženky v hezčích "bublinách"
@@ -799,6 +816,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
