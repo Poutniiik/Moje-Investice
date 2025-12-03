@@ -481,7 +481,32 @@ def main():
         try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
         except: cash_usd = 0
         k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
-        
+        # 👇 NOVINKA: SKOKANI DNE (Kdo dnes válí a kdo padá) 👇
+        st.write("") # Malá mezera
+        if viz_data:
+            # 1. Uděláme si pomocnou tabulku
+            df_sort = pd.DataFrame(viz_data)
+            
+            # 2. Seřadíme ji podle sloupce "Dnes" (od největšího po nejmenší)
+            df_sort = df_sort.sort_values(by="Dnes", ascending=False)
+            
+            # 3. Vybereme prvního (Vítěz) a posledního (Poražený)
+            best = df_sort.iloc[0]
+            worst = df_sort.iloc[-1]
+            
+            # 4. Zobrazíme to v barevných pruzích
+            s1, s2 = st.columns(2)
+            
+            # Vítěz (Zelená)
+            s1.success(f"🚀 TAHY DNE: **{best['Ticker']}** ({best['Dnes']:+.2%})")
+            
+            # Poražený (Červená)
+            # Zobrazíme jen, pokud je opravdu v mínusu, jinak je to taky vítěz (jen menší)
+            if worst['Dnes'] < 0:
+                s2.error(f"🥀 ZÁTĚŽ DNE: **{worst['Ticker']}** ({worst['Dnes']:+.2%})")
+            else:
+                s2.info(f"🐢 NEJPOMALEJŠÍ: **{worst['Ticker']}** ({worst['Dnes']:+.2%})")
+        # 👆 KONEC SKOKANŮ
         st.write(""); st.subheader("🏆 SÍŇ SLÁVY")
         total_divi_czk = 0
         if not df_div.empty:
@@ -761,4 +786,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
