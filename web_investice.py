@@ -356,30 +356,27 @@ def main():
     time.sleep(0.1)
     cookie_user = cookie_manager.get("invest_user")
     
-    if 'prihlasen' not in st.session_state: 
-        if cookie_user: 
-            st.session_state['prihlasen'] = True
-            st.session_state['user'] = cookie_user
-        else:
-            st.session_state['prihlasen'] = False
-            st.session_state['user'] = ""
-
+   # --- PŘIHLAŠOVACÍ OBRAZOVKA (S OBNOVOU HESLA) ---
     if not st.session_state['prihlasen']:
         c1,c2,c3 = st.columns([1, 2, 1])
         with c2:
             st.title("🔐 INVESTIČNÍ TERMINÁL")
-            t1, t2 = st.tabs(["PŘIHLÁŠENÍ", "REGISTRACE"])
-            with t1:
+            # 👇 ZMĚNA: PŘIDALI JSME TŘETÍ ZÁLOŽKU
+            t1, t2, t3 = st.tabs(["PŘIHLÁŠENÍ", "REGISTRACE", "OBNOVA HESLA"])
+            
+            with t1: # Přihlášení
                 with st.form("l"):
                     u=st.text_input("Uživatelské jméno"); p=st.text_input("Heslo", type="password")
                     if st.form_submit_button("VSTOUPIT", use_container_width=True):
                         df_u = nacti_uzivatele()
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
+                            # Uložení cookie
                             cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
                             st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u}); st.rerun()
                         else: st.toast("Chyba přihlášení", icon="❌")
-            with t2:
+            
+            with t2: # Registrace
                 with st.form("r"):
                     nu=st.text_input("Nové jméno"); np=st.text_input("Nové heslo", type="password"); 
                     nr=st.text_input("Záchranný kód", help="Slouží pro obnovu zapomenutého hesla.")
@@ -389,6 +386,32 @@ def main():
                         else:
                             new = pd.DataFrame([{"username": nu, "password": zasifruj(np), "recovery_key": zasifruj(nr)}])
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
+            
+            with t3: # 👇 NOVINKA: OBNOVA HESLA
+                st.caption("Zapomněl jsi heslo? Zadej svůj záchranný kód.")
+                with st.form("recovery"):
+                    ru = st.text_input("Uživatelské jméno (pro obnovu)")
+                    rk = st.text_input("Tvůj Záchranný kód")
+                    rnp = st.text_input("Nové heslo", type="password")
+                    
+                    if st.form_submit_button("OBNOVIT HESLO", use_container_width=True):
+                        df_u = nacti_uzivatele()
+                        # Hledáme uživatele
+                        user_row = df_u[df_u['username'] == ru]
+                        
+                        if not user_row.empty:
+                            # Kontrola záchranného kódu
+                            stored_key = user_row.iloc[0]['recovery_key']
+                            if stored_key == zasifruj(rk):
+                                # Změna hesla
+                                idx = user_row.index[0]
+                                df_u.at[idx, 'password'] = zasifruj(rnp)
+                                uloz_csv(df_u, SOUBOR_UZIVATELE, f"Recovery pass {ru}")
+                                st.success("Heslo bylo úspěšně změněno! 🎉 Nyní se přihlas.")
+                            else:
+                                st.error("Špatný záchranný kód! ⛔")
+                        else:
+                            st.error("Uživatel neexistuje.")
         return
 
     # --- NAČTENÍ DAT ---
@@ -916,4 +939,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
