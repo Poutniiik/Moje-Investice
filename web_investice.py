@@ -564,50 +564,74 @@ def main():
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
 
-        # 👇 RENTGEN AKCIE (DETAILNÍ INFO) 👇
+        # 👇 RENTGEN AKCIE S GRAFEM (UPGRADE) 👇
         if not df.empty:
             st.write("")
-            with st.expander("🔍 RENTGEN AKCIE (Detailní info)", expanded=False):
+            with st.expander("🔍 RENTGEN AKCIE (Detail + Graf)", expanded=False):
                 # Výběr akcie
-                vybrana_akcie = st.selectbox("Vyber firmu k proklepnutí:", df['Ticker'].unique())
+                vybrana_akcie = st.selectbox("Vyber firmu:", df['Ticker'].unique())
                 
                 if vybrana_akcie:
-                    with st.spinner(f"Prověřuji {vybrana_akcie}..."):
+                    with st.spinner(f"Načítám data pro {vybrana_akcie}..."):
                         try:
-                            # Stáhneme podrobná data
-                            t_info = yf.Ticker(vybrana_akcie).info
+                            # 1. Stáhneme info
+                            tkr_obj = yf.Ticker(vybrana_akcie)
+                            t_info = tkr_obj.info
                             
-                            # Základní info
+                            # Základní data
                             long_name = t_info.get('longName', vybrana_akcie)
                             summary = t_info.get('longBusinessSummary', 'Popis nedostupný.')
                             recommendation = t_info.get('recommendationKey', 'Neznámé').upper().replace('_', ' ')
                             target_price = t_info.get('targetMeanPrice', 0)
                             pe_ratio = t_info.get('trailingPE', 0)
+                            currency = t_info.get('currency', '?')
                             
-                            # Zobrazení
+                            # 2. Zobrazení informací (Sloupce)
                             c_d1, c_d2 = st.columns([1, 3])
-                            
                             with c_d1:
-                                # Doporučení analytiků (Barevně)
                                 barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
                                 st.markdown(f"### :{barva_rec}[{recommendation}]")
-                                st.caption("Názor Wall Street")
-                                
-                                st.metric("Cílová cena (Target)", f"{target_price} {t_info.get('currency','?')}")
-                                st.metric("P/E Ratio (Drahota)", f"{pe_ratio:.2f}")
-                                
+                                st.caption("Názor analytiků")
+                                st.metric("Cílová cena", f"{target_price} {currency}")
+                                st.metric("P/E Ratio", f"{pe_ratio:.2f}")
                             with c_d2:
                                 st.subheader(long_name)
-                                st.info(summary)
+                                st.info(summary[:400] + "...") # Zkrácený popis
+                                if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
+
+                            # 3. PROFESIONÁLNÍ SVÍČKOVÝ GRAF 🕯️
+                            st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
+                            
+                            # Stáhneme historii cen (1 rok)
+                            hist_data = tkr_obj.history(period="1y")
+                            
+                            if not hist_data.empty:
+                                # Vytvoření grafu pomocí Plotly
+                                fig_candle = go.Figure(data=[go.Candlestick(
+                                    x=hist_data.index,
+                                    open=hist_data['Open'],
+                                    high=hist_data['High'],
+                                    low=hist_data['Low'],
+                                    close=hist_data['Close'],
+                                    name=vybrana_akcie
+                                )])
                                 
-                                # Odkaz na web
-                                web = t_info.get('website')
-                                if web: st.link_button("🌍 Web firmy", web)
+                                # Styling grafu (Tmavý režim a skrytí posuvníku)
+                                fig_candle.update_layout(
+                                    xaxis_rangeslider_visible=False,
+                                    template="plotly_dark",
+                                    height=400,
+                                    margin=dict(l=0, r=0, t=30, b=0)
+                                )
                                 
+                                st.plotly_chart(fig_candle, use_container_width=True)
+                            else:
+                                st.warning("Graf se nepodařilo načíst (chybí data).")
+
                         except Exception as e:
-                            st.error(f"Nepodařilo se načíst detaily: {e}")
+                            st.error(f"Chyba rentgenu: {e}")
         st.divider()
-        # 👆 KONEC RENTGENU
+        # 👆 KONEC UPGRADU RENTGENU
         
         # --- FEAR & GREED TACHOMETR (OPRAVENO) ---
         score, rating, datum_fg, prev_score = ziskej_fear_greed()
@@ -842,6 +866,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
