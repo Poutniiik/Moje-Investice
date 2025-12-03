@@ -537,7 +537,7 @@ def main():
                 target_w = st.number_input("Cílová cena", min_value=0.0, step=1.0)
                 if st.form_submit_button("Sledovat"):
                     if new_w: pridat_do_watchlistu(new_w, target_w, USER); st.rerun()
-       if not df_watch.empty:
+           if not df_watch.empty:
             # Pojistka proti chybějícímu sloupci Target
             if 'Target' not in df_watch.columns: df_watch['Target'] = 0.0
             
@@ -938,5 +938,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
