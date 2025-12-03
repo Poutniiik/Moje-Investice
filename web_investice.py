@@ -38,23 +38,18 @@ RSS_ZDROJE = [
     "https://www.investicniweb.cz/rss"
 ]
 
-# --- MANUÁL PRO AI (PŘÍSNÝ REŽIM) ---
+# --- MANUÁL PRO AI ---
 APP_MANUAL = """
-Jsi specializovaný asistent v aplikaci 'Terminal Pro'.
-Tvá role: Radit POUZE s investicemi, financemi a ovládáním této aplikace.
-
-STRIKTNÍ PRAVIDLA:
-1. Pokud se uživatel zeptá na něco mimo finance (počasí, vaření), odmítni odpovědět.
-2. Odpovídej stručně, jasně a používej emojis.
-3. Vždy vycházej z dat portfolia, která dostaneš.
+Jsi asistent v aplikaci 'Terminal Pro'.
+Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
 
 MAPA APLIKACE:
-1. '🏠 Přehled': Celkové jmění, Skokani dne, Dividendy.
-2. '📈 Analýza': Grafy, Srovnání s S&P 500, Rebalancing, Věštec.
-3. '📰 Zprávy': Novinky z trhu.
-4. '💸 Obchod': Nákup a prodej akcií.
-5. '💎 Dividendy': Historie výplat.
-6. '⚙️ Správa Dat': Zálohy.
+1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka.
+2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Věštec, Crash Test.
+3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
+4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
+5. '💎 Dividendy': Historie a graf dividend.
+6. '⚙️ Správa Dat': Zálohy a editace.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -103,7 +98,7 @@ def load_lottieurl(url):
 def get_manager():
     return stx.CookieManager(key="cookie_manager")
 
-# --- EXTERNÍ DATA A CACHE ---
+# --- EXTERNÍ DATA ---
 @st.cache_data(ttl=3600)
 def ziskej_fear_greed():
     url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
@@ -357,9 +352,7 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
-    # 1. PŘIHLÁŠENÍ (COOKIES)
     cookie_manager = get_manager()
-    # Malá pauza, aby se sušenka načetla
     time.sleep(0.1)
     cookie_user = cookie_manager.get("invest_user")
     
@@ -371,7 +364,6 @@ def main():
             st.session_state['prihlasen'] = False
             st.session_state['user'] = ""
 
-    # LOGIN FORM
     if not st.session_state['prihlasen']:
         c1,c2,c3 = st.columns([1, 2, 1])
         with c2:
@@ -384,7 +376,6 @@ def main():
                         df_u = nacti_uzivatele()
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
-                            # Uložíme cookie na 30 dní
                             cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
                             st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u}); st.rerun()
                         else: st.toast("Chyba přihlášení", icon="❌")
@@ -400,7 +391,7 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
         return
 
-    # --- 2. NAČTENÍ DAT ---
+    # --- NAČTENÍ DAT ---
     USER = st.session_state['user']
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
@@ -414,16 +405,14 @@ def main():
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
-    # --- 3. VÝPOČTY (Hned po načtení, aby byly dostupné všude) ---
-    all_tickers = []
+    # VÝPOČTY
+    all_tickers = []; viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
-    viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
-    
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
@@ -438,7 +427,6 @@ def main():
                 sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
             except: sektor = "Doplnit"
             
-            # Daně
             nakupy_data = df[df['Ticker'] == tkr]['Datum']
             dnes = datetime.now(); limit_dni = 1095 
             vsechny_ok = True; vsechny_fail = True
@@ -466,7 +454,6 @@ def main():
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
     
-    # Proměnné pro Dashboard (nyní jsou dostupné pro zbytek kódu)
     kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
@@ -479,7 +466,7 @@ def main():
     try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except: cash_usd = 0
 
-    # --- 4. SIDEBAR + CHATBOT ---
+    # --- SIDEBAR + CHATBOT ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         if zustatky:
@@ -503,8 +490,6 @@ def main():
             if not AI_AVAILABLE: st.error("Chybí API klíč.")
             else:
                 st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
-        
-        # Zpracování odpovědi (Zde už známe celk_hod_czk!)
         if st.session_state["chat_messages"][-1]["role"] == "user":
             with st.spinner("..."):
                 last_user_msg = st.session_state["chat_messages"][-1]["content"]
@@ -537,41 +522,26 @@ def main():
                 target_w = st.number_input("Cílová cena", min_value=0.0, step=1.0)
                 if st.form_submit_button("Sledovat"):
                     if new_w: pridat_do_watchlistu(new_w, target_w, USER); st.rerun()
-           if not df_watch.empty:
-            # Pojistka proti chybějícímu sloupci Target
+        if not df_watch.empty:
             if 'Target' not in df_watch.columns: df_watch['Target'] = 0.0
-            
             for idx, row in df_watch.iterrows():
                 t = row['Ticker']; cilek = row['Target']
                 info = LIVE_DATA.get(t, {})
                 price = info.get('price'); curr = info.get('curr', '?')
-                
-                # Záchrana ceny
                 if not price:
                     try: p, m, _ = ziskej_info(t); price=p; curr=m
                     except: pass
-                
-                # Ikona slevy
-                alert_icon = "🔥" if price and cilek > 0 and price <= cilek else ""
-                
-                # Vykreslení karty
+                alert_icon = "🔥 SLEVA!" if price and cilek > 0 and price <= cilek else ""
                 with st.container(border=True):
                     c1, c2 = st.columns([4, 1])
                     with c1: 
-                        # Zde byla pravděpodobně chyba - vypisujeme text, ne objekt
                         st.markdown(f"**{t}** {alert_icon}")
                         if price: 
                             st.markdown(f"### {price:,.2f} {curr}")
-                            if cilek > 0:
-                                diff = ((price / cilek) - 1) * 100
-                                color = "green" if price <= cilek else "red"
-                                st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
+                            if cilek > 0: diff = ((price / cilek) - 1) * 100; st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
                         else: st.caption("Offline")
-                    with c2: 
-                        st.write("") 
-                        if st.button("❌", key=f"del_{t}"): 
-                            odebrat_z_watchlistu(t, USER)
-                            st.rerun()
+                    with c2: st.write(""); 
+                    if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
         
         st.divider()
         with st.expander("⚙️ Nastavení účtu"):
@@ -594,7 +564,7 @@ def main():
     if page == "🏠 Přehled" or page == "📈 Analýza":
         render_ticker_tape(LIVE_DATA)
 
-    # --- 5. STRÁNKY ---
+    # --- STRÁNKY ---
     if page == "🏠 Přehled":
         st.title(f"🏠 PŘEHLED: {USER.upper()}")
         k1, k2, k3, k4 = st.columns(4)
@@ -739,30 +709,6 @@ def main():
                     fig_pie = px.pie(df_mena, values='HodnotaUSD', names='Měna', hole=0.4, color='Měna', color_discrete_map={'USD':'#00CC96', 'CZK':'#636EFA', 'EUR':'#EF553B'})
                     st.plotly_chart(fig_pie, use_container_width=True)
                 except: st.error("Chyba koláče.")
-            
-            # 👇 MĚSÍČNÍ HEATMAPA 👇
-            st.divider()
-            st.caption("📊 MĚSÍČNÍ VYSVĚDČENÍ (Zisk/Ztráta %)")
-            if not hist_vyvoje.empty and len(hist_vyvoje) > 30:
-                try:
-                    df_h = hist_vyvoje.copy()
-                    df_h['Date'] = pd.to_datetime(df_h['Date'])
-                    df_h = df_h.set_index('Date').resample('M').last()
-                    df_h['Pct_Change'] = df_h['TotalUSD'].pct_change() * 100
-                    df_h = df_h.dropna()
-                    if not df_h.empty:
-                        df_h['Year'] = df_h.index.year
-                        df_h['Month'] = df_h.index.month_name()
-                        pivot_table = df_h.pivot(index='Year', columns='Month', values='Pct_Change')
-                        months_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-                        pivot_table = pivot_table.reindex(columns=months_order)
-                        fig_heat = px.imshow(pivot_table, labels=dict(x="Měsíc", y="Rok", color="Změna %"), x=pivot_table.columns, y=pivot_table.index, color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0, text_auto='.1f')
-                        fig_heat.update_layout(height=300)
-                        st.plotly_chart(fig_heat, use_container_width=True)
-                    else: st.info("Zatím nemám dost dat.")
-                except: st.info("Málo dat pro heatmapu.")
-            else: st.info("Měsíční mapa se ukáže, až budeš mít historii delší než 1 měsíc.")
-
             st.divider()
             st.caption("🥊 SOUBOJ S TRHEM (S&P 500)")
             if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
@@ -870,10 +816,10 @@ def main():
             with st.form("b"):
                 c1, c2 = st.columns(2)
                 with c1:
-                    t = st.text_input("Symbol", placeholder="NAPŘ. AAPL", help="Zadej ticker akcie (zkratku). Např. AAPL pro Apple, CEZ.PR pro ČEZ.").upper()
+                    t = st.text_input("Symbol", placeholder="NAPŘ. AAPL", help="Zadej ticker (zkratku). Např. AAPL, CEZ.PR").upper()
                 with c2:
-                    p = st.number_input("Počet kusů", min_value=0.001, step=1.0, help="Kolik akcií chceš koupit? Můžeš i zlomky (např. 0.5).")
-                c = st.number_input("Nákupní cena (za 1 kus)", min_value=0.1, help="Za kolik jsi to koupil? Pokud nevíš, podívej se do své banky.")
+                    p = st.number_input("Počet kusů", min_value=0.001, step=1.0, help="Kolik akcií chceš koupit? Můžeš i zlomky.")
+                c = st.number_input("Nákupní cena (za 1 kus)", min_value=0.1, help="Za kolik jsi to koupil?")
                 if st.form_submit_button("KOUPIT AKCIE", use_container_width=True):
                     _, m, _ = ziskej_info(t)
                     cost = p*c; bal = zustatky.get(m, 0)
@@ -938,6 +884,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
