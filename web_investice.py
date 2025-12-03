@@ -27,53 +27,6 @@ SOUBOR_VYVOJ = "value_history.csv"
 SOUBOR_WATCHLIST = "watchlist.csv"
 SOUBOR_DIVIDENDY = "dividends.csv"
 
-# --- FUNKCE PRO BĚŽÍCÍ PÁS (TICKER TAPE) ---
-def render_ticker_tape(data_dict):
-    if not data_dict: return
-    
-    # Vytvoříme dlouhý text (HTML)
-    content = ""
-    for ticker, info in data_dict.items():
-        price = info.get('price', 0)
-        curr = info.get('curr', '')
-        # Šipka podle ceny (zjednodušeně, nemáme tu historii vteřinu po vteřině, tak dáme neutrální nebo náhodnou pro efekt, 
-        # nebo lépe: prostě jen cenu)
-        content += f"&nbsp;&nbsp;&nbsp;&nbsp; <b>{ticker}</b>: {price:,.2f} {curr}"
-    
-    # HTML/CSS magie pro animaci
-    st.markdown(
-        f"""
-        <div style="
-            background-color: #161B22; 
-            border: 1px solid #30363D; 
-            border-radius: 5px; 
-            padding: 8px; 
-            margin-bottom: 20px; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        ">
-            <div style="
-                display: inline-block; 
-                animation: marquee 20s linear infinite; 
-                color: #00CC96; 
-                font-family: 'Roboto Mono', monospace; 
-                font-weight: bold;
-            ">
-                {content} {content} {content}
-            </div>
-        </div>
-        
-        <style>
-        @keyframes marquee {{
-            0% {{ transform: translateX(0); }}
-            100% {{ transform: translateX(-50%); }}
-        }}
-        </style>
-        """, 
-        unsafe_allow_html=True
-    )
-
 # --- ZDROJE ZPRÁV ---
 RSS_ZDROJE = [
     "https://news.google.com/rss/search?q=akcie+burza+ekonomika&hl=cs&gl=CZ&ceid=CZ:cs",
@@ -87,15 +40,12 @@ Jsi asistent v aplikaci 'Terminal Pro'.
 Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
 
 MAPA APLIKACE:
-1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka (Divi %, Denní změna).
-2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko (Koláč), Srovnání s S&P 500, Rebalancing, Věštec, Crash Test, Psychologie.
+1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka.
+2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Věštec, Crash Test.
 3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
 4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
 5. '💎 Dividendy': Historie a graf dividend.
 6. '⚙️ Správa Dat': Zálohy a editace.
-
-POKYNY:
-- Buď stručný, přátelský a používej emojis.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -197,11 +147,8 @@ def nacti_csv(nazev_souboru):
             if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
         for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD', 'Investice', 'Target']:
             if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
-        
         if 'Sektor' not in df.columns and nazev_souboru == SOUBOR_DATA: df['Sektor'] = "Doplnit"
-        # Fix pro Watchlist
         if nazev_souboru == SOUBOR_WATCHLIST and 'Target' not in df.columns: df['Target'] = 0.0
-        
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         df['Owner'] = df['Owner'].astype(str)
         return df
@@ -339,6 +286,21 @@ def proved_smenu(castka, z_meny, do_meny, user):
     pohyb_penez(vysledna, do_meny, "Směna", f"Směna z {z_meny}", user)
     return True, f"Směněno: {vysledna:,.2f} {do_meny}"
 
+def render_ticker_tape(data_dict):
+    if not data_dict: return
+    content = ""
+    for ticker, info in data_dict.items():
+        price = info.get('price', 0); curr = info.get('curr', '')
+        content += f"&nbsp;&nbsp;&nbsp;&nbsp; <b>{ticker}</b>: {price:,.2f} {curr}"
+    st.markdown(f"""
+        <div style="background-color: #161B22; border: 1px solid #30363D; border-radius: 5px; padding: 8px; margin-bottom: 20px; white-space: nowrap; overflow: hidden;">
+            <div style="display: inline-block; animation: marquee 20s linear infinite; color: #00CC96; font-family: 'Roboto Mono', monospace; font-weight: bold;">
+                {content} {content} {content}
+            </div>
+        </div>
+        <style>@keyframes marquee {{ 0% {{ transform: translateX(0); }} 100% {{ transform: translateX(-50%); }} }}</style>
+        """, unsafe_allow_html=True)
+
 # --- MAIN ---
 def main():
     if 'prihlasen' not in st.session_state: st.session_state['prihlasen'] = False
@@ -370,7 +332,6 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
         return
 
-    # --- NAČTENÍ DAT ---
     USER = st.session_state['user']
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
@@ -384,24 +345,26 @@ def main():
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
-    # VÝPOČTY
-    all_tickers = []; viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
+    all_tickers = []
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
-    if page == "🏠 Přehled" or page == "📈 Analýza":
-        render_ticker_tape(LIVE_DATA)
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
+    # BĚŽÍCÍ PÁS
+    if page == "🏠 Přehled" or page == "📈 Analýza":
+        render_ticker_tape(LIVE_DATA)
+
+    # VÝPOČTY
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
         df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
+        viz_data = []
+        celk_hod_usd = 0; celk_inv_usd = 0
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
-            inf = LIVE_DATA.get(tkr, {})
-            # OPRAVA: Voláme s 3 hodnotami (včetně změny)
             p, m, d_zmena = ziskej_info(tkr)
             if p is None: p = row['Cena']
             if m is None or m == "N/A": m = "USD"
@@ -421,19 +384,16 @@ def main():
             else: dan_status = "🟠 Mix" 
             
             div_vynos = ziskej_yield(tkr)
-
             hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
             try: k = 1.0 / kurzy.get("CZK", 20.85) if m=="CZK" else (kurzy.get("EUR", 1.16) if m=="EUR" else 1.0)
             except: k = 1.0
             
             celk_hod_usd += hod*k; celk_inv_usd += inv*k
-            if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
-            stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
-            
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena
             })
+    else: viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0
 
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
@@ -459,11 +419,9 @@ def main():
                     st.info(f"**{castka:,.2f} {sym}**", icon="💰")
         else: st.warning("Peněženka prázdná")
         
-        st.divider()
-        st.subheader("🧭 NAVIGACE")
+        st.divider(); st.subheader("🧭 NAVIGACE")
         page = st.radio("Menu:", ["🏠 Přehled", "📈 Analýza", "📰 Zprávy", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"], label_visibility="collapsed")
         
-        # CHAT
         st.divider(); st.subheader("🤖 AI Průvodce")
         if "chat_messages" not in st.session_state: st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce."}]
         with st.container(border=True, height=300):
@@ -478,9 +436,7 @@ def main():
                 portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
                 if viz_data: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data])
                 full_prompt = f"{APP_MANUAL}\n\nDATA:\n{portfolio_context}\n\nDOTAZ: {last_user_msg}"
-                try:
-                    response = AI_MODEL.generate_content(full_prompt)
-                    ai_reply = response.text
+                try: res = AI_MODEL.generate_content(full_prompt); ai_reply = res.text
                 except Exception as e: ai_reply = f"Chyba: {str(e)}"
                 st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
 
@@ -492,9 +448,7 @@ def main():
                 if st.form_submit_button("Sledovat"):
                     if new_w: pridat_do_watchlistu(new_w, target_w, USER); st.rerun()
         if not df_watch.empty:
-            # Pojistka proti chybějícímu sloupci Target
             if 'Target' not in df_watch.columns: df_watch['Target'] = 0.0
-            
             for idx, row in df_watch.iterrows():
                 t = row['Ticker']; cilek = row['Target']
                 info = LIVE_DATA.get(t, {})
@@ -502,54 +456,40 @@ def main():
                 if not price:
                     try: p, m, _ = ziskej_info(t); price=p; curr=m
                     except: pass
-                
                 alert_icon = "🔥 SLEVA!" if price and cilek > 0 and price <= cilek else ""
-                
                 with st.container(border=True):
                     c1, c2 = st.columns([4, 1])
                     with c1: 
                         st.markdown(f"**{t}** {alert_icon}")
                         if price: 
                             st.markdown(f"### {price:,.2f} {curr}")
-                            if cilek > 0:
-                                diff = ((price / cilek) - 1) * 100
-                                st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
+                            if cilek > 0: diff = ((price / cilek) - 1) * 100; st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
                         else: st.caption("Offline")
                     with c2: st.write(""); 
                     if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
-       # 👇 NOVINKA: ZMĚNA HESLA 👇
+        
+        # 👇 NOVINKA: ZMĚNA HESLA 👇
         st.divider()
         with st.expander("⚙️ Nastavení účtu (Heslo)"):
             with st.form("pass_change"):
                 old_pass = st.text_input("Staré heslo", type="password")
                 new_pass = st.text_input("Nové heslo", type="password")
                 confirm_pass = st.text_input("Potvrdit heslo", type="password")
-                
                 if st.form_submit_button("Změnit heslo"):
                     df_u = nacti_uzivatele()
-                    # Najdeme aktuálního uživatele
                     user_row = df_u[df_u['username'] == USER]
-                    
                     if not user_row.empty:
-                        stored_pass = user_row.iloc[0]['password']
-                        # Ověříme staré heslo
-                        if stored_pass == zasifruj(old_pass):
-                            if new_pass == confirm_pass:
-                                if len(new_pass) > 0:
-                                    # Změna hesla v databázi
-                                    idx = df_u[df_u['username'] == USER].index[0]
-                                    df_u.at[idx, 'password'] = zasifruj(new_pass)
-                                    uloz_csv(df_u, SOUBOR_UZIVATELE, f"Password change {USER}")
-                                    st.success("Heslo změněno! 🎉")
-                                else:
-                                    st.error("Heslo nesmí být prázdné.")
-                            else:
-                                st.error("Nová hesla se neshodují.")
-                        else:
-                            st.error("Staré heslo je špatně.")
-                    else:
-                        st.error("Chyba uživatele.")
-        # 👆 KONEC ZMĚNY HESLA
+                        if user_row.iloc[0]['password'] == zasifruj(old_pass):
+                            if new_pass == confirm_pass and len(new_pass) > 0:
+                                idx = df_u[df_u['username'] == USER].index[0]
+                                df_u.at[idx, 'password'] = zasifruj(new_pass)
+                                uloz_csv(df_u, SOUBOR_UZIVATELE, f"Password change {USER}")
+                                st.success("Heslo změněno! 🎉")
+                            else: st.error("Chyba v novém hesle.")
+                        else: st.error("Staré heslo je špatně.")
+                    else: st.error("Chyba uživatele.")
+
+        st.divider()
         if st.button("🚪 ODHLÁSIT", use_container_width=True): st.session_state.clear(); st.rerun()
 
     # --- STRÁNKY ---
@@ -562,32 +502,16 @@ def main():
         try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
         except: cash_usd = 0
         k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
-        # 👇 NOVINKA: SKOKANI DNE (Kdo dnes válí a kdo padá) 👇
-        st.write("") # Malá mezera
+        
+        st.write(""); 
         if viz_data:
-            # 1. Uděláme si pomocnou tabulku
-            df_sort = pd.DataFrame(viz_data)
-            
-            # 2. Seřadíme ji podle sloupce "Dnes" (od největšího po nejmenší)
-            df_sort = df_sort.sort_values(by="Dnes", ascending=False)
-            
-            # 3. Vybereme prvního (Vítěz) a posledního (Poražený)
-            best = df_sort.iloc[0]
-            worst = df_sort.iloc[-1]
-            
-            # 4. Zobrazíme to v barevných pruzích
+            df_sort = pd.DataFrame(viz_data).sort_values(by="Dnes", ascending=False)
+            best = df_sort.iloc[0]; worst = df_sort.iloc[-1]
             s1, s2 = st.columns(2)
-            
-            # Vítěz (Zelená)
             s1.success(f"🚀 TAHY DNE: **{best['Ticker']}** ({best['Dnes']:+.2%})")
-            
-            # Poražený (Červená)
-            # Zobrazíme jen, pokud je opravdu v mínusu, jinak je to taky vítěz (jen menší)
-            if worst['Dnes'] < 0:
-                s2.error(f"🥀 ZÁTĚŽ DNE: **{worst['Ticker']}** ({worst['Dnes']:+.2%})")
-            else:
-                s2.info(f"🐢 NEJPOMALEJŠÍ: **{worst['Ticker']}** ({worst['Dnes']:+.2%})")
-        # 👆 KONEC SKOKANŮ
+            if worst['Dnes'] < 0: s2.error(f"🥀 ZÁTĚŽ DNE: **{worst['Ticker']}** ({worst['Dnes']:+.2%})")
+            else: s2.info(f"🐢 NEJPOMALEJŠÍ: **{worst['Ticker']}** ({worst['Dnes']:+.2%})")
+
         st.write(""); st.subheader("🏆 SÍŇ SLÁVY")
         total_divi_czk = 0
         if not df_div.empty:
@@ -827,7 +751,7 @@ def main():
                 with st.form("s"):
                     t = st.selectbox("Akcie", df['Ticker'].unique().tolist()); q = st.number_input("Ks", 0.001); pr = st.number_input("Cena", 0.1)
                     if st.form_submit_button("PRODAT"):
-                        _, m, _ = ziskej_info(t) # OPRAVA ZDE
+                        _, m, _ = ziskej_info(t) 
                         ok, msg = proved_prodej(t, q, pr, USER, m)
                         if ok: st.toast("Prodáno", icon="✅"); st.rerun()
                         else: st.toast(msg, icon="⚠️")
@@ -879,7 +803,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
 
