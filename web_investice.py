@@ -651,7 +651,7 @@ def main():
                                     st.session_state['df'] = df # Aktualizujeme paměť
                                     uloz_data_uzivatele(df, USER, SOUBOR_DATA) # Uložíme na GitHub
                                     st.toast("Poznámka uložena! 💾")
-                            st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
+                                st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
                             hist_data = tkr_obj.history(period="1y")
                             if not hist_data.empty:
                                 fig_candle = go.Figure(data=[go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie)])
@@ -873,6 +873,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
