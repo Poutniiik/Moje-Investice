@@ -563,6 +563,51 @@ def main():
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
+
+        # 👇 RENTGEN AKCIE (DETAILNÍ INFO) 👇
+        if not df.empty:
+            st.write("")
+            with st.expander("🔍 RENTGEN AKCIE (Detailní info)", expanded=False):
+                # Výběr akcie
+                vybrana_akcie = st.selectbox("Vyber firmu k proklepnutí:", df['Ticker'].unique())
+                
+                if vybrana_akcie:
+                    with st.spinner(f"Prověřuji {vybrana_akcie}..."):
+                        try:
+                            # Stáhneme podrobná data
+                            t_info = yf.Ticker(vybrana_akcie).info
+                            
+                            # Základní info
+                            long_name = t_info.get('longName', vybrana_akcie)
+                            summary = t_info.get('longBusinessSummary', 'Popis nedostupný.')
+                            recommendation = t_info.get('recommendationKey', 'Neznámé').upper().replace('_', ' ')
+                            target_price = t_info.get('targetMeanPrice', 0)
+                            pe_ratio = t_info.get('trailingPE', 0)
+                            
+                            # Zobrazení
+                            c_d1, c_d2 = st.columns([1, 3])
+                            
+                            with c_d1:
+                                # Doporučení analytiků (Barevně)
+                                barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
+                                st.markdown(f"### :{barva_rec}[{recommendation}]")
+                                st.caption("Názor Wall Street")
+                                
+                                st.metric("Cílová cena (Target)", f"{target_price} {t_info.get('currency','?')}")
+                                st.metric("P/E Ratio (Drahota)", f"{pe_ratio:.2f}")
+                                
+                            with c_d2:
+                                st.subheader(long_name)
+                                st.info(summary)
+                                
+                                # Odkaz na web
+                                web = t_info.get('website')
+                                if web: st.link_button("🌍 Web firmy", web)
+                                
+                        except Exception as e:
+                            st.error(f"Nepodařilo se načíst detaily: {e}")
+        st.divider()
+        # 👆 KONEC RENTGENU
         
         # --- FEAR & GREED TACHOMETR (OPRAVENO) ---
         score, rating, datum_fg, prev_score = ziskej_fear_greed()
@@ -797,6 +842,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
