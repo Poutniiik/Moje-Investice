@@ -564,7 +564,7 @@ def main():
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
 
-        # 👇 RENTGEN AKCIE S GRAFEM (UPGRADE) 👇
+       # 👇 RENTGEN AKCIE S GRAFEM A NÁKUPKOU (VYLEPŠENO) 👇
         if not df.empty:
             st.write("")
             with st.expander("🔍 RENTGEN AKCIE (Detail + Graf)", expanded=False):
@@ -586,7 +586,7 @@ def main():
                             pe_ratio = t_info.get('trailingPE', 0)
                             currency = t_info.get('currency', '?')
                             
-                            # 2. Zobrazení informací (Sloupce)
+                            # 2. Zobrazení informací
                             c_d1, c_d2 = st.columns([1, 3])
                             with c_d1:
                                 barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
@@ -596,17 +596,16 @@ def main():
                                 st.metric("P/E Ratio", f"{pe_ratio:.2f}")
                             with c_d2:
                                 st.subheader(long_name)
-                                st.info(summary[:400] + "...") # Zkrácený popis
+                                st.info(summary[:400] + "...")
                                 if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
 
-                            # 3. PROFESIONÁLNÍ SVÍČKOVÝ GRAF 🕯️
+                            # 3. GRAF S NÁKUPKOU 🕯️
                             st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
                             
-                            # Stáhneme historii cen (1 rok)
+                            # Stáhneme historii
                             hist_data = tkr_obj.history(period="1y")
                             
                             if not hist_data.empty:
-                                # Vytvoření grafu pomocí Plotly
                                 fig_candle = go.Figure(data=[go.Candlestick(
                                     x=hist_data.index,
                                     open=hist_data['Open'],
@@ -616,17 +615,33 @@ def main():
                                     name=vybrana_akcie
                                 )])
                                 
-                                # Styling grafu (Tmavý režim a skrytí posuvníku)
+                                # 👇 ZDE JE TA NOVINKA: Čára nákupu 👇
+                                # Najdeme tvou nákupní cenu v datech
+                                moje_nakupka = 0
+                                for item in viz_data:
+                                    if item['Ticker'] == vybrana_akcie:
+                                        moje_nakupka = item['Průměr']
+                                        break
+                                
+                                if moje_nakupka > 0:
+                                    fig_candle.add_hline(
+                                        y=moje_nakupka, 
+                                        line_dash="dash", 
+                                        line_color="cyan", 
+                                        annotation_text=f"Moje nákupka: {moje_nakupka:.2f}",
+                                        annotation_position="top left"
+                                    )
+                                
+                                # Styling
                                 fig_candle.update_layout(
-                                    xaxis_rangeslider_visible=False,
-                                    template="plotly_dark",
-                                    height=400,
+                                    xaxis_rangeslider_visible=False, 
+                                    template="plotly_dark", 
+                                    height=400, 
                                     margin=dict(l=0, r=0, t=30, b=0)
                                 )
-                                
                                 st.plotly_chart(fig_candle, use_container_width=True)
                             else:
-                                st.warning("Graf se nepodařilo načíst (chybí data).")
+                                st.warning("Graf se nepodařilo načíst.")
 
                         except Exception as e:
                             st.error(f"Chyba rentgenu: {e}")
@@ -866,6 +881,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
