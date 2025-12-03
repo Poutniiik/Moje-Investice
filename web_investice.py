@@ -16,6 +16,7 @@ import google.generativeai as genai
 import plotly.graph_objects as go
 import smtplib
 from email.mime.text import MIMEText
+from fpdf import FPDF # 👈 TISKÁRNA
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -40,14 +41,6 @@ RSS_ZDROJE = [
 APP_MANUAL = """
 Jsi asistent v aplikaci 'Terminal Pro'.
 Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
-
-MAPA APLIKACE:
-1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka.
-2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Věštec, Crash Test.
-3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
-4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
-5. '💎 Dividendy': Historie a graf dividend.
-6. '⚙️ Správa Dat': Zálohy a editace.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -131,7 +124,6 @@ def ziskej_yield(ticker):
         return d if d else 0
     except: return 0
 
-# 👇 NOVÁ FUNKCE PRO RENTGEN (S PAMĚTÍ) 👇
 @st.cache_data(ttl=3600)
 def ziskej_detail_akcie(ticker):
     try:
@@ -140,6 +132,46 @@ def ziskej_detail_akcie(ticker):
         hist = t.history(period="1y")
         return info, hist
     except: return None, None
+
+# --- GENERÁTOR PDF ---
+def vytvor_pdf_report(user, total_czk, cash_usd, data_list):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    
+    # Hlavička
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(200, 10, txt=f"INVESTICNI REPORT: {user}", ln=True, align='C')
+    pdf.set_font("Arial", size=10)
+    pdf.cell(200, 10, txt=f"Datum: {datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=True, align='C')
+    pdf.ln(10)
+    
+    # Souhrn
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(200, 10, txt=f"Celkove jmeni: {total_czk:,.0f} CZK", ln=True)
+    pdf.cell(200, 10, txt=f"Hotovost: {cash_usd:,.0f} USD", ln=True)
+    pdf.ln(10)
+    
+    # Tabulka
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(40, 10, "Ticker", 1)
+    pdf.cell(40, 10, "Kusy", 1)
+    pdf.cell(40, 10, "Cena", 1)
+    pdf.cell(40, 10, "Hodnota USD", 1)
+    pdf.ln()
+    
+    pdf.set_font("Arial", size=10)
+    for item in data_list:
+        pdf.cell(40, 10, str(item['Ticker']), 1)
+        pdf.cell(40, 10, f"{item['Kusy']:.2f}", 1)
+        pdf.cell(40, 10, f"{item['Cena']:.2f}", 1)
+        pdf.cell(40, 10, f"{item['HodnotaUSD']:.0f}", 1)
+        pdf.ln()
+        
+    pdf.ln(10)
+    pdf.cell(200, 10, txt="Vygenerovano aplikaci Terminal Pro", ln=True, align='C')
+    
+    return pdf.output(dest='S').encode('latin-1', 'replace')
 
 # --- DATABÁZE ---
 def uloz_csv(df, nazev_souboru, zprava):
@@ -421,7 +453,7 @@ def main():
     try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except: cash_usd = 0
 
-    # --- SIDEBAR + CHATBOT ---
+    # --- SIDEBAR ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         if zustatky:
@@ -558,12 +590,18 @@ def main():
             st.subheader("💰 INVESTOVANÝ KAPITÁL (Dle měny)")
             m1, m2, m3 = st.columns(3)
             m1.metric("Investováno USD", f"$ {inv_usd:,.0f}"); m2.metric("Investováno EUR", f"€ {inv_eur:,.0f}"); m3.metric("Investováno CZK", f"{inv_czk:,.0f} Kč")
+        
         st.divider()
         st.subheader("📋 Detailní pozice")
         if viz_data:
             vdf = pd.DataFrame(viz_data)
             vdf_clean = vdf[vdf['HodnotaUSD'] > 0] 
             st.dataframe(vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Dnes", "Hodnota", "Zisk", "Divi", "Dan"]].style.format({"Průměr": "{:.2f}", "Cena": "{:.2f}", "Hodnota": "{:,.0f}", "Zisk": "{:+,.0f}", "Divi": "{:.2%}", "Dnes": "{:+.2%}"}).background_gradient(cmap="RdYlGn", subset=["Zisk", "Dnes"], vmin=-0.05, vmax=0.05), use_container_width=True)
+            
+            st.divider()
+            pdf_val = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, viz_data)
+            st.download_button("📄 STÁHNOUT PDF REPORT", data=pdf_val, file_name="report.pdf", mime="application/pdf")
+            
         else: st.info("Portfolio je prázdné.")
 
     elif page == "📈 Analýza":
@@ -574,7 +612,6 @@ def main():
                 vybrana_akcie = st.selectbox("Vyber firmu:", df['Ticker'].unique())
                 if vybrana_akcie:
                     with st.spinner(f"Načítám data pro {vybrana_akcie}..."):
-                        # NOVINKA: VOLÁME CACHE FUNKCI
                         t_info, hist_data = ziskej_detail_akcie(vybrana_akcie)
                         if t_info:
                             try:
@@ -593,7 +630,6 @@ def main():
                                     st.subheader(long_name); st.info(summary[:400] + "...")
                                     if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
                                     
-                                    # NOVINKA: INVESTIČNÍ DENÍK
                                     st.write(""); st.caption("📝 Můj Investiční Deník")
                                     akt_poznamka = ""
                                     row_idx = df[df['Ticker'] == vybrana_akcie].index
@@ -624,7 +660,8 @@ def main():
             with st.container(border=True):
                 ref = prev_score if prev_score else 50
                 fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number+delta", value = score, domain = {'x': [0, 1], 'y': [0, 1]},
+                    mode = "gauge+number+delta", value = score,
+                    domain = {'x': [0, 1], 'y': [0, 1]},
                     title = {'text': f"Aktuálně: {rating.upper()}", 'font': {'size': 24}},
                     delta = {'reference': ref, 'increasing': {'color': "green"}, 'decreasing': {'color': "red"}},
                     gauge = {'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"}, 'bar': {'color': "white", 'thickness': 0.2}, 'bgcolor': "white", 'borderwidth': 2, 'bordercolor': "gray", 'steps': [{'range': [0, 25], 'color': '#FF4B4B'}, {'range': [25, 45], 'color': '#FFA07A'}, {'range': [45, 55], 'color': '#FFFF00'}, {'range': [55, 75], 'color': '#90EE90'}, {'range': [75, 100], 'color': '#008000'}]}
@@ -810,14 +847,12 @@ def main():
             if st.button("💾 ULOŽIT PORTFOLIO"): 
                 st.session_state['df'] = ed
                 uloz_data_uzivatele(ed, USER, SOUBOR_DATA)
-                st.toast("Uloženo", icon="✅")
-                st.rerun()
+                st.toast("Uloženo", icon="✅"); st.rerun()
         with t2:
             st.session_state['df_hist'] = st.data_editor(st.session_state['df_hist'], num_rows="dynamic", use_container_width=True, key="he")
             if st.button("💾 ULOŽIT HISTORII"): 
                 uloz_data_uzivatele(st.session_state['df_hist'], USER, SOUBOR_HISTORIE)
-                st.toast("Uloženo", icon="✅")
-                st.rerun()
+                st.toast("Uloženo", icon="✅"); st.rerun()
         
         st.divider()
         st.subheader("📦 ZÁLOHA")
