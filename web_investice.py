@@ -628,28 +628,60 @@ def main():
         st.title("📈 HLOUBKOVÁ ANALÝZA")
         if not df.empty:
             st.write("")
-            with st.expander("🔍 RENTGEN AKCIE (Detail + Graf)", expanded=False):
+            with st.expander("🔍 RENTGEN AKCIE (Detail + Graf + Sleva)", expanded=False):
                 vybrana_akcie = st.selectbox("Vyber firmu:", df['Ticker'].unique())
                 if vybrana_akcie:
                     with st.spinner(f"Načítám data pro {vybrana_akcie}..."):
                         t_info, hist_data = ziskej_detail_akcie(vybrana_akcie)
                         if t_info:
                             try:
+                                # Načtení dat
                                 long_name = t_info.get('longName', vybrana_akcie)
                                 summary = t_info.get('longBusinessSummary', 'Popis nedostupný.')
                                 recommendation = t_info.get('recommendationKey', 'Neznámé').upper().replace('_', ' ')
                                 target_price = t_info.get('targetMeanPrice', 0)
                                 pe_ratio = t_info.get('trailingPE', 0)
                                 currency = t_info.get('currency', '?')
+                                current_price = t_info.get('currentPrice', 0)
+                                
+                                # 52-týdenní rozsah (Novinka)
+                                year_high = t_info.get('fiftyTwoWeekHigh', 0)
+                                year_low = t_info.get('fiftyTwoWeekLow', 0)
+                                
+                                # Sloupce pro základní info
                                 c_d1, c_d2 = st.columns([1, 3])
                                 with c_d1:
                                     barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
-                                    st.markdown(f"### :{barva_rec}[{recommendation}]"); st.caption("Názor analytiků")
-                                    st.metric("Cílová cena", f"{target_price} {currency}"); st.metric("P/E Ratio", f"{pe_ratio:.2f}")
+                                    st.markdown(f"### :{barva_rec}[{recommendation}]")
+                                    st.caption("Názor analytiků")
+                                    st.metric("Aktuální cena", f"{current_price} {currency}")
+                                    st.metric("Cílová cena", f"{target_price} {currency}")
+                                    st.metric("P/E Ratio", f"{pe_ratio:.2f}")
                                 with c_d2:
-                                    st.subheader(long_name); st.info(summary[:400] + "...")
+                                    st.subheader(long_name)
+                                    
+                                    # 👇 NOVINKA: INDIKÁTOR SLEVY (52 Week Range) 👇
+                                    if year_high > year_low:
+                                        # Spočítáme, kde se nacházíme (0.0 = dno, 1.0 = vrchol)
+                                        progress = (current_price - year_low) / (year_high - year_low)
+                                        progress = max(0.0, min(1.0, progress)) # Oříznutí pro jistotu
+                                        
+                                        st.write(f"**Poloha v ročním rozsahu:**")
+                                        st.progress(progress)
+                                        c_low, c_curr, c_high = st.columns([1, 1, 1])
+                                        c_low.caption(f"📉 Min: {year_low}")
+                                        c_high.caption(f"📈 Max: {year_high}", help="Roční maximum")
+                                        
+                                        if progress < 0.2:
+                                            st.success("🔥 **SUPER SLEVA!** Cena je u ročního dna.")
+                                        elif progress > 0.8:
+                                            st.warning("⚠️ **VRCHOL!** Cena je u ročního maxima.")
+                                    # 👆 KONEC NOVINKY 👆
+
+                                    st.info(summary[:400] + "...")
                                     if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
                                     
+                                    # Deník
                                     st.write(""); st.caption("📝 Můj Investiční Deník")
                                     akt_poznamka = ""
                                     row_idx = df[df['Ticker'] == vybrana_akcie].index
@@ -884,3 +916,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
