@@ -706,7 +706,6 @@ def main():
                 with c_cr2: st.progress(1.0 - (propad / 100))
         else: st.info("Žádná data.")
             
-            st.divider()
             st.subheader("⚖️ REBALANCING")
             total_assets = vdf['HodnotaUSD'].sum()
             r1, r2, r3 = st.columns(3); col_iter = [r1, r2, r3]
@@ -865,6 +864,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
