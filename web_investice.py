@@ -153,6 +153,7 @@ def nacti_csv(nazev_souboru):
         for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD', 'Investice', 'Target']:
             if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
         if 'Sektor' not in df.columns and nazev_souboru == SOUBOR_DATA: df['Sektor'] = "Doplnit"
+        if 'Poznamka' not in df.columns and nazev_souboru == SOUBOR_DATA: df['Poznamka'] = ""
         if nazev_souboru == SOUBOR_WATCHLIST and 'Target' not in df.columns: df['Target'] = 0.0
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         df['Owner'] = df['Owner'].astype(str)
@@ -601,6 +602,27 @@ def main():
                             with c_d2:
                                 st.subheader(long_name); st.info(summary[:400] + "...")
                                 if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
+                                
+                                # 👇 NOVINKA: INVESTIČNÍ DENÍK 👇
+                                st.write("")
+                                st.caption("📝 Můj Investiční Deník")
+                                
+                                # 1. Najdeme tvou poznámku v datech
+                                akt_poznamka = ""
+                                row_idx = df[df['Ticker'] == vybrana_akcie].index
+                                if not row_idx.empty:
+                                    raw_note = df.at[row_idx[0], 'Poznamka']
+                                    if pd.notnull(raw_note): akt_poznamka = str(raw_note)
+                                
+                                # 2. Zobrazíme textové pole
+                                new_note = st.text_area("Proč to držím?", value=akt_poznamka, placeholder="Např. Cílová cena 200 USD, věřím v růst...", key=f"note_{vybrana_akcie}")
+                                
+                                # 3. Pokud jsi něco změnil, uložíme to
+                                if new_note != akt_poznamka:
+                                    df.at[row_idx[0], 'Poznamka'] = new_note
+                                    st.session_state['df'] = df # Aktualizujeme paměť
+                                    uloz_data_uzivatele(df, USER, SOUBOR_DATA) # Uložíme na GitHub
+                                    st.toast("Poznámka uložena! 💾")
                             st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
                             hist_data = tkr_obj.history(period="1y")
                             if not hist_data.empty:
@@ -823,4 +845,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
