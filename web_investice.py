@@ -4,7 +4,7 @@ import yfinance as yf
 import plotly.express as px
 from github import Github
 from io import StringIO
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 import time
 import zipfile
@@ -16,7 +16,8 @@ import google.generativeai as genai
 import plotly.graph_objects as go
 import smtplib
 from email.mime.text import MIMEText
-from fpdf import FPDF # 👈 TISKÁRNA
+from fpdf import FPDF
+import extra_streamlit_components as stx # 👈 KNIHOVNA NA COOKIES
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -85,6 +86,13 @@ def load_lottieurl(url):
         return r.json()
     except: return None
 
+# --- COOKIE MANAGER (AUTO-LOGIN) ---
+@st.cache_resource(experimental_allow_widgets=True)
+def get_manager():
+    return stx.CookieManager()
+
+cookie_manager = get_manager()
+
 # --- EXTERNÍ DATA A CACHE ---
 @st.cache_data(ttl=3600)
 def ziskej_fear_greed():
@@ -138,28 +146,21 @@ def vytvor_pdf_report(user, total_czk, cash_usd, data_list):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    
-    # Hlavička
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(200, 10, txt=f"INVESTICNI REPORT: {user}", ln=True, align='C')
     pdf.set_font("Arial", size=10)
     pdf.cell(200, 10, txt=f"Datum: {datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=True, align='C')
     pdf.ln(10)
-    
-    # Souhrn
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(200, 10, txt=f"Celkove jmeni: {total_czk:,.0f} CZK", ln=True)
     pdf.cell(200, 10, txt=f"Hotovost: {cash_usd:,.0f} USD", ln=True)
     pdf.ln(10)
-    
-    # Tabulka
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(40, 10, "Ticker", 1)
     pdf.cell(40, 10, "Kusy", 1)
     pdf.cell(40, 10, "Cena", 1)
     pdf.cell(40, 10, "Hodnota USD", 1)
     pdf.ln()
-    
     pdf.set_font("Arial", size=10)
     for item in data_list:
         pdf.cell(40, 10, str(item['Ticker']), 1)
@@ -167,10 +168,6 @@ def vytvor_pdf_report(user, total_czk, cash_usd, data_list):
         pdf.cell(40, 10, f"{item['Cena']:.2f}", 1)
         pdf.cell(40, 10, f"{item['HodnotaUSD']:.0f}", 1)
         pdf.ln()
-        
-    pdf.ln(10)
-    pdf.cell(200, 10, txt="Vygenerovano aplikaci Terminal Pro", ln=True, align='C')
-    
     return pdf.output(dest='S').encode('latin-1', 'replace')
 
 # --- DATABÁZE ---
@@ -350,8 +347,16 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
-    if 'prihlasen' not in st.session_state: st.session_state['prihlasen'] = False
-    if 'user' not in st.session_state: st.session_state['user'] = ""
+    # Získání cookie
+    cookie_user = cookie_manager.get("invest_user")
+    
+    if 'prihlasen' not in st.session_state: 
+        if cookie_user: # Pokud máme sušenku, přihlásíme se automaticky
+            st.session_state['prihlasen'] = True
+            st.session_state['user'] = cookie_user
+        else:
+            st.session_state['prihlasen'] = False
+            st.session_state['user'] = ""
 
     if not st.session_state['prihlasen']:
         c1,c2,c3 = st.columns([1, 2, 1])
@@ -365,7 +370,11 @@ def main():
                         df_u = nacti_uzivatele()
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
-                            st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u}); st.rerun()
+                            # Uložíme sušenku na 30 dní
+                            cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
+                            st.session_state.clear()
+                            st.session_state.update({'prihlasen':True, 'user':u})
+                            st.rerun()
                         else: st.toast("Chyba přihlášení", icon="❌")
             with t2:
                 with st.form("r"):
@@ -405,7 +414,7 @@ def main():
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
         df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
         viz_data = []
-        celk_hod_usd = 0; celk_inv_usd = 0
+        celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
             p, m, d_zmena = ziskej_info(tkr)
@@ -432,6 +441,9 @@ def main():
             except: k = 1.0
             
             celk_hod_usd += hod*k; celk_inv_usd += inv*k
+            if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
+            stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
+            
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena
@@ -453,7 +465,7 @@ def main():
     try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except: cash_usd = 0
 
-    # --- SIDEBAR ---
+    # --- SIDEBAR + CHATBOT ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         if zustatky:
@@ -537,7 +549,11 @@ def main():
                         else: st.error("Chyba v novém hesle.")
                     else: st.error("Staré heslo nesedí.")
         st.divider()
-        if st.button("🚪 ODHLÁSIT", use_container_width=True): st.session_state.clear(); st.rerun()
+        # TLAČÍTKO ODHLÁSIT MAŽE I COOKIE
+        if st.button("🚪 ODHLÁSIT", use_container_width=True): 
+            cookie_manager.delete("invest_user")
+            st.session_state.clear()
+            st.rerun()
 
     # BĚŽÍCÍ PÁS
     if page == "🏠 Přehled" or page == "📈 Analýza":
@@ -590,7 +606,6 @@ def main():
             st.subheader("💰 INVESTOVANÝ KAPITÁL (Dle měny)")
             m1, m2, m3 = st.columns(3)
             m1.metric("Investováno USD", f"$ {inv_usd:,.0f}"); m2.metric("Investováno EUR", f"€ {inv_eur:,.0f}"); m3.metric("Investováno CZK", f"{inv_czk:,.0f} Kč")
-        
         st.divider()
         st.subheader("📋 Detailní pozice")
         if viz_data:
@@ -805,7 +820,7 @@ def main():
                     cost = p*c; bal = zustatky.get(m, 0)
                     if bal >= cost:
                         pohyb_penez(-cost, m, "Nákup", f"Buy {t}", USER)
-                        new = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER, "Sektor": "Doplnit", "Poznamka": ""}])
+                        new = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER, "Sektor": "Doplnit"}])
                         upd = pd.concat([df, new], ignore_index=True)
                         st.session_state['df'] = upd; uloz_data_uzivatele(upd, USER, SOUBOR_DATA); st.toast("OK", icon="🛒"); st.rerun()
                     else: st.toast(f"Nedostatek {m}! Jdi do směnárny.", icon="❌")
