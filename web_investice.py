@@ -468,7 +468,39 @@ def main():
                         else: st.caption("Offline")
                     with c2: st.write(""); 
                     if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
+       # 👇 NOVINKA: ZMĚNA HESLA 👇
         st.divider()
+        with st.expander("⚙️ Nastavení účtu (Heslo)"):
+            with st.form("pass_change"):
+                old_pass = st.text_input("Staré heslo", type="password")
+                new_pass = st.text_input("Nové heslo", type="password")
+                confirm_pass = st.text_input("Potvrdit heslo", type="password")
+                
+                if st.form_submit_button("Změnit heslo"):
+                    df_u = nacti_uzivatele()
+                    # Najdeme aktuálního uživatele
+                    user_row = df_u[df_u['username'] == USER]
+                    
+                    if not user_row.empty:
+                        stored_pass = user_row.iloc[0]['password']
+                        # Ověříme staré heslo
+                        if stored_pass == zasifruj(old_pass):
+                            if new_pass == confirm_pass:
+                                if len(new_pass) > 0:
+                                    # Změna hesla v databázi
+                                    idx = df_u[df_u['username'] == USER].index[0]
+                                    df_u.at[idx, 'password'] = zasifruj(new_pass)
+                                    uloz_csv(df_u, SOUBOR_UZIVATELE, f"Password change {USER}")
+                                    st.success("Heslo změněno! 🎉")
+                                else:
+                                    st.error("Heslo nesmí být prázdné.")
+                            else:
+                                st.error("Nová hesla se neshodují.")
+                        else:
+                            st.error("Staré heslo je špatně.")
+                    else:
+                        st.error("Chyba uživatele.")
+        # 👆 KONEC ZMĚNY HESLA
         if st.button("🚪 ODHLÁSIT", use_container_width=True): st.session_state.clear(); st.rerun()
 
     # --- STRÁNKY ---
@@ -718,17 +750,29 @@ def main():
                     if zustatky.get(zm, 0) >= ce: ok, msg = proved_smenu(ce, zm, dm, USER); st.toast(msg, icon="✅"); st.rerun()
                     else: st.toast(f"Nedostatek {zm}", icon="❌")
         with t_buy:
+            st.subheader("Nákup akcií")
             with st.form("b"):
-                t = st.text_input("Symbol").upper(); p = st.number_input("Ks", 0.001); c = st.number_input("Cena", 0.1)
-                if st.form_submit_button("KOUPIT"):
-                    _, m, _ = ziskej_info(t) # OPRAVA ZDE
+                # 👇 TADY JSOU TY NOVÉ BUBKY (help=...)
+                c1, c2 = st.columns(2)
+                with c1:
+                    t = st.text_input("Symbol", placeholder="NAPŘ. AAPL", 
+                                      help="Zadej ticker akcie (zkratku). Např. AAPL pro Apple, CEZ.PR pro ČEZ.").upper()
+                with c2:
+                    p = st.number_input("Počet kusů", min_value=0.001, step=1.0, 
+                                        help="Kolik akcií chceš koupit? Můžeš i zlomky (např. 0.5).")
+                
+                c = st.number_input("Nákupní cena (za 1 kus)", min_value=0.1, 
+                                    help="Za kolik jsi to koupil? Pokud nevíš, podívej se do své banky.")
+                
+                if st.form_submit_button("KOUPIT AKCIE", use_container_width=True):
+                    _, m, _ = ziskej_info(t)
                     cost = p*c; bal = zustatky.get(m, 0)
                     if bal >= cost:
                         pohyb_penez(-cost, m, "Nákup", f"Buy {t}", USER)
                         new = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER, "Sektor": "Doplnit"}])
                         upd = pd.concat([df, new], ignore_index=True)
                         st.session_state['df'] = upd; uloz_data_uzivatele(upd, USER, SOUBOR_DATA); st.toast("OK", icon="🛒"); st.rerun()
-                    else: st.toast(f"Nedostatek {m}!", icon="❌")
+                    else: st.toast(f"Nedostatek {m}! Jdi do směnárny.", icon="❌")
         with t_sell:
             if not df.empty:
                 with st.form("s"):
@@ -786,5 +830,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
