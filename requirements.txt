@@ -9,3 +9,4 @@ requests
 streamlit-lottie
 google-generativeai
 feedparser
+fpdf
