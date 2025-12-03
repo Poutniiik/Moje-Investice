@@ -629,7 +629,7 @@ def main():
                             except Exception as e: st.error(f"Chyba zobrazení: {e}")
                         else:
                             # Když nás Yahoo blokuje
-                            st.warning("⚠️ Yahoo Finance neodpovídá (Too Many Requests). Zkus to za chvíli.")
+                                st.warning("⚠️ Yahoo Finance neodpovídá (Too Many Requests). Zkus to za chvíli.")
                                 
                                 # 👇 NOVINKA: INVESTIČNÍ DENÍK 👇
                                 st.write("")
@@ -873,6 +873,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
