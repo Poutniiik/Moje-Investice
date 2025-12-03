@@ -17,7 +17,7 @@ import plotly.graph_objects as go
 import smtplib
 from email.mime.text import MIMEText
 from fpdf import FPDF
-import extra_streamlit_components as stx # 👈 KNIHOVNA NA COOKIES
+import extra_streamlit_components as stx
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -86,11 +86,12 @@ def load_lottieurl(url):
         return r.json()
     except: return None
 
-# --- COOKIE MANAGER (AUTO-LOGIN) ---
-# Přidáme parametr show_spinner=False, aby to bylo tiché
-@st.cache_resource(show_spinner=False)
+# --- COOKIE MANAGER (FIX VAROVÁNÍ) ---
+# Místo cache použijeme session_state singleton - to neháže chyby
 def get_manager():
-    return stx.CookieManager()
+    if 'cookie_manager' not in st.session_state:
+        st.session_state.cookie_manager = stx.CookieManager()
+    return st.session_state.cookie_manager
 
 cookie_manager = get_manager()
 
@@ -348,11 +349,11 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
-    # Získání cookie
+    # COOKIES: Získáme uživatele (bez cache, přes session state)
     cookie_user = cookie_manager.get("invest_user")
     
     if 'prihlasen' not in st.session_state: 
-        if cookie_user: # Pokud máme sušenku, přihlásíme se automaticky
+        if cookie_user: 
             st.session_state['prihlasen'] = True
             st.session_state['user'] = cookie_user
         else:
@@ -371,7 +372,7 @@ def main():
                         df_u = nacti_uzivatele()
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
-                            # Uložíme sušenku na 30 dní
+                            # Set cookie
                             cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
                             st.session_state.clear()
                             st.session_state.update({'prihlasen':True, 'user':u})
@@ -550,7 +551,6 @@ def main():
                         else: st.error("Chyba v novém hesle.")
                     else: st.error("Staré heslo nesedí.")
         st.divider()
-        # TLAČÍTKO ODHLÁSIT MAŽE I COOKIE
         if st.button("🚪 ODHLÁSIT", use_container_width=True): 
             cookie_manager.delete("invest_user")
             st.session_state.clear()
@@ -676,8 +676,7 @@ def main():
             with st.container(border=True):
                 ref = prev_score if prev_score else 50
                 fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number+delta", value = score,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    mode = "gauge+number+delta", value = score, domain = {'x': [0, 1], 'y': [0, 1]},
                     title = {'text': f"Aktuálně: {rating.upper()}", 'font': {'size': 24}},
                     delta = {'reference': ref, 'increasing': {'color': "green"}, 'decreasing': {'color': "red"}},
                     gauge = {'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"}, 'bar': {'color': "white", 'thickness': 0.2}, 'bgcolor': "white", 'borderwidth': 2, 'bordercolor': "gray", 'steps': [{'range': [0, 25], 'color': '#FF4B4B'}, {'range': [25, 45], 'color': '#FFA07A'}, {'range': [45, 55], 'color': '#FFFF00'}, {'range': [55, 75], 'color': '#90EE90'}, {'range': [75, 100], 'color': '#008000'}]}
@@ -705,6 +704,45 @@ def main():
                     fig_pie = px.pie(df_mena, values='HodnotaUSD', names='Měna', hole=0.4, color='Měna', color_discrete_map={'USD':'#00CC96', 'CZK':'#636EFA', 'EUR':'#EF553B'})
                     st.plotly_chart(fig_pie, use_container_width=True)
                 except: st.error("Chyba koláče.")
+            
+            # 👇 NOVINKA: MĚSÍČNÍ VYSVĚDČENÍ (HEATMAPA) 👇
+            st.divider()
+            st.caption("📊 MĚSÍČNÍ VYSVĚDČENÍ (Zisk/Ztráta %)")
+            if not hist_vyvoje.empty and len(hist_vyvoje) > 30:
+                try:
+                    # Příprava dat pro Heatmapu
+                    df_h = hist_vyvoje.copy()
+                    df_h['Date'] = pd.to_datetime(df_h['Date'])
+                    df_h = df_h.set_index('Date').resample('M').last() # Poslední hodnota v měsíci
+                    df_h['Pct_Change'] = df_h['TotalUSD'].pct_change() * 100
+                    df_h = df_h.dropna()
+                    
+                    if not df_h.empty:
+                        df_h['Year'] = df_h.index.year
+                        df_h['Month'] = df_h.index.month_name()
+                        
+                        # Pivot tabulka pro graf
+                        pivot_table = df_h.pivot(index='Year', columns='Month', values='Pct_Change')
+                        
+                        # Seřazení měsíců
+                        months_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+                        pivot_table = pivot_table.reindex(columns=months_order)
+
+                        fig_heat = px.imshow(pivot_table, 
+                                            labels=dict(x="Měsíc", y="Rok", color="Změna %"),
+                                            x=pivot_table.columns,
+                                            y=pivot_table.index,
+                                            color_continuous_scale=['red', '#161B22', 'green'],
+                                            color_continuous_midpoint=0,
+                                            text_auto='.1f')
+                        fig_heat.update_layout(height=300)
+                        st.plotly_chart(fig_heat, use_container_width=True)
+                    else:
+                         st.info("Zatím nemám dost dat (potřebuji uzavřené měsíce).")
+                except: st.info("Málo dat pro heatmapu.")
+            else:
+                st.info("Měsíční mapa se ukáže, až budeš mít historii delší než 1 měsíc.")
+
             st.divider()
             st.caption("🥊 SOUBOJ S TRHEM (S&P 500)")
             if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
@@ -821,7 +859,7 @@ def main():
                     cost = p*c; bal = zustatky.get(m, 0)
                     if bal >= cost:
                         pohyb_penez(-cost, m, "Nákup", f"Buy {t}", USER)
-                        new = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER, "Sektor": "Doplnit"}])
+                        new = pd.DataFrame([{"Ticker": t, "Pocet": p, "Cena": c, "Datum": datetime.now(), "Owner": USER, "Sektor": "Doplnit", "Poznamka": ""}])
                         upd = pd.concat([df, new], ignore_index=True)
                         st.session_state['df'] = upd; uloz_data_uzivatele(upd, USER, SOUBOR_DATA); st.toast("OK", icon="🛒"); st.rerun()
                     else: st.toast(f"Nedostatek {m}! Jdi do směnárny.", icon="❌")
@@ -880,5 +918,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
