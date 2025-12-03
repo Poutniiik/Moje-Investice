@@ -537,21 +537,41 @@ def main():
                 target_w = st.number_input("Cílová cena", min_value=0.0, step=1.0)
                 if st.form_submit_button("Sledovat"):
                     if new_w: pridat_do_watchlistu(new_w, target_w, USER); st.rerun()
-        if not df_watch.empty:
+       if not df_watch.empty:
+            # Pojistka proti chybějícímu sloupci Target
             if 'Target' not in df_watch.columns: df_watch['Target'] = 0.0
+            
             for idx, row in df_watch.iterrows():
                 t = row['Ticker']; cilek = row['Target']
                 info = LIVE_DATA.get(t, {})
                 price = info.get('price'); curr = info.get('curr', '?')
+                
+                # Záchrana ceny
                 if not price:
                     try: p, m, _ = ziskej_info(t); price=p; curr=m
                     except: pass
-                alert_icon = "🔥 SLEVA!" if price and cilek > 0 and price <= cilek else ""
+                
+                # Ikona slevy
+                alert_icon = "🔥" if price and cilek > 0 and price <= cilek else ""
+                
+                # Vykreslení karty
                 with st.container(border=True):
                     c1, c2 = st.columns([4, 1])
-                    with c1: st.markdown(f"**{t}** {alert_icon}"); st.markdown(f"### {price:,.2f} {curr}") if price else st.caption("Offline")
-                    with c2: st.write(""); 
-                    if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
+                    with c1: 
+                        # Zde byla pravděpodobně chyba - vypisujeme text, ne objekt
+                        st.markdown(f"**{t}** {alert_icon}")
+                        if price: 
+                            st.markdown(f"### {price:,.2f} {curr}")
+                            if cilek > 0:
+                                diff = ((price / cilek) - 1) * 100
+                                color = "green" if price <= cilek else "red"
+                                st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
+                        else: st.caption("Offline")
+                    with c2: 
+                        st.write("") 
+                        if st.button("❌", key=f"del_{t}"): 
+                            odebrat_z_watchlistu(t, USER)
+                            st.rerun()
         
         st.divider()
         with st.expander("⚙️ Nastavení účtu"):
@@ -918,4 +938,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
