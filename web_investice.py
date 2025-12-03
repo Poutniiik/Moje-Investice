@@ -134,6 +134,15 @@ def ziskej_yield(ticker):
         return d if d else 0
     except: return 0
 
+@st.cache_data(ttl=3600) # Uloží data na 1 hodinu
+def ziskej_detail_akcie(ticker):
+    try:
+        t = yf.Ticker(str(ticker))
+        info = t.info
+        hist = t.history(period="1y")
+        return info, hist
+    except: return None, None
+
 # --- DATABÁZE ---
 def uloz_csv(df, nazev_souboru, zprava):
     repo = get_repo()
@@ -586,22 +595,41 @@ def main():
                 vybrana_akcie = st.selectbox("Vyber firmu:", df['Ticker'].unique())
                 if vybrana_akcie:
                     with st.spinner(f"Načítám data pro {vybrana_akcie}..."):
-                        try:
-                            tkr_obj = yf.Ticker(vybrana_akcie); t_info = tkr_obj.info
-                            long_name = t_info.get('longName', vybrana_akcie)
-                            summary = t_info.get('longBusinessSummary', 'Popis nedostupný.')
-                            recommendation = t_info.get('recommendationKey', 'Neznámé').upper().replace('_', ' ')
-                            target_price = t_info.get('targetMeanPrice', 0)
-                            pe_ratio = t_info.get('trailingPE', 0)
-                            currency = t_info.get('currency', '?')
-                            c_d1, c_d2 = st.columns([1, 3])
-                            with c_d1:
-                                barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
-                                st.markdown(f"### :{barva_rec}[{recommendation}]"); st.caption("Názor analytiků")
-                                st.metric("Cílová cena", f"{target_price} {currency}"); st.metric("P/E Ratio", f"{pe_ratio:.2f}")
-                            with c_d2:
-                                st.subheader(long_name); st.info(summary[:400] + "...")
-                                if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
+                        # 👇 TADY JE TA ZMĚNA - Voláme naši chytrou funkci s pamětí
+                        t_info, hist_data = ziskej_detail_akcie(vybrana_akcie)
+                        
+                        if t_info: # Pokud jsme dostali data (nejsme blokovaní)
+                            try:
+                                long_name = t_info.get('longName', vybrana_akcie)
+                                summary = t_info.get('longBusinessSummary', 'Popis nedostupný.')
+                                recommendation = t_info.get('recommendationKey', 'Neznámé').upper().replace('_', ' ')
+                                target_price = t_info.get('targetMeanPrice', 0)
+                                pe_ratio = t_info.get('trailingPE', 0)
+                                currency = t_info.get('currency', '?')
+                                
+                                c_d1, c_d2 = st.columns([1, 3])
+                                with c_d1:
+                                    barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
+                                    st.markdown(f"### :{barva_rec}[{recommendation}]"); st.caption("Názor analytiků")
+                                    st.metric("Cílová cena", f"{target_price} {currency}"); st.metric("P/E Ratio", f"{pe_ratio:.2f}")
+                                with c_d2:
+                                    st.subheader(long_name); st.info(summary[:400] + "...")
+                                    if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
+    
+                                st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
+                                if hist_data is not None and not hist_data.empty:
+                                    fig_candle = go.Figure(data=[go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie)])
+                                    moje_nakupka = 0
+                                    for item in viz_data:
+                                        if item['Ticker'] == vybrana_akcie: moje_nakupka = item['Průměr']; break
+                                    if moje_nakupka > 0: fig_candle.add_hline(y=moje_nakupka, line_dash="dash", line_color="cyan", annotation_text=f"Moje nákupka: {moje_nakupka:.2f}")
+                                    fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0))
+                                    st.plotly_chart(fig_candle, use_container_width=True)
+                                else: st.warning("Graf se nepodařilo načíst.")
+                            except Exception as e: st.error(f"Chyba zobrazení: {e}")
+                        else:
+                            # Když nás Yahoo blokuje
+                            st.warning("⚠️ Yahoo Finance neodpovídá (Too Many Requests). Zkus to za chvíli.")
                                 
                                 # 👇 NOVINKA: INVESTIČNÍ DENÍK 👇
                                 st.write("")
@@ -845,5 +873,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
