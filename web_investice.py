@@ -87,7 +87,8 @@ def load_lottieurl(url):
     except: return None
 
 # --- COOKIE MANAGER (AUTO-LOGIN) ---
-@st.cache_resource(experimental_allow_widgets=True)
+# Odstranili jsme ten problematický parametr
+@st.cache_resource
 def get_manager():
     return stx.CookieManager()
 
@@ -879,3 +880,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
