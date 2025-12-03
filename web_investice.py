@@ -146,13 +146,15 @@ def nacti_csv(nazev_souboru):
         repo = get_repo()
         file = repo.get_contents(nazev_souboru)
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
-        if nazev_souboru == SOUBOR_WATCHLIST and 'Target' not in df.columns:
-            df['Target'] = 0.0
         for col in ['Datum', 'Date']:
             if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
-        for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD', 'Investice']:
+        for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD', 'Investice', 'Target']:
             if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+        
         if 'Sektor' not in df.columns and nazev_souboru == SOUBOR_DATA: df['Sektor'] = "Doplnit"
+        # Fix pro Watchlist
+        if nazev_souboru == SOUBOR_WATCHLIST and 'Target' not in df.columns: df['Target'] = 0.0
+        
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         df['Owner'] = df['Owner'].astype(str)
         return df
@@ -178,13 +180,8 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
 def nacti_uzivatele(): return nacti_csv(SOUBOR_UZIVATELE)
 def pridat_do_watchlistu(ticker, target, user):
     df_w = st.session_state['df_watch']
-    # Pokud tam ticker není, přidáme ho
     if ticker not in df_w['Ticker'].values:
-        new = pd.DataFrame([{
-            "Ticker": ticker, 
-            "Target": float(target), # 👈 Novinka: Ukládáme cílovou cenu
-            "Owner": user
-        }])
+        new = pd.DataFrame([{"Ticker": ticker, "Target": float(target), "Owner": user}])
         updated = pd.concat([df_w, new], ignore_index=True)
         st.session_state['df_watch'] = updated
         uloz_data_uzivatele(updated, user, SOUBOR_WATCHLIST)
@@ -355,6 +352,7 @@ def main():
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
             inf = LIVE_DATA.get(tkr, {})
+            # OPRAVA: Voláme s 3 hodnotami (včetně změny)
             p, m, d_zmena = ziskej_info(tkr)
             if p is None: p = row['Cena']
             if m is None or m == "N/A": m = "USD"
@@ -437,63 +435,40 @@ def main():
                 except Exception as e: ai_reply = f"Chyba: {str(e)}"
                 st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
 
-        st.divider()
-        st.subheader("👀 WATCHLIST (Hlídač)")
-        
-        # 1. Formulář s cílovou cenou
+        st.divider(); st.subheader("👀 WATCHLIST (Hlídač)")
         with st.expander("➕ Přidat hlídače", expanded=False):
             with st.form("w_add", clear_on_submit=True):
-                new_w = st.text_input("Symbol", placeholder="NVDA").upper()
+                new_w = st.text_input("Symbol").upper()
                 target_w = st.number_input("Cílová cena (upozornit pod)", min_value=0.0, step=1.0)
                 if st.form_submit_button("Sledovat"):
-                    if new_w: 
-                        pridat_do_watchlistu(new_w, target_w, USER)
-                        st.rerun()
-        
-        # 2. Výpis karet s logikou hlídače
+                    if new_w: pridat_do_watchlistu(new_w, target_w, USER); st.rerun()
         if not df_watch.empty:
-            # Pojistka, kdyby ve starém souboru nebyl sloupec Target
-            if 'Target' not in df_watch.columns:
-                df_watch['Target'] = 0.0
-
+            # Pojistka proti chybějícímu sloupci Target
+            if 'Target' not in df_watch.columns: df_watch['Target'] = 0.0
+            
             for idx, row in df_watch.iterrows():
-                t = row['Ticker']
-                cilek = row['Target'] # Naše vysněná cena
-                
+                t = row['Ticker']; cilek = row['Target']
                 info = LIVE_DATA.get(t, {})
                 price = info.get('price'); curr = info.get('curr', '?')
-                
-                # Záchrana ceny
                 if not price:
                     try: p, m, _ = ziskej_info(t); price=p; curr=m
                     except: pass
                 
-                # Logika hlídače 🔔
-                alert_icon = ""
-                border_color = False # Výchozí rámeček
-                
-                if price and cilek > 0:
-                    if price <= cilek:
-                        alert_icon = "🔥 SLEVA!"
-                        border_color = True # Zvýrazníme to! (bohužel st.container nemá color, ale poradíme si textem)
+                alert_icon = "🔥 SLEVA!" if price and cilek > 0 and price <= cilek else ""
                 
                 with st.container(border=True):
                     c1, c2 = st.columns([4, 1])
-                    with c1:
+                    with c1: 
                         st.markdown(f"**{t}** {alert_icon}")
                         if price: 
                             st.markdown(f"### {price:,.2f} {curr}")
                             if cilek > 0:
-                                # Ukážeme, jak daleko jsme od cíle
                                 diff = ((price / cilek) - 1) * 100
-                                color = "green" if price <= cilek else "red"
                                 st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
                         else: st.caption("Offline")
-                    with c2:
-                        st.write(""); 
-                        if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
-        
-        else: st.caption("Zatím nic nesleduješ.")
+                    with c2: st.write(""); 
+                    if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
+        st.divider()
         if st.button("🚪 ODHLÁSIT", use_container_width=True): st.session_state.clear(); st.rerun()
 
     # --- STRÁNKY ---
@@ -540,15 +515,12 @@ def main():
         st.subheader("📋 Detailní pozice")
         if viz_data:
             vdf = pd.DataFrame(viz_data)
-            # 👇 BEZPEČNÝ FILTR PRO TREEMAP (Aby nepadal na nule)
             vdf_clean = vdf[vdf['HodnotaUSD'] > 0] 
             st.dataframe(vdf[["Ticker", "Měna", "Sektor", "Kusy", "Průměr", "Cena", "Dnes", "Hodnota", "Zisk", "Divi", "Dan"]].style.format({"Průměr": "{:.2f}", "Cena": "{:.2f}", "Hodnota": "{:,.0f}", "Zisk": "{:+,.0f}", "Divi": "{:.2%}", "Dnes": "{:+.2%}"}).background_gradient(cmap="RdYlGn", subset=["Zisk", "Dnes"], vmin=-0.05, vmax=0.05), use_container_width=True)
         else: st.info("Portfolio je prázdné.")
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
-        
-        # --- RENTGEN AKCIE ---
         if not df.empty:
             st.write("")
             with st.expander("🔍 RENTGEN AKCIE (Detail + Graf)", expanded=False):
@@ -563,7 +535,6 @@ def main():
                             target_price = t_info.get('targetMeanPrice', 0)
                             pe_ratio = t_info.get('trailingPE', 0)
                             currency = t_info.get('currency', '?')
-                            
                             c_d1, c_d2 = st.columns([1, 3])
                             with c_d1:
                                 barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
@@ -572,7 +543,6 @@ def main():
                             with c_d2:
                                 st.subheader(long_name); st.info(summary[:400] + "...")
                                 if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
-
                             st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
                             hist_data = tkr_obj.history(period="1y")
                             if not hist_data.empty:
@@ -586,16 +556,13 @@ def main():
                             else: st.warning("Graf se nepodařilo načíst.")
                         except Exception as e: st.error(f"Chyba rentgenu: {e}")
         st.divider()
-
-        # --- FEAR & GREED TACHOMETR ---
         score, rating, datum_fg, prev_score = ziskej_fear_greed()
         if score is not None:
             st.write(""); st.subheader("😨 PSYCHOLOGIE TRHU (Fear & Greed)")
             with st.container(border=True):
                 ref = prev_score if prev_score else 50
                 fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number+delta", value = score,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    mode = "gauge+number+delta", value = score, domain = {'x': [0, 1], 'y': [0, 1]},
                     title = {'text': f"Aktuálně: {rating.upper()}", 'font': {'size': 24}},
                     delta = {'reference': ref, 'increasing': {'color': "green"}, 'decreasing': {'color': "red"}},
                     gauge = {'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"}, 'bar': {'color': "white", 'thickness': 0.2}, 'bgcolor': "white", 'borderwidth': 2, 'bordercolor': "gray", 'steps': [{'range': [0, 25], 'color': '#FF4B4B'}, {'range': [25, 45], 'color': '#FFA07A'}, {'range': [45, 55], 'color': '#FFFF00'}, {'range': [55, 75], 'color': '#90EE90'}, {'range': [75, 100], 'color': '#008000'}]}
@@ -608,27 +575,21 @@ def main():
         st.divider()
         if viz_data:
             vdf = pd.DataFrame(viz_data)
-            # 👇 FILTR PRO GRAFY (Aby nepadaly na nule)
             vdf_charts = vdf[vdf['HodnotaUSD'] > 0]
-            
             c1, c2 = st.columns(2)
             with c1:
                 st.caption("MAPA TRHU (Sektory)")
                 try:
-                    # Používáme filtrovaná data
                     fig = px.treemap(vdf_charts, path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'], values='HodnotaUSD', color='Zisk', color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0)
                     st.plotly_chart(fig, use_container_width=True)
                 except: st.error("Chyba mapy.")
-            
             with c2:
-                # 👇 MĚNOVÝ KOLÁČ 👇
                 st.caption("MĚNOVÉ RIZIKO (Expozice)")
                 try:
                     df_mena = vdf_charts.groupby("Měna")["HodnotaUSD"].sum().reset_index()
                     fig_pie = px.pie(df_mena, values='HodnotaUSD', names='Měna', hole=0.4, color='Měna', color_discrete_map={'USD':'#00CC96', 'CZK':'#636EFA', 'EUR':'#EF553B'})
                     st.plotly_chart(fig_pie, use_container_width=True)
                 except: st.error("Chyba koláče.")
-
             st.divider()
             st.caption("🥊 SOUBOJ S TRHEM (S&P 500)")
             if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
@@ -735,7 +696,7 @@ def main():
             with st.form("b"):
                 t = st.text_input("Symbol").upper(); p = st.number_input("Ks", 0.001); c = st.number_input("Cena", 0.1)
                 if st.form_submit_button("KOUPIT"):
-                    _, m = ziskej_info(t)
+                    _, m, _ = ziskej_info(t) # OPRAVA ZDE
                     cost = p*c; bal = zustatky.get(m, 0)
                     if bal >= cost:
                         pohyb_penez(-cost, m, "Nákup", f"Buy {t}", USER)
@@ -748,7 +709,7 @@ def main():
                 with st.form("s"):
                     t = st.selectbox("Akcie", df['Ticker'].unique().tolist()); q = st.number_input("Ks", 0.001); pr = st.number_input("Cena", 0.1)
                     if st.form_submit_button("PRODAT"):
-                        _, m = ziskej_info(t)
+                        _, m, _ = ziskej_info(t) # OPRAVA ZDE
                         ok, msg = proved_prodej(t, q, pr, USER, m)
                         if ok: st.toast("Prodáno", icon="✅"); st.rerun()
                         else: st.toast(msg, icon="⚠️")
@@ -781,12 +742,14 @@ def main():
             if st.button("💾 ULOŽIT PORTFOLIO"): 
                 st.session_state['df'] = ed
                 uloz_data_uzivatele(ed, USER, SOUBOR_DATA)
-                st.toast("Uloženo", icon="✅"); st.rerun()
+                st.toast("Uloženo", icon="✅")
+                st.rerun()
         with t2:
             st.session_state['df_hist'] = st.data_editor(st.session_state['df_hist'], num_rows="dynamic", use_container_width=True, key="he")
             if st.button("💾 ULOŽIT HISTORII"): 
                 uloz_data_uzivatele(st.session_state['df_hist'], USER, SOUBOR_HISTORIE)
-                st.toast("Uloženo", icon="✅"); st.rerun()
+                st.toast("Uloženo", icon="✅")
+                st.rerun()
         
         st.divider()
         st.subheader("📦 ZÁLOHA")
