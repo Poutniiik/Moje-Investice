@@ -146,6 +146,8 @@ def nacti_csv(nazev_souboru):
         repo = get_repo()
         file = repo.get_contents(nazev_souboru)
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
+        if nazev_souboru == SOUBOR_WATCHLIST and 'Target' not in df.columns:
+            df['Target'] = 0.0
         for col in ['Datum', 'Date']:
             if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
         for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD', 'Investice']:
@@ -159,7 +161,7 @@ def nacti_csv(nazev_souboru):
         if nazev_souboru == SOUBOR_HISTORIE: cols = ["Ticker", "Kusu", "Prodejka", "Zisk", "Mena", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_CASH: cols = ["Typ", "Castka", "Mena", "Poznamka", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_VYVOJ: cols = ["Date", "TotalUSD", "Owner"]
-        if nazev_souboru == SOUBOR_WATCHLIST: cols = ["Ticker", "Owner"]
+        if nazev_souboru == SOUBOR_WATCHLIST: cols = ["Ticker", "Target", "Owner"]
         if nazev_souboru == SOUBOR_DIVIDENDY: cols = ["Ticker", "Castka", "Mena", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_UZIVATELE: cols = ["username", "password", "recovery_key"]
         return pd.DataFrame(columns=cols)
@@ -174,10 +176,15 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
     st.cache_data.clear()
 
 def nacti_uzivatele(): return nacti_csv(SOUBOR_UZIVATELE)
-def pridat_do_watchlistu(ticker, user):
+def pridat_do_watchlistu(ticker, target, user):
     df_w = st.session_state['df_watch']
+    # Pokud tam ticker není, přidáme ho
     if ticker not in df_w['Ticker'].values:
-        new = pd.DataFrame([{"Ticker": ticker, "Owner": user}])
+        new = pd.DataFrame([{
+            "Ticker": ticker, 
+            "Target": float(target), # 👈 Novinka: Ukládáme cílovou cenu
+            "Owner": user
+        }])
         updated = pd.concat([df_w, new], ignore_index=True)
         st.session_state['df_watch'] = updated
         uloz_data_uzivatele(updated, user, SOUBOR_WATCHLIST)
@@ -430,25 +437,63 @@ def main():
                 except Exception as e: ai_reply = f"Chyba: {str(e)}"
                 st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
 
-        st.divider(); st.subheader("👀 WATCHLIST")
-        with st.expander("➕ Přidat", expanded=False):
+        st.divider()
+        st.subheader("👀 WATCHLIST (Hlídač)")
+        
+        # 1. Formulář s cílovou cenou
+        with st.expander("➕ Přidat hlídače", expanded=False):
             with st.form("w_add", clear_on_submit=True):
-                new_w = st.text_input("Symbol").upper()
-                if st.form_submit_button("OK"):
-                    if new_w: pridat_do_watchlistu(new_w, USER); st.rerun()
+                new_w = st.text_input("Symbol", placeholder="NVDA").upper()
+                target_w = st.number_input("Cílová cena (upozornit pod)", min_value=0.0, step=1.0)
+                if st.form_submit_button("Sledovat"):
+                    if new_w: 
+                        pridat_do_watchlistu(new_w, target_w, USER)
+                        st.rerun()
+        
+        # 2. Výpis karet s logikou hlídače
         if not df_watch.empty:
-            for t in df_watch['Ticker']:
+            # Pojistka, kdyby ve starém souboru nebyl sloupec Target
+            if 'Target' not in df_watch.columns:
+                df_watch['Target'] = 0.0
+
+            for idx, row in df_watch.iterrows():
+                t = row['Ticker']
+                cilek = row['Target'] # Naše vysněná cena
+                
                 info = LIVE_DATA.get(t, {})
                 price = info.get('price'); curr = info.get('curr', '?')
+                
+                # Záchrana ceny
                 if not price:
                     try: p, m, _ = ziskej_info(t); price=p; curr=m
                     except: pass
+                
+                # Logika hlídače 🔔
+                alert_icon = ""
+                border_color = False # Výchozí rámeček
+                
+                if price and cilek > 0:
+                    if price <= cilek:
+                        alert_icon = "🔥 SLEVA!"
+                        border_color = True # Zvýrazníme to! (bohužel st.container nemá color, ale poradíme si textem)
+                
                 with st.container(border=True):
                     c1, c2 = st.columns([4, 1])
-                    with c1: st.markdown(f"**{t}**"); st.markdown(f"### {price:,.2f} {curr}") if price else st.caption("Offline")
-                    with c2: st.write(""); 
-                    if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
-        st.divider()
+                    with c1:
+                        st.markdown(f"**{t}** {alert_icon}")
+                        if price: 
+                            st.markdown(f"### {price:,.2f} {curr}")
+                            if cilek > 0:
+                                # Ukážeme, jak daleko jsme od cíle
+                                diff = ((price / cilek) - 1) * 100
+                                color = "green" if price <= cilek else "red"
+                                st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
+                        else: st.caption("Offline")
+                    with c2:
+                        st.write(""); 
+                        if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
+        
+        else: st.caption("Zatím nic nesleduješ.")
         if st.button("🚪 ODHLÁSIT", use_container_width=True): st.session_state.clear(); st.rerun()
 
     # --- STRÁNKY ---
@@ -753,3 +798,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
