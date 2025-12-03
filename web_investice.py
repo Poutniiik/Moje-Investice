@@ -27,6 +27,53 @@ SOUBOR_VYVOJ = "value_history.csv"
 SOUBOR_WATCHLIST = "watchlist.csv"
 SOUBOR_DIVIDENDY = "dividends.csv"
 
+# --- FUNKCE PRO BĚŽÍCÍ PÁS (TICKER TAPE) ---
+def render_ticker_tape(data_dict):
+    if not data_dict: return
+    
+    # Vytvoříme dlouhý text (HTML)
+    content = ""
+    for ticker, info in data_dict.items():
+        price = info.get('price', 0)
+        curr = info.get('curr', '')
+        # Šipka podle ceny (zjednodušeně, nemáme tu historii vteřinu po vteřině, tak dáme neutrální nebo náhodnou pro efekt, 
+        # nebo lépe: prostě jen cenu)
+        content += f"&nbsp;&nbsp;&nbsp;&nbsp; <b>{ticker}</b>: {price:,.2f} {curr}"
+    
+    # HTML/CSS magie pro animaci
+    st.markdown(
+        f"""
+        <div style="
+            background-color: #161B22; 
+            border: 1px solid #30363D; 
+            border-radius: 5px; 
+            padding: 8px; 
+            margin-bottom: 20px; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        ">
+            <div style="
+                display: inline-block; 
+                animation: marquee 20s linear infinite; 
+                color: #00CC96; 
+                font-family: 'Roboto Mono', monospace; 
+                font-weight: bold;
+            ">
+                {content} {content} {content}
+            </div>
+        </div>
+        
+        <style>
+        @keyframes marquee {{
+            0% {{ transform: translateX(0); }}
+            100% {{ transform: translateX(-50%); }}
+        }}
+        </style>
+        """, 
+        unsafe_allow_html=True
+    )
+
 # --- ZDROJE ZPRÁV ---
 RSS_ZDROJE = [
     "https://news.google.com/rss/search?q=akcie+burza+ekonomika&hl=cs&gl=CZ&ceid=CZ:cs",
@@ -342,6 +389,8 @@ def main():
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
+    if page == "🏠 Přehled" or page == "📈 Analýza":
+        render_ticker_tape(LIVE_DATA)
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
@@ -830,6 +879,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
