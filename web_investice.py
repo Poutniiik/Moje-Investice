@@ -42,6 +42,17 @@ RSS_ZDROJE = [
 APP_MANUAL = """
 Jsi asistent v aplikaci 'Terminal Pro'.
 Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
+
+MAPA APLIKACE:
+1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka (Divi %, Denní změna).
+2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Rebalancing, Věštec, Crash Test, Psychologie.
+3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
+4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
+5. '💎 Dividendy': Historie a graf dividend.
+6. '⚙️ Správa Dat': Zálohy a editace.
+
+POKYNY:
+- Buď stručný, přátelský a používej emojis.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -87,7 +98,6 @@ def load_lottieurl(url):
     except: return None
 
 # --- COOKIE MANAGER (FIX VAROVÁNÍ) ---
-# Místo cache použijeme session_state singleton - to neháže chyby
 def get_manager():
     if 'cookie_manager' not in st.session_state:
         st.session_state.cookie_manager = stx.CookieManager()
@@ -95,7 +105,7 @@ def get_manager():
 
 cookie_manager = get_manager()
 
-# --- EXTERNÍ DATA A CACHE ---
+# --- EXTERNÍ DATA ---
 @st.cache_data(ttl=3600)
 def ziskej_fear_greed():
     url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
@@ -349,9 +359,7 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
-    # COOKIES: Získáme uživatele (bez cache, přes session state)
     cookie_user = cookie_manager.get("invest_user")
-    
     if 'prihlasen' not in st.session_state: 
         if cookie_user: 
             st.session_state['prihlasen'] = True
@@ -372,11 +380,8 @@ def main():
                         df_u = nacti_uzivatele()
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
-                            # Set cookie
                             cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
-                            st.session_state.clear()
-                            st.session_state.update({'prihlasen':True, 'user':u})
-                            st.rerun()
+                            st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u}); st.rerun()
                         else: st.toast("Chyba přihlášení", icon="❌")
             with t2:
                 with st.form("r"):
@@ -403,20 +408,18 @@ def main():
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
-    all_tickers = []
+    # VÝPOČTY (PŘESUNUTO NAHORU - CRITICAL FIX)
+    all_tickers = []; viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
-    # VÝPOČTY
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
         df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
-        viz_data = []
-        celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
             p, m, d_zmena = ziskej_info(tkr)
@@ -443,9 +446,6 @@ def main():
             except: k = 1.0
             
             celk_hod_usd += hod*k; celk_inv_usd += inv*k
-            if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
-            stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
-            
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena
@@ -467,7 +467,7 @@ def main():
     try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except: cash_usd = 0
 
-    # --- SIDEBAR + CHATBOT ---
+    # --- SIDEBAR ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         if zustatky:
@@ -607,6 +607,7 @@ def main():
             st.subheader("💰 INVESTOVANÝ KAPITÁL (Dle měny)")
             m1, m2, m3 = st.columns(3)
             m1.metric("Investováno USD", f"$ {inv_usd:,.0f}"); m2.metric("Investováno EUR", f"€ {inv_eur:,.0f}"); m3.metric("Investováno CZK", f"{inv_czk:,.0f} Kč")
+        
         st.divider()
         st.subheader("📋 Detailní pozice")
         if viz_data:
@@ -676,7 +677,8 @@ def main():
             with st.container(border=True):
                 ref = prev_score if prev_score else 50
                 fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number+delta", value = score, domain = {'x': [0, 1], 'y': [0, 1]},
+                    mode = "gauge+number+delta", value = score,
+                    domain = {'x': [0, 1], 'y': [0, 1]},
                     title = {'text': f"Aktuálně: {rating.upper()}", 'font': {'size': 24}},
                     delta = {'reference': ref, 'increasing': {'color': "green"}, 'decreasing': {'color': "red"}},
                     gauge = {'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"}, 'bar': {'color': "white", 'thickness': 0.2}, 'bgcolor': "white", 'borderwidth': 2, 'bordercolor': "gray", 'steps': [{'range': [0, 25], 'color': '#FF4B4B'}, {'range': [25, 45], 'color': '#FFA07A'}, {'range': [45, 55], 'color': '#FFFF00'}, {'range': [55, 75], 'color': '#90EE90'}, {'range': [75, 100], 'color': '#008000'}]}
@@ -705,43 +707,28 @@ def main():
                     st.plotly_chart(fig_pie, use_container_width=True)
                 except: st.error("Chyba koláče.")
             
-            # 👇 NOVINKA: MĚSÍČNÍ VYSVĚDČENÍ (HEATMAPA) 👇
+            # 👇 MĚSÍČNÍ HEATMAPA (VYSVĚDČENÍ) 👇
             st.divider()
             st.caption("📊 MĚSÍČNÍ VYSVĚDČENÍ (Zisk/Ztráta %)")
             if not hist_vyvoje.empty and len(hist_vyvoje) > 30:
                 try:
-                    # Příprava dat pro Heatmapu
                     df_h = hist_vyvoje.copy()
                     df_h['Date'] = pd.to_datetime(df_h['Date'])
-                    df_h = df_h.set_index('Date').resample('M').last() # Poslední hodnota v měsíci
+                    df_h = df_h.set_index('Date').resample('M').last()
                     df_h['Pct_Change'] = df_h['TotalUSD'].pct_change() * 100
                     df_h = df_h.dropna()
-                    
                     if not df_h.empty:
                         df_h['Year'] = df_h.index.year
                         df_h['Month'] = df_h.index.month_name()
-                        
-                        # Pivot tabulka pro graf
                         pivot_table = df_h.pivot(index='Year', columns='Month', values='Pct_Change')
-                        
-                        # Seřazení měsíců
                         months_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
                         pivot_table = pivot_table.reindex(columns=months_order)
-
-                        fig_heat = px.imshow(pivot_table, 
-                                            labels=dict(x="Měsíc", y="Rok", color="Změna %"),
-                                            x=pivot_table.columns,
-                                            y=pivot_table.index,
-                                            color_continuous_scale=['red', '#161B22', 'green'],
-                                            color_continuous_midpoint=0,
-                                            text_auto='.1f')
+                        fig_heat = px.imshow(pivot_table, labels=dict(x="Měsíc", y="Rok", color="Změna %"), x=pivot_table.columns, y=pivot_table.index, color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0, text_auto='.1f')
                         fig_heat.update_layout(height=300)
                         st.plotly_chart(fig_heat, use_container_width=True)
-                    else:
-                         st.info("Zatím nemám dost dat (potřebuji uzavřené měsíce).")
+                    else: st.info("Zatím nemám dost dat.")
                 except: st.info("Málo dat pro heatmapu.")
-            else:
-                st.info("Měsíční mapa se ukáže, až budeš mít historii delší než 1 měsíc.")
+            else: st.info("Měsíční mapa se ukáže, až budeš mít historii delší než 1 měsíc.")
 
             st.divider()
             st.caption("🥊 SOUBOJ S TRHEM (S&P 500)")
