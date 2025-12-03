@@ -38,10 +38,23 @@ RSS_ZDROJE = [
     "https://www.investicniweb.cz/rss"
 ]
 
-# --- MANUÁL PRO AI ---
+# --- MANUÁL PRO AI (PŘÍSNÝ REŽIM) ---
 APP_MANUAL = """
-Jsi asistent v aplikaci 'Terminal Pro'.
-Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
+Jsi specializovaný asistent v aplikaci 'Terminal Pro'.
+Tvá role: Radit POUZE s investicemi, financemi a ovládáním této aplikace.
+
+STRIKTNÍ PRAVIDLA (DODRŽUJ):
+1. Pokud se uživatel zeptá na něco mimo finance (počasí, vaření, politika), odmítni odpovědět.
+2. Odpovídej stručně, jasně a používej emojis.
+3. Vždy vycházej z dat portfolia, která dostaneš.
+
+MAPA APLIKACE:
+1. '🏠 Přehled': Celkové jmění, Skokani dne, Dividendy.
+2. '📈 Analýza': Grafy, Srovnání s S&P 500, Rebalancing, Věštec.
+3. '📰 Zprávy': Novinky z trhu.
+4. '💸 Obchod': Nákup a prodej akcií.
+5. '💎 Dividendy': Historie výplat.
+6. '⚙️ Správa Dat': Zálohy.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -86,9 +99,10 @@ def load_lottieurl(url):
         return r.json()
     except: return None
 
-# --- COOKIE MANAGER (BEZ CACHE - ABY TO NEPADALO) ---
+# --- COOKIE MANAGER (OPRAVENÝ) ---
+# Nepoužíváme cache_resource, aby se widget správně obnovoval
 def get_manager():
-    return stx.CookieManager()
+    return stx.CookieManager(key="cookie_manager")
 
 # --- EXTERNÍ DATA A CACHE ---
 @st.cache_data(ttl=3600)
@@ -344,7 +358,9 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
+    # COOKIES: Inicializace (bez dekorátoru, prostě v main)
     cookie_manager = get_manager()
+    time.sleep(0.1) # Malá pauza pro načtení cookies
     cookie_user = cookie_manager.get("invest_user")
     
     if 'prihlasen' not in st.session_state: 
@@ -367,6 +383,7 @@ def main():
                         df_u = nacti_uzivatele()
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
+                            # Uložíme cookie
                             cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
                             st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u}); st.rerun()
                         else: st.toast("Chyba přihlášení", icon="❌")
@@ -382,9 +399,7 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
         return
 
-    # --- NAČTENÍ DAT A VÝPOČTY (PŘESUNUTO NAHORU - OPRAVA) ---
     USER = st.session_state['user']
-    
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
             st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
@@ -404,9 +419,8 @@ def main():
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
-    # Hlavní smyčka výpočtů (HODNOTY JSOU TEĎ DOSTUPNÉ PRO VŠE)
+    # VÝPOČTY (PŘESUNUTO PŘED SIDEBAR)
     viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
-    
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
@@ -437,6 +451,9 @@ def main():
             except: k = 1.0
             
             celk_hod_usd += hod*k; celk_inv_usd += inv*k
+            if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
+            stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
+            
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena
@@ -481,6 +498,8 @@ def main():
             if not AI_AVAILABLE: st.error("Chybí API klíč.")
             else:
                 st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
+        
+        # AI ODPOVĚĎ (Až tady, kdy máme vypočítaná data)
         if st.session_state["chat_messages"][-1]["role"] == "user":
             with st.spinner("..."):
                 last_user_msg = st.session_state["chat_messages"][-1]["content"]
