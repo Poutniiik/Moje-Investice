@@ -10,3 +10,4 @@ streamlit-lottie
 google-generativeai
 feedparser
 fpdf
+extra-streamlit-components
