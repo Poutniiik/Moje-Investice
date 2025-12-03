@@ -1,16 +1,17 @@
-Ticker,Pocet,Cena,Datum,Owner,Sektor
-AAPL,10.0,250.0,2024-11-25 04:00:00.000000,admin,Doplnit
-CEZ.PR,10.0,1222.0,2024-11-25 04:00:00.000000,admin,Doplnit
-AAPL,1.0,225.0,2025-11-30 01:58:00.000000,admin,Doplnit
-CEZ.PR,1.0,1000.0,2025-11-25 03:11:00.000000,admin,Doplnit
-TSLA,10.0,150.0,2025-11-30 02:16:00.000000,admin,Doplnit
-GOLD,5.0,2700.0,2025-11-23 04:00:00.000000,admin,Doplnit
-TESL,2.0,12.0,2025-11-30 03:33:52.266922,Tom,Doplnit
-TESL,2.0,13.0,2025-11-30 03:34:11.269902,Tom,Doplnit
-CEZ.PR,8.0,1100.0,2025-12-02 12:32:53.090928,Filip,Energie
-AAPL,8.0,220.0,2025-12-02 12:33:57.650147,Filip,Technologie
-ADS.DE,10.0,55.0,2025-12-02 12:34:42.533856,Filip,Spotřební zboží
-CEZ.PR,10.0,999.0,2025-12-02 13:47:08.678792,Filip,Energie
-AAPL,3.0,250.0,2025-12-03 02:39:24.311500,Filip,Doplnit
-AAPL,1.0,280.0,2025-12-03 17:53:06.340716,Filip,Doplnit
-AAPL,2.0,255.0,2025-12-03 19:09:39.305972,Filip,Doplnit
+Ticker,Pocet,Cena,Datum,Owner,Sektor,Poznamka
+AAPL,10.0,250.0,2024-11-25 04:00:00.000000,admin,Doplnit,
+CEZ.PR,10.0,1222.0,2024-11-25 04:00:00.000000,admin,Doplnit,
+AAPL,1.0,225.0,2025-11-30 01:58:00.000000,admin,Doplnit,
+CEZ.PR,1.0,1000.0,2025-11-25 03:11:00.000000,admin,Doplnit,
+TSLA,10.0,150.0,2025-11-30 02:16:00.000000,admin,Doplnit,
+GOLD,5.0,2700.0,2025-11-23 04:00:00.000000,admin,Doplnit,
+TESL,2.0,12.0,2025-11-30 03:33:52.266922,Tom,Doplnit,
+TESL,2.0,13.0,2025-11-30 03:34:11.269902,Tom,Doplnit,
+CEZ.PR,8.0,1100.0,2025-12-02 12:32:53.090928,Filip,Energie,"Koupeno jen s principu české firmy a věříč, že trochu poroste (Ovšem díky politickému vlivu opatrnost!!)
+"
+AAPL,8.0,220.0,2025-12-02 12:33:57.650147,Filip,Technologie,
+ADS.DE,10.0,55.0,2025-12-02 12:34:42.533856,Filip,Spotřební zboží,
+CEZ.PR,10.0,999.0,2025-12-02 13:47:08.678792,Filip,Energie,
+AAPL,3.0,250.0,2025-12-03 02:39:24.311500,Filip,Doplnit,
+AAPL,1.0,280.0,2025-12-03 17:53:06.340716,Filip,Doplnit,
+AAPL,2.0,255.0,2025-12-03 19:09:39.305972,Filip,Doplnit,
