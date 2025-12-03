@@ -641,9 +641,8 @@ def main():
                     fig_pie = px.pie(df_mena, values='HodnotaUSD', names='Měna', hole=0.4, color='Měna', color_discrete_map={'USD':'#00CC96', 'CZK':'#636EFA', 'EUR':'#EF553B'})
                     st.plotly_chart(fig_pie, use_container_width=True)
                 except: st.error("Chyba koláče.")
-
             # --- SOUBOJ S TRHEM (PŘESUNUTO POD KOLÁČE) ---
-            st.divider()
+        st.divider()
             st.caption("🥊 SOUBOJ S TRHEM (S&P 500)")
             if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
                 my_data = hist_vyvoje.copy(); my_data['Date'] = pd.to_datetime(my_data['Date']); my_data = my_data.sort_values('Date')
@@ -865,6 +864,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
