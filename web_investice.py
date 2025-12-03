@@ -42,17 +42,6 @@ RSS_ZDROJE = [
 APP_MANUAL = """
 Jsi asistent v aplikaci 'Terminal Pro'.
 Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
-
-MAPA APLIKACE:
-1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka (Divi %, Denní změna).
-2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Rebalancing, Věštec, Crash Test, Psychologie.
-3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
-4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
-5. '💎 Dividendy': Historie a graf dividend.
-6. '⚙️ Správa Dat': Zálohy a editace.
-
-POKYNY:
-- Buď stručný, přátelský a používej emojis.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -97,15 +86,11 @@ def load_lottieurl(url):
         return r.json()
     except: return None
 
-# --- COOKIE MANAGER (FIX VAROVÁNÍ) ---
+# --- COOKIE MANAGER (BEZ CACHE - ABY TO NEPADALO) ---
 def get_manager():
-    if 'cookie_manager' not in st.session_state:
-        st.session_state.cookie_manager = stx.CookieManager()
-    return st.session_state.cookie_manager
+    return stx.CookieManager()
 
-cookie_manager = get_manager()
-
-# --- EXTERNÍ DATA ---
+# --- EXTERNÍ DATA A CACHE ---
 @st.cache_data(ttl=3600)
 def ziskej_fear_greed():
     url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
@@ -359,7 +344,9 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
+    cookie_manager = get_manager()
     cookie_user = cookie_manager.get("invest_user")
+    
     if 'prihlasen' not in st.session_state: 
         if cookie_user: 
             st.session_state['prihlasen'] = True
@@ -395,7 +382,9 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
         return
 
+    # --- NAČTENÍ DAT A VÝPOČTY (PŘESUNUTO NAHORU - OPRAVA) ---
     USER = st.session_state['user']
+    
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
             st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
@@ -408,14 +397,16 @@ def main():
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
-    # VÝPOČTY (PŘESUNUTO NAHORU - CRITICAL FIX)
-    all_tickers = []; viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
+    all_tickers = []
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
+    # Hlavní smyčka výpočtů (HODNOTY JSOU TEĎ DOSTUPNÉ PRO VŠE)
+    viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
+    
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
@@ -450,7 +441,6 @@ def main():
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena
             })
-    else: viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0
 
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
@@ -467,7 +457,7 @@ def main():
     try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except: cash_usd = 0
 
-    # --- SIDEBAR ---
+    # --- SIDEBAR + CHATBOT ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         if zustatky:
@@ -607,7 +597,6 @@ def main():
             st.subheader("💰 INVESTOVANÝ KAPITÁL (Dle měny)")
             m1, m2, m3 = st.columns(3)
             m1.metric("Investováno USD", f"$ {inv_usd:,.0f}"); m2.metric("Investováno EUR", f"€ {inv_eur:,.0f}"); m3.metric("Investováno CZK", f"{inv_czk:,.0f} Kč")
-        
         st.divider()
         st.subheader("📋 Detailní pozice")
         if viz_data:
@@ -707,7 +696,7 @@ def main():
                     st.plotly_chart(fig_pie, use_container_width=True)
                 except: st.error("Chyba koláče.")
             
-            # 👇 MĚSÍČNÍ HEATMAPA (VYSVĚDČENÍ) 👇
+            # 👇 MĚSÍČNÍ HEATMAPA 👇
             st.divider()
             st.caption("📊 MĚSÍČNÍ VYSVĚDČENÍ (Zisk/Ztráta %)")
             if not hist_vyvoje.empty and len(hist_vyvoje) > 30:
