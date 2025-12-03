@@ -14,6 +14,8 @@ import feedparser
 from streamlit_lottie import st_lottie
 import google.generativeai as genai
 import plotly.graph_objects as go
+import smtplib
+from email.mime.text import MIMEText
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
@@ -304,6 +306,25 @@ def render_ticker_tape(data_dict):
         <style>@keyframes marquee {{ 0% {{ transform: translateX(0); }} 100% {{ transform: translateX(-50%); }} }}</style>
         """, unsafe_allow_html=True)
 
+# --- E-MAILOVÝ POŠŤÁK ---
+def odeslat_email(prijemce, predmet, telo):
+    try:
+        sender_email = st.secrets["email"]["sender"]
+        sender_password = st.secrets["email"]["password"]
+        
+        msg = MIMEText(telo, 'html') # Posíláme hezké HTML
+        msg['Subject'] = predmet
+        msg['From'] = sender_email
+        msg['To'] = prijemce
+
+        # Připojení k Gmailu
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp_server:
+            smtp_server.login(sender_email, sender_password)
+            smtp_server.sendmail(sender_email, prijemce, msg.as_string())
+        return True
+    except Exception as e:
+        return f"Chyba odesílání: {e}"
+
 # --- MAIN ---
 def main():
     if 'prihlasen' not in st.session_state: st.session_state['prihlasen'] = False
@@ -383,6 +404,46 @@ def main():
         
         # Získáme data pro kontext AI až tady
         celk_hod_czk_ai = 0 # Placeholder, vypočítá se níže
+
+        # 👇 NOVINKA: DENNÍ REPORT 👇
+        st.divider()
+        st.subheader("📧 RANNÍ REPORT")
+        if st.button("Odeslat přehled na e-mail"):
+            with st.spinner("Sepisuji zprávu..."):
+                # 1. Sestavíme obsah
+                html_content = f"""
+                <h2>📈 Ranní přehled investora {USER}</h2>
+                <p>Tady je tvůj aktuální stav:</p>
+                <ul>
+                    <li><b>Jmění:</b> {celk_hod_czk:,.0f} Kč</li>
+                    <li><b>Zisk:</b> {zisk_czk:+,.0f} Kč</li>
+                    <li><b>Hotovost:</b> {cash_usd:,.0f} USD</li>
+                </ul>
+                <hr>
+                <h3>🚀 Skokani dne</h3>
+                """
+                # Přidáme skokany (pokud jsou data)
+                if viz_data:
+                    df_s = pd.DataFrame(viz_data).sort_values(by="Dnes", ascending=False)
+                    best = df_s.iloc[0]; worst = df_s.iloc[-1]
+                    html_content += f"<p>🟢 <b>{best['Ticker']}</b>: {best['Dnes']:+.2%}</p>"
+                    html_content += f"<p>🔴 <b>{worst['Ticker']}</b>: {worst['Dnes']:+.2%}</p>"
+                
+                # Přidáme Fear & Greed
+                score, rating, _, _ = ziskej_fear_greed()
+                if score:
+                    html_content += f"<hr><p>😨 <b>Nálada trhu:</b> {score}/100 ({rating})</p>"
+                
+                html_content += "<p><i>Tvůj Terminal Pro 🤖</i></p>"
+
+                # 2. Odešleme (Sám sobě)
+                res = odeslat_email(st.secrets["email"]["sender"], "📈 Denní Report: Investice", html_content)
+                
+                if res == True:
+                    st.success("Odesláno! 📩")
+                    st.balloons()
+                else:
+                    st.error(f"Chyba: {res}")
         
         st.divider(); st.subheader("👀 WATCHLIST (Hlídač)")
         with st.expander("➕ Přidat hlídače", expanded=False):
@@ -820,3 +881,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
