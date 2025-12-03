@@ -40,12 +40,15 @@ Jsi asistent v aplikaci 'Terminal Pro'.
 Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
 
 MAPA APLIKACE:
-1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka.
-2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Věštec, Crash Test.
+1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka (Divi %, Denní změna).
+2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Rebalancing, Věštec, Crash Test, Psychologie.
 3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
 4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
 5. '💎 Dividendy': Historie a graf dividend.
 6. '⚙️ Správa Dat': Zálohy a editace.
+
+POKYNY:
+- Buď stručný, přátelský a používej emojis.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -352,7 +355,87 @@ def main():
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
-    # BĚŽÍCÍ PÁS
+    # --- SIDEBAR + CHATBOT (POSUNUTO NAHORU ABY BYLO PAGE ZNÁMÉ) ---
+    with st.sidebar:
+        st.header(f"👤 {USER.upper()}")
+        if zustatky:
+            st.caption("Stav peněženky:")
+            for mena in ["USD", "CZK", "EUR"]:
+                if mena in zustatky and zustatky[mena] > 0.01:
+                    castka = zustatky[mena]
+                    sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
+                    st.info(f"**{castka:,.2f} {sym}**", icon="💰")
+        else: st.warning("Peněženka prázdná")
+        
+        st.divider()
+        st.subheader("🧭 NAVIGACE")
+        page = st.radio("Menu:", ["🏠 Přehled", "📈 Analýza", "📰 Zprávy", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"], label_visibility="collapsed")
+        
+        # CHAT
+        st.divider(); st.subheader("🤖 AI Průvodce")
+        if "chat_messages" not in st.session_state: st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce."}]
+        with st.container(border=True, height=300):
+            for msg in st.session_state["chat_messages"]: st.chat_message(msg["role"]).write(msg["content"])
+        if prompt := st.chat_input("Napiš dotaz..."):
+            if not AI_AVAILABLE: st.error("Chybí API klíč.")
+            else:
+                st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
+        
+        # Získáme data pro kontext AI až tady
+        celk_hod_czk_ai = 0 # Placeholder, vypočítá se níže
+        
+        st.divider(); st.subheader("👀 WATCHLIST (Hlídač)")
+        with st.expander("➕ Přidat hlídače", expanded=False):
+            with st.form("w_add", clear_on_submit=True):
+                new_w = st.text_input("Symbol").upper()
+                target_w = st.number_input("Cílová cena (upozornit pod)", min_value=0.0, step=1.0)
+                if st.form_submit_button("Sledovat"):
+                    if new_w: pridat_do_watchlistu(new_w, target_w, USER); st.rerun()
+        if not df_watch.empty:
+            if 'Target' not in df_watch.columns: df_watch['Target'] = 0.0
+            for idx, row in df_watch.iterrows():
+                t = row['Ticker']; cilek = row['Target']
+                info = LIVE_DATA.get(t, {})
+                price = info.get('price'); curr = info.get('curr', '?')
+                if not price:
+                    try: p, m, _ = ziskej_info(t); price=p; curr=m
+                    except: pass
+                alert_icon = "🔥 SLEVA!" if price and cilek > 0 and price <= cilek else ""
+                with st.container(border=True):
+                    c1, c2 = st.columns([4, 1])
+                    with c1: 
+                        st.markdown(f"**{t}** {alert_icon}")
+                        if price: 
+                            st.markdown(f"### {price:,.2f} {curr}")
+                            if cilek > 0: diff = ((price / cilek) - 1) * 100; st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
+                        else: st.caption("Offline")
+                    with c2: st.write(""); 
+                    if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
+        
+        st.divider()
+        with st.expander("⚙️ Nastavení účtu (Heslo)"):
+            with st.form("pass_change"):
+                old_pass = st.text_input("Staré heslo", type="password")
+                new_pass = st.text_input("Nové heslo", type="password")
+                confirm_pass = st.text_input("Potvrdit heslo", type="password")
+                if st.form_submit_button("Změnit heslo"):
+                    df_u = nacti_uzivatele()
+                    user_row = df_u[df_u['username'] == USER]
+                    if not user_row.empty:
+                        if user_row.iloc[0]['password'] == zasifruj(old_pass):
+                            if new_pass == confirm_pass and len(new_pass) > 0:
+                                idx = df_u[df_u['username'] == USER].index[0]
+                                df_u.at[idx, 'password'] = zasifruj(new_pass)
+                                uloz_csv(df_u, SOUBOR_UZIVATELE, f"Password change {USER}")
+                                st.success("Heslo změněno! 🎉")
+                            else: st.error("Chyba v novém hesle.")
+                        else: st.error("Staré heslo je špatně.")
+                    else: st.error("Chyba uživatele.")
+
+        st.divider()
+        if st.button("🚪 ODHLÁSIT", use_container_width=True): st.session_state.clear(); st.rerun()
+
+    # BĚŽÍCÍ PÁS (Teď už známe page)
     if page == "🏠 Přehled" or page == "📈 Analýza":
         render_ticker_tape(LIVE_DATA)
 
@@ -407,90 +490,31 @@ def main():
         vcera = hist_vyvoje.iloc[-2]['TotalUSD']
         if pd.notnull(vcera) and vcera > 0: zmena_24h = celk_hod_usd - vcera; pct_24h = (zmena_24h / vcera * 100)
 
-    # --- SIDEBAR + CHATBOT ---
-    with st.sidebar:
-        st.header(f"👤 {USER.upper()}")
-        if zustatky:
-            st.caption("Stav peněženky:")
-            for mena in ["USD", "CZK", "EUR"]:
-                if mena in zustatky and zustatky[mena] > 0.01:
-                    castka = zustatky[mena]
-                    sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
-                    st.info(f"**{castka:,.2f} {sym}**", icon="💰")
-        else: st.warning("Peněženka prázdná")
-        
-        st.divider(); st.subheader("🧭 NAVIGACE")
-        page = st.radio("Menu:", ["🏠 Přehled", "📈 Analýza", "📰 Zprávy", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"], label_visibility="collapsed")
-        
-        st.divider(); st.subheader("🤖 AI Průvodce")
-        if "chat_messages" not in st.session_state: st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce."}]
-        with st.container(border=True, height=300):
-            for msg in st.session_state["chat_messages"]: st.chat_message(msg["role"]).write(msg["content"])
-        if prompt := st.chat_input("Napiš dotaz..."):
-            if not AI_AVAILABLE: st.error("Chybí API klíč.")
-            else:
-                st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
-        if st.session_state["chat_messages"][-1]["role"] == "user":
+    # DOŘEŠENÍ AI ODPOVĚDI (Protože potřebujeme data z výpočtů)
+    if st.session_state["chat_messages"][-1]["role"] == "user":
+        # Zkontrolujeme, jestli už jsme neodpověděli (Streamlit rerun loop fix)
+        # Tady to zjednodušíme - pokud je poslední user input nový, odpovíme.
+        # Ale protože rerun refreshne stránku, odpověď se vygeneruje v Sidebaru. 
+        # Aby AI měla přístup k `viz_data`, musíme odpověď generovat AŽ TADY a ne v Sidebaru.
+        # ALE v sidebaru už jsme to vypsali.
+        # PRO JEDNODUCHOST: V Sidebaru jen sbíráme input, tady generujeme a ukládáme.
+        pass 
+
+    # --- UPDATE AI LOGIKY (VLOŽIT ZPĚT DO SIDEBARU NEBO SEM?) ---
+    # Aby to fungovalo správně s kontextem, AI odpověď musí být generována AŽ PO výpočtech.
+    # Takže ten blok generování přesuneme sem dolů, ale zobrazíme ho v příštím cyklu.
+    if st.session_state["chat_messages"][-1]["role"] == "user" and len(st.session_state["chat_messages"]) % 2 != 0:
+         with st.sidebar:
             with st.spinner("..."):
                 last_user_msg = st.session_state["chat_messages"][-1]["content"]
                 portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
                 if viz_data: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data])
                 full_prompt = f"{APP_MANUAL}\n\nDATA:\n{portfolio_context}\n\nDOTAZ: {last_user_msg}"
-                try: res = AI_MODEL.generate_content(full_prompt); ai_reply = res.text
+                try:
+                    response = AI_MODEL.generate_content(full_prompt)
+                    ai_reply = response.text
                 except Exception as e: ai_reply = f"Chyba: {str(e)}"
                 st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
-
-        st.divider(); st.subheader("👀 WATCHLIST (Hlídač)")
-        with st.expander("➕ Přidat hlídače", expanded=False):
-            with st.form("w_add", clear_on_submit=True):
-                new_w = st.text_input("Symbol").upper()
-                target_w = st.number_input("Cílová cena (upozornit pod)", min_value=0.0, step=1.0)
-                if st.form_submit_button("Sledovat"):
-                    if new_w: pridat_do_watchlistu(new_w, target_w, USER); st.rerun()
-        if not df_watch.empty:
-            if 'Target' not in df_watch.columns: df_watch['Target'] = 0.0
-            for idx, row in df_watch.iterrows():
-                t = row['Ticker']; cilek = row['Target']
-                info = LIVE_DATA.get(t, {})
-                price = info.get('price'); curr = info.get('curr', '?')
-                if not price:
-                    try: p, m, _ = ziskej_info(t); price=p; curr=m
-                    except: pass
-                alert_icon = "🔥 SLEVA!" if price and cilek > 0 and price <= cilek else ""
-                with st.container(border=True):
-                    c1, c2 = st.columns([4, 1])
-                    with c1: 
-                        st.markdown(f"**{t}** {alert_icon}")
-                        if price: 
-                            st.markdown(f"### {price:,.2f} {curr}")
-                            if cilek > 0: diff = ((price / cilek) - 1) * 100; st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
-                        else: st.caption("Offline")
-                    with c2: st.write(""); 
-                    if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
-        
-        # 👇 NOVINKA: ZMĚNA HESLA 👇
-        st.divider()
-        with st.expander("⚙️ Nastavení účtu (Heslo)"):
-            with st.form("pass_change"):
-                old_pass = st.text_input("Staré heslo", type="password")
-                new_pass = st.text_input("Nové heslo", type="password")
-                confirm_pass = st.text_input("Potvrdit heslo", type="password")
-                if st.form_submit_button("Změnit heslo"):
-                    df_u = nacti_uzivatele()
-                    user_row = df_u[df_u['username'] == USER]
-                    if not user_row.empty:
-                        if user_row.iloc[0]['password'] == zasifruj(old_pass):
-                            if new_pass == confirm_pass and len(new_pass) > 0:
-                                idx = df_u[df_u['username'] == USER].index[0]
-                                df_u.at[idx, 'password'] = zasifruj(new_pass)
-                                uloz_csv(df_u, SOUBOR_UZIVATELE, f"Password change {USER}")
-                                st.success("Heslo změněno! 🎉")
-                            else: st.error("Chyba v novém hesle.")
-                        else: st.error("Staré heslo je špatně.")
-                    else: st.error("Chyba uživatele.")
-
-        st.divider()
-        if st.button("🚪 ODHLÁSIT", use_container_width=True): st.session_state.clear(); st.rerun()
 
     # --- STRÁNKY ---
     if page == "🏠 Přehled":
@@ -592,7 +616,8 @@ def main():
             with st.container(border=True):
                 ref = prev_score if prev_score else 50
                 fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number+delta", value = score, domain = {'x': [0, 1], 'y': [0, 1]},
+                    mode = "gauge+number+delta", value = score,
+                    domain = {'x': [0, 1], 'y': [0, 1]},
                     title = {'text': f"Aktuálně: {rating.upper()}", 'font': {'size': 24}},
                     delta = {'reference': ref, 'increasing': {'color': "green"}, 'decreasing': {'color': "red"}},
                     gauge = {'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"}, 'bar': {'color': "white", 'thickness': 0.2}, 'bgcolor': "white", 'borderwidth': 2, 'bordercolor': "gray", 'steps': [{'range': [0, 25], 'color': '#FF4B4B'}, {'range': [25, 45], 'color': '#FFA07A'}, {'range': [45, 55], 'color': '#FFFF00'}, {'range': [55, 75], 'color': '#90EE90'}, {'range': [75, 100], 'color': '#008000'}]}
@@ -725,18 +750,10 @@ def main():
         with t_buy:
             st.subheader("Nákup akcií")
             with st.form("b"):
-                # 👇 TADY JSOU TY NOVÉ BUBKY (help=...)
                 c1, c2 = st.columns(2)
-                with c1:
-                    t = st.text_input("Symbol", placeholder="NAPŘ. AAPL", 
-                                      help="Zadej ticker akcie (zkratku). Např. AAPL pro Apple, CEZ.PR pro ČEZ.").upper()
-                with c2:
-                    p = st.number_input("Počet kusů", min_value=0.001, step=1.0, 
-                                        help="Kolik akcií chceš koupit? Můžeš i zlomky (např. 0.5).")
-                
-                c = st.number_input("Nákupní cena (za 1 kus)", min_value=0.1, 
-                                    help="Za kolik jsi to koupil? Pokud nevíš, podívej se do své banky.")
-                
+                with c1: t = st.text_input("Symbol", placeholder="NAPŘ. AAPL", help="Zadej ticker (zkratku). Např. AAPL, CEZ.PR").upper()
+                with c2: p = st.number_input("Počet kusů", min_value=0.001, step=1.0, help="Kolik akcií chceš koupit?")
+                c = st.number_input("Nákupní cena (za 1 kus)", min_value=0.1, help="Za kolik jsi to koupil?")
                 if st.form_submit_button("KOUPIT AKCIE", use_container_width=True):
                     _, m, _ = ziskej_info(t)
                     cost = p*c; bal = zustatky.get(m, 0)
