@@ -43,8 +43,8 @@ APP_MANUAL = """
 Jsi specializovaný asistent v aplikaci 'Terminal Pro'.
 Tvá role: Radit POUZE s investicemi, financemi a ovládáním této aplikace.
 
-STRIKTNÍ PRAVIDLA (DODRŽUJ):
-1. Pokud se uživatel zeptá na něco mimo finance (počasí, vaření, politika), odmítni odpovědět.
+STRIKTNÍ PRAVIDLA:
+1. Pokud se uživatel zeptá na něco mimo finance (počasí, vaření), odmítni odpovědět.
 2. Odpovídej stručně, jasně a používej emojis.
 3. Vždy vycházej z dat portfolia, která dostaneš.
 
@@ -99,8 +99,7 @@ def load_lottieurl(url):
         return r.json()
     except: return None
 
-# --- COOKIE MANAGER (OPRAVENÝ) ---
-# Nepoužíváme cache_resource, aby se widget správně obnovoval
+# --- COOKIE MANAGER ---
 def get_manager():
     return stx.CookieManager(key="cookie_manager")
 
@@ -358,9 +357,10 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
-    # COOKIES: Inicializace (bez dekorátoru, prostě v main)
+    # 1. PŘIHLÁŠENÍ (COOKIES)
     cookie_manager = get_manager()
-    time.sleep(0.1) # Malá pauza pro načtení cookies
+    # Malá pauza, aby se sušenka načetla
+    time.sleep(0.1)
     cookie_user = cookie_manager.get("invest_user")
     
     if 'prihlasen' not in st.session_state: 
@@ -371,6 +371,7 @@ def main():
             st.session_state['prihlasen'] = False
             st.session_state['user'] = ""
 
+    # LOGIN FORM
     if not st.session_state['prihlasen']:
         c1,c2,c3 = st.columns([1, 2, 1])
         with c2:
@@ -383,7 +384,7 @@ def main():
                         df_u = nacti_uzivatele()
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
-                            # Uložíme cookie
+                            # Uložíme cookie na 30 dní
                             cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
                             st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u}); st.rerun()
                         else: st.toast("Chyba přihlášení", icon="❌")
@@ -399,6 +400,7 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
         return
 
+    # --- 2. NAČTENÍ DAT ---
     USER = st.session_state['user']
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
@@ -412,6 +414,7 @@ def main():
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
+    # --- 3. VÝPOČTY (Hned po načtení, aby byly dostupné všude) ---
     all_tickers = []
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
@@ -419,8 +422,8 @@ def main():
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
-    # VÝPOČTY (PŘESUNUTO PŘED SIDEBAR)
     viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
+    
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
@@ -435,6 +438,7 @@ def main():
                 sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
             except: sektor = "Doplnit"
             
+            # Daně
             nakupy_data = df[df['Ticker'] == tkr]['Datum']
             dnes = datetime.now(); limit_dni = 1095 
             vsechny_ok = True; vsechny_fail = True
@@ -462,6 +466,7 @@ def main():
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
     
+    # Proměnné pro Dashboard (nyní jsou dostupné pro zbytek kódu)
     kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
@@ -474,7 +479,7 @@ def main():
     try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except: cash_usd = 0
 
-    # --- SIDEBAR + CHATBOT ---
+    # --- 4. SIDEBAR + CHATBOT ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         if zustatky:
@@ -499,7 +504,7 @@ def main():
             else:
                 st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
         
-        # AI ODPOVĚĎ (Až tady, kdy máme vypočítaná data)
+        # Zpracování odpovědi (Zde už známe celk_hod_czk!)
         if st.session_state["chat_messages"][-1]["role"] == "user":
             with st.spinner("..."):
                 last_user_msg = st.session_state["chat_messages"][-1]["content"]
@@ -569,7 +574,7 @@ def main():
     if page == "🏠 Přehled" or page == "📈 Analýza":
         render_ticker_tape(LIVE_DATA)
 
-    # --- STRÁNKY ---
+    # --- 5. STRÁNKY ---
     if page == "🏠 Přehled":
         st.title(f"🏠 PŘEHLED: {USER.upper()}")
         k1, k2, k3, k4 = st.columns(4)
@@ -913,3 +918,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
