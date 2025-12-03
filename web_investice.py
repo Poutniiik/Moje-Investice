@@ -42,6 +42,14 @@ RSS_ZDROJE = [
 APP_MANUAL = """
 Jsi asistent v aplikaci 'Terminal Pro'.
 Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
+
+MAPA APLIKACE:
+1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka.
+2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Věštec, Crash Test.
+3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
+4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
+5. '💎 Dividendy': Historie a graf dividend.
+6. '⚙️ Správa Dat': Zálohy a editace.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -90,7 +98,7 @@ def load_lottieurl(url):
 def get_manager():
     return stx.CookieManager(key="cookie_manager")
 
-# --- EXTERNÍ DATA A CACHE ---
+# --- EXTERNÍ DATA ---
 @st.cache_data(ttl=3600)
 def ziskej_fear_greed():
     url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
@@ -344,23 +352,16 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
-    # 1. SUŠENKY A LOGIN
     cookie_manager = get_manager()
     time.sleep(0.1)
     cookie_user = cookie_manager.get("invest_user")
     
-    if 'prihlasen' not in st.session_state: 
-        if cookie_user: 
-            st.session_state['prihlasen'] = True
-            st.session_state['user'] = cookie_user
-        else:
-            st.session_state['prihlasen'] = False
-            st.session_state['user'] = ""
-
+   # --- PŘIHLAŠOVACÍ OBRAZOVKA (S OBNOVOU HESLA) ---
     if not st.session_state['prihlasen']:
         c1,c2,c3 = st.columns([1, 2, 1])
         with c2:
             st.title("🔐 INVESTIČNÍ TERMINÁL")
+            # 👇 ZMĚNA: PŘIDALI JSME TŘETÍ ZÁLOŽKU
             t1, t2, t3 = st.tabs(["PŘIHLÁŠENÍ", "REGISTRACE", "OBNOVA HESLA"])
             
             with t1: # Přihlášení
@@ -370,9 +371,9 @@ def main():
                         df_u = nacti_uzivatele()
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
+                            # Uložení cookie
                             cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
-                            st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u})
-                            time.sleep(0.5); st.rerun()
+                            st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u}); st.rerun()
                         else: st.toast("Chyba přihlášení", icon="❌")
             
             with t2: # Registrace
@@ -386,7 +387,7 @@ def main():
                             new = pd.DataFrame([{"username": nu, "password": zasifruj(np), "recovery_key": zasifruj(nr)}])
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user"); st.toast("Účet vytvořen!", icon="✅")
             
-            with t3: # Obnova hesla
+            with t3: # 👇 NOVINKA: OBNOVA HESLA
                 st.caption("Zapomněl jsi heslo? Zadej svůj záchranný kód.")
                 with st.form("recovery"):
                     ru = st.text_input("Uživatelské jméno (pro obnovu)")
@@ -395,20 +396,26 @@ def main():
                     
                     if st.form_submit_button("OBNOVIT HESLO", use_container_width=True):
                         df_u = nacti_uzivatele()
+                        # Hledáme uživatele
                         user_row = df_u[df_u['username'] == ru]
+                        
                         if not user_row.empty:
-                            if user_row.iloc[0]['recovery_key'] == zasifruj(rk):
+                            # Kontrola záchranného kódu
+                            stored_key = user_row.iloc[0]['recovery_key']
+                            if stored_key == zasifruj(rk):
+                                # Změna hesla
                                 idx = user_row.index[0]
                                 df_u.at[idx, 'password'] = zasifruj(rnp)
                                 uloz_csv(df_u, SOUBOR_UZIVATELE, f"Recovery pass {ru}")
-                                st.success("Heslo změněno! Nyní se přihlas.")
-                            else: st.error("Špatný záchranný kód!")
-                        else: st.error("Uživatel neexistuje.")
+                                st.success("Heslo bylo úspěšně změněno! 🎉 Nyní se přihlas.")
+                            else:
+                                st.error("Špatný záchranný kód! ⛔")
+                        else:
+                            st.error("Uživatel neexistuje.")
         return
 
-    # --- 2. NAČTENÍ DAT (VŽDY A HNED!) ---
+    # --- NAČTENÍ DAT ---
     USER = st.session_state['user']
-    # Tady musíme zajistit, aby 'df' existovalo VŽDYCKY
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
             st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
@@ -418,11 +425,10 @@ def main():
             st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
 
-    # Teď už máme data bezpečně v paměti
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
-    # --- 3. VÝPOČTY ---
+    # VÝPOČTY
     all_tickers = []; viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
@@ -471,7 +477,6 @@ def main():
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
     
-    # SPOČÍTÁNÍ PROMĚNNÝCH PRO ZBYTEK APLIKACE
     kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
@@ -484,7 +489,7 @@ def main():
     try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except: cash_usd = 0
 
-    # --- 4. SIDEBAR + CHATBOT ---
+    # --- SIDEBAR + CHATBOT ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         if zustatky:
@@ -552,7 +557,12 @@ def main():
                 alert_icon = "🔥 SLEVA!" if price and cilek > 0 and price <= cilek else ""
                 with st.container(border=True):
                     c1, c2 = st.columns([4, 1])
-                    with c1: st.markdown(f"**{t}** {alert_icon}"); st.markdown(f"### {price:,.2f} {curr}") if price else st.caption("Offline")
+                    with c1: 
+                        st.markdown(f"**{t}** {alert_icon}")
+                        if price: 
+                            st.markdown(f"### {price:,.2f} {curr}")
+                            if cilek > 0: diff = ((price / cilek) - 1) * 100; st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
+                        else: st.caption("Offline")
                     with c2: st.write(""); 
                     if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
         
@@ -641,28 +651,60 @@ def main():
         st.title("📈 HLOUBKOVÁ ANALÝZA")
         if not df.empty:
             st.write("")
-            with st.expander("🔍 RENTGEN AKCIE (Detail + Graf)", expanded=False):
+            with st.expander("🔍 RENTGEN AKCIE (Detail + Graf + Sleva)", expanded=False):
                 vybrana_akcie = st.selectbox("Vyber firmu:", df['Ticker'].unique())
                 if vybrana_akcie:
                     with st.spinner(f"Načítám data pro {vybrana_akcie}..."):
                         t_info, hist_data = ziskej_detail_akcie(vybrana_akcie)
                         if t_info:
                             try:
+                                # Načtení dat
                                 long_name = t_info.get('longName', vybrana_akcie)
                                 summary = t_info.get('longBusinessSummary', 'Popis nedostupný.')
                                 recommendation = t_info.get('recommendationKey', 'Neznámé').upper().replace('_', ' ')
                                 target_price = t_info.get('targetMeanPrice', 0)
                                 pe_ratio = t_info.get('trailingPE', 0)
                                 currency = t_info.get('currency', '?')
+                                current_price = t_info.get('currentPrice', 0)
+                                
+                                # 52-týdenní rozsah (Novinka)
+                                year_high = t_info.get('fiftyTwoWeekHigh', 0)
+                                year_low = t_info.get('fiftyTwoWeekLow', 0)
+                                
+                                # Sloupce pro základní info
                                 c_d1, c_d2 = st.columns([1, 3])
                                 with c_d1:
                                     barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
-                                    st.markdown(f"### :{barva_rec}[{recommendation}]"); st.caption("Názor analytiků")
-                                    st.metric("Cílová cena", f"{target_price} {currency}"); st.metric("P/E Ratio", f"{pe_ratio:.2f}")
+                                    st.markdown(f"### :{barva_rec}[{recommendation}]")
+                                    st.caption("Názor analytiků")
+                                    st.metric("Aktuální cena", f"{current_price} {currency}")
+                                    st.metric("Cílová cena", f"{target_price} {currency}")
+                                    st.metric("P/E Ratio", f"{pe_ratio:.2f}")
                                 with c_d2:
-                                    st.subheader(long_name); st.info(summary[:400] + "...")
+                                    st.subheader(long_name)
+                                    
+                                    # 👇 NOVINKA: INDIKÁTOR SLEVY (52 Week Range) 👇
+                                    if year_high > year_low:
+                                        # Spočítáme, kde se nacházíme (0.0 = dno, 1.0 = vrchol)
+                                        progress = (current_price - year_low) / (year_high - year_low)
+                                        progress = max(0.0, min(1.0, progress)) # Oříznutí pro jistotu
+                                        
+                                        st.write(f"**Poloha v ročním rozsahu:**")
+                                        st.progress(progress)
+                                        c_low, c_curr, c_high = st.columns([1, 1, 1])
+                                        c_low.caption(f"📉 Min: {year_low}")
+                                        c_high.caption(f"📈 Max: {year_high}", help="Roční maximum")
+                                        
+                                        if progress < 0.2:
+                                            st.success("🔥 **SUPER SLEVA!** Cena je u ročního dna.")
+                                        elif progress > 0.8:
+                                            st.warning("⚠️ **VRCHOL!** Cena je u ročního maxima.")
+                                    # 👆 KONEC NOVINKY 👆
+
+                                    st.info(summary[:400] + "...")
                                     if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
                                     
+                                    # Deník
                                     st.write(""); st.caption("📝 Můj Investiční Deník")
                                     akt_poznamka = ""
                                     row_idx = df[df['Ticker'] == vybrana_akcie].index
@@ -722,30 +764,6 @@ def main():
                     fig_pie = px.pie(df_mena, values='HodnotaUSD', names='Měna', hole=0.4, color='Měna', color_discrete_map={'USD':'#00CC96', 'CZK':'#636EFA', 'EUR':'#EF553B'})
                     st.plotly_chart(fig_pie, use_container_width=True)
                 except: st.error("Chyba koláče.")
-            
-            # 👇 MĚSÍČNÍ HEATMAPA 👇
-            st.divider()
-            st.caption("📊 MĚSÍČNÍ VYSVĚDČENÍ (Zisk/Ztráta %)")
-            if not hist_vyvoje.empty and len(hist_vyvoje) > 30:
-                try:
-                    df_h = hist_vyvoje.copy()
-                    df_h['Date'] = pd.to_datetime(df_h['Date'])
-                    df_h = df_h.set_index('Date').resample('M').last()
-                    df_h['Pct_Change'] = df_h['TotalUSD'].pct_change() * 100
-                    df_h = df_h.dropna()
-                    if not df_h.empty:
-                        df_h['Year'] = df_h.index.year
-                        df_h['Month'] = df_h.index.month_name()
-                        pivot_table = df_h.pivot(index='Year', columns='Month', values='Pct_Change')
-                        months_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-                        pivot_table = pivot_table.reindex(columns=months_order)
-                        fig_heat = px.imshow(pivot_table, labels=dict(x="Měsíc", y="Rok", color="Změna %"), x=pivot_table.columns, y=pivot_table.index, color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0, text_auto='.1f')
-                        fig_heat.update_layout(height=300)
-                        st.plotly_chart(fig_heat, use_container_width=True)
-                    else: st.info("Zatím nemám dost dat.")
-                except: st.info("Málo dat pro heatmapu.")
-            else: st.info("Měsíční mapa se ukáže, až budeš mít historii delší než 1 měsíc.")
-
             st.divider()
             st.caption("🥊 SOUBOJ S TRHEM (S&P 500)")
             if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
@@ -853,10 +871,10 @@ def main():
             with st.form("b"):
                 c1, c2 = st.columns(2)
                 with c1:
-                    t = st.text_input("Symbol", placeholder="NAPŘ. AAPL", help="Zadej ticker akcie (zkratku). Např. AAPL pro Apple, CEZ.PR pro ČEZ.").upper()
+                    t = st.text_input("Symbol", placeholder="NAPŘ. AAPL", help="Zadej ticker (zkratku). Např. AAPL, CEZ.PR").upper()
                 with c2:
-                    p = st.number_input("Počet kusů", min_value=0.001, step=1.0, help="Kolik akcií chceš koupit? Můžeš i zlomky (např. 0.5).")
-                c = st.number_input("Nákupní cena (za 1 kus)", min_value=0.1, help="Za kolik jsi to koupil? Pokud nevíš, podívej se do své banky.")
+                    p = st.number_input("Počet kusů", min_value=0.001, step=1.0, help="Kolik akcií chceš koupit? Můžeš i zlomky.")
+                c = st.number_input("Nákupní cena (za 1 kus)", min_value=0.1, help="Za kolik jsi to koupil?")
                 if st.form_submit_button("KOUPIT AKCIE", use_container_width=True):
                     _, m, _ = ziskej_info(t)
                     cost = p*c; bal = zustatky.get(m, 0)
