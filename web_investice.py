@@ -713,9 +713,29 @@ def main():
         st.progress(level_progress)
         # ----------------------------
         
+        # --- WALLET IN SIDEBAR ---
+        if zustatky:
+            st.write("") # Spacer
+            st.caption("Stav peněženky:")
+            for mena in ["USD", "CZK", "EUR"]:
+                if mena in zustatky and zustatky[mena] > 0.01:
+                    castka = zustatky[mena]
+                    sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
+                    st.info(f"**{castka:,.2f} {sym}**", icon="💰")
+        else: st.warning("Peněženka prázdná")
+        # -------------------------
+
         st.divider(); st.subheader("NAVIGACE")
         page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
         
+        # --- MORNING REPORT IN SIDEBAR ---
+        st.divider()
+        if st.button("📧 ODESLAT RANNÍ REPORT", use_container_width=True):
+            msg = f"<h2>Report {USER}</h2><p>Jmění: {celk_hod_czk:,.0f} Kč</p>"
+            if odeslat_email(st.secrets["email"]["sender"], "Report", msg) == True: st.success("Odesláno!")
+            else: st.error("Chyba")
+        # ---------------------------------
+
         st.divider()
         with st.expander("🔐 Změna hesla"):
             with st.form("pass_change"):
@@ -761,38 +781,25 @@ def main():
             fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
             st.plotly_chart(fig_area, use_container_width=True)
 
-        c1, c2 = st.columns([2, 1])
-        with c1:
-            st.subheader("📋 PORTFOLIO LIVE")
-            if viz_data:
-                vdf = pd.DataFrame(viz_data)
-                st.dataframe(
-                    vdf,
-                    column_config={
-                        "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
-                        "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
-                        "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="$%.0f"),
-                        "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
-                        "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
-                        "Dan": "Daně",
-                        "Země": "Země"
-                    },
-                    column_order=["Ticker", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "Dan"],
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else: st.info("Portfolio je prázdné.")
-        
-        with c2:
-            st.subheader("💰 PENĚŽENKA")
-            if zustatky:
-                for m, v in zustatky.items(): st.metric(m, f"{v:,.2f}")
-            else: st.warning("Prázdná")
-            st.divider()
-            if st.button("📧 ODESLAT RANNÍ REPORT", use_container_width=True):
-                msg = f"<h2>Report {USER}</h2><p>Jmění: {celk_hod_czk:,.0f} Kč</p>"
-                if odeslat_email(st.secrets["email"]["sender"], "Report", msg) == True: st.success("Odesláno!")
-                else: st.error("Chyba")
+        st.subheader("📋 PORTFOLIO LIVE")
+        if viz_data:
+            vdf = pd.DataFrame(viz_data)
+            st.dataframe(
+                vdf,
+                column_config={
+                    "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
+                    "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
+                    "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="$%.0f"),
+                    "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
+                    "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
+                    "Dan": "Daně",
+                    "Země": "Země"
+                },
+                column_order=["Ticker", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "Dan"],
+                use_container_width=True,
+                hide_index=True
+            )
+        else: st.info("Portfolio je prázdné.")
 
     elif page == "👀 Sledování":
         st.title("👀 WATCHLIST (Hlídač)")
