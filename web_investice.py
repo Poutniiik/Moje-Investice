@@ -712,14 +712,14 @@ def main():
             with t2:
                 with st.form("r"):
                     nu=st.text_input("Nové jméno")
-                    np=st.text_input("Nové heslo", type="password") 
+                    new_pass=st.text_input("Nové heslo", type="password") 
                     nr=st.text_input("Záchranný kód", help="Slouží pro obnovu zapomenutého hesla.")
                     if st.form_submit_button("VYTVOŘIT ÚČET", use_container_width=True):
                         df_u = nacti_uzivatele()
                         if not df_u.empty and nu in df_u['username'].values: 
                             st.toast("Jméno již existuje.", icon="⚠️")
                         else:
-                            new = pd.DataFrame([{"username": nu, "password": zasifruj(np), "recovery_key": zasifruj(nr)}])
+                            new = pd.DataFrame([{"username": nu, "password": zasifruj(new_pass), "recovery_key": zasifruj(nr)}])
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user")
                             st.toast("Účet vytvořen!", icon="✅")
             with t3:
