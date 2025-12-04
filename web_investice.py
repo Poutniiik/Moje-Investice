@@ -1768,6 +1768,18 @@ def main():
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         if AI_AVAILABLE:
+            # NOVÁ FUNKCE: Odeslání zprávy do AI asistenta pro kontextovou analýzu
+            def analyze_news_with_ai(title, link):
+                # Vytvoření kontextové zprávy pro chat bota
+                prompt_to_send = f"Analyzuj následující finanční zprávu V KONTEXTU MÉHO PORTFOLIA. Zpráva: {title} (Odkaz: {link}). Jaký by měla mít dopad na mé současné držby?"
+                
+                # Přidání zprávy do chatu uživatelem
+                st.session_state["chat_messages"].append({"role": "user", "content": prompt_to_send})
+                
+                # Zajištění, že se chat expander otevře a rerunu
+                st.session_state['chat_expanded'] = True
+                st.rerun()
+
             if st.button("🧠 SPUSTIT AI SENTIMENT 2.0", type="primary"):
                 with st.spinner("AI analyzuje trh..."):
                     raw_news = ziskej_zpravy()
@@ -1815,7 +1827,13 @@ def main():
                             if sentiment == "positive": st.success(f"🟢 **BÝČÍ ZPRÁVA**")
                             elif sentiment == "negative": st.error(f"🔴 **MEDVĚDÍ SIGNÁL**")
                             st.markdown(f"### {n['title']}"); st.caption(f"📅 {n['published']}")
-                        st.link_button("Číst článek", n['link'])
+                        
+                        st.link_button("Číst článek", n['link'], help="Otevře článek v novém okně.")
+                        # NOVÉ TLAČÍTKO PRO ANALÝZU KONTEXTU
+                        if AI_AVAILABLE:
+                             # Vytvoříme unikátní klíč
+                            if st.button(f"🤖 Analyzovat s AI (Kontext)", key=f"analyze_ai_{i}"):
+                                analyze_news_with_ai(n['title'], n['link'])
         else: st.info("Žádné nové zprávy.")
 
     elif page == "💎 Dividendy":
@@ -1872,7 +1890,7 @@ def main():
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
 
-    with st.expander("🤖 AI ASISTENT"):
+    with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)): # ZACHOVÁNÍ STAVU EXPANDERU
         st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
         if "chat_messages" not in st.session_state: st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
         for msg in st.session_state["chat_messages"]: st.chat_message(msg["role"]).write(msg["content"])
