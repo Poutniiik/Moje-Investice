@@ -1438,8 +1438,7 @@ def main():
                             end_date = datetime.now()
                             start_date = end_date - timedelta(days=5 * 365) # Historie 5 let
                             
-                            # OPRAVA: Změna ze 'Adj Close' na 'Close' pro větší kompatibilitu s různými tickery
-                            price_data = yf.download(tickers_for_ef, start=start_date, end=end_date, progress=False)['Close']
+                            price_data = yf.download(tickers_for_ef, start=start_date, end=end_date, progress=False)['Close'] # OPRAVENO: Původně bylo 'Adj Close'
                             price_data = price_data.dropna()
 
                             if price_data.empty or len(price_data) < 252:
@@ -1527,7 +1526,7 @@ def main():
                             )
                             st.plotly_chart(fig_ef, use_container_width=True)
                             
-                            # 5. Výsledky Optimalizace
+                            # 5. Výsledky Optimalizace (OPRAVENO FORMÁTOVÁNÍ)
                             st.divider()
                             c_ef1, c_ef2 = st.columns(2)
                             
@@ -1537,8 +1536,15 @@ def main():
                                 st.metric("Roční výnos", f"{max_sharpe_portfolio['Výnos'] * 100:.2f} %")
                                 st.metric("Roční riziko (Volatilita)", f"{max_sharpe_portfolio['Volatilita'] * 100:.2f} %")
                                 st.markdown("**Doporučené váhy:**")
-                                max_sharpe_weights = max_sharpe_portfolio[tickers_for_ef].to_frame().apply(lambda x: f"{x * 100:.1f}%")
-                                st.dataframe(max_sharpe_weights.rename(columns={max_sharpe_weights.columns[0]: "Váha"}), use_container_width=True)
+                                # BEZPEČNĚJŠÍ FORMÁTOVÁNÍ: Převod Series na DataFrame a použití .style.format
+                                max_sharpe_weights_df = max_sharpe_portfolio[tickers_for_ef].to_frame(name="Váha (%)").T.copy()
+                                max_sharpe_weights_df.index = ['Doporučená váha']
+                                # Transponujeme DF pro lepší čitelnost, formátujeme procenta
+                                st.dataframe(
+                                    max_sharpe_weights_df.T.style.format({"Váha (%)": "{:.1%}"}), 
+                                    use_container_width=True, 
+                                    hide_index=False
+                                )
                                 
                             with c_ef2:
                                 st.error("🔴 MINIMÁLNÍ RIZIKO PORTFOLIO (Nejnižší volatilita)")
@@ -1546,8 +1552,15 @@ def main():
                                 st.metric("Roční výnos", f"{min_vol_portfolio['Výnos'] * 100:.2f} %")
                                 st.metric("Roční riziko (Volatilita)", f"{min_vol_portfolio['Volatilita'] * 100:.2f} %")
                                 st.markdown("**Doporučené váhy:**")
-                                min_vol_weights = min_vol_portfolio[tickers_for_ef].to_frame().apply(lambda x: f"{x * 100:.1f}%")
-                                st.dataframe(min_vol_weights.rename(columns={min_vol_weights.columns[0]: "Váha"}), use_container_width=True)
+                                # BEZPEČNĚJŠÍ FORMÁTOVÁNÍ: Převod Series na DataFrame a použití .style.format
+                                min_vol_weights_df = min_vol_portfolio[tickers_for_ef].to_frame(name="Váha (%)").T.copy()
+                                min_vol_weights_df.index = ['Doporučená váha']
+                                # Transponujeme DF pro lepší čitelnost, formátujeme procenta
+                                st.dataframe(
+                                    min_vol_weights_df.T.style.format({"Váha (%)": "{:.1%}"}), 
+                                    use_container_width=True, 
+                                    hide_index=False
+                                )
 
                     except ValueError:
                         pass # Chyba o nedostatečných datech je již ošetřena uvnitř bloku.
