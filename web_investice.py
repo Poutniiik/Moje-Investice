@@ -71,7 +71,7 @@ try:
 except:
     AI_AVAILABLE = False
 
-# --- STYLY (MODERNÍ TERMINÁL - V2.4 Fix Floating Bot) ---
+# --- STYLY (MODERNÍ TERMINÁL - V2.5 Dog Avatar) ---
 st.markdown("""
 <style>
     /* Hlavní barvy a fonty */
@@ -149,8 +149,7 @@ st.markdown("""
         background-color: #238636;
     }
 
-    /* --- PLOVOUCÍ AI BOT (AVATAR STYLE - NEPRŮSTŘELNÁ VERZE) --- */
-    /* Používáme :has() selector pro zacílení rodičovského expanderu, který obsahuje náš unikátní span */
+    /* --- PLOVOUCÍ AI BOT (AVATAR STYLE) --- */
     
     div[data-testid="stExpander"]:has(#floating-bot-anchor) {
         position: fixed !important;
@@ -163,7 +162,6 @@ st.markdown("""
         box-shadow: none !important;
     }
     
-    /* Stylování samotného detailu (to co se otevírá) */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) details {
         border-radius: 20px !important;
         background-color: #161B22 !important;
@@ -182,8 +180,10 @@ st.markdown("""
         padding: 0 !important;
         margin-left: auto !important;
         
-        /* OBRÁZEK ROBOTA (GIF) */
-        background-image: url('https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif');
+        /* --- ZDE SE MĚNÍ OBRÁZEK (URL) --- */
+        background-image: url('https://media.giphy.com/media/mCRJDo24UvJMA/giphy.gif'); 
+        /* ^^^ SEM PAK VLOŽÍŠ ODKAZ NA SVÉHO PSA ^^^ */
+        
         background-size: cover;
         background-position: center;
         border: 3px solid #238636 !important;
@@ -193,14 +193,12 @@ st.markdown("""
         transition: transform 0.2s, box-shadow 0.2s;
     }
     
-    /* Hover efekt */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary:hover {
         transform: scale(1.1) rotate(5deg);
         box-shadow: 0 0 25px rgba(35, 134, 54, 0.8);
         cursor: pointer;
     }
     
-    /* Skrýt šipku */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary svg {
         display: none !important;
     }
@@ -1175,4 +1173,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
