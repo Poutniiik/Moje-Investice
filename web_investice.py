@@ -321,29 +321,38 @@ def ziskej_detail_akcie(ticker):
     except: return {}, None
 
     info = {}
-    hist = pd.DataFrame()
+    hist = None
     
-    # 1. Zkusíme načíst INFO
+    # 1. Zkusíme načíst INFO (může selhat)
     try:
         info = t.info
     except Exception:
-        # Fallback: zkusíme získat alespoň měnu z fast_info
+        info = {}
+
+    # 2. FALLBACK: Pokud info chybí, použijeme fast_info (to funguje skoro vždy)
+    if not info or len(info) < 5:
         try:
+            fi = t.fast_info
             info = {
                 "longName": ticker,
-                "longBusinessSummary": "Popis není k dispozici (chyba API).",
+                "longBusinessSummary": "Detailní popis není momentálně dostupný (Yahoo API limit). Základní data načtena přes FastInfo.",
                 "recommendationKey": "N/A",
                 "targetMeanPrice": 0,
                 "trailingPE": 0,
-                "currency": t.fast_info.currency,
-                "currentPrice": t.fast_info.last_price,
+                "currency": fi.currency,
+                "currentPrice": fi.last_price,
                 "website": ""
             }
-        except: 
-            # Úplné selhání infa
-            info = {}
+        except:
+            # Úplné selhání
+            info = {
+                "longName": ticker, 
+                "currency": "USD", 
+                "currentPrice": 0, 
+                "longBusinessSummary": "Data nedostupná."
+            }
 
-    # 2. Zkusíme načíst HISTORII
+    # 3. Zkusíme načíst HISTORII (nezávisle)
     try:
         hist = t.history(period="1y")
     except Exception:
