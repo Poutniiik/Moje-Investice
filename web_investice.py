@@ -181,7 +181,7 @@ st.markdown("""
         margin-left: auto !important;
         
         /* --- ZDE SE MĚNÍ OBRÁZEK (URL) --- */
-        background-image: url('https://media.giphy.com/media/mCRJDo24UvJMA/giphy.gif'); 
+        background-image: url('https://i.postimg.cc/cK5DmzZv/1000001805.jpg'); 
         /* ^^^ SEM PAK VLOŽÍŠ ODKAZ NA SVÉHO PSA ^^^ */
         
         background-size: cover;
