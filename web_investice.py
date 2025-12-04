@@ -950,6 +950,7 @@ def main():
 
         st.subheader("📋 PORTFOLIO LIVE")
         if not vdf.empty:
+            st.caption("Legenda daní: 🟢 > 3 roky (Osvobozeno) | 🔴 < 3 roky (Zdanit) | 🟠 Mix nákupů")
             st.dataframe(
                 vdf,
                 column_config={
@@ -959,7 +960,7 @@ def main():
                     "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f"),
                     "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
                     "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
-                    "Dan": "Daně",
+                    "Dan": st.column_config.TextColumn("Daně", help="🟢 > 3 roky (Osvobozeno)\n🔴 < 3 roky (Zdanit)\n🟠 Mix nákupů"),
                     "Země": "Země"
                 },
                 column_order=["Ticker", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "Dan"],
