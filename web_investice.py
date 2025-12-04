@@ -1179,7 +1179,7 @@ def main():
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING"])
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE"])
         
         with tab1:
             st.write("")
@@ -1454,6 +1454,29 @@ def main():
                         if diff > 0: st.success(f"🟢 **{r['Sektor']}**: DOKOUPIT za {diff:,.0f} USD")
                         else: st.error(f"🔴 **{r['Sektor']}**: PRODAT za {abs(diff):,.0f} USD")
                 st.dataframe(df_reb.style.format({"HodnotaUSD": "{:,.0f}", "Cílová Hodnota": "{:,.0f}", "Rozdíl": "{:+,.0f}"}))
+            else: st.info("Portfolio je prázdné.")
+        
+        with tab8:
+            st.subheader("📊 MATICE KORELACE (Diversifikace)")
+            st.info("Jak moc se tvé akcie hýbou společně? Čím více 'modrá', tím lepší diverzifikace.")
+            if not df.empty:
+                tickers_list = df['Ticker'].unique().tolist()
+                if len(tickers_list) > 1:
+                    try:
+                        with st.spinner("Počítám korelace..."):
+                            hist_data = yf.download(tickers_list, period="1y")['Close']
+                            returns = hist_data.pct_change().dropna()
+                            corr_matrix = returns.corr()
+                            fig_corr = px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale="RdBu_r", origin='lower')
+                            fig_corr.update_layout(template="plotly_dark", height=600)
+                            st.plotly_chart(fig_corr, use_container_width=True)
+                            avg_corr = corr_matrix.values[np.triu_indices_from(corr_matrix.values, 1)].mean()
+                            st.metric("Průměrná korelace portfolia", f"{avg_corr:.2f}")
+                            if avg_corr > 0.7: st.error("⚠️ Vysoká korelace! Tvé akcie se hýbou stejně.")
+                            elif avg_corr < 0.3: st.success("✅ Nízká korelace! Dobrá diverzifikace.")
+                            else: st.warning("⚖️ Střední korelace. Portfolio je vyvážené.")
+                    except Exception as e: st.error(f"Chyba při výpočtu korelace: {e}")
+                else: st.warning("Pro výpočet korelace potřebuješ alespoň 2 různé akcie.")
             else: st.info("Portfolio je prázdné.")
 
     elif page == "📰 Zprávy":
