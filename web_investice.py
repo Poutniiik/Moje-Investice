@@ -50,9 +50,6 @@ MAPA APLIKACE:
 4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
 5. '💎 Dividendy': Historie a graf dividend.
 6. '⚙️ Správa Dat': Zálohy a editace.
-
-POKYNY:
-- Buď stručný, přátelský a používej emojis.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -355,7 +352,6 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
-    # 1. SUŠENKY A LOGIN
     cookie_manager = get_manager()
     time.sleep(0.1)
     cookie_user = cookie_manager.get("invest_user")
@@ -374,8 +370,7 @@ def main():
         with c2:
             st.title("🔐 INVESTIČNÍ TERMINÁL")
             t1, t2, t3 = st.tabs(["PŘIHLÁŠENÍ", "REGISTRACE", "OBNOVA HESLA"])
-            
-            with t1: # Přihlášení
+            with t1:
                 with st.form("l"):
                     u=st.text_input("Uživatelské jméno"); p=st.text_input("Heslo", type="password")
                     if st.form_submit_button("VSTOUPIT", use_container_width=True):
@@ -419,20 +414,17 @@ def main():
             st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
 
-    # Teď už máme data bezpečně v paměti
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
     # --- 3. VÝPOČTY (HODNOTY PRO ROBOTA I STRÁNKY) ---
-    all_tickers = []
+    all_tickers = []; viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
-    viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
-    
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
@@ -447,7 +439,6 @@ def main():
                 sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
             except: sektor = "Doplnit"
             
-            # Daně
             nakupy_data = df[df['Ticker'] == tkr]['Datum']
             dnes = datetime.now(); limit_dni = 1095 
             vsechny_ok = True; vsechny_fail = True
@@ -464,9 +455,6 @@ def main():
             except: k = 1.0
             
             celk_hod_usd += hod*k; celk_inv_usd += inv*k
-            if m not in stats_meny: stats_meny[m] = {"inv":0, "zisk":0}
-            stats_meny[m]["inv"]+=inv; stats_meny[m]["zisk"]+=z
-            
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena
@@ -475,7 +463,6 @@ def main():
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
     
-    # SPOČÍTÁNÍ PROMĚNNÝCH PRO ZBYTEK APLIKACE
     kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
@@ -558,7 +545,12 @@ def main():
                 alert_icon = "🔥 SLEVA!" if price and cilek > 0 and price <= cilek else ""
                 with st.container(border=True):
                     c1, c2 = st.columns([4, 1])
-                    with c1: st.markdown(f"**{t}** {alert_icon}"); st.markdown(f"### {price:,.2f} {curr}") if price else st.caption("Offline")
+                    with c1: 
+                        st.markdown(f"**{t}** {alert_icon}")
+                        if price: 
+                            st.markdown(f"### {price:,.2f} {curr}")
+                            if cilek > 0: diff = ((price / cilek) - 1) * 100; st.caption(f"Cíl: {cilek:.0f} ({diff:+.1f}%)")
+                        else: st.caption("Offline")
                     with c2: st.write(""); 
                     if st.button("❌", key=f"del_{t}"): odebrat_z_watchlistu(t, USER); st.rerun()
         
@@ -583,7 +575,7 @@ def main():
     if page == "🏠 Přehled" or page == "📈 Analýza":
         render_ticker_tape(LIVE_DATA)
 
-    # --- 6. ZOBRAZENÍ OBSAHU ---
+    # --- 5. STRÁNKY ---
     if page == "🏠 Přehled":
         st.title(f"🏠 PŘEHLED: {USER.upper()}")
         k1, k2, k3, k4 = st.columns(4)
@@ -660,6 +652,9 @@ def main():
                                 target_price = t_info.get('targetMeanPrice', 0)
                                 pe_ratio = t_info.get('trailingPE', 0)
                                 currency = t_info.get('currency', '?')
+                                current_price = t_info.get('currentPrice', 0)
+                                year_high = t_info.get('fiftyTwoWeekHigh', 0)
+                                year_low = t_info.get('fiftyTwoWeekLow', 0)
                                 c_d1, c_d2 = st.columns([1, 3])
                                 with c_d1:
                                     barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
@@ -927,4 +922,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
