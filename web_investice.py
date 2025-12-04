@@ -1248,7 +1248,15 @@ def main():
                             st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
                             if hist_data is not None and not hist_data.empty:
                                 fig_candle = go.Figure(data=[go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie)])
-                                fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0))
+                                
+                                # --- TECHNICKÁ ANALÝZA (SMA) ---
+                                hist_data['SMA20'] = hist_data['Close'].rolling(window=20).mean()
+                                hist_data['SMA50'] = hist_data['Close'].rolling(window=50).mean()
+                                
+                                fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA20'], mode='lines', name='SMA 20 (Trend)', line=dict(color='orange', width=1.5)))
+                                fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA50'], mode='lines', name='SMA 50 (Dlouhý)', line=dict(color='cyan', width=1.5)))
+                                
+                                fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0), legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0)"))
                                 st.plotly_chart(fig_candle, use_container_width=True)
                             else:
                                 st.warning("Graf historie není k dispozici.")
