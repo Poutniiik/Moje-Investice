@@ -1438,7 +1438,8 @@ def main():
                             end_date = datetime.now()
                             start_date = end_date - timedelta(days=5 * 365) # Historie 5 let
                             
-                            price_data = yf.download(tickers_for_ef, start=start_date, end=end_date, progress=False)['Adj Close']
+                            # OPRAVA: Změna ze 'Adj Close' na 'Close' pro větší kompatibilitu s různými tickery
+                            price_data = yf.download(tickers_for_ef, start=start_date, end=end_date, progress=False)['Close']
                             price_data = price_data.dropna()
 
                             if price_data.empty or len(price_data) < 252:
