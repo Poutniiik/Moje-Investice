@@ -22,6 +22,7 @@ import extra_streamlit_components as stx
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹")
 
+# --- KONSTANTY ---
 REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
@@ -60,10 +61,13 @@ CILOVE_SEKTORY = {
 
 # --- AI SETUP ---
 try:
-    GOOGLE_API_KEY = st.secrets["google"]["api_key"]
-    genai.configure(api_key=GOOGLE_API_KEY)
-    AI_MODEL = genai.GenerativeModel('gemini-2.5-flash') 
-    AI_AVAILABLE = True
+    if "google" in st.secrets:
+        GOOGLE_API_KEY = st.secrets["google"]["api_key"]
+        genai.configure(api_key=GOOGLE_API_KEY)
+        AI_MODEL = genai.GenerativeModel('gemini-2.5-flash') 
+        AI_AVAILABLE = True
+    else:
+        AI_AVAILABLE = False
 except:
     AI_AVAILABLE = False
 
@@ -82,21 +86,26 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- PŘIPOJENÍ ---
-try: GITHUB_TOKEN = st.secrets["github"]["token"]
-except: st.error("❌ CHYBA: Chybí GitHub Token v Secrets!"); st.stop()
+try: 
+    if "github" in st.secrets:
+        GITHUB_TOKEN = st.secrets["github"]["token"]
+    else:
+        st.warning("⚠️ GitHub Token nenalezen v Secrets. Aplikace běží v demo režimu (bez ukládání).")
+        GITHUB_TOKEN = ""
+except: 
+    st.error("❌ CHYBA: Problém s načtením Secrets!"); st.stop()
 
-def get_repo(): return Github(GITHUB_TOKEN).get_repo(REPO_NAZEV)
+def get_repo(): 
+    if not GITHUB_TOKEN: return None
+    return Github(GITHUB_TOKEN).get_repo(REPO_NAZEV)
+
 def zasifruj(text): return hashlib.sha256(str(text).encode()).hexdigest()
-def load_lottieurl(url):
-    try:
-        r = requests.get(url)
-        if r.status_code != 200: return None
-        return r.json()
-    except: return None
 
-# --- COOKIE MANAGER ---
+# --- COOKIE MANAGER (CACHE) ---
+# Trik: Použijeme st.cache_resource, aby se manager nevytvářel znovu při každém reloadu
+@st.cache_resource(experimental_allow_widgets=True)
 def get_manager():
-    return stx.CookieManager(key="cookie_manager")
+    return stx.CookieManager(key="cookie_manager_inst")
 
 # --- EXTERNÍ DATA ---
 @st.cache_data(ttl=3600)
@@ -151,6 +160,8 @@ def vytvor_pdf_report(user, total_czk, cash_usd, data_list):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
+    # Note: FPDF standard fonts usually don't support UTF-8 well without adding a font file.
+    # Using simple ASCII for safety here or would need to add .ttf font
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(200, 10, txt=f"INVESTICNI REPORT: {user}", ln=True, align='C')
     pdf.set_font("Arial", size=10)
@@ -178,6 +189,7 @@ def vytvor_pdf_report(user, total_czk, cash_usd, data_list):
 # --- DATABÁZE ---
 def uloz_csv(df, nazev_souboru, zprava):
     repo = get_repo()
+    if not repo: return
     csv = df.to_csv(index=False)
     try:
         file = repo.get_contents(nazev_souboru)
@@ -187,6 +199,7 @@ def uloz_csv(df, nazev_souboru, zprava):
 def nacti_csv(nazev_souboru):
     try:
         repo = get_repo()
+        if not repo: raise Exception("No repo")
         file = repo.get_contents(nazev_souboru)
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
         for col in ['Datum', 'Date']:
@@ -350,21 +363,30 @@ def render_ticker_tape(data_dict):
         content += f"&nbsp;&nbsp;&nbsp;&nbsp; <b>{ticker}</b>: {price:,.2f} {curr}"
     st.markdown(f"""<div style="background-color: #161B22; border: 1px solid #30363D; border-radius: 5px; padding: 8px; margin-bottom: 20px; white-space: nowrap; overflow: hidden;"><div style="display: inline-block; animation: marquee 20s linear infinite; color: #00CC96; font-family: 'Roboto Mono', monospace; font-weight: bold;">{content} {content} {content}</div></div><style>@keyframes marquee {{ 0% {{ transform: translateX(0); }} 100% {{ transform: translateX(-50%); }} }}</style>""", unsafe_allow_html=True)
 
-# --- MAIN ---
+# --- HLAVNÍ FUNKCE (S OPRAVENÝM LOGINEM) ---
 def main():
+    # 1. Start Cookie Manager
     cookie_manager = get_manager()
-    time.sleep(0.1)
-    cookie_user = cookie_manager.get("invest_user")
     
-    if 'prihlasen' not in st.session_state: 
-        if cookie_user: 
+    # 2. Inicializace stavu (Session State)
+    if 'prihlasen' not in st.session_state:
+        st.session_state['prihlasen'] = False
+        st.session_state['user'] = ""
+    
+    # 3. ZPOŽDĚNÍ PRO COOKIES (Nutné pro stx)
+    # Dej prohlížeči chvilku (300ms), aby poslal cookies zpět do Pythonu
+    time.sleep(0.3)
+    
+    # 4. LOGIKA PŘIHLÁŠENÍ (Gatekeeper)
+    # Pokud nejsme přihlášeni v paměti (session), zkusíme cookie
+    if not st.session_state['prihlasen']:
+        cookie_user = cookie_manager.get("invest_user")
+        if cookie_user:
             st.session_state['prihlasen'] = True
             st.session_state['user'] = cookie_user
-        else:
-            st.session_state['prihlasen'] = False
-            st.session_state['user'] = ""
+            st.rerun() # Refresh, aby se načetl zbytek appky jako přihlášený
 
-    # LOGIN FORM
+    # --- ZOBRAZENÍ LOGIN FORMULÁŘE POKUD STÁLE NEJSME PŘIHLÁŠENI ---
     if not st.session_state['prihlasen']:
         c1,c2,c3 = st.columns([1, 2, 1])
         with c2:
@@ -377,9 +399,12 @@ def main():
                         df_u = nacti_uzivatele()
                         row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
+                            # ZÁPIS COOKIE S DELŠÍ ŽIVOTNOSTÍ
                             cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
-                            st.session_state.clear(); st.session_state.update({'prihlasen':True, 'user':u})
-                            time.sleep(0.5); st.rerun()
+                            st.session_state.update({'prihlasen':True, 'user':u})
+                            st.toast("Přihlašování...", icon="⏳")
+                            time.sleep(1) # Čekáme na zápis cookie
+                            st.rerun()
                         else: st.toast("Chyba přihlášení", icon="❌")
             with t2:
                 with st.form("r"):
@@ -401,10 +426,15 @@ def main():
                             df_u.at[user_row.index[0], 'password'] = zasifruj(rnp)
                             uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Heslo změněno!")
                         else: st.error("Chyba údajů.")
-        return
+        return # UKONČÍME FUNKCI, ABY SE NENAČETL ZBYTEK APPKY
 
-    # --- 2. NAČTENÍ DAT (VŽDY A HNED!) ---
+    # =========================================================================
+    # ZDE ZAČÍNÁ APLIKACE PRO PŘIHLÁŠENÉHO UŽIVATELE
+    # =========================================================================
+    
     USER = st.session_state['user']
+    
+    # --- 2. NAČTENÍ DAT (VŽDY A HNED!) ---
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
             st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
@@ -475,7 +505,7 @@ def main():
     try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except: cash_usd = 0
 
-    # --- 4. SIDEBAR + CHATBOT (TEĎ UŽ ZNÁ DATA!) ---
+    # --- 4. SIDEBAR + CHATBOT ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         if zustatky:
@@ -500,7 +530,7 @@ def main():
             else:
                 st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
         
-        # Zpracování odpovědi (Zde už známe celk_hod_czk!)
+        # Zpracování odpovědi
         if st.session_state["chat_messages"][-1]["role"] == "user":
             with st.spinner("..."):
                 last_user_msg = st.session_state["chat_messages"][-1]["content"]
@@ -567,6 +597,7 @@ def main():
                     else: st.error("Staré heslo nesedí.")
         st.divider()
         if st.button("🚪 ODHLÁSIT", use_container_width=True): 
+            # SMAZÁNÍ COOKIE A RESET
             cookie_manager.delete("invest_user")
             st.session_state.clear()
             st.rerun()
