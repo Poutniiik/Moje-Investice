@@ -342,21 +342,33 @@ def ziskej_yield(ticker):
 # --- POKROČILÉ CACHING FUNKCE PRO RENTGEN ---
 
 # 1. Funkce pro získání INFO (statická data) - Cache na 24h, uložení na disk
+# Rozšíření o P/E a Market Cap
 @st.cache_data(ttl=86400, show_spinner=False, persist="disk")
 def _ziskej_info_cached(ticker):
     """
-    Získá detailní info o firmě. Pokud data nejsou kompletní,
-    VYVOLÁ CHYBU, aby se špatný výsledek neuložil do cache.
+    Získá detailní info o firmě, včetně Market Cap a P/E Ratio.
     """
     t = yf.Ticker(str(ticker))
     info = t.info
     
     # Validace: Pokud chybí klíčová data, považujeme to za chybu API
-    # a vyvoláme výjimku -> Streamlit si to NEuloží do cache.
     if not info or len(info) < 5 or "Yahoo API limit" in info.get("longBusinessSummary", ""):
         raise ValueError("Neúplná data z Yahoo API")
     
-    return info
+    # Přidání klíčových fundamentů do cache pro rychlejší přístup v hlavní tabulce
+    required_info = {
+        'longName': info.get('longName', ticker),
+        'longBusinessSummary': info.get('longBusinessSummary', 'Popis není k dispozici.'),
+        'recommendationKey': info.get('recommendationKey', 'N/A'),
+        'targetMeanPrice': info.get('targetMeanPrice', 0),
+        'trailingPE': info.get('trailingPE', 0),
+        'marketCap': info.get('marketCap', 0), # NOVÝ FUNDAMENT
+        'currency': info.get('currency', 'USD'),
+        'currentPrice': info.get('currentPrice', 0),
+        'website': info.get('website', '')
+    }
+
+    return required_info
 
 # 2. Funkce pro získání HISTORIE (graf) - Cache na 1h
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -367,6 +379,7 @@ def _ziskej_historii_cached(ticker):
     except:
         return None
 
+# Původní ziskej_detail_akcie je zachována, ale využije vylepšenou cache.
 def ziskej_detail_akcie(ticker):
     info = {}
     hist = None
@@ -375,9 +388,7 @@ def ziskej_detail_akcie(ticker):
     try:
         info = _ziskej_info_cached(ticker)
     except Exception:
-        # Pokud cache selže (nebo API hodí chybu), spustíme "Záchranný režim" (Fallback)
-        # TENTO FALLBACK SE NEUKLÁDÁ DO DLOUHODOBÉ CACHE!
-        # Takže při příštím načtení se aplikace znova pokusí získat kvalitní data.
+        # Záchranný režim
         try:
             t = yf.Ticker(str(ticker))
             fi = t.fast_info
@@ -386,7 +397,8 @@ def ziskej_detail_akcie(ticker):
                 "longBusinessSummary": "MISSING_SUMMARY", # Značka pro AI
                 "recommendationKey": "N/A",
                 "targetMeanPrice": 0,
-                "trailingPE": 0,
+                "trailingPE": fi.trailing_pe, # Přidáno P/E z Fast Info pro Fallback
+                "marketCap": fi.market_cap,   # Přidáno Market Cap z Fast Info pro Fallback
                 "currency": fi.currency,
                 "currentPrice": fi.last_price,
                 "website": ""
@@ -397,7 +409,9 @@ def ziskej_detail_akcie(ticker):
                 "longName": ticker, 
                 "currency": "USD", 
                 "currentPrice": 0, 
-                "longBusinessSummary": "Data nedostupná."
+                "longBusinessSummary": "Data nedostupná.",
+                "trailingPE": 0,
+                "marketCap": 0
             }
 
     # B) Historii načítáme zvlášť (kratší cache)
@@ -754,11 +768,9 @@ def main():
                     rk = st.text_input("Záchranný kód")
                     rnp = st.text_input("Nové heslo", type="password")
                     if st.form_submit_button("OBNOVIT"):
-                        df_u = nacti_uzivatele()
-                        user_row = df_u[df_u['username'] == ru]
-                        if not user_row.empty and user_row.iloc[0]['password'] == zasifruj(rk):
-                            df_u.at[user_row.index[0], 'password'] = zasifruj(rnp)
-                            uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}")
+                        df_u = nacti_uzivatele(); row = df_u[df_u['username'] == ru]
+                        if not row.empty and row.iloc[0]['password'] == zasifruj(rk):
+                            df_u.at[row.index[0], 'password'] = zasifruj(rnp); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}")
                             st.success("Heslo změněno!")
                         else: st.error("Chyba údajů.")
         return
@@ -814,6 +826,16 @@ def main():
                     alerts.append(f"{tk}: {price:.2f} <= {trg:.2f}")
                     st.toast(f"🔔 {tk} je ve slevě! ({price:.2f})", icon="🔥")
 
+    # --- VÝPOČET PORTFOLIA + ZÍSKÁNÍ FUNDAMENTŮ ---
+    # Musíme získat fundamenty pro všechny akcie v portfoliu
+    fundament_data = {}
+    if not df.empty:
+        tickers_in_portfolio = df['Ticker'].unique().tolist()
+        for tkr in tickers_in_portfolio:
+            # Optimalizace: Použijeme ziskej_detail_akcie, která je cachovaná a vrací fundamenty
+            info, _ = ziskej_detail_akcie(tkr) 
+            fundament_data[tkr] = info
+
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
@@ -824,6 +846,11 @@ def main():
             p, m, d_zmena = ziskej_info(tkr)
             if p is None: p = row['Cena']
             if m is None or m == "N/A": m = "USD"
+            
+            # Získání fundamentů z cachovaného slovníku
+            fundamenty = fundament_data.get(tkr, {})
+            pe_ratio = fundamenty.get('trailingPE', 0)
+            market_cap = fundamenty.get('marketCap', 0)
             
             try:
                 raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
@@ -870,7 +897,9 @@ def main():
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena,
-                "Země": country
+                "Země": country,
+                "P/E": pe_ratio, # NOVÝ FUNDAMENT
+                "Kapitalizace": market_cap # NOVÝ FUNDAMENT
             })
     
     # Vytvoření DataFrame pro globální použití
@@ -1062,10 +1091,12 @@ def main():
                     "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f"),
                     "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
                     "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
+                    "P/E": st.column_config.NumberColumn("P/E Ratio", format="%.2f", help="Poměr ceny k ziskům. Nízká hodnota může značit podhodnocení."), # NOVÝ STYLOVANÝ SLOUPEC
+                    "Kapitalizace": st.column_config.NumberColumn("Kapitalizace", format="$%.1fB", help="Tržní kapitalizace ve formátu miliard USD."), # NOVÝ STYLOVANÝ SLOUPEC
                     "Dan": st.column_config.TextColumn("Daně", help="🟢 > 3 roky (Osvobozeno)\n🔴 < 3 roky (Zdanit)\n🟠 Mix nákupů"),
                     "Země": "Země"
                 },
-                column_order=["Ticker", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "Dan"],
+                column_order=["Ticker", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"], # PŘIDÁN P/E A KAPITALIZACE
                 use_container_width=True,
                 hide_index=True
             )
