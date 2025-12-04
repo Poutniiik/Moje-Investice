@@ -722,6 +722,21 @@ def main():
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
+    # --- 3.5. KONTROLA WATCHLISTU (ALERTY) ---
+    alerts = []
+    if not df_watch.empty:
+        for _, r in df_watch.iterrows():
+            tk = r['Ticker']; trg = r['Target']
+            if trg > 0:
+                inf = LIVE_DATA.get(tk, {})
+                price = inf.get('price')
+                if not price: # Fallback if not in batch
+                     price, _, _ = ziskej_info(tk)
+                
+                if price and price <= trg:
+                    alerts.append(f"{tk}: {price:.2f} <= {trg:.2f}")
+                    st.toast(f"🔔 {tk} je ve slevě! ({price:.2f})", icon="🔥")
+
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
@@ -835,6 +850,13 @@ def main():
             sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
             st.info(f"**{castka:,.2f} {sym}**", icon="💰")
         # -------------------------
+        
+        # --- SIDEBAR ALERTS ---
+        if alerts:
+            st.divider()
+            st.error("🔔 CENOVÉ ALERTY!", icon="🔥")
+            for a in alerts:
+                st.markdown(f"- **{a}**")
 
         st.divider(); st.subheader("NAVIGACE")
         page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
