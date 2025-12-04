@@ -71,7 +71,7 @@ try:
 except:
     AI_AVAILABLE = False
 
-# --- STYLY (MODERNÍ TERMINÁL - V2.2 Floating Bot) ---
+# --- STYLY (MODERNÍ TERMINÁL - V2.3 Animated Avatar) ---
 st.markdown("""
 <style>
     /* Hlavní barvy a fonty */
@@ -149,39 +149,99 @@ st.markdown("""
         background-color: #238636;
     }
 
-    /* --- PLOVOUCÍ AI BOT (CSS HACK) --- */
-    /* Najdeme kontejner, který následuje po našem markeru */
+    /* --- PLOVOUCÍ AI BOT (AVATAR STYLE) --- */
+    
+    /* Kontejner chatu (poloha) */
     .floating-chat-marker + div {
         position: fixed !important;
-        bottom: 20px !important;
-        right: 20px !important; /* Vpravo dole, aby nepřekážel menu */
-        width: 350px !important;
+        bottom: 30px !important;
+        right: 30px !important;
+        width: 380px !important;
         z-index: 9999 !important;
     }
     
-    /* Stylování samotného expanderu, aby vypadal jako bublina */
+    /* Expander sám o sobě (bublina chatu) */
     .floating-chat-marker + div [data-testid="stExpander"] {
         background-color: #161B22 !important;
-        border: 1px solid #58A6FF !important;
-        border-radius: 15px !important;
-        box-shadow: 0 0 20px rgba(0,0,0,0.7) !important;
+        border: 1px solid #30363D !important;
+        border-radius: 20px !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
+        transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
     }
-    
-    /* Hlavička (To co vidíš, když je zavřeno - "hlava robota") */
+
+    /* HLAVIČKA (To je náš Avatar/Tlačítko) */
     .floating-chat-marker + div [data-testid="stExpander"] summary {
-        background-color: #238636 !important; /* Zelená jako online */
-        color: white !important;
-        border-radius: 10px !important;
-        font-weight: bold !important;
+        background-color: transparent !important;
+        color: transparent !important; /* Skryjeme text, použijeme obrázek */
+        height: 80px !important; /* Velikost tlačítka */
+        width: 80px !important;
+        border-radius: 50% !important;
+        padding: 0 !important;
+        margin-left: auto !important; /* Zarovnání doprava */
+        
+        /* OBRÁZEK ROBOTA (GIF) */
+        background-image: url('https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif');
+        background-size: cover;
+        background-position: center;
+        border: 3px solid #238636 !important;
+        box-shadow: 0 0 15px rgba(35, 134, 54, 0.5);
+        
+        /* Animace pohupování */
+        animation: float 6s ease-in-out infinite;
+        transition: transform 0.2s, box-shadow 0.2s;
     }
     
-    /* Obsah chatu (když je otevřeno) */
+    /* Hover efekt na robota */
+    .floating-chat-marker + div [data-testid="stExpander"] summary:hover {
+        transform: scale(1.1) rotate(5deg);
+        box-shadow: 0 0 25px rgba(35, 134, 54, 0.8);
+        cursor: pointer;
+    }
+    
+    /* Šipka expanderu (skrýt) */
+    .floating-chat-marker + div [data-testid="stExpander"] summary svg {
+        display: none !important;
+    }
+
+    /* Otevřený stav - musíme změnit styl, aby to vypadalo jako okno */
+    .floating-chat-marker + div [data-testid="stExpander"][aria-expanded="true"] summary {
+        width: 100% !important;
+        height: 40px !important;
+        border-radius: 15px 15px 0 0 !important;
+        background-image: none !important;
+        background-color: #238636 !important;
+        color: white !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: none !important;
+        border: none !important;
+    }
+    
+    /* Přidáme text "Zavřít" když je otevřeno (pomocí after) */
+    .floating-chat-marker + div [data-testid="stExpander"][aria-expanded="true"] summary::after {
+        content: "❌ ZAVŘÍT CHAT";
+        font-weight: bold;
+        font-size: 0.9rem;
+        color: white;
+    }
+
+    /* Obsah chatu */
     .floating-chat-marker + div [data-testid="stExpanderDetails"] {
-        max-height: 400px;
+        max-height: 500px;
         overflow-y: auto;
-        background-color: #0E1117;
-        border-bottom-left-radius: 15px;
-        border-bottom-right-radius: 15px;
+        background-color: #0d1117;
+        border-bottom-left-radius: 20px;
+        border-bottom-right-radius: 20px;
+        border-top: 1px solid #30363D;
+        padding: 15px;
+    }
+
+    /* Animace plavání */
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1115,4 +1175,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
