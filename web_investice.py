@@ -1583,8 +1583,25 @@ def main():
         st.title("💎 DIVIDENDY")
         if not df_div.empty:
             df_div['Datum'] = pd.to_datetime(df_div['Datum']); df_div['Mesic'] = df_div['Datum'].dt.strftime('%Y-%m')
-            # Správný přepočet na CZK s ohledem na aktuální kurzy
-            df_div['CastkaCZK'] = df_div.apply(lambda r: r['Castka'] * (kurzy.get('CZK', 20.85) if r['Mena'] == 'USD' else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)), axis=1).sum()
+            
+            # OPRAVA: Použití živých kurzů z proměnné 'kurzy' pro přepočet
+            kurz_usd_czk = kurzy.get('CZK', 20.85)
+            # Předpokládáme, že EUR/CZK kurz není přímo v kurzy, ale je odvozen z EUR/USD a USD/CZK. 
+            # Použijeme zjednodušený odhad: EUR/CZK = EUR/USD (kurzy['EUR']) * USD/CZK (kurzy['CZK'])
+            kurz_eur_usd = kurzy.get('EUR', 1.16)
+            kurz_eur_czk = kurz_eur_usd * kurz_usd_czk
+
+            def prepocet_dividendy_na_czk(row):
+                if row['Mena'] == 'USD':
+                    return row['Castka'] * kurz_usd_czk
+                elif row['Mena'] == 'EUR':
+                    # Přepočet EUR -> CZK
+                    return row['Castka'] * kurz_eur_czk 
+                else:
+                    return row['Castka'] # Předpokládáme, že CZK dividenda je už v CZK.
+
+            df_div['CastkaCZK'] = df_div.apply(prepocet_dividendy_na_czk, axis=1)
+
             monthly_data = df_div.groupby('Mesic')['CastkaCZK'].sum()
             with st.container(border=True):
                 k1, k2 = st.columns([2, 1])
@@ -1629,7 +1646,7 @@ def main():
                 portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
                 if viz_data: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data])
                 full_prompt = f"{APP_MANUAL}\n\nDATA:\n{portfolio_context}\n\nDOTAZ: {last_user_msg}"
-                try: response = AI_MODEL.generate_content(full_prompt); ai_reply = response.text
+                try: response = AI_MODEL.generate_content(prompt, tools=[{"google_search": {}}]); ai_reply = response.text
                 except Exception as e: ai_reply = f"Chyba: {str(e)}"
                 st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
 
