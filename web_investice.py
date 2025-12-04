@@ -871,15 +871,33 @@ def main():
         
         st.write("")
         
-        # --- GRAF: VÝVOJ MAJETKU V ČASE (AREA CHART) ---
-        if not hist_vyvoje.empty:
-            st.subheader("🌊 VÝVOJ MAJETKU (CZK)")
-            chart_data = hist_vyvoje.copy()
-            chart_data['Date'] = pd.to_datetime(chart_data['Date'])
-            chart_data['TotalCZK'] = chart_data['TotalUSD'] * kurzy.get("CZK", 20.85)
-            fig_area = px.area(chart_data, x='Date', y='TotalCZK', template="plotly_dark", color_discrete_sequence=['#00CC96'])
-            fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
-            st.plotly_chart(fig_area, use_container_width=True)
+        # Prepare data for charts
+        if viz_data:
+            vdf = pd.DataFrame(viz_data)
+        else:
+            vdf = pd.DataFrame()
+
+        col_graf1, col_graf2 = st.columns([2, 1])
+
+        with col_graf1:
+            # --- GRAF: VÝVOJ MAJETKU V ČASE (AREA CHART) ---
+            if not hist_vyvoje.empty:
+                st.subheader("🌊 VÝVOJ MAJETKU (CZK)")
+                chart_data = hist_vyvoje.copy()
+                chart_data['Date'] = pd.to_datetime(chart_data['Date'])
+                chart_data['TotalCZK'] = chart_data['TotalUSD'] * kurzy.get("CZK", 20.85)
+                fig_area = px.area(chart_data, x='Date', y='TotalCZK', template="plotly_dark", color_discrete_sequence=['#00CC96'])
+                fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
+                st.plotly_chart(fig_area, use_container_width=True)
+        
+        with col_graf2:
+            # --- NOVÝ GRAF: KOLÁČ SEKTORŮ ---
+            if not vdf.empty:
+                st.subheader("🍰 SEKTORY")
+                fig_pie = px.pie(vdf, values='HodnotaUSD', names='Sektor', hole=0.4, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                fig_pie.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0), height=300)
+                st.plotly_chart(fig_pie, use_container_width=True)
 
         # --- NOVÁ SEKCE: INVESTOVÁNO DLE MĚN ---
         st.subheader("💰 INVESTOVÁNO DLE MĚN")
@@ -898,8 +916,7 @@ def main():
         st.divider()
 
         st.subheader("📋 PORTFOLIO LIVE")
-        if viz_data:
-            vdf = pd.DataFrame(viz_data)
+        if not vdf.empty:
             st.dataframe(
                 vdf,
                 column_config={
@@ -1352,4 +1369,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
