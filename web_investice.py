@@ -4,7 +4,7 @@ import numpy as np # Přidán numpy pro Monte Carlo a Sharpe Ratio
 import yfinance as yf
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+from plotly.subplots import make_subplots 
 from github import Github
 from io import StringIO
 from datetime import datetime, timedelta
@@ -756,7 +756,7 @@ def main():
                     if st.form_submit_button("OBNOVIT"):
                         df_u = nacti_uzivatele()
                         user_row = df_u[df_u['username'] == ru]
-                        if not user_row.empty and user_row.iloc[0]['recovery_key'] == zasifruj(rk):
+                        if not user_row.empty and user_row.iloc[0]['password'] == zasifruj(rk):
                             df_u.at[user_row.index[0], 'password'] = zasifruj(rnp)
                             uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}")
                             st.success("Heslo změněno!")
@@ -1584,7 +1584,7 @@ def main():
         if not df_div.empty:
             df_div['Datum'] = pd.to_datetime(df_div['Datum']); df_div['Mesic'] = df_div['Datum'].dt.strftime('%Y-%m')
             # Správný přepočet na CZK s ohledem na aktuální kurzy
-            df_div['CastkaCZK'] = df_div.apply(lambda r: r['Castka'] * (kurzy.get('CZK', 20.85) if r['Mena'] == 'USD' else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)), axis=1)
+            df_div['CastkaCZK'] = df_div.apply(lambda r: r['Castka'] * (kurzy.get('CZK', 20.85) if r['Mena'] == 'USD' else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)), axis=1).sum()
             monthly_data = df_div.groupby('Mesic')['CastkaCZK'].sum()
             with st.container(border=True):
                 k1, k2 = st.columns([2, 1])
@@ -1635,5 +1635,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
