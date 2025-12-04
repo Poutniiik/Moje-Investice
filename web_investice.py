@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
+import numpy as np # Přidán numpy pro Monte Carlo
 import yfinance as yf
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots # Přidán import pro subplots
+from plotly.subplots import make_subplots 
 from github import Github
 from io import StringIO
 from datetime import datetime, timedelta
@@ -1360,7 +1361,54 @@ def main():
                     st.area_chart(pd.DataFrame(data_budoucnost).set_index("Rok"), color=["#00FF00", "#333333"])
                     st.metric(f"Hodnota v roce {datetime.now().year + roky}", f"{aktualni_hodnota:,.0f} Kč", f"Zisk: {aktualni_hodnota - vlozeno:,.0f} Kč")
             
-            st.divider(); st.subheader("💥 CRASH TEST")
+            # --- NOVÉ: MONTE CARLO SIMULACE ---
+            st.divider()
+            st.subheader("🎲 MONTE CARLO: Simulace budoucnosti")
+            st.info("Simulace 50 možných scénářů vývoje tvého portfolia na základě volatility trhu.")
+            
+            c_mc1, c_mc2 = st.columns(2)
+            with c_mc1:
+                mc_years = st.slider("Délka simulace (roky)", 1, 20, 5, key="mc_years")
+                mc_volatility = st.slider("Očekávaná volatilita (%)", 5, 50, 20, key="mc_vol") / 100
+            with c_mc2:
+                mc_return = st.slider("Očekávaný výnos p.a. (%)", -5, 20, 8, key="mc_ret") / 100
+                start_val = celk_hod_czk if celk_hod_czk > 0 else 100000 # Fallback pro demo
+            
+            if st.button("🔮 SPUSTIT SIMULACI", type="primary"):
+                days = mc_years * 252
+                dt = 1/252
+                mu = mc_return
+                sigma = mc_volatility
+                num_simulations = 50
+                
+                sim_data = pd.DataFrame()
+                
+                for i in range(num_simulations):
+                    price_path = [start_val]
+                    for _ in range(days):
+                        # Geometric Brownian Motion
+                        shock = np.random.normal(0, 1)
+                        price = price_path[-1] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * shock)
+                        price_path.append(price)
+                    sim_data[f"Sim {i}"] = price_path
+
+                # Create chart
+                fig_mc = go.Figure()
+                for col in sim_data.columns:
+                    fig_mc.add_trace(go.Scatter(y=sim_data[col], mode='lines', line=dict(width=1), opacity=0.3, showlegend=False))
+                
+                # Average path
+                sim_data['Average'] = sim_data.mean(axis=1)
+                fig_mc.add_trace(go.Scatter(y=sim_data['Average'], mode='lines', name='Průměrný scénář', line=dict(color='yellow', width=4)))
+
+                fig_mc.update_layout(title=f"Monte Carlo: {num_simulations} scénářů na {mc_years} let", xaxis_title="Dny", yaxis_title="Hodnota (CZK)", template="plotly_dark")
+                st.plotly_chart(fig_mc, use_container_width=True)
+                
+                final_avg = sim_data['Average'].iloc[-1]
+                st.success(f"Průměrná hodnota na konci: {final_avg:,.0f} Kč")
+
+            st.divider()
+            st.subheader("💥 CRASH TEST")
             with st.container(border=True):
                 propad = st.slider("Simulace pádu trhu (%)", 5, 80, 20, step=5)
                 ztrata_czk = (celk_hod_usd * (propad / 100)) * kurzy["CZK"]
