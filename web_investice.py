@@ -42,6 +42,17 @@ RSS_ZDROJE = [
 APP_MANUAL = """
 Jsi asistent v aplikaci 'Terminal Pro'.
 Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
+
+MAPA APLIKACE:
+1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka.
+2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Věštec, Crash Test.
+3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
+4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
+5. '💎 Dividendy': Historie a graf dividend.
+6. '⚙️ Správa Dat': Zálohy a editace.
+
+POKYNY:
+- Buď stručný, přátelský a používej emojis.
 """
 
 # --- CÍLE PORTFOLIA ---
@@ -344,7 +355,7 @@ def render_ticker_tape(data_dict):
 
 # --- MAIN ---
 def main():
-    # 1. SUŠENKY
+    # 1. SUŠENKY A LOGIN
     cookie_manager = get_manager()
     time.sleep(0.1)
     cookie_user = cookie_manager.get("invest_user")
@@ -363,7 +374,8 @@ def main():
         with c2:
             st.title("🔐 INVESTIČNÍ TERMINÁL")
             t1, t2, t3 = st.tabs(["PŘIHLÁŠENÍ", "REGISTRACE", "OBNOVA HESLA"])
-            with t1:
+            
+            with t1: # Přihlášení
                 with st.form("l"):
                     u=st.text_input("Uživatelské jméno"); p=st.text_input("Heslo", type="password")
                     if st.form_submit_button("VSTOUPIT", use_container_width=True):
@@ -396,7 +408,7 @@ def main():
                         else: st.error("Chyba údajů.")
         return
 
-    # --- 2. NAČTENÍ DAT (CRITICAL: MUSÍ BÝT PŘED VÝPOČTY) ---
+    # --- 2. NAČTENÍ DAT (VŽDY A HNED!) ---
     USER = st.session_state['user']
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
@@ -407,17 +419,20 @@ def main():
             st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
 
+    # Teď už máme data bezpečně v paměti
     df = st.session_state['df']; df_cash = st.session_state['df_cash']; df_div = st.session_state['df_div']; df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER); kurzy = ziskej_kurzy()
 
     # --- 3. VÝPOČTY (HODNOTY PRO ROBOTA I STRÁNKY) ---
-    all_tickers = []; viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
+    all_tickers = []
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
+    viz_data = []; celk_hod_usd = 0; celk_inv_usd = 0; stats_meny = {}
+    
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
@@ -432,6 +447,7 @@ def main():
                 sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
             except: sektor = "Doplnit"
             
+            # Daně
             nakupy_data = df[df['Ticker'] == tkr]['Datum']
             dnes = datetime.now(); limit_dni = 1095 
             vsechny_ok = True; vsechny_fail = True
@@ -459,6 +475,7 @@ def main():
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
     
+    # SPOČÍTÁNÍ PROMĚNNÝCH PRO ZBYTEK APLIKACE
     kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
@@ -495,6 +512,8 @@ def main():
             if not AI_AVAILABLE: st.error("Chybí API klíč.")
             else:
                 st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
+        
+        # Zpracování odpovědi (Zde už známe celk_hod_czk!)
         if st.session_state["chat_messages"][-1]["role"] == "user":
             with st.spinner("..."):
                 last_user_msg = st.session_state["chat_messages"][-1]["content"]
@@ -564,7 +583,7 @@ def main():
     if page == "🏠 Přehled" or page == "📈 Analýza":
         render_ticker_tape(LIVE_DATA)
 
-    # --- 5. OBSAH STRÁNEK ---
+    # --- 6. ZOBRAZENÍ OBSAHU ---
     if page == "🏠 Přehled":
         st.title(f"🏠 PŘEHLED: {USER.upper()}")
         k1, k2, k3, k4 = st.columns(4)
@@ -641,9 +660,6 @@ def main():
                                 target_price = t_info.get('targetMeanPrice', 0)
                                 pe_ratio = t_info.get('trailingPE', 0)
                                 currency = t_info.get('currency', '?')
-                                current_price = t_info.get('currentPrice', 0)
-                                year_high = t_info.get('fiftyTwoWeekHigh', 0)
-                                year_low = t_info.get('fiftyTwoWeekLow', 0)
                                 c_d1, c_d2 = st.columns([1, 3])
                                 with c_d1:
                                     barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
@@ -712,6 +728,30 @@ def main():
                     fig_pie = px.pie(df_mena, values='HodnotaUSD', names='Měna', hole=0.4, color='Měna', color_discrete_map={'USD':'#00CC96', 'CZK':'#636EFA', 'EUR':'#EF553B'})
                     st.plotly_chart(fig_pie, use_container_width=True)
                 except: st.error("Chyba koláče.")
+            
+            # 👇 MĚSÍČNÍ HEATMAPA 👇
+            st.divider()
+            st.caption("📊 MĚSÍČNÍ VYSVĚDČENÍ (Zisk/Ztráta %)")
+            if not hist_vyvoje.empty and len(hist_vyvoje) > 30:
+                try:
+                    df_h = hist_vyvoje.copy()
+                    df_h['Date'] = pd.to_datetime(df_h['Date'])
+                    df_h = df_h.set_index('Date').resample('M').last()
+                    df_h['Pct_Change'] = df_h['TotalUSD'].pct_change() * 100
+                    df_h = df_h.dropna()
+                    if not df_h.empty:
+                        df_h['Year'] = df_h.index.year
+                        df_h['Month'] = df_h.index.month_name()
+                        pivot_table = df_h.pivot(index='Year', columns='Month', values='Pct_Change')
+                        months_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+                        pivot_table = pivot_table.reindex(columns=months_order)
+                        fig_heat = px.imshow(pivot_table, labels=dict(x="Měsíc", y="Rok", color="Změna %"), x=pivot_table.columns, y=pivot_table.index, color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0, text_auto='.1f')
+                        fig_heat.update_layout(height=300)
+                        st.plotly_chart(fig_heat, use_container_width=True)
+                    else: st.info("Zatím nemám dost dat.")
+                except: st.info("Málo dat pro heatmapu.")
+            else: st.info("Měsíční mapa se ukáže, až budeš mít historii delší než 1 měsíc.")
+
             st.divider()
             st.caption("🥊 SOUBOJ S TRHEM (S&P 500)")
             if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
@@ -887,3 +927,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
