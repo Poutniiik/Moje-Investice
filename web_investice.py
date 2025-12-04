@@ -88,7 +88,7 @@ try:
 except Exception:
     AI_AVAILABLE = False
 
-# --- STYLY (MODERNÍ TERMINÁL - FULL) ---
+# --- STYLY (MODERNÍ TERMINÁL - FULL + MOBILE FIXES) ---
 st.markdown("""
 <style>
     /* Hlavní barvy a fonty */
@@ -114,12 +114,13 @@ st.markdown("""
     /* Nadpisy */
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1.5px;}
     
-    /* Tlačítka */
+    /* Tlačítka - Větší pro dotyk */
     div[data-testid="column"] button {
         border: 1px solid #30363D; 
         background-color: #21262D; 
         color: #C9D1D9;
         border-radius: 6px;
+        min-height: 45px; /* Větší výška pro prsty */
         transition: all 0.3s;
     }
     div[data-testid="column"] button:hover {
@@ -132,9 +133,10 @@ st.markdown("""
         gap: 8px;
         background-color: transparent;
         padding-bottom: 5px;
+        flex-wrap: wrap; /* Zalomení na mobilu */
     }
     .stTabs [data-baseweb="tab"] {
-        height: 42px;
+        height: 45px; /* Větší pro dotyk */
         white-space: pre-wrap;
         background-color: #0d1117; 
         border: 1px solid #30363D; 
@@ -144,6 +146,7 @@ st.markdown("""
         font-size: 0.9rem;
         transition: all 0.2s ease;
         padding: 0px 20px;
+        margin-bottom: 5px; /* Mezera při zalomení */
     }
     .stTabs [data-baseweb="tab"]:hover {
         border-color: #8B949E;
@@ -166,13 +169,14 @@ st.markdown("""
         background-color: #238636;
     }
 
-    /* --- PLOVOUCÍ AI BOT (AVATAR STYLE) --- */
+    /* --- PLOVOUCÍ AI BOT (RESPONZIVNÍ AVATAR STYLE) --- */
     
     div[data-testid="stExpander"]:has(#floating-bot-anchor) {
         position: fixed !important;
-        bottom: 30px !important;
-        right: 30px !important;
-        width: 380px !important;
+        bottom: 20px !important;
+        right: 20px !important;
+        width: 380px !important; /* PC velikost */
+        max-width: 85vw !important; /* Mobilní limit */
         z-index: 99999 !important;
         background-color: transparent !important;
         border: none !important;
@@ -191,8 +195,8 @@ st.markdown("""
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary {
         background-color: transparent !important;
         color: transparent !important;
-        height: 80px !important;
-        width: 80px !important;
+        height: 70px !important; /* Trochu menší na mobil */
+        width: 70px !important;
         border-radius: 50% !important;
         padding: 0 !important;
         margin-left: auto !important;
@@ -244,7 +248,7 @@ st.markdown("""
 
     /* OBSAH CHATU */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) div[data-testid="stExpanderDetails"] {
-        max-height: 500px;
+        max-height: 400px; /* Menší výška pro mobily */
         overflow-y: auto;
         background-color: #0d1117;
         border-bottom-left-radius: 20px;
@@ -257,6 +261,13 @@ st.markdown("""
         0% { transform: translateY(0px); }
         50% { transform: translateY(-10px); }
         100% { transform: translateY(0px); }
+    }
+    
+    /* Mobilní úpravy pro Ticker Tape */
+    @media (max-width: 600px) {
+        .ticker-text {
+            font-size: 0.8rem !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -596,7 +607,7 @@ def render_ticker_tape(data_dict):
     
     st.markdown(f"""
         <div style="background-color: #161B22; border: 1px solid #30363D; border-radius: 5px; padding: 8px; margin-bottom: 20px; white-space: nowrap; overflow: hidden;">
-            <div style="display: inline-block; animation: marquee 20s linear infinite; color: #00CC96; font-family: 'Roboto Mono', monospace; font-weight: bold;">
+            <div style="display: inline-block; animation: marquee 20s linear infinite; color: #00CC96; font-family: 'Roboto Mono', monospace; font-weight: bold;" class="ticker-text">
                 {content} {content} {content}
             </div>
         </div>
@@ -921,6 +932,7 @@ def main():
                 vdf,
                 column_config={
                     "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
+                    "Sektor": st.column_config.TextColumn("Sektor", help="Odvětví"),
                     "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
                     "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="$%.0f"),
                     "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
@@ -1322,7 +1334,7 @@ def main():
             if not df_div.empty:
                 st.dataframe(df_div[["Datum", "Ticker", "Castka", "Mena", "CastkaCZK"]].sort_values("Datum", ascending=False).style.format({"Castka": "{:,.2f}", "CastkaCZK": "{:,.0f} Kč", "Datum": "{:%d.%m.%Y}"}), use_container_width=True, hide_index=True)
 
-    elif page == "⚙️ Nastavení":
+    elif page == "⚙️ Správa Dat":
         st.title("⚙️ DATA & SPRÁVA")
         st.info("Zde můžeš editovat data natvrdo.")
         t1, t2 = st.tabs(["PORTFOLIO", "HISTORIE"])
@@ -1369,5 +1381,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
