@@ -1283,35 +1283,90 @@ def main():
                     else: st.error("Nepodařilo se načíst data o firmě.")
 
         with tab2:
-            st.subheader("⚔️ SOUBOJ AKCIÍ")
-            c_f1, c_f2 = st.columns(2)
-            with c_f1: t1 = st.text_input("Bojovník 1", "AAPL").upper()
-            with c_f2: t2 = st.text_input("Bojovník 2", "MSFT").upper()
-            if st.button("SROVNAT", type="primary"):
-                if t1 and t2:
-                    with st.spinner("Probíhá analýza..."):
-                        i1, h1 = ziskej_detail_akcie(t1); i2, h2 = ziskej_detail_akcie(t2)
-                        if i1 and i2:
-                            mc1 = i1.get('marketCap', 0); mc2 = i2.get('marketCap', 0)
-                            pe1 = i1.get('trailingPE', 0); pe2 = i2.get('trailingPE', 0)
-                            dy1 = i1.get('dividendYield', 0); dy2 = i2.get('dividendYield', 0)
-                            perf1 = ((h1['Close'].iloc[-1] / h1['Close'].iloc[0]) - 1) * 100 if not h1.empty else 0
-                            perf2 = ((h2['Close'].iloc[-1] / h2['Close'].iloc[0]) - 1) * 100 if not h2.empty else 0
+            st.subheader("⚔️ SROVNÁNÍ VÝKONNOSTI AKCIÍ") # Změna nadpisu pro lepší popis
+            
+            # --- NOVÝ MULTI-SELECT VSTUP ---
+            # Získáme unikátní tickery z portfolia a přidáme S&P 500 (^GSPC)
+            portfolio_tickers = df['Ticker'].unique().tolist() if not df.empty else []
+            default_tickers = ['AAPL', 'MSFT', '^GSPC']
+            
+            # Nastavíme defaultní výběr (prvních 5 z portfolia + S&P 500)
+            initial_selection = list(set(portfolio_tickers[:5] + ['^GSPC']))
+            
+            tickers_to_compare = st.multiselect(
+                "Vyberte akcie/indexy pro srovnání výkonnosti:", 
+                options=list(set(default_tickers + portfolio_tickers)),
+                default=initial_selection,
+                key="multi_compare"
+            )
+
+            # --- DYNAMICKÉ STAŽENÍ A NORMALIZACE DAT ---
+            if tickers_to_compare:
+                try:
+                    with st.spinner(f"Stahuji historická data pro {len(tickers_to_compare)} tickerů..."):
+                        # Stáhneme data za 1 rok
+                        raw_data = yf.download(tickers_to_compare, period="1y", interval="1d", progress=False)['Close']
+                        
+                        if raw_data.empty:
+                             st.warning("Nepodařilo se načíst historická data pro vybrané tickery.")
+                        else:
+                            # Normalizace dat: Nastavení všech křivek na 0 ke startovnímu datu
+                            normalized_data = raw_data.apply(lambda x: (x / x.iloc[0] - 1) * 100)
+
+                            # --- VYKRESLENÍ NORMALIZOVANÉHO GRAFU ---
+                            fig_multi_comp = px.line(
+                                normalized_data, 
+                                title='Normalizovaná výkonnost (Změna v %) od počátku',
+                                template="plotly_dark"
+                            )
+                            fig_multi_comp.update_layout(
+                                xaxis_title="Datum", 
+                                yaxis_title="Změna (%)", 
+                                height=500,
+                                margin=dict(t=50, b=0, l=0, r=0)
+                            )
+                            st.plotly_chart(fig_multi_comp, use_container_width=True)
+
+                            # --- ZACHOVÁNÍ PŮVODNÍ TABULKY METRIK (Jen pro první dva/tři porovnávané) ---
+                            st.divider()
+                            st.subheader("Detailní srovnání metrik")
                             
-                            cc1, cc2, cc3, cc4 = st.columns(4)
-                            cc1.metric(f"Kapitalizace {t1}", f"${mc1/1e9:.1f}B", delta_color="normal")
-                            cc1.metric(f"Kapitalizace {t2}", f"${mc2/1e9:.1f}B", delta=f"{(mc2-mc1)/1e9:.1f}B")
-                            comp_data = {
-                                "Metrika": ["Cena", "P/E Ratio", "Dividenda", "Změna 1R"],
-                                t1: [f"{i1.get('currentPrice')} {i1.get('currency')}", f"{pe1:.2f}", f"{dy1*100:.2f}%" if dy1 else "0%", f"{perf1:+.2f}%"],
-                                t2: [f"{i2.get('currentPrice')} {i2.get('currency')}", f"{pe2:.2f}", f"{dy2*100:.2f}%" if dy2 else "0%", f"{perf2:+.2f}%"]
-                            }
-                            st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
-                            if not h1.empty and not h2.empty:
-                                h1['Norm'] = (h1['Close'] / h1['Close'].iloc[0] - 1) * 100
-                                h2['Norm'] = (h2['Close'] / h2['Close'].iloc[0] - 1) * 100
-                                st.line_chart(pd.concat([h1['Norm'].rename(t1), h2['Norm'].rename(t2)], axis=1))
-                        else: st.error("Chyba načítání dat.")
+                            comp_list = []
+                            for t in tickers_to_compare[:2]: # Původní metrika fungovala jen pro 2, zachováme to pro první 2 vybrané.
+                                i, h = ziskej_detail_akcie(t)
+                                if i:
+                                    mc = i.get('marketCap', 0)
+                                    pe = i.get('trailingPE', 0)
+                                    dy = i.get('dividendYield', 0)
+                                    perf = ((h['Close'].iloc[-1] / h['Close'].iloc[0]) - 1) * 100 if h is not None and not h.empty and h['Close'].iloc[0] != 0 else 0
+                                    
+                                    comp_list.append({
+                                        "Metrika": [f"Kapitalizace {t}", f"P/E Ratio {t}", f"Dividenda {t}", f"Změna 1R {t}"],
+                                        "Hodnota": [
+                                            f"${mc/1e9:.1f}B", 
+                                            f"{pe:.2f}" if pe > 0 else "N/A", 
+                                            f"{dy*100:.2f}%" if dy else "0%", 
+                                            f"{perf:+.2f}%"
+                                        ]
+                                    })
+                                
+                            if len(comp_list) >= 2:
+                                # Původní formát byl matice
+                                comp_data = {
+                                    "Metrika": ["Kapitalizace", "P/E Ratio", "Dividenda", "Změna 1R"],
+                                    tickers_to_compare[0]: [comp_list[0]['Hodnota'][i] for i in range(4)],
+                                    tickers_to_compare[1]: [comp_list[1]['Hodnota'][i] for i in range(4)]
+                                }
+                                st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
+                            elif tickers_to_compare:
+                                st.info(f"Pro detailní srovnávací tabulku (metriky P/E, Kapitalizace) vyberte alespoň 2 akcie.")
+                            
+
+                except Exception as e:
+                    st.error(f"Chyba při stahování/zpracování dat: Zkuste vybrat jiné tickery. (Detail: {e})")
+            else:
+                st.info("Vyberte alespoň jeden ticker (akcii nebo index) pro zobrazení srovnávacího grafu.")
+
 
         with tab3:
             if not vdf.empty:
@@ -1646,7 +1701,7 @@ def main():
                 portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
                 if viz_data: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data])
                 full_prompt = f"{APP_MANUAL}\n\nDATA:\n{portfolio_context}\n\nDOTAZ: {last_user_msg}"
-                try: response = AI_MODEL.generate_content(prompt, tools=[{"google_search": {}}]); ai_reply = response.text
+                try: response = AI_MODEL.generate_content(full_prompt); ai_reply = response.text
                 except Exception as e: ai_reply = f"Chyba: {str(e)}"
                 st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
 
