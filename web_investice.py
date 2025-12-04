@@ -71,7 +71,7 @@ try:
 except:
     AI_AVAILABLE = False
 
-# --- STYLY (MODERNÍ TERMINÁL - V2.3 Animated Avatar) ---
+# --- STYLY (MODERNÍ TERMINÁL - V2.4 Fix Floating Bot) ---
 st.markdown("""
 <style>
     /* Hlavní barvy a fonty */
@@ -149,35 +149,38 @@ st.markdown("""
         background-color: #238636;
     }
 
-    /* --- PLOVOUCÍ AI BOT (AVATAR STYLE) --- */
+    /* --- PLOVOUCÍ AI BOT (AVATAR STYLE - NEPRŮSTŘELNÁ VERZE) --- */
+    /* Používáme :has() selector pro zacílení rodičovského expanderu, který obsahuje náš unikátní span */
     
-    /* Kontejner chatu (poloha) */
-    .floating-chat-marker + div {
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) {
         position: fixed !important;
         bottom: 30px !important;
         right: 30px !important;
         width: 380px !important;
-        z-index: 9999 !important;
+        z-index: 99999 !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
     }
     
-    /* Expander sám o sobě (bublina chatu) */
-    .floating-chat-marker + div [data-testid="stExpander"] {
+    /* Stylování samotného detailu (to co se otevírá) */
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) details {
+        border-radius: 20px !important;
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
-        border-radius: 20px !important;
         box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
         transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
     }
 
-    /* HLAVIČKA (To je náš Avatar/Tlačítko) */
-    .floating-chat-marker + div [data-testid="stExpander"] summary {
+    /* HLAVIČKA - ZAVŘENÁ (AVATAR) */
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) summary {
         background-color: transparent !important;
-        color: transparent !important; /* Skryjeme text, použijeme obrázek */
-        height: 80px !important; /* Velikost tlačítka */
+        color: transparent !important;
+        height: 80px !important;
         width: 80px !important;
         border-radius: 50% !important;
         padding: 0 !important;
-        margin-left: auto !important; /* Zarovnání doprava */
+        margin-left: auto !important;
         
         /* OBRÁZEK ROBOTA (GIF) */
         background-image: url('https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif');
@@ -186,25 +189,24 @@ st.markdown("""
         border: 3px solid #238636 !important;
         box-shadow: 0 0 15px rgba(35, 134, 54, 0.5);
         
-        /* Animace pohupování */
         animation: float 6s ease-in-out infinite;
         transition: transform 0.2s, box-shadow 0.2s;
     }
     
-    /* Hover efekt na robota */
-    .floating-chat-marker + div [data-testid="stExpander"] summary:hover {
+    /* Hover efekt */
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) summary:hover {
         transform: scale(1.1) rotate(5deg);
         box-shadow: 0 0 25px rgba(35, 134, 54, 0.8);
         cursor: pointer;
     }
     
-    /* Šipka expanderu (skrýt) */
-    .floating-chat-marker + div [data-testid="stExpander"] summary svg {
+    /* Skrýt šipku */
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) summary svg {
         display: none !important;
     }
 
-    /* Otevřený stav - musíme změnit styl, aby to vypadalo jako okno */
-    .floating-chat-marker + div [data-testid="stExpander"][aria-expanded="true"] summary {
+    /* OTEVŘENÝ STAV */
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary {
         width: 100% !important;
         height: 40px !important;
         border-radius: 15px 15px 0 0 !important;
@@ -216,18 +218,18 @@ st.markdown("""
         justify-content: center;
         animation: none !important;
         border: none !important;
+        margin: 0 !important;
     }
     
-    /* Přidáme text "Zavřít" když je otevřeno (pomocí after) */
-    .floating-chat-marker + div [data-testid="stExpander"][aria-expanded="true"] summary::after {
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary::after {
         content: "❌ ZAVŘÍT CHAT";
         font-weight: bold;
         font-size: 0.9rem;
         color: white;
     }
 
-    /* Obsah chatu */
-    .floating-chat-marker + div [data-testid="stExpanderDetails"] {
+    /* OBSAH CHATU */
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) div[data-testid="stExpanderDetails"] {
         max-height: 500px;
         overflow-y: auto;
         background-color: #0d1117;
@@ -237,7 +239,6 @@ st.markdown("""
         padding: 15px;
     }
 
-    /* Animace plavání */
     @keyframes float {
         0% { transform: translateY(0px); }
         50% { transform: translateY(-10px); }
@@ -1144,10 +1145,9 @@ def main():
         st.download_button("💾 STÁHNOUT ZÁLOHU (.ZIP)", data=zip_buffer.getvalue(), file_name=f"zaloha_{datetime.now().strftime('%Y%m%d')}.zip", mime="application/zip")
 
     # --- PLOVOUCÍ CHATBOT (NA KONCI SCRIPTU) ---
-    # Toto vytvoří marker, podle kterého CSS najde a "přilepí" následující expander
-    st.markdown('<div class="floating-chat-marker"></div>', unsafe_allow_html=True)
-    
+    # Trik: Vytvoříme anchor (span) uvnitř expanderu, který pak CSS najde a styluje
     with st.expander("🤖 AI ASISTENT"):
+        st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
         if "chat_messages" not in st.session_state: 
             st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
         
@@ -1175,3 +1175,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
