@@ -1418,24 +1418,161 @@ def main():
             else: st.info("Portfolio je prázdné.")
 
         with tab4:
-            st.subheader("🔮 FINANČNÍ STROJ ČASU"); 
-            with st.container(border=True):
-                col_v1, col_v2 = st.columns([1, 2])
-                with col_v1:
-                    vklad = st.number_input("Měsíční vklad (Kč)", value=5000, step=500)
-                    roky = st.slider("Počet let", 5, 40, 15)
-                    urok = st.slider("Očekávaný úrok p.a. (%)", 1.0, 15.0, 8.0)
-                with col_v2:
-                    data_budoucnost = []; aktualni_hodnota = celk_hod_czk; vlozeno = celk_hod_czk
-                    for r in range(1, roky + 1):
-                        rocni_vklad = vklad * 12; vlozeno += rocni_vklad
-                        aktualni_hodnota = (aktualni_hodnota + rocni_vklad) * (1 + urok/100)
-                        data_budoucnost.append({"Rok": datetime.now().year + r, "Hodnota": round(aktualni_hodnota), "Vklady": round(vlozeno)})
-                    st.area_chart(pd.DataFrame(data_budoucnost).set_index("Rok"), color=["#00FF00", "#333333"])
-                    st.metric(f"Hodnota v roce {datetime.now().year + roky}", f"{aktualni_hodnota:,.0f} Kč", f"Zisk: {aktualni_hodnota - vlozeno:,.0f} Kč")
+            # --- NOVÁ FUNKCE: EFEKTIVNÍ HRANICE (Efficient Frontier) ---
+            st.subheader("🔮 FINANČNÍ STROJ ČASU")
+            st.write("")
+            
+            tickers_for_ef = df['Ticker'].unique().tolist()
+            if len(tickers_for_ef) < 2:
+                st.warning("⚠️ Pro simulaci Efektivní hranice potřebujete mít v portfoliu alespoň 2 různé akcie.")
+            else:
+                st.subheader("📊 Efektivní Hranice (Optimalizace Riziko/Výnos)")
+                st.info(f"Proběhne simulace {len(tickers_for_ef)} akcií z tvého portfolia za posledních 5 let.")
+
+                num_portfolios = st.slider("Počet simulací:", 1000, 10000, 5000, step=1000)
+                
+                if st.button("📈 SPUSTIT OPTIMALIZACI PORTFOLIA", type="primary", key="run_ef"):
+                    try:
+                        # 1. Získání historických dat
+                        with st.spinner("Počítám tisíce náhodných portfolií..."):
+                            end_date = datetime.now()
+                            start_date = end_date - timedelta(days=5 * 365) # Historie 5 let
+                            
+                            price_data = yf.download(tickers_for_ef, start=start_date, end=end_date, progress=False)['Adj Close']
+                            price_data = price_data.dropna()
+
+                            if price_data.empty or len(price_data) < 252:
+                                st.error("Nelze provést simulaci: Historická data pro vybrané akcie nejsou dostupná nebo jsou nedostatečná (potřeba min. 1 rok dat).")
+                                raise ValueError("Nedostatečná data pro EF")
+
+                            log_returns = np.log(price_data / price_data.shift(1)).dropna()
+                            num_assets = len(tickers_for_ef)
+                            
+                            # 2. Monte Carlo simulace pro Efektivní Hranici
+                            results = np.zeros((3 + num_assets, num_portfolios)) # Výnos, Volatilita, Sharpe, Váhy...
+                            
+                            for i in range(num_portfolios):
+                                weights = np.random.random(num_assets)
+                                weights /= np.sum(weights)
+
+                                # Očekávaná návratnost (Annualized Return)
+                                portfolio_return = np.sum(log_returns.mean() * weights) * 252
+                                
+                                # Očekávaná volatilita (Annualized Volatility/Risk)
+                                portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(log_returns.cov() * 252, weights)))
+                                
+                                # Sharpe Ratio
+                                sharpe_ratio = (portfolio_return - RISK_FREE_RATE) / portfolio_volatility
+
+                                results[0,i] = portfolio_volatility
+                                results[1,i] = portfolio_return
+                                results[2,i] = sharpe_ratio
+                                for j in range(num_assets):
+                                    results[3+j,i] = weights[j]
+
+                            # 3. Analýza výsledků
+                            cols = ['Volatilita', 'Výnos', 'Sharpe'] + tickers_for_ef
+                            results_frame = pd.DataFrame(results.T, columns=cols)
+                            
+                            # Max Sharpe Ratio Portfolio
+                            max_sharpe_portfolio = results_frame.loc[results_frame['Sharpe'].idxmax()]
+                            
+                            # Min Volatility Portfolio
+                            min_vol_portfolio = results_frame.loc[results_frame['Volatilita'].idxmin()]
+                            
+                            # 4. Vykreslení
+                            fig_ef = go.Figure()
+
+                            # Body simulace
+                            fig_ef.add_trace(go.Scatter(
+                                x=results_frame['Volatilita'],
+                                y=results_frame['Výnos'],
+                                mode='markers',
+                                marker=dict(
+                                    color=results_frame['Sharpe'],
+                                    size=5,
+                                    colorscale='Viridis',
+                                    showscale=True,
+                                    colorbar=dict(title='Sharpe Ratio')
+                                ),
+                                name='Simulovaná Portfolia'
+                            ))
+                            
+                            # Minimum Volatility point (RED)
+                            fig_ef.add_trace(go.Scatter(
+                                x=[min_vol_portfolio['Volatilita']], 
+                                y=[min_vol_portfolio['Výnos']], 
+                                mode='markers',
+                                marker=dict(color='red', size=15, symbol='star'),
+                                name='Minimální Riziko'
+                            ))
+                            
+                            # Max Sharpe Ratio point (GREEN)
+                            fig_ef.add_trace(go.Scatter(
+                                x=[max_sharpe_portfolio['Volatilita']], 
+                                y=[max_sharpe_portfolio['Výnos']], 
+                                mode='markers',
+                                marker=dict(color='lightgreen', size=15, symbol='star'),
+                                name='Max Sharpe Ratio'
+                            ))
+                            
+                            fig_ef.update_layout(
+                                title='Efektivní Hranice',
+                                xaxis_title='Volatilita (Riziko)',
+                                yaxis_title='Očekávaný Roční Výnos',
+                                template="plotly_dark",
+                                hovermode='closest',
+                                height=550
+                            )
+                            st.plotly_chart(fig_ef, use_container_width=True)
+                            
+                            # 5. Výsledky Optimalizace
+                            st.divider()
+                            c_ef1, c_ef2 = st.columns(2)
+                            
+                            with c_ef1:
+                                st.success("🟢 OPTIMÁLNÍ SHARPE RATIO PORTFOLIO (Max. výnos k riziku)")
+                                st.metric("Sharpe Ratio", f"{max_sharpe_portfolio['Sharpe']:.2f}")
+                                st.metric("Roční výnos", f"{max_sharpe_portfolio['Výnos'] * 100:.2f} %")
+                                st.metric("Roční riziko (Volatilita)", f"{max_sharpe_portfolio['Volatilita'] * 100:.2f} %")
+                                st.markdown("**Doporučené váhy:**")
+                                max_sharpe_weights = max_sharpe_portfolio[tickers_for_ef].to_frame().apply(lambda x: f"{x * 100:.1f}%")
+                                st.dataframe(max_sharpe_weights.rename(columns={max_sharpe_weights.columns[0]: "Váha"}), use_container_width=True)
+                                
+                            with c_ef2:
+                                st.error("🔴 MINIMÁLNÍ RIZIKO PORTFOLIO (Nejnižší volatilita)")
+                                st.metric("Sharpe Ratio", f"{min_vol_portfolio['Sharpe']:.2f}")
+                                st.metric("Roční výnos", f"{min_vol_portfolio['Výnos'] * 100:.2f} %")
+                                st.metric("Roční riziko (Volatilita)", f"{min_vol_portfolio['Volatilita'] * 100:.2f} %")
+                                st.markdown("**Doporučené váhy:**")
+                                min_vol_weights = min_vol_portfolio[tickers_for_ef].to_frame().apply(lambda x: f"{x * 100:.1f}%")
+                                st.dataframe(min_vol_weights.rename(columns={min_vol_weights.columns[0]: "Váha"}), use_container_width=True)
+
+                    except ValueError:
+                        pass # Chyba o nedostatečných datech je již ošetřena uvnitř bloku.
+                    except Exception as e:
+                        st.error(f"Při simulaci došlo k neočekávané chybě: {e}")
+                        
+            # --- PŮVODNÍ FUNKCE (ZACHOVÁNO) ---
+            st.divider()
+            st.subheader("🔮 Složené úročení (Původní funkce)")
+            
+            col_v1, col_v2 = st.columns([1, 2])
+            with col_v1:
+                vklad = st.number_input("Měsíční vklad (Kč)", value=5000, step=500, key="vklad_orig")
+                roky = st.slider("Počet let", 5, 40, 15, key="roky_orig")
+                urok = st.slider("Očekávaný úrok p.a. (%)", 1.0, 15.0, 8.0, key="urok_orig")
+            with col_v2:
+                data_budoucnost = []; aktualni_hodnota = celk_hod_czk; vlozeno = celk_hod_czk
+                for r in range(1, roky + 1):
+                    rocni_vklad = vklad * 12; vlozeno += rocni_vklad
+                    aktualni_hodnota = (aktualni_hodnota + rocni_vklad) * (1 + urok/100)
+                    data_budoucnost.append({"Rok": datetime.now().year + r, "Hodnota": round(aktualni_hodnota), "Vklady": round(vlozeno)})
+                st.area_chart(pd.DataFrame(data_budoucnost).set_index("Rok"), color=["#00FF00", "#333333"])
+                st.metric(f"Hodnota v roce {datetime.now().year + roky}", f"{aktualni_hodnota:,.0f} Kč", f"Zisk: {aktualni_hodnota - vlozeno:,.0f} Kč")
             
             st.divider()
-            st.subheader("🎲 MONTE CARLO: Simulace budoucnosti")
+            st.subheader("🎲 MONTE CARLO: Simulace budoucnosti (Původní funkce)")
             st.info("Simulace 50 možných scénářů vývoje tvého portfolia na základě volatility trhu.")
             c_mc1, c_mc2 = st.columns(2)
             with c_mc1:
@@ -1444,7 +1581,7 @@ def main():
             with c_mc2:
                 mc_return = st.slider("Očekávaný výnos p.a. (%)", -5, 20, 8, key="mc_ret") / 100
                 start_val = celk_hod_czk if celk_hod_czk > 0 else 100000 
-            if st.button("🔮 SPUSTIT SIMULACI", type="primary"):
+            if st.button("🔮 SPUSTIT SIMULACI", key="run_mc", type="primary"): # Změněn key, aby se nepletl s EF
                 days = mc_years * 252; dt = 1/252; mu = mc_return; sigma = mc_volatility; num_simulations = 50
                 sim_data = pd.DataFrame()
                 for i in range(num_simulations):
@@ -1465,12 +1602,14 @@ def main():
             st.divider()
             st.subheader("💥 CRASH TEST")
             with st.container(border=True):
-                propad = st.slider("Simulace pádu trhu (%)", 5, 80, 20, step=5)
+                propad = st.slider("Simulace pádu trhu (%)", 5, 80, 20, step=5, key="crash_slider")
                 ztrata_czk = (celk_hod_usd * (propad / 100)) * kurzy["CZK"]
                 zbytek_czk = (celk_hod_usd * (1 - propad / 100)) * kurzy["CZK"]
                 c_cr1, c_cr2 = st.columns(2)
                 with c_cr1: st.error(f"📉 ZTRÁTA: -{ztrata_czk:,.0f} Kč"); st.warning(f"💰 ZBYDE TI: {zbytek_czk:,.0f} Kč")
                 with c_cr2: st.progress(1.0 - (propad / 100))
+        
+        # --- Původní kód pro Monte Carlo, Složené úročení a Crash Test je nyní pod novou funkcí Efektivní Hranice ---
 
         with tab5:
             st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500) & SHARPE RATIO")
