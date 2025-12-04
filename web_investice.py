@@ -302,6 +302,18 @@ def get_manager():
 
 # --- EXTERNÍ DATA ---
 @st.cache_data(ttl=3600)
+def ziskej_fear_greed():
+    url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    try:
+        r = requests.get(url, headers=headers, timeout=5)
+        data = r.json()
+        score = int(data['fear_and_greed']['score'])
+        rating = data['fear_and_greed']['rating']
+        return score, rating
+    except: return None, None
+
+@st.cache_data(ttl=3600)
 def ziskej_zpravy():
     news = []
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -961,6 +973,34 @@ def main():
         
         st.write("")
         
+        # --- FEAR & GREED INDEX (TACHOMETR) ---
+        score, rating = ziskej_fear_greed()
+        if score is not None:
+            st.subheader(f"😨🤑 TRŽNÍ NÁLADA: {rating} ({score})")
+            fig_gauge = go.Figure(go.Indicator(
+                mode = "gauge+number",
+                value = score,
+                domain = {'x': [0, 1], 'y': [0, 1]},
+                gauge = {
+                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "white"},
+                    'bar': {'color': "white"},
+                    'bgcolor': "black",
+                    'borderwidth': 2,
+                    'bordercolor': "gray",
+                    'steps': [
+                        {'range': [0, 25], 'color': '#FF4136'},   # Extrémní strach (červená)
+                        {'range': [25, 45], 'color': '#FF851B'},  # Strach (oranžová)
+                        {'range': [45, 55], 'color': '#AAAAAA'},  # Neutrál (šedá)
+                        {'range': [55, 75], 'color': '#7FDBFF'},  # Chamtivost (světle modrá)
+                        {'range': [75, 100], 'color': '#2ECC40'}  # Extrémní chamtivost (zelená)
+                    ],
+                }
+            ))
+            fig_gauge.update_layout(paper_bgcolor="#161B22", font={'color': "white", 'family': "Arial"}, height=250, margin=dict(l=20, r=20, t=30, b=20))
+            st.plotly_chart(fig_gauge, use_container_width=True)
+        
+        st.divider()
+
         # Prepare data for charts
         if viz_data:
             vdf = pd.DataFrame(viz_data)
