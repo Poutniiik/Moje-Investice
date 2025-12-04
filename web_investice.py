@@ -71,7 +71,7 @@ try:
 except:
     AI_AVAILABLE = False
 
-# --- STYLY (MODERNÍ TERMINÁL - V2.1) ---
+# --- STYLY (MODERNÍ TERMINÁL - V2.2 Floating Bot) ---
 st.markdown("""
 <style>
     /* Hlavní barvy a fonty */
@@ -119,8 +119,8 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         height: 42px;
         white-space: pre-wrap;
-        background-color: #0d1117; /* Tmavší pozadí pro neaktivní */
-        border: 1px solid #30363D; /* Jemný rámeček */
+        background-color: #0d1117; 
+        border: 1px solid #30363D; 
         border-radius: 6px;
         color: #8B949E;
         font-family: 'Roboto Mono', monospace;
@@ -135,10 +135,10 @@ st.markdown("""
     }
     .stTabs [aria-selected="true"] {
         background-color: #238636 !important;
-        border-color: #2ea043 !important; /* Světlejší zelený okraj */
+        border-color: #2ea043 !important; 
         color: white !important;
         font-weight: bold;
-        box-shadow: 0 0 10px rgba(35, 134, 54, 0.3); /* Jemná záře */
+        box-shadow: 0 0 10px rgba(35, 134, 54, 0.3); 
     }
 
     /* Odkazy */
@@ -147,6 +147,41 @@ st.markdown("""
     /* Progress bar */
     .stProgress > div > div > div > div {
         background-color: #238636;
+    }
+
+    /* --- PLOVOUCÍ AI BOT (CSS HACK) --- */
+    /* Najdeme kontejner, který následuje po našem markeru */
+    .floating-chat-marker + div {
+        position: fixed !important;
+        bottom: 20px !important;
+        right: 20px !important; /* Vpravo dole, aby nepřekážel menu */
+        width: 350px !important;
+        z-index: 9999 !important;
+    }
+    
+    /* Stylování samotného expanderu, aby vypadal jako bublina */
+    .floating-chat-marker + div [data-testid="stExpander"] {
+        background-color: #161B22 !important;
+        border: 1px solid #58A6FF !important;
+        border-radius: 15px !important;
+        box-shadow: 0 0 20px rgba(0,0,0,0.7) !important;
+    }
+    
+    /* Hlavička (To co vidíš, když je zavřeno - "hlava robota") */
+    .floating-chat-marker + div [data-testid="stExpander"] summary {
+        background-color: #238636 !important; /* Zelená jako online */
+        color: white !important;
+        border-radius: 10px !important;
+        font-weight: bold !important;
+    }
+    
+    /* Obsah chatu (když je otevřeno) */
+    .floating-chat-marker + div [data-testid="stExpanderDetails"] {
+        max-height: 400px;
+        overflow-y: auto;
+        background-color: #0E1117;
+        border-bottom-left-radius: 15px;
+        border-bottom-right-radius: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -569,7 +604,7 @@ def main():
     try: cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except: cash_usd = 0
 
-    # --- 4. SIDEBAR + CHATBOT ---
+    # --- 4. SIDEBAR ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         if zustatky:
@@ -584,28 +619,7 @@ def main():
         st.divider(); st.subheader("🧭 NAVIGACE")
         page = st.radio("Menu:", ["🏠 Přehled", "📈 Analýza", "📰 Zprávy", "💸 Obchod & Peníze", "💎 Dividendy", "⚙️ Správa Dat"], label_visibility="collapsed")
         
-        # CHAT
-        st.divider(); st.subheader("🤖 AI Průvodce")
-        if "chat_messages" not in st.session_state: st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce."}]
-        with st.container(border=True, height=300):
-            for msg in st.session_state["chat_messages"]: st.chat_message(msg["role"]).write(msg["content"])
-        if prompt := st.chat_input("Napiš dotaz..."):
-            if not AI_AVAILABLE: st.error("Chybí API klíč.")
-            else:
-                st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
-        
-        # Zpracování odpovědi
-        if st.session_state["chat_messages"][-1]["role"] == "user":
-            with st.spinner("..."):
-                last_user_msg = st.session_state["chat_messages"][-1]["content"]
-                portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
-                if viz_data: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data])
-                full_prompt = f"{APP_MANUAL}\n\nDATA:\n{portfolio_context}\n\nDOTAZ: {last_user_msg}"
-                try:
-                    response = AI_MODEL.generate_content(full_prompt)
-                    ai_reply = response.text
-                except Exception as e: ai_reply = f"Chyba: {str(e)}"
-                st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
+        # --- CHAT BYL PŘESUNUT DO PLOVOUCÍHO OKNA DOLE ---
         
         st.divider(); st.subheader("📧 RANNÍ REPORT")
         if st.button("Odeslat přehled na e-mail"):
@@ -1069,5 +1083,36 @@ def main():
                 if d in st.session_state: zip_file.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("💾 STÁHNOUT ZÁLOHU (.ZIP)", data=zip_buffer.getvalue(), file_name=f"zaloha_{datetime.now().strftime('%Y%m%d')}.zip", mime="application/zip")
 
+    # --- PLOVOUCÍ CHATBOT (NA KONCI SCRIPTU) ---
+    # Toto vytvoří marker, podle kterého CSS najde a "přilepí" následující expander
+    st.markdown('<div class="floating-chat-marker"></div>', unsafe_allow_html=True)
+    
+    with st.expander("🤖 AI ASISTENT"):
+        if "chat_messages" not in st.session_state: 
+            st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
+        
+        # Výpis historie (v malém okně)
+        for msg in st.session_state["chat_messages"]: 
+            st.chat_message(msg["role"]).write(msg["content"])
+            
+        if prompt := st.chat_input("Zeptej se..."):
+            if not AI_AVAILABLE: st.error("Chybí API klíč.")
+            else:
+                st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
+        
+        # Zpracování odpovědi (pokud je poslední zpráva od uživatele)
+        if st.session_state["chat_messages"][-1]["role"] == "user":
+            with st.spinner("Přemýšlím..."):
+                last_user_msg = st.session_state["chat_messages"][-1]["content"]
+                portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
+                if viz_data: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data])
+                full_prompt = f"{APP_MANUAL}\n\nDATA:\n{portfolio_context}\n\nDOTAZ: {last_user_msg}"
+                try:
+                    response = AI_MODEL.generate_content(full_prompt)
+                    ai_reply = response.text
+                except Exception as e: ai_reply = f"Chyba: {str(e)}"
+                st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
+
 if __name__ == "__main__":
     main()
+
