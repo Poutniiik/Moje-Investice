@@ -330,12 +330,12 @@ def ziskej_detail_akcie(ticker):
         info = {}
 
     # 2. FALLBACK: Pokud info chybí, použijeme fast_info (to funguje skoro vždy)
-    if not info or len(info) < 5:
+    if not info or len(info) < 5 or "Yahoo API limit" in info.get("longBusinessSummary", ""):
         try:
             fi = t.fast_info
             info = {
                 "longName": ticker,
-                "longBusinessSummary": "Detailní popis není momentálně dostupný (Yahoo API limit). Základní data načtena přes FastInfo.",
+                "longBusinessSummary": "MISSING_SUMMARY", # Značka pro AI
                 "recommendationKey": "N/A",
                 "targetMeanPrice": 0,
                 "trailingPE": 0,
@@ -1060,20 +1060,60 @@ def main():
                     
                     if t_info or (hist_data is not None and not hist_data.empty):
                         try:
+                            # Data Extraction with Defaults
                             long_name = t_info.get('longName', vybrana_akcie) if t_info else vybrana_akcie
-                            summary = t_info.get('longBusinessSummary', 'Popis nedostupný.') if t_info else 'Popis nedostupný.'
-                            recommendation = t_info.get('recommendationKey', 'Neznámé').upper().replace('_', ' ') if t_info else 'N/A'
+                            summary = t_info.get('longBusinessSummary', '') if t_info else ''
+                            recommendation = t_info.get('recommendationKey', 'N/A').upper().replace('_', ' ') if t_info else 'N/A'
                             target_price = t_info.get('targetMeanPrice', 0) if t_info else 0
                             pe_ratio = t_info.get('trailingPE', 0) if t_info else 0
                             currency = t_info.get('currency', '?') if t_info else '?'
-                            
+                            current_price = t_info.get('currentPrice', 0) if t_info else 0
+
+                            # --- AI FALLBACK PRO POPIS ---
+                            # Pokud Yahoo vrátí chybu nebo prázdno, zkusíme AI
+                            if (not summary or summary == "MISSING_SUMMARY" or "Yahoo" in summary) and AI_AVAILABLE:
+                                try:
+                                    prompt_desc = f"Napíš krátký popis (max 2 věty) pro firmu {vybrana_akcie} v češtině. Jde o investiční aplikaci."
+                                    res_desc = AI_MODEL.generate_content(prompt_desc)
+                                    summary = f"🤖 AI Shrnutí: {res_desc.text}"
+                                except:
+                                    summary = "Popis není k dispozici."
+                            elif not summary or "Yahoo" in summary:
+                                summary = "Popis není k dispozici."
+
+                            # --- ZOBRAZENÍ ---
                             c_d1, c_d2 = st.columns([1, 3])
                             with c_d1:
-                                barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
-                                st.markdown(f"### :{barva_rec}[{recommendation}]"); st.caption("Názor analytiků")
-                                st.metric("Cílová cena", f"{target_price} {currency}"); st.metric("P/E Ratio", f"{pe_ratio:.2f}")
+                                # Recommendation s barvou
+                                if recommendation != "N/A":
+                                    barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
+                                    st.markdown(f"### :{barva_rec}[{recommendation}]")
+                                    st.caption("Názor analytiků")
+                                else:
+                                    st.markdown("### 🤷‍♂️ N/A")
+                                    st.caption("Bez doporučení")
+                                
+                                # Cílová cena (skryjeme 0)
+                                if target_price > 0:
+                                    st.metric("Cílová cena", f"{target_price} {currency}")
+                                else:
+                                    st.metric("Cílová cena", "---")
+                                
+                                # P/E (skryjeme 0)
+                                if pe_ratio > 0:
+                                    st.metric("P/E Ratio", f"{pe_ratio:.2f}")
+                                else:
+                                    st.metric("P/E Ratio", "---")
+                                    
                             with c_d2:
-                                st.subheader(long_name); st.info(summary[:400] + "...")
+                                # Header s cenou
+                                col_h1, col_h2 = st.columns([3, 1])
+                                with col_h1: st.subheader(long_name)
+                                with col_h2: 
+                                    if current_price > 0:
+                                        st.metric("Cena", f"{current_price:,.2f} {currency}")
+                                
+                                st.info(summary)
                                 if t_info and t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
                             
                             st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
