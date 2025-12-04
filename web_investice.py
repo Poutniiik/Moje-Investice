@@ -18,6 +18,7 @@ import smtplib
 from email.mime.text import MIMEText
 from fpdf import FPDF
 import extra_streamlit_components as stx
+import random # Přidáno pro náhodné citáty
 
 # --- KONFIGURACE ---
 st.set_page_config(page_title="Terminal Pro", layout="wide", page_icon="💹", initial_sidebar_state="expanded")
@@ -38,6 +39,22 @@ RSS_ZDROJE = [
     "https://servis.idnes.cz/rss.aspx?c=ekonomika", 
     "https://www.investicniweb.cz/rss"
 ]
+
+# --- CITÁTY ---
+CITATY = [
+    "„Cena je to, co zaplatíš. Hodnota je to, co dostaneš.“ — Warren Buffett",
+    "„Riziko pochází z toho, že nevíte, co děláte.“ — Warren Buffett",
+    "„Trh je nástroj k přesunu peněz od netrpělivých k trpělivým.“ — Warren Buffett",
+    "„Investování bez výzkumu je jako hrát poker a nedívat se na karty.“ — Peter Lynch",
+    "„V krátkodobém horizontu je trh hlasovací stroj, v dlouhodobém váha.“ — Benjamin Graham",
+    "„Neutrácejte to, co zbude po utrácení. Utrácejte to, co zbude po spoření.“ — Warren Buffett",
+    "„Znáte ten pocit, když trh padá? To je výprodej. Nakupujte.“ — Neznámý",
+    "„Bohatství není o tom mít hodně peněz, ale o tom mít hodně možností.“ — Chris Rock"
+]
+
+# --- ANALÝZA SENTIMENTU (KLÍČOVÁ SLOVA) ---
+KW_POSITIVNI = ["RŮST", "ZISK", "REKORD", "DIVIDEND", "POKLES INFLACE", "BÝČÍ", "UP", "PROFIT", "HIGHS", "SKOK", "VYDĚLAL"]
+KW_NEGATIVNI = ["PÁD", "ZTRÁTA", "KRIZE", "MEDVĚDÍ", "DOWN", "LOSS", "CRASH", "PRODĚLAL", "VÁLKA", "BANKROT", "INFLACE", "POKLES"]
 
 # --- MANUÁL PRO AI ---
 APP_MANUAL = """
@@ -688,6 +705,12 @@ def main():
         st.progress(level_progress)
         # ----------------------------
 
+        # --- MOUDRO DNE (V SIDEBARU) ---
+        if 'quote' not in st.session_state:
+            st.session_state['quote'] = random.choice(CITATY)
+        st.info(f"💡 **Moudro dne:**\n\n*{st.session_state['quote']}*")
+        # -------------------------------
+
         if zustatky:
             st.caption("Stav peněženky:")
             for mena in ["USD", "CZK", "EUR"]:
@@ -1107,10 +1130,40 @@ def main():
                     prompt = f"Tady jsou titulky zpráv: {titles}. Jaká je nálada na trhu? Shrň to jednou větou."
                     try: res = AI_MODEL.generate_content(prompt); st.info(res.text, icon="🤖")
                     except: st.error("AI chyba.")
+        
+        # --- VYLEPŠENÉ ZOBRAZENÍ ZPRÁV SE SENTIMENTEM ---
         if news:
-            for n in news:
-                with st.container(border=True):
-                    st.subheader(n['title']); st.caption(f"📅 {n['published']}"); st.link_button("Číst celý článek", n['link'])
+            c1, c2 = st.columns(2)
+            for i, n in enumerate(news):
+                title_upper = n['title'].upper()
+                sentiment = "neutral"
+                
+                # Rychlá analýza klíčových slov
+                for kw in KW_POSITIVNI:
+                    if kw in title_upper: sentiment = "positive"; break
+                if sentiment == "neutral":
+                    for kw in KW_NEGATIVNI:
+                        if kw in title_upper: sentiment = "negative"; break
+                
+                col = c1 if i % 2 == 0 else c2
+                with col:
+                    if sentiment == "positive":
+                        with st.container(border=True):
+                            st.success(f"🟢 **BÝČÍ ZPRÁVA**")
+                            st.markdown(f"### {n['title']}")
+                            st.caption(f"📅 {n['published']}")
+                            st.link_button("Číst článek", n['link'])
+                    elif sentiment == "negative":
+                        with st.container(border=True):
+                            st.error(f"🔴 **MEDVĚDÍ SIGNÁL**")
+                            st.markdown(f"### {n['title']}")
+                            st.caption(f"📅 {n['published']}")
+                            st.link_button("Číst článek", n['link'])
+                    else:
+                        with st.container(border=True):
+                            st.markdown(f"### {n['title']}")
+                            st.caption(f"📅 {n['published']}")
+                            st.link_button("Číst článek", n['link'])
         else: st.info("Žádné nové zprávy.")
 
     elif page == "💸 Obchod & Peníze":
