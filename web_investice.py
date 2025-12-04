@@ -956,7 +956,7 @@ def main():
                     "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
                     "Sektor": st.column_config.TextColumn("Sektor", help="Odvětví"),
                     "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
-                    "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="$%.0f"),
+                    "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f"),
                     "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
                     "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
                     "Dan": "Daně",
