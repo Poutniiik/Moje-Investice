@@ -101,9 +101,7 @@ def get_repo():
 
 def zasifruj(text): return hashlib.sha256(str(text).encode()).hexdigest()
 
-# --- COOKIE MANAGER (CACHE) ---
-# Trik: Použijeme st.cache_resource, aby se manager nevytvářel znovu při každém reloadu
-@st.cache_resource(experimental_allow_widgets=True)
+# --- COOKIE MANAGER ---
 def get_manager():
     return stx.CookieManager(key="cookie_manager_inst")
 
