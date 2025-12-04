@@ -313,25 +313,47 @@ def ziskej_yield(ticker):
         return d if d else 0
     except Exception: return 0
 
-@st.cache_data(ttl=3600)
-def ziskej_detail_akcie(ticker):
-    # Oddělené získávání dat pro robustnost
+# --- POKROČILÉ CACHING FUNKCE PRO RENTGEN ---
+
+# 1. Funkce pro získání INFO (statická data) - Cache na 24h, uložení na disk
+@st.cache_data(ttl=86400, show_spinner=False, persist="disk")
+def _ziskej_info_cached(ticker):
+    """
+    Získá detailní info o firmě. Pokud data nejsou kompletní,
+    VYVOLÁ CHYBU, aby se špatný výsledek neuložil do cache.
+    """
+    t = yf.Ticker(str(ticker))
+    info = t.info
+    
+    # Validace: Pokud chybí klíčová data, považujeme to za chybu API
+    # a vyvoláme výjimku -> Streamlit si to NEuloží do cache.
+    if not info or len(info) < 5 or "Yahoo API limit" in info.get("longBusinessSummary", ""):
+        raise ValueError("Neúplná data z Yahoo API")
+    
+    return info
+
+# 2. Funkce pro získání HISTORIE (graf) - Cache na 1h
+@st.cache_data(ttl=3600, show_spinner=False)
+def _ziskej_historii_cached(ticker):
     try:
         t = yf.Ticker(str(ticker))
-    except: return {}, None
+        return t.history(period="1y")
+    except:
+        return None
 
+def ziskej_detail_akcie(ticker):
     info = {}
     hist = None
     
-    # 1. Zkusíme načíst INFO (může selhat)
+    # A) Zkusíme načíst INFO z "trezoru" (cache)
     try:
-        info = t.info
+        info = _ziskej_info_cached(ticker)
     except Exception:
-        info = {}
-
-    # 2. FALLBACK: Pokud info chybí, použijeme fast_info (to funguje skoro vždy)
-    if not info or len(info) < 5 or "Yahoo API limit" in info.get("longBusinessSummary", ""):
+        # Pokud cache selže (nebo API hodí chybu), spustíme "Záchranný režim" (Fallback)
+        # TENTO FALLBACK SE NEUKLÁDÁ DO DLOUHODOBÉ CACHE!
+        # Takže při příštím načtení se aplikace znova pokusí získat kvalitní data.
         try:
+            t = yf.Ticker(str(ticker))
             fi = t.fast_info
             info = {
                 "longName": ticker,
@@ -352,11 +374,8 @@ def ziskej_detail_akcie(ticker):
                 "longBusinessSummary": "Data nedostupná."
             }
 
-    # 3. Zkusíme načíst HISTORII (nezávisle)
-    try:
-        hist = t.history(period="1y")
-    except Exception:
-        hist = None
+    # B) Historii načítáme zvlášť (kratší cache)
+    hist = _ziskej_historii_cached(ticker)
     
     return info, hist
 
@@ -1333,3 +1352,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
