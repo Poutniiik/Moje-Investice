@@ -638,6 +638,15 @@ def main():
             elif vsechny_fail: dan_status = "🔴 Zdanit" 
             else: dan_status = "🟠 Mix" 
             
+            # --- URČENÍ ZEMĚ (HEURISTIKA PRO RYCHLOST) ---
+            country = "United States" # Default USA
+            tkr_upper = str(tkr).upper()
+            if tkr_upper.endswith(".PR"): country = "Czechia"
+            elif tkr_upper.endswith(".DE"): country = "Germany"
+            elif tkr_upper.endswith(".L"): country = "United Kingdom"
+            elif tkr_upper.endswith(".PA"): country = "France"
+            # ---------------------------------------------
+
             div_vynos = ziskej_yield(tkr)
             hod = row['Pocet']*p; inv = row['Investice']; z = hod-inv
             try: k = 1.0 / kurzy.get("CZK", 20.85) if m=="CZK" else (kurzy.get("EUR", 1.16) if m=="EUR" else 1.0)
@@ -646,7 +655,8 @@ def main():
             celk_hod_usd += hod*k; celk_inv_usd += inv*k
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m, 
-                "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena
+                "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena,
+                "Země": country
             })
 
     hist_vyvoje = st.session_state['hist_vyvoje']
@@ -816,9 +826,10 @@ def main():
                     "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="$%.0f"),
                     "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
                     "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
-                    "Dan": "Daně"
+                    "Dan": "Daně",
+                    "Země": "Země" # Přidáno
                 },
-                column_order=["Ticker", "Měna", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "Dan"],
+                column_order=["Ticker", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "Dan"],
                 use_container_width=True,
                 hide_index=True
             )
@@ -924,6 +935,32 @@ def main():
             with tab3:
                 if viz_data:
                     vdf = pd.DataFrame(viz_data)
+                    
+                    # --- NOVÁ 3D MAPA IMPÉRIA ---
+                    st.subheader("🌍 MAPA IMPÉRIA")
+                    try:
+                        df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
+                        # Vytvoření 3D globu
+                        fig_map = px.scatter_geo(df_map, locations="Země", locationmode="country names",
+                                                 hover_name="Země", size="HodnotaUSD",
+                                                 projection="orthographic", # Toto dělá ten efekt zeměkoule
+                                                 color="Země",
+                                                 template="plotly_dark",
+                                                 title="")
+                        # Styling mapy pro dark mode
+                        fig_map.update_geos(
+                            bgcolor="#161B22", 
+                            showcountries=True, countrycolor="#30363D",
+                            showocean=True, oceancolor="#0E1117",
+                            showlakes=False,
+                            showland=True, landcolor="#1c2128"
+                        )
+                        fig_map.update_layout(paper_bgcolor="#161B22", font={"color": "white"}, height=500, margin={"r":0,"t":0,"l":0,"b":0})
+                        st.plotly_chart(fig_map, use_container_width=True)
+                    except Exception as e: st.error(f"Chyba mapy: {e}")
+                    
+                    st.divider()
+                    
                     vdf_charts = vdf[vdf['HodnotaUSD'] > 0]
                     c1, c2 = st.columns(2)
                     with c1:
@@ -1174,3 +1211,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
