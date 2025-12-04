@@ -71,7 +71,7 @@ try:
 except:
     AI_AVAILABLE = False
 
-# --- STYLY (MODERNÍ TERMINÁL - V2.5 Dog Avatar) ---
+# --- STYLY (MODERNÍ TERMINÁL - V2.6 Leveling) ---
 st.markdown("""
 <style>
     /* Hlavní barvy a fonty */
@@ -144,13 +144,12 @@ st.markdown("""
     /* Odkazy */
     a {text-decoration: none; color: #58A6FF !important;} 
     
-    /* Progress bar */
+    /* Progress bar - Zelený styl */
     .stProgress > div > div > div > div {
         background-color: #238636;
     }
 
     /* --- PLOVOUCÍ AI BOT (AVATAR STYLE) --- */
-    
     div[data-testid="stExpander"]:has(#floating-bot-anchor) {
         position: fixed !important;
         bottom: 30px !important;
@@ -161,7 +160,6 @@ st.markdown("""
         border: none !important;
         box-shadow: none !important;
     }
-    
     div[data-testid="stExpander"]:has(#floating-bot-anchor) details {
         border-radius: 20px !important;
         background-color: #161B22 !important;
@@ -169,7 +167,6 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
         transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
     }
-
     /* HLAVIČKA - ZAVŘENÁ (AVATAR) */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary {
         background-color: transparent !important;
@@ -179,30 +176,22 @@ st.markdown("""
         border-radius: 50% !important;
         padding: 0 !important;
         margin-left: auto !important;
-        
-        /* --- ZDE SE MĚNÍ OBRÁZEK (URL) --- */
-        background-image: url('https://i.postimg.cc/cK5DmzZv/1000001805.jpg'); 
-        /* ^^^ SEM PAK VLOŽÍŠ ODKAZ NA SVÉHO PSA ^^^ */
-        
+        background-image: url('https://i.postimg.cc/cK5DmzZv/1000001805.jpg'); /* PEJSEK */
         background-size: cover;
         background-position: center;
         border: 3px solid #238636 !important;
         box-shadow: 0 0 15px rgba(35, 134, 54, 0.5);
-        
         animation: float 6s ease-in-out infinite;
         transition: transform 0.2s, box-shadow 0.2s;
     }
-    
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary:hover {
         transform: scale(1.1) rotate(5deg);
         box-shadow: 0 0 25px rgba(35, 134, 54, 0.8);
         cursor: pointer;
     }
-    
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary svg {
         display: none !important;
     }
-
     /* OTEVŘENÝ STAV */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary {
         width: 100% !important;
@@ -218,14 +207,12 @@ st.markdown("""
         border: none !important;
         margin: 0 !important;
     }
-    
     div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary::after {
         content: "❌ ZAVŘÍT CHAT";
         font-weight: bold;
         font-size: 0.9rem;
         color: white;
     }
-
     /* OBSAH CHATU */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) div[data-testid="stExpanderDetails"] {
         max-height: 500px;
@@ -236,7 +223,6 @@ st.markdown("""
         border-top: 1px solid #30363D;
         padding: 15px;
     }
-
     @keyframes float {
         0% { transform: translateY(0px); }
         50% { transform: translateY(-10px); }
@@ -280,7 +266,7 @@ def ziskej_fear_greed():
         return score, rating, datum, prev_score
     except: return None, None, None, None
 
-@st.cache_data(ttl=3600) # ZMĚNA: Cache na 1 hodinu pro zprávy
+@st.cache_data(ttl=3600)
 def ziskej_zpravy():
     news = []
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -465,7 +451,7 @@ def odeslat_email(prijemce, predmet, telo):
         return True
     except Exception as e: return f"Chyba: {e}"
 
-@st.cache_data(ttl=3600) # ZMĚNA: Cache na 1 hodinu pro Watchlist
+@st.cache_data(ttl=3600)
 def ziskej_ceny_hromadne(tickers):
     data = {}
     if not tickers: return data
@@ -487,7 +473,7 @@ def ziskej_ceny_hromadne(tickers):
 @st.cache_data(ttl=3600)
 def ziskej_kurzy(): return {"USD": 1.0, "CZK": 20.85, "EUR": 1.16}
 
-@st.cache_data(ttl=3600) # ZMĚNA: Cache na 1 hodinu pro Portfolio (Klíčové!)
+@st.cache_data(ttl=3600)
 def ziskej_info(ticker):
     mena = "USD"
     if str(ticker).endswith(".PR"): mena = "CZK"
@@ -677,6 +663,31 @@ def main():
     # --- 4. SIDEBAR ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
+        
+        # --- GAME LEVELING SYSTEM ---
+        level_name = "Novic"
+        level_progress = 0.0
+        
+        if celk_hod_czk < 10000:
+            level_name = "Novic 🧒"
+            level_progress = min(celk_hod_czk / 10000, 1.0)
+        elif celk_hod_czk < 50000:
+            level_name = "Učeň 🧑‍🎓"
+            level_progress = min((celk_hod_czk - 10000) / 40000, 1.0)
+        elif celk_hod_czk < 100000:
+            level_name = "Trader 💼"
+            level_progress = min((celk_hod_czk - 50000) / 50000, 1.0)
+        elif celk_hod_czk < 500000:
+            level_name = "Profi 🎩"
+            level_progress = min((celk_hod_czk - 100000) / 400000, 1.0)
+        else:
+            level_name = "Velryba 🐋"
+            level_progress = 1.0
+            
+        st.caption(f"Úroveň: **{level_name}**")
+        st.progress(level_progress)
+        # ----------------------------
+
         if zustatky:
             st.caption("Stav peněženky:")
             for mena in ["USD", "CZK", "EUR"]:
@@ -767,6 +778,30 @@ def main():
             k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
         
         st.write(""); 
+        
+        # --- NOVÝ GRAF: VÝVOJ MAJETKU V ČASE (AREA CHART) ---
+        if not hist_vyvoje.empty:
+            st.subheader("🌊 VÝVOJ MAJETKU (CZK)")
+            
+            # Příprava dat pro graf (převod na CZK pro konzistenci)
+            chart_data = hist_vyvoje.copy()
+            chart_data['Date'] = pd.to_datetime(chart_data['Date'])
+            # Pokud je historie v USD, převedeme na CZK orientačně (fixním kurzem, pro trend stačí)
+            chart_data['TotalCZK'] = chart_data['TotalUSD'] * kurzy.get("CZK", 20.85)
+            
+            fig_area = px.area(chart_data, x='Date', y='TotalCZK', 
+                               template="plotly_dark",
+                               color_discrete_sequence=['#00CC96']) # Zelená barva
+            
+            fig_area.update_layout(
+                xaxis_title="", yaxis_title="",
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                height=300, margin=dict(l=0, r=0, t=0, b=0),
+                showlegend=False
+            )
+            st.plotly_chart(fig_area, use_container_width=True)
+        # ----------------------------------------------------
+
         if viz_data:
             df_sort = pd.DataFrame(viz_data).sort_values(by="Dnes", ascending=False)
             best = df_sort.iloc[0]; worst = df_sort.iloc[-1]
@@ -1211,4 +1246,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
