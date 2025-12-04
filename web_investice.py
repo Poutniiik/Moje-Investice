@@ -315,12 +315,41 @@ def ziskej_yield(ticker):
 
 @st.cache_data(ttl=3600)
 def ziskej_detail_akcie(ticker):
+    # Oddělené získávání dat pro robustnost
     try:
         t = yf.Ticker(str(ticker))
+    except: return {}, None
+
+    info = {}
+    hist = pd.DataFrame()
+    
+    # 1. Zkusíme načíst INFO
+    try:
         info = t.info
+    except Exception:
+        # Fallback: zkusíme získat alespoň měnu z fast_info
+        try:
+            info = {
+                "longName": ticker,
+                "longBusinessSummary": "Popis není k dispozici (chyba API).",
+                "recommendationKey": "N/A",
+                "targetMeanPrice": 0,
+                "trailingPE": 0,
+                "currency": t.fast_info.currency,
+                "currentPrice": t.fast_info.last_price,
+                "website": ""
+            }
+        except: 
+            # Úplné selhání infa
+            info = {}
+
+    # 2. Zkusíme načíst HISTORII
+    try:
         hist = t.history(period="1y")
-        return info, hist
-    except Exception: return None, None
+    except Exception:
+        hist = None
+    
+    return info, hist
 
 # --- DATABÁZE ---
 def uloz_csv(df, nazev_souboru, zprava):
@@ -1019,14 +1048,16 @@ def main():
             if vybrana_akcie:
                 with st.spinner(f"Načítám data pro {vybrana_akcie}..."):
                     t_info, hist_data = ziskej_detail_akcie(vybrana_akcie)
-                    if t_info:
+                    
+                    if t_info or (hist_data is not None and not hist_data.empty):
                         try:
-                            long_name = t_info.get('longName', vybrana_akcie)
-                            summary = t_info.get('longBusinessSummary', 'Popis nedostupný.')
-                            recommendation = t_info.get('recommendationKey', 'Neznámé').upper().replace('_', ' ')
-                            target_price = t_info.get('targetMeanPrice', 0)
-                            pe_ratio = t_info.get('trailingPE', 0)
-                            currency = t_info.get('currency', '?')
+                            long_name = t_info.get('longName', vybrana_akcie) if t_info else vybrana_akcie
+                            summary = t_info.get('longBusinessSummary', 'Popis nedostupný.') if t_info else 'Popis nedostupný.'
+                            recommendation = t_info.get('recommendationKey', 'Neznámé').upper().replace('_', ' ') if t_info else 'N/A'
+                            target_price = t_info.get('targetMeanPrice', 0) if t_info else 0
+                            pe_ratio = t_info.get('trailingPE', 0) if t_info else 0
+                            currency = t_info.get('currency', '?') if t_info else '?'
+                            
                             c_d1, c_d2 = st.columns([1, 3])
                             with c_d1:
                                 barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
@@ -1034,14 +1065,18 @@ def main():
                                 st.metric("Cílová cena", f"{target_price} {currency}"); st.metric("P/E Ratio", f"{pe_ratio:.2f}")
                             with c_d2:
                                 st.subheader(long_name); st.info(summary[:400] + "...")
-                                if t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
+                                if t_info and t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
                             
                             st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
                             if hist_data is not None and not hist_data.empty:
                                 fig_candle = go.Figure(data=[go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie)])
                                 fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0))
                                 st.plotly_chart(fig_candle, use_container_width=True)
-                        except Exception as e: st.error(f"Chyba rentgenu: {e}")
+                            else:
+                                st.warning("Graf historie není k dispozici.")
+                        except Exception as e: st.error(f"Chyba zobrazení rentgenu: {e}")
+                    else:
+                        st.error("Nepodařilo se načíst data o firmě.")
 
         with tab2:
             st.subheader("⚔️ SOUBOJ AKCIÍ")
