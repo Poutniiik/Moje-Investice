@@ -60,7 +60,7 @@ CITATY = [
     "„Bohatství není o tom mít hodně peněz, ale o tom mít hodně možností.“ — Chris Rock"
 ]
 
-# --- ANALÝZA SENTIMENTU (LEGACY) ---
+# --- ANALÝZA SENTIMENTU ---
 KW_POSITIVNI = ["RŮST", "ZISK", "REKORD", "DIVIDEND", "POKLES INFLACE", "BÝČÍ", "UP", "PROFIT", "HIGHS", "SKOK", "VYDĚLAL"]
 KW_NEGATIVNI = ["PÁD", "ZTRÁTA", "KRIZE", "MEDVĚDÍ", "DOWN", "LOSS", "CRASH", "PRODĚLAL", "VÁLKA", "BANKROT", "INFLACE", "POKLES"]
 
@@ -1599,7 +1599,7 @@ def main():
             if not df_div.empty:
                 st.dataframe(df_div[["Datum", "Ticker", "Castka", "Mena", "CastkaCZK"]].sort_values("Datum", ascending=False).style.format({"Castka": "{:,.2f}", "CastkaCZK": "{:,.0f} Kč", "Datum": "{:%d.%m.%Y}"}), use_container_width=True, hide_index=True)
 
-    elif page == "⚙️ Nastavení":
+    elif page == "⚙️ Správa Dat":
         st.title("⚙️ DATA & SPRÁVA")
         st.info("Zde můžeš editovat data natvrdo.")
         t1, t2 = st.tabs(["PORTFOLIO", "HISTORIE"])
