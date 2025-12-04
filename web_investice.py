@@ -71,7 +71,7 @@ try:
 except:
     AI_AVAILABLE = False
 
-# --- STYLY (MODERNÍ TERMINÁL) ---
+# --- STYLY (MODERNÍ TERMINÁL - V2.1) ---
 st.markdown("""
 <style>
     /* Hlavní barvy a fonty */
@@ -110,21 +110,35 @@ st.markdown("""
         color: #58A6FF;
     }
     
-    /* Tabs (Záložky) */
+    /* Tabs (Záložky) - REDESIGN */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
+        gap: 8px;
+        background-color: transparent;
+        padding-bottom: 5px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
+        height: 42px;
         white-space: pre-wrap;
-        background-color: #161B22;
-        border-radius: 5px;
+        background-color: #0d1117; /* Tmavší pozadí pro neaktivní */
+        border: 1px solid #30363D; /* Jemný rámeček */
+        border-radius: 6px;
         color: #8B949E;
         font-family: 'Roboto Mono', monospace;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+        padding: 0px 20px;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        border-color: #8B949E;
+        color: #E6EDF3;
+        background-color: #161B22;
     }
     .stTabs [aria-selected="true"] {
         background-color: #238636 !important;
+        border-color: #2ea043 !important; /* Světlejší zelený okraj */
         color: white !important;
+        font-weight: bold;
+        box-shadow: 0 0 10px rgba(35, 134, 54, 0.3); /* Jemná záře */
     }
 
     /* Odkazy */
@@ -1057,4 +1071,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
