@@ -831,7 +831,7 @@ def main():
             elif vsechny_fail: dan_status = "🔴 Zdanit" 
             else: dan_status = "🟠 Mix" 
             
-            # --- URČENÍ ZEMĚ ---
+            # --- URČENÍ ZEMĚ (HEURISTIKA PRO RYCHLOST) ---
             country = "United States" # Default USA
             tkr_upper = str(tkr).upper()
             if tkr_upper.endswith(".PR"): country = "Czechia"
@@ -856,9 +856,6 @@ def main():
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena,
                 "Země": country
             })
-    
-    # Vytvoření DataFrame pro globální použití
-    vdf = pd.DataFrame(viz_data) if viz_data else pd.DataFrame()
 
     hist_vyvoje = st.session_state['hist_vyvoje']
     if celk_hod_usd > 0 and pd.notnull(celk_hod_usd): 
@@ -880,7 +877,7 @@ def main():
         cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*1.16)
     except Exception: cash_usd = 0
 
-    # --- 4. SIDEBAR ---
+    # --- 4. SIDEBAR (CLEAN & SIMPLE) ---
     with st.sidebar:
         st.header(f"👤 {USER.upper()}")
         
@@ -906,14 +903,17 @@ def main():
             
         st.caption(f"Úroveň: **{level_name}**")
         st.progress(level_progress)
+        # ----------------------------
         
         # --- WALLET IN SIDEBAR ---
-        st.write("") 
+        st.write("") # Spacer
         st.caption("Stav peněženky:")
+        # Upravená logika: Vždy zobrazí USD, CZK, EUR, i když je zůstatek 0
         for mena in ["USD", "CZK", "EUR"]:
             castka = zustatky.get(mena, 0.0)
             sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
             st.info(f"**{castka:,.2f} {sym}**", icon="💰")
+        # -------------------------
         
         # --- SIDEBAR ALERTS ---
         if alerts:
@@ -925,15 +925,18 @@ def main():
         st.divider(); st.subheader("NAVIGACE")
         page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
         
+        # --- MORNING REPORT IN SIDEBAR ---
         st.divider()
         if st.button("📧 ODESLAT RANNÍ REPORT", use_container_width=True):
             msg = f"<h2>Report {USER}</h2><p>Jmění: {celk_hod_czk:,.0f} Kč</p>"
             if odeslat_email(st.secrets["email"]["sender"], "Report", msg) == True: st.success("Odesláno!")
             else: st.error("Chyba")
         
+        # --- PDF DOWNLOAD ---
         if st.button("📄 STÁHNOUT PDF REPORT", use_container_width=True):
              pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data)
              st.download_button(label="⬇️ Uložit PDF", data=pdf_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf")
+        # ---------------------------------
 
         st.divider()
         with st.expander("🔐 Změna hesla"):
@@ -952,11 +955,11 @@ def main():
             st.session_state.clear()
             st.rerun()
 
-    # BĚŽÍCÍ PÁS 
+    # BĚŽÍCÍ PÁS (Zobrazuje se všude kromě herny a nastavení)
     if page not in ["🎮 Gamifikace", "⚙️ Nastavení"]:
         render_ticker_tape(LIVE_DATA)
 
-    # --- 5. STRÁNKY ---
+    # --- 5. STRÁNKY (NOVÉ ROZLOŽENÍ) ---
     if page == "🏠 Přehled":
         st.title(f"🏠 PŘEHLED: {USER.upper()}")
         
@@ -998,26 +1001,32 @@ def main():
         
         st.divider()
 
-        col_graf1, col_graf2 = st.columns([2, 1])
+        # Prepare data for charts
+        if not vdf.empty:
+            col_graf1, col_graf2 = st.columns([2, 1])
 
-        with col_graf1:
-            if not hist_vyvoje.empty:
-                st.subheader("🌊 VÝVOJ MAJETKU (CZK)")
-                chart_data = hist_vyvoje.copy()
-                chart_data['Date'] = pd.to_datetime(chart_data['Date'])
-                chart_data['TotalCZK'] = chart_data['TotalUSD'] * kurzy.get("CZK", 20.85)
-                fig_area = px.area(chart_data, x='Date', y='TotalCZK', template="plotly_dark", color_discrete_sequence=['#00CC96'])
-                fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
-                st.plotly_chart(fig_area, use_container_width=True)
-        
-        with col_graf2:
-            if not vdf.empty:
+            with col_graf1:
+                # --- GRAF: VÝVOJ MAJETKU V ČASE (AREA CHART) ---
+                if not hist_vyvoje.empty:
+                    st.subheader("🌊 VÝVOJ MAJETKU (CZK)")
+                    chart_data = hist_vyvoje.copy()
+                    chart_data['Date'] = pd.to_datetime(chart_data['Date'])
+                    chart_data['TotalCZK'] = chart_data['TotalUSD'] * kurzy.get("CZK", 20.85)
+                    fig_area = px.area(chart_data, x='Date', y='TotalCZK', template="plotly_dark", color_discrete_sequence=['#00CC96'])
+                    fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
+                    st.plotly_chart(fig_area, use_container_width=True)
+            
+            with col_graf2:
+                # --- NOVÝ GRAF: KOLÁČ SEKTORŮ ---
                 st.subheader("🍰 SEKTORY")
                 fig_pie = px.pie(vdf, values='HodnotaUSD', names='Sektor', hole=0.4, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_pie.update_traces(textposition='inside', textinfo='percent+label')
                 fig_pie.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0), height=300)
                 st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("Nemáš žádná data pro grafy.")
 
+        # --- NOVÁ SEKCE: INVESTOVÁNO DLE MĚN ---
         st.subheader("💰 INVESTOVÁNO DLE MĚN")
         inv_usd, inv_czk, inv_eur = 0, 0, 0
         if viz_data:
@@ -1070,18 +1079,24 @@ def main():
                 tk = r['Ticker']; trg = r['Target']
                 inf = LIVE_DATA.get(tk, {}); p = inf.get('price'); cur = inf.get('curr', 'USD')
                 if not p: p, _, _ = ziskej_info(tk)
+                
                 diff_str = "---"
                 if p and trg > 0:
                     diff = ((p/trg)-1)*100
                     diff_str = f"{diff:+.1f}%"
+                
                 status = "💤"
                 if p and trg > 0:
                     if p <= trg: status = "🔥 SLEVA! KUPUJ"
                     elif p <= trg * 1.05: status = "👀 BLÍZKO"
-                w_data.append({"Symbol": tk, "Aktuální Cena": p, "Měna": cur, "Cílová Cena": trg, "Odchylka": diff_str, "Status": status})
+                
+                w_data.append({
+                    "Symbol": tk, "Aktuální Cena": p, "Měna": cur, "Cílová Cena": trg, "Odchylka": diff_str, "Status": status
+                })
             
             wdf = pd.DataFrame(w_data)
             st.dataframe(wdf, use_container_width=True, hide_index=True)
+            
             st.divider()
             c_del1, c_del2 = st.columns([3, 1])
             with c_del2:
@@ -1231,12 +1246,12 @@ def main():
                             
                             st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
                             if hist_data is not None and not hist_data.empty:
-                                # Bollinger Bands Calculation
+                                # Bollinger Bands
                                 hist_data['BB_Middle'] = hist_data['Close'].rolling(window=20).mean()
                                 hist_data['BB_Std'] = hist_data['Close'].rolling(window=20).std()
                                 hist_data['BB_Upper'] = hist_data['BB_Middle'] + (hist_data['BB_Std'] * 2)
                                 hist_data['BB_Lower'] = hist_data['BB_Middle'] - (hist_data['BB_Std'] * 2)
-
+                                
                                 delta = hist_data['Close'].diff()
                                 gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
                                 loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -1246,7 +1261,6 @@ def main():
                                 fig_candle = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
                                 fig_candle.add_trace(go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie), row=1, col=1)
 
-                                # Bollinger Bands Traces
                                 fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Upper'], mode='lines', name='BB Upper', line=dict(color='gray', width=1)), row=1, col=1)
                                 fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Lower'], mode='lines', name='BB Lower', line=dict(color='gray', width=1), fill='tonexty', fillcolor='rgba(255, 255, 255, 0.1)'), row=1, col=1)
 
