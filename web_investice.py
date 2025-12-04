@@ -970,7 +970,7 @@ def main():
                         pohyb_penez(-cost, m, "Nákup", t, USER)
                         d = pd.DataFrame([{"Ticker": t, "Pocet": k, "Cena": c, "Datum": datetime.now(), "Owner": USER, "Sektor": "Doplnit", "Poznamka": ""}])
                         st.session_state['df'] = pd.concat([df, d], ignore_index=True)
-                        uloz_data_uzivatele(d, USER, SOUBOR_DATA)
+                        uloz_data_uzivatele(st.session_state['df'], USER, SOUBOR_DATA)
                         st.success("OK")
                         time.sleep(1)
                         st.rerun()
@@ -1199,7 +1199,7 @@ def main():
             if not df_div.empty:
                 st.dataframe(df_div[["Datum", "Ticker", "Castka", "Mena", "CastkaCZK"]].sort_values("Datum", ascending=False).style.format({"Castka": "{:,.2f}", "CastkaCZK": "{:,.0f} Kč", "Datum": "{:%d.%m.%Y}"}), use_container_width=True, hide_index=True)
 
-    elif page == "⚙️ Správa Dat":
+    elif page == "⚙️ Nastavení":
         st.title("⚙️ DATA & SPRÁVA")
         st.info("Zde můžeš editovat data natvrdo.")
         t1, t2 = st.tabs(["PORTFOLIO", "HISTORIE"])
