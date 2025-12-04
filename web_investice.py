@@ -4,7 +4,7 @@ import numpy as np # Přidán numpy pro Monte Carlo a Sharpe Ratio
 import yfinance as yf
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots 
+from plotly.subplots import make_subplots
 from github import Github
 from io import StringIO
 from datetime import datetime, timedelta
@@ -1635,4 +1635,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
