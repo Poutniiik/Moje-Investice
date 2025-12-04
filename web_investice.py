@@ -928,7 +928,7 @@ def main():
                     "Dan": "Daně",
                     "Země": "Země"
                 },
-                column_order=["Ticker", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "Dan"],
+                column_order=["Ticker", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "Dan"],
                 use_container_width=True,
                 hide_index=True
             )
@@ -1369,4 +1369,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
