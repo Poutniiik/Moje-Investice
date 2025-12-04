@@ -280,7 +280,7 @@ def ziskej_fear_greed():
         return score, rating, datum, prev_score
     except: return None, None, None, None
 
-@st.cache_data(ttl=1800) 
+@st.cache_data(ttl=3600) # ZMĚNA: Cache na 1 hodinu pro zprávy
 def ziskej_zpravy():
     news = []
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -465,7 +465,7 @@ def odeslat_email(prijemce, predmet, telo):
         return True
     except Exception as e: return f"Chyba: {e}"
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=3600) # ZMĚNA: Cache na 1 hodinu pro Watchlist
 def ziskej_ceny_hromadne(tickers):
     data = {}
     if not tickers: return data
@@ -487,6 +487,7 @@ def ziskej_ceny_hromadne(tickers):
 @st.cache_data(ttl=3600)
 def ziskej_kurzy(): return {"USD": 1.0, "CZK": 20.85, "EUR": 1.16}
 
+@st.cache_data(ttl=3600) # ZMĚNA: Cache na 1 hodinu pro Portfolio (Klíčové!)
 def ziskej_info(ticker):
     mena = "USD"
     if str(ticker).endswith(".PR"): mena = "CZK"
