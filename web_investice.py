@@ -759,15 +759,13 @@ def main():
         # ----------------------------
         
         # --- WALLET IN SIDEBAR ---
-        if zustatky:
-            st.write("") # Spacer
-            st.caption("Stav peněženky:")
-            for mena in ["USD", "CZK", "EUR"]:
-                if mena in zustatky and zustatky[mena] > 0.01:
-                    castka = zustatky[mena]
-                    sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
-                    st.info(f"**{castka:,.2f} {sym}**", icon="💰")
-        else: st.warning("Peněženka prázdná")
+        st.write("") # Spacer
+        st.caption("Stav peněženky:")
+        # Upravená logika: Vždy zobrazí USD, CZK, EUR, i když je zůstatek 0
+        for mena in ["USD", "CZK", "EUR"]:
+            castka = zustatky.get(mena, 0.0)
+            sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
+            st.info(f"**{castka:,.2f} {sym}**", icon="💰")
         # -------------------------
 
         st.divider(); st.subheader("NAVIGACE")
@@ -825,6 +823,22 @@ def main():
             fig_area = px.area(chart_data, x='Date', y='TotalCZK', template="plotly_dark", color_discrete_sequence=['#00CC96'])
             fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
             st.plotly_chart(fig_area, use_container_width=True)
+
+        # --- NOVÁ SEKCE: INVESTOVÁNO DLE MĚN ---
+        st.subheader("💰 INVESTOVÁNO DLE MĚN")
+        inv_usd, inv_czk, inv_eur = 0, 0, 0
+        if viz_data:
+            for item in viz_data:
+                if item['Měna'] == 'USD': inv_usd += item['Investice']
+                elif item['Měna'] == 'CZK': inv_czk += item['Investice']
+                elif item['Měna'] == 'EUR': inv_eur += item['Investice']
+        
+        ic1, ic2, ic3 = st.columns(3)
+        ic1.metric("Investováno (USD)", f"${inv_usd:,.0f}")
+        ic2.metric("Investováno (CZK)", f"{inv_czk:,.0f} Kč")
+        ic3.metric("Investováno (EUR)", f"{inv_eur:,.0f} €")
+        
+        st.divider()
 
         st.subheader("📋 PORTFOLIO LIVE")
         if viz_data:
