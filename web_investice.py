@@ -717,6 +717,47 @@ def main():
                             except Exception as e: st.error(f"Chyba rentgenu: {e}")
                         else: st.warning("Yahoo neodpovídá, zkus to později.")
         st.divider()
+        st.subheader("⚔️ SOUBOJ AKCIÍ")
+        c_f1, c_f2 = st.columns(2)
+        with c_f1: t1 = st.text_input("Bojovník 1", "AAPL").upper()
+        with c_f2: t2 = st.text_input("Bojovník 2", "MSFT").upper()
+        
+        if st.button("SROVNAT"):
+            if t1 and t2:
+                with st.spinner("Probíhá analýza..."):
+                    i1, h1 = ziskej_detail_akcie(t1)
+                    i2, h2 = ziskej_detail_akcie(t2)
+                    
+                    if i1 and i2:
+                        # Metriky
+                        mc1 = i1.get('marketCap', 0); mc2 = i2.get('marketCap', 0)
+                        pe1 = i1.get('trailingPE', 0); pe2 = i2.get('trailingPE', 0)
+                        dy1 = i1.get('dividendYield', 0); dy2 = i2.get('dividendYield', 0)
+                        perf1 = ((h1['Close'].iloc[-1] / h1['Close'].iloc[0]) - 1) * 100 if not h1.empty else 0
+                        perf2 = ((h2['Close'].iloc[-1] / h2['Close'].iloc[0]) - 1) * 100 if not h2.empty else 0
+                        
+                        cc1, cc2, cc3, cc4 = st.columns(4)
+                        # Market Cap Logic (Win highlight)
+                        cc1.metric(f"Kapitalizace {t1}", f"${mc1/1e9:.1f}B", delta_color="normal")
+                        cc1.metric(f"Kapitalizace {t2}", f"${mc2/1e9:.1f}B", delta=f"{(mc2-mc1)/1e9:.1f}B")
+
+                        # Simple table is better
+                        comp_data = {
+                            "Metrika": ["Cena", "P/E Ratio", "Dividenda", "Změna 1R"],
+                            t1: [f"{i1.get('currentPrice')} {i1.get('currency')}", f"{pe1:.2f}", f"{dy1*100:.2f}%" if dy1 else "0%", f"{perf1:+.2f}%"],
+                            t2: [f"{i2.get('currentPrice')} {i2.get('currency')}", f"{pe2:.2f}", f"{dy2*100:.2f}%" if dy2 else "0%", f"{perf2:+.2f}%"]
+                        }
+                        st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
+                        
+                        # Chart
+                        df_norm = pd.DataFrame()
+                        if not h1.empty and not h2.empty:
+                            # Normalize
+                            h1['Norm'] = (h1['Close'] / h1['Close'].iloc[0] - 1) * 100
+                            h2['Norm'] = (h2['Close'] / h2['Close'].iloc[0] - 1) * 100
+                            st.line_chart(pd.concat([h1['Norm'].rename(t1), h2['Norm'].rename(t2)], axis=1))
+                    else: st.error("Chyba načítání dat.")
+        st.divider()
         score, rating, datum_fg, prev_score = ziskej_fear_greed()
         if score is not None:
             st.write(""); st.subheader("😨 PSYCHOLOGIE TRHU (Fear & Greed)")
