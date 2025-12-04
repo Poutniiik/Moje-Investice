@@ -1090,7 +1090,7 @@ def main():
                                     st.markdown(f"### :{barva_rec}[{recommendation}]")
                                     st.caption("Názor analytiků")
                                 else:
-                                    st.markdown("### 🤷‍♂️ N/A")
+                                    st.markdown("### 🤷‍♂️ Neznámé")
                                     st.caption("Bez doporučení")
                                 
                                 # Cílová cena (skryjeme 0)
@@ -1114,7 +1114,10 @@ def main():
                                         st.metric("Cena", f"{current_price:,.2f} {currency}")
                                 
                                 st.info(summary)
-                                if t_info and t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
+                                if t_info and t_info.get('website'): 
+                                    st.link_button("🌍 Web firmy", t_info.get('website'))
+                                else:
+                                    st.link_button("🔍 Hledat na Google", f"https://www.google.com/search?q={vybrana_akcie}+stock")
                             
                             st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
                             if hist_data is not None and not hist_data.empty:
