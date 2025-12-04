@@ -1280,6 +1280,63 @@ def main():
                             st.caption(f"📅 {n['published']}")
                             st.link_button("Číst článek", n['link'])
         else: st.info("Žádné nové zprávy.")
+    
+    elif page == "💸 Obchod":
+        st.title("💸 OBCHODNÍ TERMINÁL")
+        t1, t2, t3, t4 = st.tabs(["NÁKUP", "PRODEJ", "SMĚNÁRNA", "VKLADY/VÝBĚRY"])
+        
+        with t1:
+            c1, c2 = st.columns(2)
+            with c1:
+                t = st.text_input("Ticker (např. AAPL)").upper()
+                k = st.number_input("Počet kusů", 0.0, step=0.1)
+                c = st.number_input("Nákupní cena ($)", 0.0, step=0.1)
+            with c2:
+                st.info("Zkontroluj zůstatek v peněžence!")
+                if st.button("KOUPIT AKCIE", use_container_width=True):
+                    _, m, _ = ziskej_info(t)
+                    cost = k*c
+                    if zustatky.get(m, 0) >= cost:
+                        pohyb_penez(-cost, m, "Nákup", t, USER)
+                        d = pd.DataFrame([{"Ticker": t, "Pocet": k, "Cena": c, "Datum": datetime.now(), "Owner": USER, "Sektor": "Doplnit", "Poznamka": ""}])
+                        st.session_state['df'] = pd.concat([df, d], ignore_index=True)
+                        uloz_data_uzivatele(st.session_state['df'], USER, SOUBOR_DATA)
+                        st.success("OK")
+                        time.sleep(1)
+                        st.rerun()
+                    else: st.error("Nedostatek peněz")
+        
+        with t2:
+            ts = df['Ticker'].unique() if not df.empty else []
+            s_t = st.selectbox("Prodat:", ts)
+            s_k = st.number_input("Kusy", 0.0, step=0.1, key="sk")
+            s_c = st.number_input("Cena ($)", 0.0, step=0.1, key="sc")
+            if st.button("PRODAT", use_container_width=True):
+                _, m, _ = ziskej_info(s_t)
+                ok, msg = proved_prodej(s_t, s_k, s_c, USER, m)
+                if ok: st.success(msg); time.sleep(1); st.rerun()
+                else: st.error(msg)
+        
+        with t3:
+            col1, col2, col3 = st.columns(3)
+            with col1: am = st.number_input("Částka", 0.0)
+            with col2: fr = st.selectbox("Z", ["USD", "CZK", "EUR"])
+            with col3: to = st.selectbox("Do", ["CZK", "USD", "EUR"])
+            if st.button("SMĚNIT", use_container_width=True):
+                if zustatky.get(fr, 0) >= am:
+                    proved_smenu(am, fr, to, USER); st.success("Hotovo"); time.sleep(1); st.rerun()
+                else: st.error("Chybí prostředky")
+        
+        with t4:
+            c1, c2 = st.columns(2)
+            with c1:
+                v_a = st.number_input("Vklad/Výběr", 0.0)
+                v_m = st.selectbox("Měna", ["USD", "CZK", "EUR"], key="vm")
+                if st.button("VLOŽIT"): pohyb_penez(v_a, v_m, "Vklad", "Man", USER); st.rerun()
+                if st.button("VYBRAT"): pohyb_penez(-v_a, v_m, "Výběr", "Man", USER); st.rerun()
+            with c2:
+                st.dataframe(df_cash.sort_values('Datum', ascending=False).head(10), use_container_width=True, hide_index=True)
+
 
     elif page == "💎 Dividendy":
         st.title("💎 DIVIDENDY")
@@ -1356,4 +1413,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
