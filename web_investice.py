@@ -1234,6 +1234,47 @@ def main():
             k2.metric("JMĚNÍ (CZK)", f"{celk_hod_czk:,.0f} Kč", f"{(celk_hod_usd-celk_inv_usd)*kurzy['CZK']:+,.0f} Kč")
             k3.metric("ZMĚNA 24H", f"${zmena_24h:+,.0f}", f"{pct_24h:+.2f}%")
             k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
+
+        # ... (tady jsou ty metriky k1, k2...) ...
+            k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
+        
+        # 👇👇👇 VLOŽIT TENTO NOVÝ BLOK HNED POD METRIKY 👇👇👇
+        
+        # --- AI BODYGUARD (Novinka) ---
+        if AI_AVAILABLE:
+            st.write("") # Mezera
+            if st.button("🛡️ VYŽÁDAT RANNÍ HLÁŠENÍ (AI)", use_container_width=True, type="secondary"):
+                with st.spinner("Strážce skenuje perimetr..."):
+                    # Kontext pro AI
+                    top_mover = best['Ticker'] if 'best' in locals() else "N/A"
+                    flop_mover = worst['Ticker'] if 'worst' in locals() else "N/A"
+                    
+                    prompt_guard = f"""
+                    Jsi "Osobní strážce portfolia". Stručně (max 2 věty) zhodnoť situaci pro velitele.
+                    DATA:
+                    - Celková změna portfolia: {pct_24h:+.2f}%
+                    - Hotovost k dispozici: {cash_usd:,.0f} USD
+                    - Nejlepší akcie dne: {top_mover}
+                    - Nejhorší akcie dne: {flop_mover}
+                    
+                    INSTRUKCE:
+                    - Pokud je trh dole a je hotovost > 1000 USD -> Navrhni nákup.
+                    - Pokud je trh nahoře -> Pochval strategii.
+                    - Pokud je velký propad -> Uklidni velitele.
+                    - Mluv stručně, vojensky/profesionálně, česky.
+                    """
+                    
+                    try:
+                        guard_res = AI_MODEL.generate_content(prompt_guard)
+                        
+                        # Barva hlášení podle výsledku
+                        if pct_24h >= 0:
+                            st.success(f"👮 **HLÁŠENÍ:** {guard_res.text}")
+                        else:
+                            st.warning(f"👮 **HLÁŠENÍ:** {guard_res.text}")
+                            
+                    except Exception as e:
+                        st.error("Strážce neodpovídá.")
         
         # --- NOVÉ: SKOKAN A PROPADÁK DNE ---
         if viz_data:
@@ -3001,6 +3042,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
