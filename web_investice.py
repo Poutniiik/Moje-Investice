@@ -2444,80 +2444,80 @@ def main():
                 st.plotly_chart(fig_mc, use_container_width=True)
                 st.success(f"Průměrná hodnota na konci: {sim_data['Average'].iloc[-1]:,.0f} Kč")
 
-            with tab4:
-            st.subheader("💥 CRASH TEST & HISTORICKÉ SCÉNÁŘE")
-            st.info("Otestuj odolnost svého portfolia proti historickým krizím nebo vlastnímu scénáři.")
-            
-            # 1. Definice historických krizí
-            scenarios = {
-                "COVID-19 (2020)": {"drop": 34, "desc": "Pandemie. Rychlý pád o 34 % za měsíc. Následovalo rychlé oživení (V-shape).", "icon": "🦠"},
-                "Finanční krize (2008)": {"drop": 57, "desc": "Hypoteční krize. Pád o 57 % trval 17 měsíců. Dlouhá recese.", "icon": "📉"},
-                "Dot-com bublina (2000)": {"drop": 49, "desc": "Splasknutí technologické bubliny. Nasdaq spadl o 78 %, S&P 500 o 49 %.", "icon": "💻"},
-                "Black Monday (1987)": {"drop": 22, "desc": "Černé pondělí. Největší jednodenní propad v historii (-22 %).", "icon": "⚡"}
-            }
-
-            # 2. Tlačítka pro rychlou volbu
-            st.write("### 📜 Vyber scénář z historie:")
-            cols = st.columns(4)
-            selected_scenario = None
-            
-            # Vykreslíme tlačítka vedle seba
-            for i, (name, data) in enumerate(scenarios.items()):
-                with cols[i]:
-                    if st.button(f"{data['icon']} {name}\n(-{data['drop']}%)", use_container_width=True):
-                        st.session_state['crash_sim_drop'] = data['drop']
-                        st.session_state['crash_sim_name'] = name
-                        st.session_state['crash_sim_desc'] = data['desc']
-
-            # 3. Posuvník (Manual Override)
-            st.divider()
-            st.write("### 🎛️ Nebo nastav vlastní propad:")
-            
-            # Pokud uživatel klikl na tlačítko, použijeme hodnotu z historie, jinak default 20
-            default_drop = st.session_state.get('crash_sim_drop', 20)
-            
-            propad = st.slider("Simulace pádu trhu (%)", 5, 90, int(default_drop), step=1, key="crash_slider_manual")
-            
-            # Pokud uživatel hýbe sliderem, přepíšeme název na "Vlastní"
-            if propad != default_drop:
-                scenario_name = "Vlastní scénář"
-                scenario_desc = f"Simulace manuálního propadu o {propad} %."
-            else:
-                scenario_name = st.session_state.get('crash_sim_name', "Vlastní scénář")
-                scenario_desc = st.session_state.get('crash_sim_desc', "Manuální nastavení.")
-
-            # 4. Výpočet a Vizualizace
-            ztrata_usd = celk_hod_usd * (propad / 100)
-            zbytek_usd = celk_hod_usd * (1 - propad / 100)
-            
-            ztrata_czk = ztrata_usd * kurzy.get("CZK", 21)
-            zbytek_czk = zbytek_usd * kurzy.get("CZK", 21)
-
-            st.subheader(f"🛡️ VÝSLEDEK: {scenario_name}")
-            st.caption(scenario_desc)
-
-            c_cr1, c_cr2 = st.columns([1, 2])
-            with c_cr1:
-                st.metric("Tvoje ZTRÁTA", f"-{ztrata_czk:,.0f} Kč", delta=f"-{propad} %", delta_color="inverse")
-                st.metric("Zůstatek po pádu", f"{zbytek_czk:,.0f} Kč")
-            
-            with c_cr2:
-                # Vizuální reprezentace "krvácení"
-                chart_data = pd.DataFrame({
-                    "Stav": ["Ztráta 💸", "Zůstatek 💰"],
-                    "Hodnota": [ztrata_czk, zbytek_czk]
-                })
-                fig_crash = px.pie(chart_data, values='Hodnota', names='Stav', hole=0.5, 
-                                 color='Stav', color_discrete_map={"Ztráta 💸": "#da3633", "Zůstatek 💰": "#238636"})
-                fig_crash.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), showlegend=True, paper_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig_crash, use_container_width=True)
-
-            if propad > 40:
-                st.error("⚠️ Tohle je brutální scénář. Historie ukazuje, že trhy se nakonec vždy vrátily, ale trvalo to roky.")
-            elif propad > 20:
-                st.warning("⚠️ Typický medvědí trh. Dobrá příležitost k nákupu, pokud máš hotovost.")
-            else:
-                st.info("ℹ️ Běžná korekce. Nic, co by tě mělo rozhodit.")
+                with tab4:
+                st.subheader("💥 CRASH TEST & HISTORICKÉ SCÉNÁŘE")
+                st.info("Otestuj odolnost svého portfolia proti historickým krizím nebo vlastnímu scénáři.")
+                
+                # 1. Definice historických krizí
+                scenarios = {
+                    "COVID-19 (2020)": {"drop": 34, "desc": "Pandemie. Rychlý pád o 34 % za měsíc. Následovalo rychlé oživení (V-shape).", "icon": "🦠"},
+                    "Finanční krize (2008)": {"drop": 57, "desc": "Hypoteční krize. Pád o 57 % trval 17 měsíců. Dlouhá recese.", "icon": "📉"},
+                    "Dot-com bublina (2000)": {"drop": 49, "desc": "Splasknutí technologické bubliny. Nasdaq spadl o 78 %, S&P 500 o 49 %.", "icon": "💻"},
+                    "Black Monday (1987)": {"drop": 22, "desc": "Černé pondělí. Největší jednodenní propad v historii (-22 %).", "icon": "⚡"}
+                }
+    
+                # 2. Tlačítka pro rychlou volbu
+                st.write("### 📜 Vyber scénář z historie:")
+                cols = st.columns(4)
+                selected_scenario = None
+                
+                # Vykreslíme tlačítka vedle seba
+                for i, (name, data) in enumerate(scenarios.items()):
+                    with cols[i]:
+                        if st.button(f"{data['icon']} {name}\n(-{data['drop']}%)", use_container_width=True):
+                            st.session_state['crash_sim_drop'] = data['drop']
+                            st.session_state['crash_sim_name'] = name
+                            st.session_state['crash_sim_desc'] = data['desc']
+    
+                # 3. Posuvník (Manual Override)
+                st.divider()
+                st.write("### 🎛️ Nebo nastav vlastní propad:")
+                
+                # Pokud uživatel klikl na tlačítko, použijeme hodnotu z historie, jinak default 20
+                default_drop = st.session_state.get('crash_sim_drop', 20)
+                
+                propad = st.slider("Simulace pádu trhu (%)", 5, 90, int(default_drop), step=1, key="crash_slider_manual")
+                
+                # Pokud uživatel hýbe sliderem, přepíšeme název na "Vlastní"
+                if propad != default_drop:
+                    scenario_name = "Vlastní scénář"
+                    scenario_desc = f"Simulace manuálního propadu o {propad} %."
+                else:
+                    scenario_name = st.session_state.get('crash_sim_name', "Vlastní scénář")
+                    scenario_desc = st.session_state.get('crash_sim_desc', "Manuální nastavení.")
+    
+                # 4. Výpočet a Vizualizace
+                ztrata_usd = celk_hod_usd * (propad / 100)
+                zbytek_usd = celk_hod_usd * (1 - propad / 100)
+                
+                ztrata_czk = ztrata_usd * kurzy.get("CZK", 21)
+                zbytek_czk = zbytek_usd * kurzy.get("CZK", 21)
+    
+                st.subheader(f"🛡️ VÝSLEDEK: {scenario_name}")
+                st.caption(scenario_desc)
+    
+                c_cr1, c_cr2 = st.columns([1, 2])
+                with c_cr1:
+                    st.metric("Tvoje ZTRÁTA", f"-{ztrata_czk:,.0f} Kč", delta=f"-{propad} %", delta_color="inverse")
+                    st.metric("Zůstatek po pádu", f"{zbytek_czk:,.0f} Kč")
+                
+                with c_cr2:
+                    # Vizuální reprezentace "krvácení"
+                    chart_data = pd.DataFrame({
+                        "Stav": ["Ztráta 💸", "Zůstatek 💰"],
+                        "Hodnota": [ztrata_czk, zbytek_czk]
+                    })
+                    fig_crash = px.pie(chart_data, values='Hodnota', names='Stav', hole=0.5, 
+                                     color='Stav', color_discrete_map={"Ztráta 💸": "#da3633", "Zůstatek 💰": "#238636"})
+                    fig_crash.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), showlegend=True, paper_bgcolor="rgba(0,0,0,0)")
+                    st.plotly_chart(fig_crash, use_container_width=True)
+    
+                if propad > 40:
+                    st.error("⚠️ Tohle je brutální scénář. Historie ukazuje, že trhy se nakonec vždy vrátily, ale trvalo to roky.")
+                elif propad > 20:
+                    st.warning("⚠️ Typický medvědí trh. Dobrá příležitost k nákupu, pokud máš hotovost.")
+                else:
+                    st.info("ℹ️ Běžná korekce. Nic, co by tě mělo rozhodit.")
         
         with tab5:
             st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500) & SHARPE RATIO")
@@ -2989,6 +2989,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
