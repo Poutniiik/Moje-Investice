@@ -1452,7 +1452,6 @@ def main():
                     except Exception:
                         pass # Pokud selže stahování, grafy prostě nebudou (safe fail)
 
-                # Přidání sloupce s daty pro graf do dataframe
                 vdf['Trend 30d'] = vdf['Ticker'].map(spark_data)
                 # ---------------------------------------
 
@@ -1473,9 +1472,8 @@ def main():
                         "Trend 30d": st.column_config.LineChartColumn(
                             "Trend (30 dní)",
                             width="medium",
-                            help="Vývoj ceny za poslední měsíc",
-                            y_min=0, # Auto-škálování
-                            y_max=0  # Auto-škálování
+                            help="Vývoj ceny za poslední měsíc"
+                            # Odstraněno y_min/y_max pro správné auto-škálování
                         )
                     },
                     column_order=["Ticker", "Trend 30d", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"],
@@ -2435,3 +2433,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
