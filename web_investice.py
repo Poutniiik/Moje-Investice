@@ -925,7 +925,7 @@ def main():
                 "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena,
                 "Země": country,
                 "P/E": pe_ratio,
-                "Kapitalizace": market_cap
+                "Kapitalizace": market_cap / 1e9 if market_cap else 0 # Oprava formátování na Miliardy (B)
             })
     
     vdf = pd.DataFrame(viz_data) if viz_data else pd.DataFrame()
@@ -1376,6 +1376,10 @@ def main():
                                  title="Historie výplat (po dnech)", 
                                  labels={'Datum_Den': 'Datum', 'Castka': 'Částka'},
                                  template="plotly_dark")
+                
+                # Vynutíme, aby osa X byla kategorie (text), ne časová osa -> tlusté sloupce
+                fig_div.update_xaxes(type='category')
+                
                 fig_div.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
                 st.plotly_chart(fig_div, use_container_width=True)
                 
