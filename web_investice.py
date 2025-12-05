@@ -663,27 +663,24 @@ def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_y
 # Vyžaduje instalaci knihovny: pip install kaleido
 
 def add_download_button(fig, filename):
+    # Tlačítko se pokusíme vygenerovat, ale pokud chybí systémové knihovny (což je časté na cloudu),
+    # zobrazíme jen návod na alternativní stažení, abychom uživatele neděsili chybou.
     try:
-        # Vytvoření bufferu v paměti (neukládáme na disk, šetříme místo)
         import io
         buffer = io.BytesIO()
-        
-        # Uložení grafu do bufferu jako PNG
-        # scale=2 zajistí vyšší rozlišení (ostřejší obrázek)
+        # Pokus o renderování
         fig.write_image(buffer, format="png", width=1200, height=800, scale=2)
         
-        # Tlačítko pro stažení
         st.download_button(
             label=f"⬇️ Stáhnout graf: {filename}",
             data=buffer.getvalue(),
             file_name=f"{filename}.png",
             mime="image/png",
-            use_container_width=True # Aby tlačítko vypadalo hezky roztažené
+            use_container_width=True
         )
-    except Exception as e:
-        # Fallback: Kdyby chybělo kaleido nebo se něco pokazilo
-        st.warning(f"Pro stahování grafů je potřeba knihovna 'kaleido'. Chyba: {e}")
-        st.caption("Tip: Graf lze stáhnout i ikonou fotoaparátu přímo v liště grafu nahoře vpravo.")
+    except Exception:
+        # Tichý fallback - pokud to nejde, zobrazíme jen jemný tip místo chyby
+        st.caption("💡 Tip: Pro stažení obrázku použij ikonu fotoaparátu 📷, která se objeví v pravém horním rohu grafu po najetí myší.")
 
 
 # --- HLAVNÍ FUNKCE ---
