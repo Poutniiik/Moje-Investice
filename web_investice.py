@@ -2762,6 +2762,46 @@ def main():
 
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
+        # --- MARKET WORD CLOUD (Mrak slov) ---
+        try:
+            from wordcloud import WordCloud
+            import matplotlib.pyplot as plt
+
+            # 1. Získáme texty
+            raw_news_cloud = ziskej_zpravy()
+            if raw_news_cloud:
+                text_data = " ".join([n['title'] for n in raw_news_cloud]).upper()
+                
+                # 2. Definujeme slova, která nechceme (Stopwords)
+                stop_words = ["A", "I", "O", "U", "V", "S", "K", "Z", "SE", "SI", "NA", "DO", "JE", "TO", "ŽE", "ALE", "PRO", "JAK", "TAK", "OD", "PO", "NEBO", "BUDE", "BYL", "MÁ", "JSOU", "KTERÝ", "KTERÁ", "ONLINE", "AKTUÁLNĚ", "CENA", "BURZA", "TRH", "AKCIE", "INVESTICE"]
+                
+                # 3. Nastavení mraku (Dark Mode Friendly)
+                wc = WordCloud(
+                    width=800, height=250,
+                    background_color=None, # Průhledné pozadí
+                    mode="RGBA",
+                    stopwords=stop_words,
+                    min_font_size=10,
+                    colormap="GnBu" # Modro-zelená paleta (ladí s aplikací)
+                ).generate(text_data)
+
+                # 4. Vykreslení pomocí Matplotlib
+                st.subheader("☁️ TÉMATA DNE (Co hýbe trhem)")
+                fig_cloud, ax = plt.subplots(figsize=(10, 3))
+                ax.imshow(wc, interpolation="bilinear")
+                ax.axis("off") # Skryjeme osy
+                
+                # Nastavení průhlednosti grafu
+                fig_cloud.patch.set_alpha(0) 
+                ax.patch.set_alpha(0)
+                
+                st.pyplot(fig_cloud, use_container_width=True)
+                st.divider()
+                
+        except ImportError:
+            st.warning("⚠️ Pro zobrazení Mraku slov nainstaluj knihovnu: `pip install wordcloud`")
+        except Exception as e:
+            st.error(f"Chyba WordCloud: {e}")
         if AI_AVAILABLE:
             def analyze_news_with_ai(title, link):
                 prompt_to_send = f"Analyzuj následující finanční zprávu V KONTEXTU MÉHO PORTFOLIA. Zpráva: {title} (Odkaz: {link}). Jaký by měla mít dopad na mé současné držby?"
@@ -2884,4 +2924,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
