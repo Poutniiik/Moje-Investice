@@ -1872,6 +1872,15 @@ def main():
 
     with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
         st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
+        
+        # --- NOVÉ: Tlačítko pro vymazání paměti ---
+        c_clear, _ = st.columns([1, 2])
+        with c_clear:
+            if st.button("🧹 Nová konverzace", key="clear_chat"):
+                st.session_state["chat_messages"] = [{"role": "assistant", "content": "Paměť vymazána. O čem se chceš bavit teď? 🧠"}]
+                st.rerun()
+        # ------------------------------------------
+
         if "chat_messages" not in st.session_state: st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
         for msg in st.session_state["chat_messages"]: st.chat_message(msg["role"]).write(msg["content"])
         if prompt := st.chat_input("Zeptej se..."):
@@ -1880,9 +1889,25 @@ def main():
         if st.session_state["chat_messages"][-1]["role"] == "user":
             with st.spinner("Přemýšlím..."):
                 last_user_msg = st.session_state["chat_messages"][-1]["content"]
+                
+                # --- VYLEPŠENÝ KONTEXT (Market Awareness) ---
                 portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
                 if viz_data: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data])
-                full_prompt = f"{APP_MANUAL}\n\nDATA:\n{portfolio_context}\n\nDOTAZ: {last_user_msg}"
+                
+                # Přidání tržních dat do promptu (Fear & Greed)
+                fg_score, fg_rating = ziskej_fear_greed()
+                if fg_score:
+                    portfolio_context += f"\nAktuální tržní nálada (Fear & Greed Index): {fg_score} ({fg_rating}). Pokud je strach (pod 40), zmiň příležitost k nákupu. Pokud chamtivost (nad 75), varuj před rizikem."
+                
+                # Přidání sentimentu zpráv (pokud existuje analýza)
+                ai_news = st.session_state.get('ai_news_analysis', {})
+                if ai_news:
+                    avg_sentiment = sum([v['score'] for v in ai_news.values()]) / len(ai_news) if len(ai_news) > 0 else 50
+                    sentiment_str = "Pozitivní" if avg_sentiment > 60 else ("Negativní" if avg_sentiment < 40 else "Neutrální")
+                    portfolio_context += f"\nAnalýza posledních zpráv vyznívá: {sentiment_str} (Skóre {avg_sentiment:.0f}/100)."
+                # ---------------------------------------------
+
+                full_prompt = f"{APP_MANUAL}\n\nDATA A TRŽNÍ KONTEXT:\n{portfolio_context}\n\nDOTAZ UŽIVATELE: {last_user_msg}"
                 try: response = AI_MODEL.generate_content(full_prompt); ai_reply = response.text
                 except Exception as e: ai_reply = f"Chyba: {str(e)}"
                 st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
