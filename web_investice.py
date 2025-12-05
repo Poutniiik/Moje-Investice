@@ -22,6 +22,10 @@ from fpdf import FPDF
 import extra_streamlit_components as stx
 import random
 
+# --- GLOBÁLNÍ JS INJEKCE PRO PLOTLY EXPORT ---
+# Zajišťuje, že je Plotly.js k dispozici pro naši funkci downloadPlotlyChart.
+st.markdown('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>', unsafe_allow_html=True)
+
 # --- KONFIGURACE ---
 # Musí být vždy jako první příkaz Streamlitu
 st.set_page_config(
@@ -2044,3 +2048,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
