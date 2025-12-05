@@ -1078,6 +1078,41 @@ def main():
                 st.metric("Změna", f"{worst['Dnes']*100:+.2f} %", f"Cena: {worst['Cena']:.2f} {worst['Měna']}")
         # -----------------------------------
 
+        # --- NOVÉ: AI PORTFOLIO AUDITOR ---
+        if AI_AVAILABLE and viz_data:
+            with st.expander("🧠 AI AUDIT PORTFOLIA (Strategie)", expanded=False):
+                st.info("AI zanalyzuje tvé rozložení aktiv, rizikovost a navrhne vylepšení.")
+                if st.button("🕵️ SPUSTIT HLOUBKOVÝ AUDIT"):
+                    with st.spinner("AI počítá rizikové modely..."):
+                        # Příprava dat
+                        port_summary = "\n".join([f"- {i['Ticker']} ({i['Sektor']}): {i['HodnotaUSD']:.0f} USD ({i['Zisk']:.0f} USD zisk)" for i in viz_data])
+                        cash_info = f"Hotovost: {cash_usd:.0f} USD"
+                        total_val = f"Celkové jmění: {celk_hod_usd:.0f} USD"
+                        
+                        prompt_audit = f"""
+                        Jsi profesionální portfolio manažer (Hedge Fund). Udělej tvrdý a upřímný audit tohoto portfolia:
+                        
+                        {total_val}
+                        {cash_info}
+                        
+                        POZICE:
+                        {port_summary}
+                        
+                        ÚKOL:
+                        1. Zhodnoť diverzifikaci (sektory, jednotlivé akcie).
+                        2. Identifikuj největší riziko (koncentrace, měna, sektor).
+                        3. Navrhni 1 konkrétní krok pro vylepšení (co prodat/koupit/změnit).
+                        
+                        Odpověz stručně, profesionálně a česky. Používej formátování (body, tučné písmo).
+                        """
+                        try:
+                            audit_res = AI_MODEL.generate_content(prompt_audit)
+                            st.markdown("### 📝 VÝSLEDEK AUDITU")
+                            st.markdown(audit_res.text)
+                        except Exception as e:
+                            st.error(f"Chyba auditu: {e}")
+        # ----------------------------------
+
         st.write("")
         
         # --- FEAR & GREED INDEX (TACHOMETR) ---
