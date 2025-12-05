@@ -729,28 +729,14 @@ def add_download_button(fig_id, filename):
     js_code = f"""
     <script>
         function downloadPlotlyChart(chartId, filename) {{
-            // 1. Zkusíme najít graf přes Streamlit generované ID (obvykle 'id="graph_' + key + '"')
-            const directChartDiv = document.getElementById('graph_' + chartId);
-            
-            // 2. Najdeme rodičovský Streamlit kontejner (data-testid) a v něm Plotly div
-            // Streamlit key se mapuje na data-testid='st-plotly-chart-fig_vyvoj_maj'
+            // 1. Plotly grafy ve Streamlitu získávají dynamická ID. Nejlepší cesta je najít 
+            // Streamlit kontejner s data-testid a uvnitř něj vyhledat Plotly div.
             const container = document.querySelector(`[data-testid*="${chartId}"]`);
             let plotlyDiv = null;
 
             if (container) {{
-                 // Hledáme samotný Plotly div uvnitř Streamlit kontejneru
-                 plotlyDiv = container.querySelector('.js-plotly-plot') || directChartDiv;
-            }} else {{
-                 plotlyDiv = directChartDiv;
-            }}
-            
-            // Nouzový Fallback, pokud Streamlit používá jinou strukturu
-            if (!plotlyDiv) {{
-                // Zkusíme najít Streamlit div a vybrat první dítě
-                const genericContainer = document.querySelector(`[data-testid="st-plotly-chart-${chartId}"]`);
-                if (genericContainer) {{
-                    plotlyDiv = genericContainer.querySelector('.js-plotly-plot');
-                }}
+                 // Hledáme samotný Plotly div (třída 'js-plotly-plot') uvnitř Streamlit kontejneru
+                 plotlyDiv = container.querySelector('.js-plotly-plot');
             }}
 
             if (plotlyDiv && typeof Plotly !== 'undefined') {{
@@ -758,6 +744,7 @@ def add_download_button(fig_id, filename):
                 Plotly.downloadImage(plotlyDiv, {{format: 'png', filename: filename}});
             }} else {{
                 console.error('Plotly graf nebo knihovna nebyla nalezena pro ID:', chartId);
+                // V případě selhání by zde měla být notifikace v Streamlitu (což nelze přes JS)
             }}
         }}
     </script>
