@@ -1099,28 +1099,53 @@ def main():
         
         st.divider()
 
-        st.subheader("📋 PORTFOLIO LIVE")
-        if not vdf.empty:
-            st.caption("Legenda daní: 🟢 > 3 roky (Osvobozeno) | 🔴 < 3 roky (Zdanit) | 🟠 Mix nákupů")
-            st.dataframe(
-                vdf,
-                column_config={
-                    "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
-                    "Sektor": st.column_config.TextColumn("Sektor", help="Odvětví"),
-                    "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
-                    "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f"),
-                    "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
-                    "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
-                    "P/E": st.column_config.NumberColumn("P/E Ratio", format="%.2f", help="Poměr ceny k ziskům. Nízká hodnota může značit podhodnocení."), # NOVÝ STYLOVANÝ SLOUPEC
-                    "Kapitalizace": st.column_config.NumberColumn("Kapitalizace", format="$%.1fB", help="Tržní kapitalizace ve formátu miliard USD."), # NOVÝ STYLOVANÝ SLOUPEC
-                    "Dan": st.column_config.TextColumn("Daně", help="🟢 > 3 roky (Osvobozeno)\n🔴 < 3 roky (Zdanit)\n🟠 Mix nákupů"),
-                    "Země": "Země"
-                },
-                column_order=["Ticker", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"], # PŘIDÁN P/E A KAPITALIZACE
-                use_container_width=True,
-                hide_index=True
-            )
-        else: st.info("Portfolio je prázdné.")
+        # --- NOVÉ DYNAMICKÉ OVLÁDÁNÍ ZOBRAZENÍ ---
+        # Definování proměnných pro kontrolu zobrazení (defaultně True)
+        if 'show_portfolio_live' not in st.session_state:
+            st.session_state['show_portfolio_live'] = True
+        if 'show_cash_history' not in st.session_state:
+            st.session_state['show_cash_history'] = False # Defaultně skryto pro úsporu místa
+            
+        col_view1, col_view2, _ = st.columns([1, 1, 3])
+        with col_view1:
+            st.session_state['show_portfolio_live'] = st.checkbox("Zobrazit Portfolio Tabulku", value=st.session_state['show_portfolio_live'])
+        with col_view2:
+             st.session_state['show_cash_history'] = st.checkbox("Zobrazit Historii Hotovosti", value=st.session_state['show_cash_history'])
+        st.write("") # Mezera pro oddělení od tabulky
+
+        if st.session_state['show_portfolio_live']:
+            st.subheader("📋 PORTFOLIO LIVE")
+            if not vdf.empty:
+                st.caption("Legenda daní: 🟢 > 3 roky (Osvobozeno) | 🔴 < 3 roky (Zdanit) | 🟠 Mix nákupů")
+                st.dataframe(
+                    vdf,
+                    column_config={
+                        "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
+                        "Sektor": st.column_config.TextColumn("Sektor", help="Odvětví"),
+                        "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
+                        "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f"),
+                        "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
+                        "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
+                        "P/E": st.column_config.NumberColumn("P/E Ratio", format="%.2f", help="Poměr ceny k ziskům. Nízká hodnota může značit podhodnocení."), # NOVÝ STYLOVANÝ SLOUPEC
+                        "Kapitalizace": st.column_config.NumberColumn("Kapitalizace", format="$%.1fB", help="Tržní kapitalizace ve formátu miliard USD."), # NOVÝ STYLOVANÝ SLOUPEC
+                        "Dan": st.column_config.TextColumn("Daně", help="🟢 > 3 roky (Osvobozeno)\n🔴 < 3 roky (Zdanit)\n🟠 Mix nákupů"),
+                        "Země": "Země"
+                    },
+                    column_order=["Ticker", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"], # PŘIDÁN P/E A KAPITALIZACE
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else: st.info("Portfolio je prázdné.")
+        
+        # Samostatný kontejner pro historii hotovosti, skrytelný
+        if st.session_state['show_cash_history']:
+            st.divider()
+            st.subheader("🏦 HISTORIE HOTOVOSTI")
+            if not df_cash.empty:
+                 st.dataframe(df_cash.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
+            else:
+                 st.info("Historie hotovosti je prázdná.")
+
 
     elif page == "👀 Sledování":
         st.title("👀 WATCHLIST (Hlídač) – Cenové zóny")
