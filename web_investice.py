@@ -351,8 +351,13 @@ def _ziskej_info_cached(ticker):
         'numberOfAnalystOpinions': info.get('numberOfAnalystOpinions', 0),
         # --- NOVÉ VLASTNICKÉ DATA ---
         'heldPercentInsiders': info.get('heldPercentInsiders', 0),
-        'heldPercentInstitutions': info.get('heldPercentInstitutions', 0)
-        # ------------------------------
+        'heldPercentInstitutions': info.get('heldPercentInstitutions', 0),
+        # --- NOVÉ VALUAČNÍ DATA (Graham & PEG) ---
+        'trailingEps': info.get('trailingEps', 0),
+        'bookValue': info.get('bookValue', 0),
+        'pegRatio': info.get('pegRatio', 0),
+        'priceToBook': info.get('priceToBook', 0)
+        # -----------------------------------------
     }
     return required_info
 
@@ -384,7 +389,8 @@ def ziskej_detail_akcie(ticker):
                 "currentPrice": fi.last_price,
                 "website": "",
                 "profitMargins": 0, "returnOnEquity": 0, "revenueGrowth": 0, "debtToEquity": 0, "quickRatio": 0, "numberOfAnalystOpinions": 0,
-                "heldPercentInsiders": 0, "heldPercentInstitutions": 0
+                "heldPercentInsiders": 0, "heldPercentInstitutions": 0,
+                "trailingEps": 0, "bookValue": 0, "pegRatio": 0, "priceToBook": 0
             }
         except:
             info = {
@@ -395,7 +401,8 @@ def ziskej_detail_akcie(ticker):
                 "trailingPE": 0,
                 "marketCap": 0,
                 "profitMargins": 0, "returnOnEquity": 0, "revenueGrowth": 0, "debtToEquity": 0, "quickRatio": 0, "numberOfAnalystOpinions": 0,
-                "heldPercentInsiders": 0, "heldPercentInstitutions": 0
+                "heldPercentInsiders": 0, "heldPercentInstitutions": 0,
+                "trailingEps": 0, "bookValue": 0, "pegRatio": 0, "priceToBook": 0
             }
 
     hist = _ziskej_historii_cached(ticker)
@@ -1506,7 +1513,6 @@ def main():
                             "Trend (30 dní)",
                             width="medium",
                             help="Vývoj ceny za poslední měsíc"
-                            # Odstraněno y_min/y_max pro správné auto-škálování
                         )
                     },
                     column_order=["Ticker", "Trend 30d", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"],
@@ -1857,7 +1863,13 @@ def main():
                             insiders = t_info.get('heldPercentInsiders', 0)
                             institutions = t_info.get('heldPercentInstitutions', 0)
                             public = max(0, 1.0 - insiders - institutions) # Zbytek je veřejnost
-                            # ----------------------
+                            
+                            # --- NOVÉ VALUACE ---
+                            eps = t_info.get('trailingEps', 0)
+                            bvps = t_info.get('bookValue', 0)
+                            peg = t_info.get('pegRatio', 0)
+                            pb = t_info.get('priceToBook', 0)
+                            # --------------------
 
                             if (not summary or summary == "MISSING_SUMMARY" or "Yahoo" in summary) and AI_AVAILABLE:
                                 try:
@@ -1921,6 +1933,50 @@ def main():
                                 fig_own.update_traces(textinfo='percent+label', textposition='outside')
                                 st.plotly_chart(fig_own, use_container_width=True)
                             # -----------------------------------------------
+
+                            # --- NOVÉ: FÉR HODNOTA (VALUATION) ---
+                            st.divider()
+                            st.subheader("⚖️ FÉR HODNOTA (Valuation)")
+                            
+                            # Výpočet Grahamova čísla (Sqrt(22.5 * EPS * BookValue))
+                            graham_number = 0
+                            if eps > 0 and bvps > 0:
+                                graham_number = np.sqrt(22.5 * eps * bvps)
+                            
+                            val_col1, val_col2, val_col3 = st.columns(3)
+                            
+                            with val_col1:
+                                st.markdown("**Grahamovo Číslo**")
+                                if graham_number > 0:
+                                    color_graham = "green" if current_price < graham_number else "red"
+                                    st.markdown(f"<h2 style='color:{color_graham}'>{graham_number:.2f} {currency}</h2>", unsafe_allow_html=True)
+                                    if current_price < graham_number: st.caption(f"✅ Podhodnoceno (Sleva {((graham_number-current_price)/graham_number)*100:.1f}%)")
+                                    else: st.caption(f"❌ Předražené o {((current_price-graham_number)/graham_number)*100:.1f}%")
+                                else:
+                                    st.metric("Graham", "N/A", "Ztrátová firma")
+                            
+                            with val_col2:
+                                st.markdown("**PEG Ratio (Růst)**")
+                                if peg > 0:
+                                    color_peg = "green" if peg < 1 else ("orange" if peg < 2 else "red")
+                                    st.markdown(f"<h2 style='color:{color_peg}'>{peg:.2f}</h2>", unsafe_allow_html=True)
+                                    if peg < 1: st.caption("✅ Super levné vůči růstu")
+                                    elif peg < 2: st.caption("⚖️ Fér cena")
+                                    else: st.caption("❌ Drahé vůči růstu")
+                                else:
+                                    st.metric("PEG", "N/A")
+                                    
+                            with val_col3:
+                                st.markdown("**Price / Book (Majetek)**")
+                                if pb > 0:
+                                    color_pb = "green" if pb < 1.5 else ("orange" if pb < 3 else "red")
+                                    st.markdown(f"<h2 style='color:{color_pb}'>{pb:.2f}</h2>", unsafe_allow_html=True)
+                                    st.caption("Cena za $1 majetku firmy")
+                                else:
+                                    st.metric("P/B", "N/A")
+
+                            st.info(f"💡 **Vysvětlivka:** Grahamovo číslo je konzervativní odhad 'skutečné' ceny podle Benjamina Grahama (učitele Warrena Buffetta). Pokud je tržní cena NIŽŠÍ než Grahamovo číslo, akcie je teoreticky ve slevě.")
+                            # -------------------------------------
 
                             if target_price > 0 and current_price > 0:
                                 st.divider()
@@ -2688,69 +2744,6 @@ def main():
         st.subheader("💡 Moudro dne")
         if 'quote' not in st.session_state: st.session_state['quote'] = random.choice(CITATY)
         st.info(f"*{st.session_state['quote']}*")
-
-    elif page == "📰 Zprávy":
-        st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
-        if AI_AVAILABLE:
-            def analyze_news_with_ai(title, link):
-                prompt_to_send = f"Analyzuj následující finanční zprávu V KONTEXTU MÉHO PORTFOLIA. Zpráva: {title} (Odkaz: {link}). Jaký by měla mít dopad na mé současné držby?"
-                st.session_state["chat_messages"].append({"role": "user", "content": prompt_to_send})
-                st.session_state['chat_expanded'] = True
-                st.rerun()
-
-            if st.button("🧠 SPUSTIT AI SENTIMENT 2.0", type="primary"):
-                with st.spinner("AI analyzuje trh..."):
-                    raw_news = ziskej_zpravy()
-                    titles = [n['title'] for n in raw_news[:8]]
-                    titles_str = "\n".join([f"{i+1}. {t}" for i, t in enumerate(titles)])
-                    prompt = f"""Jsi finanční analytik. Analyzuj tyto novinové titulky a urči jejich sentiment.\nTITULKY:\n{titles_str}\nPro každý titulek vrať přesně tento formát na jeden řádek (bez odrážek):\nINDEX|SKÓRE(0-100)|VYSVĚTLENÍ (česky, max 1 věta)"""
-                    try:
-                        response = AI_MODEL.generate_content(prompt)
-                        analysis_map = {}
-                        for line in response.text.strip().split('\n'):
-                            parts = line.split('|')
-                            if len(parts) == 3:
-                                try:
-                                    idx = int(parts[0].replace('.', '').strip()) - 1; score = int(parts[1].strip()); reason = parts[2].strip()
-                                    analysis_map[idx] = {'score': score, 'reason': reason}
-                                except: pass
-                        st.session_state['ai_news_analysis'] = analysis_map
-                        st.session_state['news_timestamp'] = datetime.now()
-                        st.success("Analýza dokončena!")
-                    except Exception as e: st.error(f"Chyba AI: {e}")
-        
-        news = ziskej_zpravy()
-        ai_results = st.session_state.get('ai_news_analysis', {})
-        if news:
-            c1, c2 = st.columns(2)
-            for i, n in enumerate(news):
-                col = c1 if i % 2 == 0 else c2
-                with col:
-                    with st.container(border=True):
-                        if i in ai_results:
-                            res = ai_results[i]; score = res['score']; reason = res['reason']
-                            if score >= 60: color = "green"; emoji = "🟢 BÝČÍ"
-                            elif score <= 40: color = "red"; emoji = "🔴 MEDVĚDÍ"
-                            else: color = "orange"; emoji = "🟡 NEUTRÁL"
-                            st.markdown(f"#### {n['title']}")
-                            st.caption(f"📅 {n['published']}")
-                            st.markdown(f"**{emoji} (Skóre: {score}/100)**"); st.progress(score); st.info(f"🤖 {reason}")
-                        else:
-                            title_upper = n['title'].upper(); sentiment = "neutral"
-                            for kw in KW_POSITIVNI:
-                                if kw in title_upper: sentiment = "positive"; break
-                            if sentiment == "neutral":
-                                for kw in KW_NEGATIVNI:
-                                    if kw in title_upper: sentiment = "negative"; break
-                            if sentiment == "positive": st.success(f"🟢 **BÝČÍ ZPRÁVA**")
-                            elif sentiment == "negative": st.error(f"🔴 **MEDVĚDÍ SIGNÁL**")
-                            st.markdown(f"### {n['title']}"); st.caption(f"📅 {n['published']}")
-                        
-                        st.link_button("Číst článek", n['link'], help="Otevře článek v novém okně.")
-                        if AI_AVAILABLE:
-                            if st.button(f"🤖 Analyzovat s AI (Kontext)", key=f"analyze_ai_{i}"):
-                                analyze_news_with_ai(n['title'], n['link'])
-        else: st.info("Žádné nové zprávy.")
 
     elif page == "⚙️ Nastavení":
         st.title("⚙️ DATA & SPRÁVA")
