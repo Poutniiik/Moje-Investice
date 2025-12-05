@@ -4,12 +4,12 @@ yfinance>=0.2.40
 plotly
 PyGithub
 matplotlib
-requests-cache
 requests
+requests-cache
 streamlit-lottie
 google-generativeai
 feedparser
 fpdf
 extra-streamlit-components
 kaleido
-wordcloud matplotlib
+wordcloud
