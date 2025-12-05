@@ -1168,6 +1168,129 @@ def main():
                 st.plotly_chart(fig_pie, use_container_width=True, key="fig_sektory")
                 add_download_button(fig_pie, "sektorova_analyza")
 
+        # --- NOVINKA: SANKEY DIAGRAM (TOK PENĚZ) ---
+        st.divider()
+        st.subheader("🌊 TOK KAPITÁLU (Sankey)")
+        
+        # 1. Příprava dat pro Sankey
+        # Zdroje (Odkud peníze přišly)
+        total_vklady_czk = 0
+        if not df_cash.empty:
+            # Sečteme vklady mínus výběry (přibližný přepočet na CZK pro vizualizaci)
+            for _, row in df_cash.iterrows():
+                cst = row['Castka']
+                men = row['Mena']
+                val_czk = cst
+                if men == "USD": val_czk = cst * kurzy.get("CZK", 20.85)
+                elif men == "EUR": val_czk = cst * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+                
+                if row['Typ'] in ['Vklad', 'Deposit']: total_vklady_czk += val_czk
+                elif row['Typ'] in ['Výběr', 'Withdrawal']: total_vklady_czk -= val_czk
+        
+        total_divi_czk = 0
+        if not df_div.empty:
+             for _, r in df_div.iterrows():
+                amt = r['Castka']; currency = r['Mena']
+                if currency == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
+                elif currency == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+                else: total_divi_czk += amt
+
+        # Zisky (Nerealizované + Realizované)
+        # Pro jednoduchost vezmeme aktuální hodnotu portfolia minus investice
+        # A přičteme historické realizované zisky
+        total_realized_czk = 0
+        if not st.session_state['df_hist'].empty:
+             for _, r in st.session_state['df_hist'].iterrows():
+                 # Zjednodušený odhad realizovaného zisku v CZK
+                 zsk = r['Zisk'] # Předpokládáme, že Zisk je v měně obchodu, ale tady to pro vizualizaci zjednodušíme nebo převedeme
+                 men = r['Mena']
+                 if men == "USD": total_realized_czk += zsk * kurzy.get("CZK", 20.85)
+                 elif men == "EUR": total_realized_czk += zsk * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+                 else: total_realized_czk += zsk
+
+        unrealized_profit_czk = (celk_hod_czk - celk_inv_czk)
+        total_market_profit_czk = total_divi_czk + total_realized_czk + unrealized_profit_czk
+        
+        # Pokud je zisk záporný (ztráta), Sankey to neumí dobře zobrazit jako "zdroj", 
+        # tak to pro vizualizaci ošetříme (zobrazíme jen kladné toky nebo snížíme hodnotu kapitálu)
+        # Zde uděláme verzi: Vklady + Zisk = Majetek. (Pokud ztráta, Majetek < Vklady)
+        
+        # Cíle (Kde peníze jsou)
+        cash_total_czk = cash_usd * kurzy.get("CZK", 20.85)
+        stock_total_czk = celk_hod_czk
+        
+        # Konstrukce uzlů
+        label = ["Vklady (Netto)", "Tržní Zisk & Divi", "MŮJ KAPITÁL", "Hotovost"]
+        color = ["#1f77b4", "#2ca02c", "#d62728", "#9467bd"]
+        
+        # Přidáme jednotlivé akcie (Top 5 pro přehlednost)
+        top_stocks = []
+        if not vdf.empty:
+            vdf_sorted = vdf.sort_values('HodnotaUSD', ascending=False).head(5)
+            for _, row in vdf_sorted.iterrows():
+                stock_label = f"Akcie {row['Ticker']}"
+                label.append(stock_label)
+                color.append("#e377c2") # Barva pro akcie
+                top_stocks.append({'label': stock_label, 'value_czk': row['HodnotaUSD'] * kurzy.get("CZK", 20.85)})
+        
+        # Jiné akcie (zbytek)
+        other_stocks_val_czk = stock_total_czk - sum([s['value_czk'] for s in top_stocks])
+        if other_stocks_val_czk > 100: # Jen pokud tam něco zbývá
+            label.append("Ostatní Akcie")
+            color.append("#7f7f7f")
+        
+        # Indexy uzlů
+        IDX_VKLADY = 0
+        IDX_ZISK = 1
+        IDX_KAPITAL = 2
+        IDX_CASH = 3
+        IDX_FIRST_STOCK = 4
+        
+        source = []
+        target = []
+        value = []
+        
+        # Tok 1: Vklady -> Kapitál
+        if total_vklady_czk > 0:
+            source.append(IDX_VKLADY); target.append(IDX_KAPITAL); value.append(total_vklady_czk)
+            
+        # Tok 2: Zisk -> Kapitál (jen pokud jsme v plusu celkově)
+        if total_market_profit_czk > 0:
+            source.append(IDX_ZISK); target.append(IDX_KAPITAL); value.append(total_market_profit_czk)
+        
+        # Tok 3: Kapitál -> Hotovost
+        if cash_total_czk > 100: # Filtrujeme drobné
+            source.append(IDX_KAPITAL); target.append(IDX_CASH); value.append(cash_total_czk)
+            
+        # Tok 4: Kapitál -> Akcie
+        current_stock_idx = IDX_FIRST_STOCK
+        for s in top_stocks:
+            source.append(IDX_KAPITAL); target.append(current_stock_idx); value.append(s['value_czk'])
+            current_stock_idx += 1
+            
+        if other_stocks_val_czk > 100:
+            source.append(IDX_KAPITAL); target.append(current_stock_idx); value.append(other_stocks_val_czk)
+
+        # Vykreslení
+        fig_sankey = go.Figure(data=[go.Sankey(
+            node = dict(
+              pad = 15,
+              thickness = 20,
+              line = dict(color = "black", width = 0.5),
+              label = label,
+              color = "rgba(0, 204, 150, 0.6)" # Defaultní barva uzlů
+            ),
+            link = dict(
+              source = source,
+              target = target,
+              value = value,
+              color = "rgba(100, 100, 100, 0.3)" # Průhledná šedá pro toky
+          ))])
+
+        fig_sankey.update_layout(title_text="Tok peněz v portfoliu (CZK)", font_size=12, height=400, paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+        st.plotly_chart(fig_sankey, use_container_width=True)
+        # ----------------------------------------
+
         st.subheader("💰 INVESTOVÁNO DLE MĚN")
         inv_usd, inv_czk, inv_eur = 0, 0, 0
         if viz_data:
