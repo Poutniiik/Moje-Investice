@@ -21,6 +21,7 @@ from email.mime.text import MIMEText
 from fpdf import FPDF
 import extra_streamlit_components as stx
 import random
+import pytz # Přidáno pro časová pásma
 
 # --- KONFIGURACE ---
 st.set_page_config(
@@ -367,6 +368,20 @@ def ziskej_detail_akcie(ticker):
 
     hist = _ziskej_historii_cached(ticker)
     return info, hist
+
+# --- POMOCNÁ FUNKCE PRO TRŽNÍ HODINY ---
+def zjisti_stav_trhu(timezone_str, open_hour, close_hour):
+    try:
+        tz = pytz.timezone(timezone_str)
+        now = datetime.now(tz)
+        is_open = False
+        # Jednoduchá logika: Pondělí-Pátek (0-4) a čas mezi Open a Close
+        if 0 <= now.weekday() <= 4:
+            if open_hour <= now.hour < close_hour:
+                is_open = True
+        return now.strftime("%H:%M"), is_open
+    except:
+        return "N/A", False
 
 # --- PDF GENERATOR ---
 def clean_text(text):
@@ -945,6 +960,24 @@ def main():
         
         st.header(f"👤 {USER.upper()}")
         
+        # --- NOVÉ: SVĚTOVÉ TRHY (HODINY) ---
+        with st.expander("🌍 SVĚTOVÉ TRHY", expanded=True):
+            ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16) # NYSE: 9:30 - 16:00 (zjednodušeno na hodiny)
+            ln_time, ln_open = zjisti_stav_trhu("Europe/London", 8, 16)    # LSE
+            jp_time, jp_open = zjisti_stav_trhu("Asia/Tokyo", 9, 15)       # TSE
+            
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇺🇸 New York"); c_m2.markdown(f"**{ny_time}** {'🟢' if ny_open else '🔴'}")
+            
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇬🇧 Londýn"); c_m2.markdown(f"**{ln_time}** {'🟢' if ln_open else '🔴'}")
+            
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇯🇵 Tokio"); c_m2.markdown(f"**{jp_time}** {'🟢' if jp_open else '🔴'}")
+        
+        st.divider()
+        # -----------------------------------
+
         # --- GAME LEVELING SYSTEM ---
         level_name = "Novic"
         level_progress = 0.0
@@ -1377,8 +1410,14 @@ def main():
                                 rs = gain / loss
                                 hist_data['RSI'] = 100 - (100 / (1 + rs))
                                 
-                                # --- VÝPOČTY PRO AI ANALÝZU (PŘIDÁNO) ---
-                                last_row = hist_data.iloc[-1]
+                                # --- VÝPOČTY PRO AI ANALÝZU (OPRAVA 0.00) ---
+                                # Najdeme poslední řádek, kde JSOU data pro SMA vypočítaná (ne NaN)
+                                valid_data = hist_data.dropna(subset=['SMA50'])
+                                if not valid_data.empty:
+                                    last_row = valid_data.iloc[-1] # Použijeme poslední PLATNÝ řádek
+                                else:
+                                    last_row = hist_data.iloc[-1] # Fallback
+
                                 current_price_scan = last_row['Close']
                                 rsi_scan = last_row['RSI']
                                 sma20_scan = last_row['SMA20'] if 'SMA20' in last_row else 0
