@@ -733,8 +733,8 @@ def add_download_button(fig_id, filename):
     js_code = f"""
     <script>
         function downloadPlotlyChart(chartId, filename) {{
-            // 1. Plotly grafy ve Streamlitu získávají dynamická ID. Nejlepší cesta je najít 
-            // Streamlit kontejner s data-testid a uvnitř něj vyhledat Plotly div.
+            // 1. Plotly grafy ve Streamlitu získávají dynamická ID.
+            // Zkusíme najít Streamlit kontejner s data-testid, který Streamlit generuje z našeho 'key'.
             const container = document.querySelector(`[data-testid*="${chartId}"]`);
             let plotlyDiv = null;
 
@@ -743,12 +743,12 @@ def add_download_button(fig_id, filename):
                  plotlyDiv = container.querySelector('.js-plotly-plot');
             }}
 
+            // Fallback kontrola pro jistotu a kontrola načtení knihovny
             if (plotlyDiv && typeof Plotly !== 'undefined') {{
                 // Plotly.downloadImage potřebuje div element.
                 Plotly.downloadImage(plotlyDiv, {{format: 'png', filename: filename}});
             }} else {{
                 console.error('Plotly graf nebo knihovna nebyla nalezena pro ID:', chartId);
-                // V případě selhání by zde měla být notifikace v Streamlitu (což nelze přes JS)
             }}
         }}
     </script>
@@ -2048,4 +2048,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
