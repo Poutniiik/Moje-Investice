@@ -2115,42 +2115,37 @@ def main():
                                 st.plotly_chart(fig_candle, use_container_width=True)
                                 add_download_button(fig_candle, f"rentgen_{vybrana_akcie}")
                                 
-                                # --- NOVÁ FUNKCE: AI TECHNICKÁ ANALÝZA ---
+                               # --- NOVÁ FUNKCE: AI TECHNICKÁ ANALÝZA ---
                                 if AI_AVAILABLE:
                                     st.divider()
-                                    if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="secondary"):
+                                    if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="primary"):
                                         with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
-                                            # Přidáme do promptu i MACD info
-                                            macd_val = last_row['MACD']
-                                            sig_val = last_row['Signal']
-                                            macd_hist_val = last_row['MACD_Hist']
-                                            
+                                            # Vytáhneme data z posledního řádku (last_row už máš definované o kus výš v kódu)
                                             prompt_tech = f"""
-                                            Jsi expert na technickou analýzu akcií. Analyzuj následující data pro {vybrana_akcie}:
-                                            Aktuální Cena: {current_price_scan:.2f}
-                                            RSI (14): {rsi_scan:.2f}
-                                            SMA 20 (Krátkodobý trend): {sma20_scan:.2f}
-                                            SMA 50 (Střednědobý trend): {sma50_scan:.2f}
-                                            Bollinger Upper: {bb_upper_scan:.2f}
-                                            Bollinger Lower: {bb_lower_scan:.2f}
-                                            MACD Line: {macd_val:.4f}
-                                            Signal Line: {sig_val:.4f}
-                                            MACD Histogram: {macd_hist_val:.4f}
+                                            Jsi expert na technickou analýzu akcií. Analyzuj následující TVRDÁ DATA pro {vybrana_akcie}:
                                             
-                                            Úkol:
-                                            1. Urči trend (SMA, MACD Crossover, Cena vs SMA).
-                                            2. Zhodnoť RSI (Překoupeno > 70, Přeprodáno < 30).
-                                            3. Zkontroluj Bollinger Bands (Je cena u kraje? Squeeze?).
-                                            4. MACD: Je momentum rostoucí (kladný histogram) nebo klesající?
-                                            5. Dej finální verdikt: BÝČÍ / MEDVĚDÍ / NEUTRÁLNÍ.
-                                            Odpověz stručně v bodech, česky.
+                                            CENA: {last_row['Close']:.2f}
+                                            RSI (14): {last_row['RSI']:.2f} (Nad 70=Překoupeno, Pod 30=Přeprodáno)
+                                            SMA 20: {last_row['SMA20']:.2f}
+                                            SMA 50: {last_row['SMA50']:.2f}
+                                            Bollinger Upper: {last_row['BB_Upper']:.2f}
+                                            Bollinger Lower: {last_row['BB_Lower']:.2f}
+                                            MACD: {last_row['MACD']:.4f} (Signal: {last_row['Signal']:.4f})
+                                            
+                                            ÚKOL:
+                                            1. Urči trend (Je cena nad SMA50?).
+                                            2. Zhodnoť RSI (Je bezpečné teď nakupovat?).
+                                            3. MACD signál (Blíží se překřížení?).
+                                            4. Dej finální verdikt: BÝČÍ (Růst) / MEDVĚDÍ (Pokles) / NEUTRÁLNÍ.
+                                            
+                                            Odpověz stručně, profesionálně, česky a použij formátování (tučné písmo).
                                             """
+                                            
                                             try:
                                                 tech_res = AI_MODEL.generate_content(prompt_tech)
-                                                st.success("Analýza dokončena!")
                                                 st.markdown(f"""
-                                                <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 10px; padding: 20px;">
-                                                    <h3 style="color: #58A6FF;">🤖 AI VERDIKT: {vybrana_akcie}</h3>
+                                                <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 10px; padding: 20px; margin-top: 10px;">
+                                                    <h3 style="color: #58A6FF; margin-top: 0;">🤖 AI VERDIKT: {vybrana_akcie}</h3>
                                                     {tech_res.text}
                                                 </div>
                                                 """, unsafe_allow_html=True)
@@ -2849,6 +2844,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
