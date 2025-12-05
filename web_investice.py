@@ -1145,6 +1145,12 @@ def main():
             for _, r in df_watch.iterrows():
                 tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell'] # Nové cíle
                 inf = LIVE_DATA.get(tk, {}); p = inf.get('price'); cur = inf.get('curr', 'USD')
+                
+                # OPRAVA CHYBY MĚNY: Přepsání měny na základě konvence tickeru
+                if tk.upper().endswith(".PR"): cur = "CZK"
+                elif tk.upper().endswith(".DE"): cur = "EUR"
+                # Ostatní zůstane USD (nebo co stáhlo LIVE_DATA)
+                
                 if not p: p, _, _ = ziskej_info(tk)
                 
                 status_text = "💤 Sleduji"
