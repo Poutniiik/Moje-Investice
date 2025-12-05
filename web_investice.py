@@ -348,7 +348,10 @@ def _ziskej_info_cached(ticker):
         'revenueGrowth': info.get('revenueGrowth', 0),
         'debtToEquity': info.get('debtToEquity', 0),
         'quickRatio': info.get('quickRatio', 0),
-        'numberOfAnalystOpinions': info.get('numberOfAnalystOpinions', 0)
+        'numberOfAnalystOpinions': info.get('numberOfAnalystOpinions', 0),
+        # --- NOVÉ VLASTNICKÉ DATA ---
+        'heldPercentInsiders': info.get('heldPercentInsiders', 0),
+        'heldPercentInstitutions': info.get('heldPercentInstitutions', 0)
         # ------------------------------
     }
     return required_info
@@ -380,7 +383,8 @@ def ziskej_detail_akcie(ticker):
                 "currency": fi.currency,
                 "currentPrice": fi.last_price,
                 "website": "",
-                "profitMargins": 0, "returnOnEquity": 0, "revenueGrowth": 0, "debtToEquity": 0, "quickRatio": 0, "numberOfAnalystOpinions": 0
+                "profitMargins": 0, "returnOnEquity": 0, "revenueGrowth": 0, "debtToEquity": 0, "quickRatio": 0, "numberOfAnalystOpinions": 0,
+                "heldPercentInsiders": 0, "heldPercentInstitutions": 0
             }
         except:
             info = {
@@ -390,7 +394,8 @@ def ziskej_detail_akcie(ticker):
                 "longBusinessSummary": "Data nedostupná.",
                 "trailingPE": 0,
                 "marketCap": 0,
-                "profitMargins": 0, "returnOnEquity": 0, "revenueGrowth": 0, "debtToEquity": 0, "quickRatio": 0, "numberOfAnalystOpinions": 0
+                "profitMargins": 0, "returnOnEquity": 0, "revenueGrowth": 0, "debtToEquity": 0, "quickRatio": 0, "numberOfAnalystOpinions": 0,
+                "heldPercentInsiders": 0, "heldPercentInstitutions": 0
             }
 
     hist = _ziskej_historii_cached(ticker)
@@ -1848,6 +1853,11 @@ def main():
                             roe = t_info.get('returnOnEquity', 0)
                             rev_growth = t_info.get('revenueGrowth', 0)
                             debt_equity = t_info.get('debtToEquity', 0)
+                            
+                            # --- NOVÉ VLASTNICTVÍ ---
+                            insiders = t_info.get('heldPercentInsiders', 0)
+                            institutions = t_info.get('heldPercentInstitutions', 0)
+                            public = max(0, 1.0 - insiders - institutions) # Zbytek je veřejnost
                             # ----------------------
 
                             if (not summary or summary == "MISSING_SUMMARY" or "Yahoo" in summary) and AI_AVAILABLE:
@@ -1889,6 +1899,29 @@ def main():
                             fc2.metric("ROE (Efektivita)", f"{roe*100:.1f} %", help="Návratnost vlastního kapitálu. Nad 15 % je super.")
                             fc3.metric("Růst tržeb (YoY)", f"{rev_growth*100:.1f} %", help="Meziroční růst příjmů.")
                             fc4.metric("Dluh / Vlastní jmění", f"{debt_equity:.2f}", help="Poměr dluhu k majetku akcionářů. Pod 1.0 je bezpečné, nad 2.0 rizikové.")
+
+                            # --- NOVÉ: VELRYBÍ RADAR (GRAF VLASTNICTVÍ) ---
+                            st.write("")
+                            st.subheader("🐳 VELRYBÍ RADAR (Kdo to vlastní?)")
+                            
+                            own_col1, own_col2 = st.columns([1, 2])
+                            with own_col1:
+                                st.metric("🏦 Instituce (Fondy)", f"{institutions*100:.1f} %", help="Banky, hedge fondy, penzijní fondy. 'Smart Money'.")
+                                st.metric("👔 Insideři (Vedení)", f"{insiders*100:.1f} %", help="Lidé z vedení firmy. Vysoké číslo = věří si.")
+                                
+                            with own_col2:
+                                own_df = pd.DataFrame({
+                                    "Kdo": ["Instituce 🏦", "Insideři 👔", "Veřejnost 👥"],
+                                    "Podíl": [institutions, insiders, public]
+                                })
+                                fig_own = px.pie(own_df, values='Podíl', names='Kdo', hole=0.6, 
+                                                 color='Kdo', 
+                                                 color_discrete_map={"Instituce 🏦": "#58A6FF", "Insideři 👔": "#238636", "Veřejnost 👥": "#8B949E"},
+                                                 template="plotly_dark")
+                                fig_own.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", showlegend=True, legend=dict(y=0.5))
+                                fig_own.update_traces(textinfo='percent+label', textposition='outside')
+                                st.plotly_chart(fig_own, use_container_width=True)
+                            # -----------------------------------------------
 
                             if target_price > 0 and current_price > 0:
                                 st.divider()
