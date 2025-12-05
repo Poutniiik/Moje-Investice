@@ -90,26 +90,48 @@ try:
 except Exception:
     AI_AVAILABLE = False
 
-# --- STYLY ---
+# --- STYLY (VISUAL UPGRADE) ---
 st.markdown("""
 <style>
+    /* Hlavní barvy a fonty */
     .stApp {background-color: #0E1117; font-family: 'Roboto Mono', monospace;}
+    
+    /* Vylepšený Scrollbar (Tmavý) */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+        background: #0E1117;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #30363D;
+        border-radius: 5px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #58A6FF;
+    }
+
+    /* Metriky s neonovým nádechem */
     div[data-testid="stMetric"] {
         background-color: #161B22; 
         border: 1px solid #30363D; 
         padding: 15px; 
         border-radius: 8px; 
         color: #E6EDF3;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        transition: transform 0.2s;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3), 0 0 10px rgba(88, 166, 255, 0.05); /* Jemná záře */
+        transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
     }
     div[data-testid="stMetric"]:hover {
         transform: translateY(-2px);
         border-color: #58A6FF;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.4), 0 0 15px rgba(88, 166, 255, 0.2);
     }
     div[data-testid="stMetricLabel"] {font-size: 0.85rem; color: #8B949E; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;}
     div[data-testid="stMetricValue"] {font-size: 1.6rem; color: #E6EDF3; font-weight: bold;}
+    
+    /* Nadpisy */
     h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1.5px;}
+    
+    /* Tlačítka */
     div[data-testid="column"] button {
         border: 1px solid #30363D; 
         background-color: #21262D; 
@@ -121,7 +143,10 @@ st.markdown("""
     div[data-testid="column"] button:hover {
         border-color: #58A6FF;
         color: #58A6FF;
+        box-shadow: 0 0 8px rgba(88, 166, 255, 0.3);
     }
+    
+    /* Tabs */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: transparent;
@@ -151,12 +176,15 @@ st.markdown("""
         border-color: #2ea043 !important; 
         color: white !important;
         font-weight: bold;
-        box-shadow: 0 0 10px rgba(35, 134, 54, 0.3); 
+        box-shadow: 0 0 10px rgba(35, 134, 54, 0.4); 
     }
     a {text-decoration: none; color: #58A6FF !important;} 
     .stProgress > div > div > div > div {
         background-color: #238636;
+        box-shadow: 0 0 10px rgba(35, 134, 54, 0.5);
     }
+    
+    /* Bot Floating Window */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) {
         position: fixed !important;
         bottom: 20px !important;
@@ -1015,7 +1043,7 @@ def main():
                     ],
                 }
             ))
-            fig_gauge.update_layout(paper_bgcolor="#161B22", font={'color': "white", 'family': "Arial"}, height=250, margin=dict(l=20, r=20, t=30, b=20))
+            fig_gauge.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", 'family': "Roboto Mono"}, height=250, margin=dict(l=20, r=20, t=30, b=20))
             st.plotly_chart(fig_gauge, use_container_width=True)
         
         st.divider()
@@ -1029,7 +1057,10 @@ def main():
                 chart_data['Date'] = pd.to_datetime(chart_data['Date'])
                 chart_data['TotalCZK'] = chart_data['TotalUSD'] * kurzy.get("CZK", 20.85)
                 fig_area = px.area(chart_data, x='Date', y='TotalCZK', template="plotly_dark", color_discrete_sequence=['#00CC96'])
-                fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
+                fig_area.update_traces(line_color='#00CC96', fillcolor='rgba(0, 204, 150, 0.3)')
+                fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False, font_family="Roboto Mono")
+                fig_area.update_xaxes(showgrid=False)
+                fig_area.update_yaxes(showgrid=True, gridcolor='#30363D')
                 st.plotly_chart(fig_area, use_container_width=True, key="fig_vyvoj_maj")
                 add_download_button(fig_area, "vyvoj_majetku")
         
@@ -1038,7 +1069,7 @@ def main():
                 st.subheader("🍰 SEKTORY")
                 fig_pie = px.pie(vdf, values='HodnotaUSD', names='Sektor', hole=0.4, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-                fig_pie.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0), height=300)
+                fig_pie.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0), height=300, paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
                 st.plotly_chart(fig_pie, use_container_width=True, key="fig_sektory")
                 add_download_button(fig_pie, "sektorova_analyza")
 
@@ -1332,8 +1363,9 @@ def main():
                                 fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['RSI'], mode='lines', name='RSI', line=dict(color='#A56CC1', width=2)), row=2, col=1)
                                 fig_candle.add_hline(y=70, line_dash="dot", line_color="red", row=2, col=1, annotation_text="Překoupené (70)", annotation_position="top right")
                                 fig_candle.add_hline(y=30, line_dash="dot", line_color="green", row=2, col=1, annotation_text="Přeprodané (30)", annotation_position="bottom right")
-                                fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=600, margin=dict(l=0, r=0, t=30, b=0), legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0)"))
-                                fig_candle.update_yaxes(title_text="Cena", row=1, col=1); fig_candle.update_yaxes(title_text="RSI", row=2, col=1, range=[0, 100])
+                                fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=600, margin=dict(l=0, r=0, t=30, b=0), legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0)"), font_family="Roboto Mono")
+                                fig_candle.update_yaxes(title_text="Cena", row=1, col=1, showgrid=True, gridcolor='#30363D'); fig_candle.update_yaxes(title_text="RSI", row=2, col=1, range=[0, 100], showgrid=True, gridcolor='#30363D')
+                                fig_candle.update_xaxes(showgrid=False)
                                 st.plotly_chart(fig_candle, use_container_width=True)
                                 add_download_button(fig_candle, f"rentgen_{vybrana_akcie}")
                             else: st.warning("Graf historie není k dispozici.")
@@ -1373,8 +1405,13 @@ def main():
                                 xaxis_title="Datum", 
                                 yaxis_title="Změna (%)", 
                                 height=500,
-                                margin=dict(t=50, b=0, l=0, r=0)
+                                margin=dict(t=50, b=0, l=0, r=0),
+                                font_family="Roboto Mono",
+                                plot_bgcolor="rgba(0,0,0,0)", 
+                                paper_bgcolor="rgba(0,0,0,0)"
                             )
+                            fig_multi_comp.update_xaxes(showgrid=False)
+                            fig_multi_comp.update_yaxes(showgrid=True, gridcolor='#30363D')
                             st.plotly_chart(fig_multi_comp, use_container_width=True, key="fig_srovnani")
                             add_download_button(fig_multi_comp, "srovnani_akcii")
 
@@ -1423,7 +1460,7 @@ def main():
                     df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
                     fig_map = px.scatter_geo(df_map, locations="Země", locationmode="country names", hover_name="Země", size="HodnotaUSD", projection="orthographic", color="Země", template="plotly_dark")
                     fig_map.update_geos(bgcolor="#161B22", showcountries=True, countrycolor="#30363D", showocean=True, oceancolor="#0E1117", showland=True, landcolor="#1c2128")
-                    fig_map.update_layout(paper_bgcolor="#161B22", font={"color": "white"}, height=500, margin={"r":0,"t":0,"l":0,"b":0})
+                    fig_map.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={"color": "white", "family": "Roboto Mono"}, height=500, margin={"r":0,"t":0,"l":0,"b":0})
                     st.plotly_chart(fig_map, use_container_width=True, key="fig_mapa_imperia")
                     add_download_button(fig_map, "mapa_imperia")
                 except Exception as e: st.error(f"Chyba mapy: {e}")
@@ -1431,6 +1468,7 @@ def main():
                 st.caption("MAPA TRHU (Sektory)")
                 try:
                     fig = px.treemap(vdf, path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'], values='HodnotaUSD', color='Zisk', color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0)
+                    fig.update_layout(font_family="Roboto Mono", paper_bgcolor="rgba(0,0,0,0)")
                     st.plotly_chart(fig, use_container_width=True, key="fig_sektor_map")
                     add_download_button(fig, "mapa_sektoru")
                 except Exception: st.error("Chyba mapy.")
@@ -1528,8 +1566,13 @@ def main():
                                 yaxis_title='Očekávaný Roční Výnos',
                                 template="plotly_dark",
                                 hovermode='closest',
-                                height=550
+                                height=550,
+                                font_family="Roboto Mono",
+                                plot_bgcolor="rgba(0,0,0,0)",
+                                paper_bgcolor="rgba(0,0,0,0)"
                             )
+                            fig_ef.update_xaxes(showgrid=False)
+                            fig_ef.update_yaxes(showgrid=True, gridcolor='#30363D')
                             st.plotly_chart(fig_ef, use_container_width=True, key="fig_ef_frontier")
                             add_download_button(fig_ef, "efektivni_hranice")
                             
@@ -1610,7 +1653,9 @@ def main():
                 for col in sim_data.columns: fig_mc.add_trace(go.Scatter(y=sim_data[col], mode='lines', line=dict(width=1), opacity=0.3, showlegend=False))
                 sim_data['Average'] = sim_data.mean(axis=1)
                 fig_mc.add_trace(go.Scatter(y=sim_data['Average'], mode='lines', name='Průměrný scénář', line=dict(color='yellow', width=4)))
-                fig_mc.update_layout(title=f"Monte Carlo: {num_simulations} scénářů na {mc_years} let", xaxis_title="Dny", yaxis_title="Hodnota (CZK)", template="plotly_dark")
+                fig_mc.update_layout(title=f"Monte Carlo: {num_simulations} scénářů na {mc_years} let", xaxis_title="Dny", yaxis_title="Hodnota (CZK)", template="plotly_dark", font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+                fig_mc.update_xaxes(showgrid=False)
+                fig_mc.update_yaxes(showgrid=True, gridcolor='#30363D')
                 st.plotly_chart(fig_mc, use_container_width=True)
                 st.success(f"Průměrná hodnota na konci: {sim_data['Average'].iloc[-1]:,.0f} Kč")
 
@@ -1651,7 +1696,9 @@ def main():
                         fig_bench = go.Figure()
                         fig_bench.add_trace(go.Scatter(x=user_df.index, y=user_df['MyReturn'], mode='lines', name='Moje Portfolio', line=dict(color='#00CC96', width=3)))
                         fig_bench.add_trace(go.Scatter(x=sp500_norm.index, y=sp500_norm, mode='lines', name='S&P 500', line=dict(color='#808080', width=2, dash='dot')))
-                        fig_bench.update_layout(title="Výkonnost v % od začátku měření", xaxis_title="", yaxis_title="Změna (%)", template="plotly_dark", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
+                        fig_bench.update_layout(title="Výkonnost v % od začátku měření", xaxis_title="", yaxis_title="Změna (%)", template="plotly_dark", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01), font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+                        fig_bench.update_xaxes(showgrid=False)
+                        fig_bench.update_yaxes(showgrid=True, gridcolor='#30363D')
                         st.plotly_chart(fig_bench, use_container_width=True, key="fig_benchmark")
                         add_download_button(fig_bench, "benchmark_analyza")
                         
@@ -1706,7 +1753,9 @@ def main():
                 go.Bar(name='Teď', x=impact_data["Měna"], y=impact_data["Hodnota CZK (Teď)"], marker_color='#555555'),
                 go.Bar(name='Simulace', x=impact_data["Měna"], y=impact_data["Hodnota CZK (Simulace)"], marker_color='#00CC96')
             ])
-            fig_curr.update_layout(barmode='group', template="plotly_dark", height=300, margin=dict(l=0, r=0, t=30, b=0))
+            fig_curr.update_layout(barmode='group', template="plotly_dark", height=300, margin=dict(l=0, r=0, t=30, b=0), font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+            fig_curr.update_xaxes(showgrid=False)
+            fig_curr.update_yaxes(showgrid=True, gridcolor='#30363D')
             st.plotly_chart(fig_curr, use_container_width=True)
         
         with tab7:
@@ -1746,7 +1795,7 @@ def main():
                             returns = hist_data.pct_change().dropna()
                             corr_matrix = returns.corr()
                             fig_corr = px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale="RdBu_r", origin='lower')
-                            fig_corr.update_layout(template="plotly_dark", height=600)
+                            fig_corr.update_layout(template="plotly_dark", height=600, font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
                             st.plotly_chart(fig_corr, use_container_width=True)
                             avg_corr = corr_matrix.values[np.triu_indices_from(corr_matrix.values, 1)].mean()
                             st.metric("Průměrná korelace portfolia", f"{avg_corr:.2f}")
