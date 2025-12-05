@@ -733,8 +733,7 @@ def add_download_button(fig_id, filename):
     js_code = f"""
     <script>
         function downloadPlotlyChart(chartId, filename) {{
-            // 1. Plotly grafy ve Streamlitu získávají dynamická ID.
-            // Zkusíme najít Streamlit kontejner s data-testid, který Streamlit generuje z našeho 'key'.
+            // Streamlit key se mapuje na data-testid='st-plotly-chart-fig_vyvoj_maj'
             const container = document.querySelector(`[data-testid*="${chartId}"]`);
             let plotlyDiv = null;
 
