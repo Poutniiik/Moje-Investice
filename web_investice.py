@@ -22,6 +22,11 @@ from fpdf import FPDF
 import extra_streamlit_components as stx
 import random
 
+# --- GLOBÁLNÍ JS INJEKCE PRO PLOTLY EXPORT ---
+# Zajišťuje, že je Plotly.js k dispozici pro naši funkci downloadPlotlyChart.
+# TENTO ŘÁDEK ZACHOVÁVÁME, JE NUTNÝ PRO DOSTUPNOST KNIHOVNY
+st.markdown('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>', unsafe_allow_html=True)
+
 # --- KONFIGURACE ---
 # Musí být vždy jako první příkaz Streamlitu
 st.set_page_config(
@@ -725,18 +730,19 @@ def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_y
 # --- POMOCNÁ FUNKCE PRO STÁHNUTÍ GRAFU (OPRAVENO) ---
 def add_download_button(fig_id, filename):
     # Opravená logika: Chart ID je ve Streamlitu generováno jako 'st-plotly-chart-' + key.
+    # Musíme použít querySelector s [data-testid] atributem.
     js_code = f"""
     <script>
         function downloadPlotlyChart(chartKey, filename) {{
-            // Streamlit generuje data-testid='st-plotly-chart-{chartKey}'
+            // Najdeme Streamlit kontejner pomocí klíče
             const container = document.querySelector(`[data-testid*="${chartKey}"]`);
             let plotlyDiv = null;
 
             if (container) {{
-                 // Hledáme samotný Plotly div uvnitř Streamlit kontejneru
+                 // Hledáme samotný Plotly div (třída 'js-plotly-plot') uvnitř Streamlit kontejneru
                  plotlyDiv = container.querySelector('.js-plotly-plot');
             }}
-            
+
             if (plotlyDiv && typeof Plotly !== 'undefined') {{
                 // Plotly.downloadImage potřebuje div element.
                 Plotly.downloadImage(plotlyDiv, {{format: 'png', filename: filename}});
