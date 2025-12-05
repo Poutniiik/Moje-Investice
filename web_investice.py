@@ -305,6 +305,23 @@ def ziskej_yield(ticker):
         return d if d else 0
     except Exception: return 0
 
+# --- NOVÁ FUNKCE: ZÍSKÁNÍ EARNINGS DATA ---
+@st.cache_data(ttl=86400)
+def ziskej_earnings_datum(ticker):
+    try:
+        t = yf.Ticker(str(ticker))
+        cal = t.calendar
+        # yfinance vrací calendar jako dict, kde 'Earnings Date' je seznam dat
+        if cal is not None and 'Earnings Date' in cal:
+            dates = cal['Earnings Date']
+            if dates:
+                # Vezmeme první datum (nejbližší)
+                return dates[0]
+    except Exception:
+        pass
+    return None
+# ------------------------------------------
+
 # --- POKROČILÉ CACHING FUNKCE PRO RENTGEN ---
 
 @st.cache_data(ttl=86400, show_spinner=False, persist="disk")
@@ -1807,7 +1824,8 @@ def main():
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE"])
+        # PŘIDÁNA ZÁLOŽKA KALENDÁŘ
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE", "📅 KALENDÁŘ"])
         
         with tab1:
             st.write("")
@@ -2422,6 +2440,99 @@ def main():
                     except Exception as e: st.error(f"Chyba při výpočtu korelace: {e}")
                 else: st.warning("Pro výpočet korelace potřebuješ alespoň 2 různé akcie.")
             else: st.info("Portfolio je prázdné.")
+
+        with tab9:
+            st.subheader("📅 KALENDÁŘ VÝSLEDKŮ (Earnings)")
+            st.info("Termíny zveřejňování hospodářských výsledků tvých firem. Očekávej volatilitu!")
+            
+            all_my_tickers = []
+            if not df.empty: all_my_tickers.extend(df['Ticker'].unique().tolist())
+            if not df_watch.empty: all_my_tickers.extend(df_watch['Ticker'].unique().tolist())
+            all_my_tickers = list(set(all_my_tickers))
+            
+            if all_my_tickers:
+                earnings_data = []
+                with st.spinner(f"Skenuji kalendáře pro {len(all_my_tickers)} firem..."):
+                    # Progress bar pro lepší UX při stahování
+                    prog_bar = st.progress(0)
+                    for i, tk in enumerate(all_my_tickers):
+                        e_date = ziskej_earnings_datum(tk)
+                        if e_date:
+                            # Převedeme na datetime bez timezone pro výpočet
+                            if hasattr(e_date, 'date'): e_date_norm = datetime.combine(e_date, datetime.min.time())
+                            else: e_date_norm = pd.to_datetime(e_date).to_pydatetime()
+                            
+                            days_left = (e_date_norm - datetime.now()).days
+                            
+                            status = "V budoucnu"
+                            color_icon = "⚪️"
+                            
+                            if 0 <= days_left <= 7:
+                                status = f"🔥 POZOR! Za {days_left} dní"
+                                color_icon = "🔴"
+                                st.toast(f"⚠️ {tk} má výsledky za {days_left} dní!", icon="📢")
+                            elif 7 < days_left <= 30:
+                                status = f"Blíží se (za {days_left} dní)"
+                                color_icon = "🟡"
+                            elif days_left < 0:
+                                status = "Již proběhlo"
+                                color_icon = "✔️"
+                            else:
+                                status = f"Za {days_left} dní"
+                                color_icon = "🟢"
+
+                            # Přidáme jen budoucí nebo nedávno proběhlé (max 7 dní zpět)
+                            if days_left > -7:
+                                earnings_data.append({
+                                    "Symbol": tk,
+                                    "Datum": e_date_norm.strftime("%d.%m.%Y"),
+                                    "Dní do akce": days_left,
+                                    "Status": status,
+                                    "Ikona": color_icon
+                                })
+                        prog_bar.progress((i + 1) / len(all_my_tickers))
+                    prog_bar.empty()
+                
+                if earnings_data:
+                    # Seřadíme podle počtu dní (nejbližší nahoře)
+                    df_cal = pd.DataFrame(earnings_data).sort_values('Dní do akce')
+                    
+                    # Vizuální úprava tabulky
+                    st.dataframe(
+                        df_cal,
+                        column_config={
+                            "Ikona": st.column_config.TextColumn("Riziko", width="small"),
+                            "Dní do akce": st.column_config.NumberColumn("Odpočet (dny)", format="%d")
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    # Timeline graf
+                    try:
+                        # Filtrujeme jen budoucí pro timeline
+                        df_future = df_cal[df_cal['Dní do akce'] >= 0].copy()
+                        if not df_future.empty:
+                            df_future['Datum_ISO'] = pd.to_datetime(df_future['Datum'], format="%d.%m.%Y")
+                            fig_timeline = px.scatter(
+                                df_future, 
+                                x="Datum_ISO", 
+                                y="Symbol", 
+                                color="Dní do akce",
+                                color_continuous_scale="RdYlGn_r", # Červená blízko, Zelená daleko
+                                size=[20]*len(df_future),
+                                title="Časová osa výsledkové sezóny",
+                                template="plotly_dark"
+                            )
+                            fig_timeline.update_layout(height=300, xaxis_title="Datum", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+                            st.plotly_chart(fig_timeline, use_container_width=True)
+                    except Exception as e:
+                         st.error(f"Chyba timeline: {e}")
+                         
+                else:
+                    st.info("Žádná data o výsledcích nebyla nalezena (nebo jsou příliš daleko).")
+            else:
+                st.warning("Nemáš žádné akcie v portfoliu ani ve sledování.")
 
     elif page == "🎮 Gamifikace":
         st.title("🎮 INVESTIČNÍ ARÉNA")
