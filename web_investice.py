@@ -730,7 +730,7 @@ def add_download_button(fig_id, filename):
     <script>
         function downloadPlotlyChart(chartId, filename) {{
             // 1. Zkusíme najít graf přes Streamlit generované ID (obvykle 'id="graph_' + key + '"')
-            const directChartDiv = document.getElementById(chartId);
+            const directChartDiv = document.getElementById('graph_' + chartId);
             
             // 2. Najdeme rodičovský Streamlit kontejner (data-testid) a v něm Plotly div
             // Streamlit key se mapuje na data-testid='st-plotly-chart-fig_vyvoj_maj'
@@ -738,9 +738,19 @@ def add_download_button(fig_id, filename):
             let plotlyDiv = null;
 
             if (container) {{
+                 // Hledáme samotný Plotly div uvnitř Streamlit kontejneru
                  plotlyDiv = container.querySelector('.js-plotly-plot') || directChartDiv;
             }} else {{
                  plotlyDiv = directChartDiv;
+            }}
+            
+            // Nouzový Fallback, pokud Streamlit používá jinou strukturu
+            if (!plotlyDiv) {{
+                // Zkusíme najít Streamlit div a vybrat první dítě
+                const genericContainer = document.querySelector(`[data-testid="st-plotly-chart-${chartId}"]`);
+                if (genericContainer) {{
+                    plotlyDiv = genericContainer.querySelector('.js-plotly-plot');
+                }}
             }}
 
             if (plotlyDiv && typeof Plotly !== 'undefined') {{
