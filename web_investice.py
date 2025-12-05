@@ -725,14 +725,24 @@ def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_y
 # --- POMOCNÁ FUNKCE PRO STÁHNUTÍ GRAFU (NOVÉ) ---
 # Tato funkce je vložena jako HTML/JS pro interakci s Plotly grafy.
 def add_download_button(fig_id, filename):
+    # Přidáváme kontrolu, zda je Plotly knihovna načtená.
+    # U Plotly Chart ve Streamlitu se ID předává jako 'graph_' + key.
     js_code = f"""
     <script>
         function downloadPlotlyChart(chartId, filename) {{
             const chartDiv = document.getElementById(chartId);
-            if (chartDiv) {{
+            if (chartDiv && typeof Plotly !== 'undefined') {{
+                // Plotly.downloadImage potřebuje div element.
                 Plotly.downloadImage(chartDiv, {{format: 'png', filename: filename}});
             }} else {{
-                alert('Graf nebyl nalezen. Zkuste prosím znovu.');
+                // Pokud Plotly není načteno, zkusíme najít Streamlit div pro Plotly,
+                // což je obvykle první dítě rodičovského divu.
+                const stPlotlyDiv = document.querySelector(`[data-testid="${chartId}"]`).querySelector('.js-plotly-plot');
+                if (stPlotlyDiv && typeof Plotly !== 'undefined') {{
+                     Plotly.downloadImage(stPlotlyDiv, {{format: 'png', filename: filename}});
+                }} else {{
+                     console.error('Plotly graf nebo knihovna nebyla nalezena.');
+                }}
             }}
         }}
     </script>
@@ -752,8 +762,6 @@ def add_download_button(fig_id, filename):
             ⬇️ Stáhnout graf (PNG)
     </button>
     """
-    # Použijeme st.markdown s unsafe_allow_html=True a vyhneme se st.components,
-    # abychom nekomplikovali state management.
     st.markdown(js_code, unsafe_allow_html=True)
 
 
