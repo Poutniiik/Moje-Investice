@@ -472,6 +472,45 @@ def uloz_csv(df, nazev_souboru, zprava):
     except Exception: 
         repo.create_file(nazev_souboru, zprava, csv)
 
+def uloz_csv_bezpecne(df, nazev_souboru, zprava):
+    """
+    Vylepšená verze ukládání s ochranou proti výpadkům sítě.
+    Zkouší uložit data 3x, než nahlásí chybu.
+    """
+    repo = get_repo()
+    if not repo:
+        st.error("❌ CRITICAL: Nelze se připojit ke GitHubu. Data NEULOŽENA! Zkontroluj token.")
+        return False
+
+    # Převedeme data na CSV text
+    csv_content = df.to_csv(index=False)
+    
+    # Zkusíme to uložit až 3krát (pro případ výpadku WiFi/GitHubu)
+    pokusy = 3
+    for i in range(pokusy):
+        try:
+            # 1. Zkusíme soubor najít a aktualizovat
+            contents = repo.get_contents(nazev_souboru)
+            repo.update_file(contents.path, zprava, csv_content, contents.sha)
+            return True # Povedlo se! Končíme funkci.
+            
+        except Exception as e:
+            # Chyba 404 znamená, že soubor neexistuje -> musíme ho vytvořit
+            if "404" in str(e):
+                try:
+                    repo.create_file(nazev_souboru, zprava, csv_content)
+                    return True # Povedlo se vytvořit!
+                except Exception as create_err:
+                    st.warning(f"⚠️ Pokus {i+1}/{pokusy}: Chyba vytvoření souboru: {create_err}")
+            else:
+                # Jiná chyba (např. internet)
+                st.warning(f"⚠️ Pokus {i+1}/{pokusy}: GitHub neodpovídá, zkouším znovu... ({e})")
+                time.sleep(1) # Počkáme 1 vteřinu a zkusíme to znovu
+    
+    # Pokud jsme dojeli až sem, nepovedlo se to ani na 3. pokus
+    st.error(f"❌ CHYBA UKLÁDÁNÍ: Soubor {nazev_souboru} se nepodařilo uložit. Data jsou jen v paměti!")
+    return False
+
 def nacti_csv(nazev_souboru):
     try:
         repo = get_repo()
@@ -2813,3 +2852,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
