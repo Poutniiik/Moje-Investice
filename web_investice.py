@@ -1061,6 +1061,23 @@ def main():
             k3.metric("ZMĚNA 24H", f"${zmena_24h:+,.0f}", f"{pct_24h:+.2f}%")
             k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
         
+        # --- NOVÉ: SKOKAN A PROPADÁK DNE ---
+        if viz_data:
+            # Seřadíme data podle % změny (Dnes)
+            sorted_data = sorted(viz_data, key=lambda x: x['Dnes'], reverse=True)
+            best = sorted_data[0]
+            worst = sorted_data[-1]
+            
+            st.write("")
+            c_m1, c_m2 = st.columns(2)
+            with c_m1:
+                st.success(f"🚀 SKOKAN DNE: **{best['Ticker']}**")
+                st.metric("Změna", f"{best['Dnes']*100:+.2f} %", f"Cena: {best['Cena']:.2f} {best['Měna']}")
+            with c_m2:
+                st.error(f"💀 PROPADÁK DNE: **{worst['Ticker']}**")
+                st.metric("Změna", f"{worst['Dnes']*100:+.2f} %", f"Cena: {worst['Cena']:.2f} {worst['Měna']}")
+        # -----------------------------------
+
         st.write("")
         
         # --- FEAR & GREED INDEX (TACHOMETR) ---
