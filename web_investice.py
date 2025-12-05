@@ -90,48 +90,75 @@ try:
 except Exception:
     AI_AVAILABLE = False
 
-# --- STYLY (VISUAL UPGRADE) ---
+# --- STYLY (ULTIMATE VISUAL UPGRADE - ANIMATED) ---
 st.markdown("""
 <style>
-    /* Hlavní barvy a fonty */
-    .stApp {background-color: #0E1117; font-family: 'Roboto Mono', monospace;}
-    
-    /* Vylepšený Scrollbar (Tmavý) */
-    ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
-        background: #0E1117;
+    /* 1. ANIMOVANÉ POZADÍ (Breathing Gradient) */
+    @keyframes gradient {
+        0% {background-position: 0% 50%;}
+        50% {background-position: 100% 50%;}
+        100% {background-position: 0% 50%;}
     }
-    ::-webkit-scrollbar-thumb {
-        background: #30363D;
-        border-radius: 5px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: #58A6FF;
+    .stApp {
+        background: linear-gradient(-45deg, #05070a, #0E1117, #161b22, #0d1117);
+        background-size: 400% 400%;
+        animation: gradient 20s ease infinite;
+        font-family: 'Roboto Mono', monospace;
     }
 
-    /* Metriky s neonovým nádechem */
+    /* 2. CRT SCANLINE EFEKT (Retro-Futuristic Overlay) */
+    .stApp::before {
+        content: " ";
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+        z-index: 2;
+        background-size: 100% 2px, 3px 100%;
+        pointer-events: none;
+    }
+
+    /* 3. Vylepšený Scrollbar */
+    ::-webkit-scrollbar {width: 8px; height: 8px; background: #0E1117;}
+    ::-webkit-scrollbar-thumb {background: #30363D; border-radius: 4px;}
+    ::-webkit-scrollbar-thumb:hover {background: #58A6FF; box-shadow: 0 0 10px #58A6FF;}
+
+    /* 4. PULZUJÍCÍ METRIKY */
+    @keyframes pulse-border {
+        0% { border-color: #30363D; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        50% { border-color: #58A6FF; box-shadow: 0 0 15px rgba(88, 166, 255, 0.15); }
+        100% { border-color: #30363D; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    }
     div[data-testid="stMetric"] {
-        background-color: #161B22; 
+        background-color: rgba(22, 27, 34, 0.8); /* Průhlednost pro efekt pozadí */
+        backdrop-filter: blur(5px);
         border: 1px solid #30363D; 
         padding: 15px; 
         border-radius: 8px; 
         color: #E6EDF3;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3), 0 0 10px rgba(88, 166, 255, 0.05); /* Jemná záře */
-        transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     div[data-testid="stMetric"]:hover {
-        transform: translateY(-2px);
-        border-color: #58A6FF;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.4), 0 0 15px rgba(88, 166, 255, 0.2);
+        transform: translateY(-5px) scale(1.02);
+        animation: pulse-border 2s infinite;
+        z-index: 10;
     }
     div[data-testid="stMetricLabel"] {font-size: 0.85rem; color: #8B949E; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;}
-    div[data-testid="stMetricValue"] {font-size: 1.6rem; color: #E6EDF3; font-weight: bold;}
+    div[data-testid="stMetricValue"] {font-size: 1.6rem; color: #E6EDF3; font-weight: bold; text-shadow: 0 0 10px rgba(230, 237, 243, 0.3);}
     
-    /* Nadpisy */
-    h1, h2, h3 {color: #E6EDF3 !important; font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1.5px;}
+    /* Nadpisy s Glitch efektem (pouze statický styl pro čistotu) */
+    h1, h2, h3 {
+        color: #E6EDF3 !important; 
+        font-family: 'Roboto Mono', monospace; 
+        text-transform: uppercase; 
+        letter-spacing: 2px;
+        text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+    }
     
-    /* Tlačítka */
+    /* Tlačítka - Neon Style */
     div[data-testid="column"] button {
         border: 1px solid #30363D; 
         background-color: #21262D; 
@@ -139,132 +166,69 @@ st.markdown("""
         border-radius: 6px;
         min-height: 45px;
         transition: all 0.3s;
+        position: relative;
+        overflow: hidden;
     }
     div[data-testid="column"] button:hover {
         border-color: #58A6FF;
         color: #58A6FF;
-        box-shadow: 0 0 8px rgba(88, 166, 255, 0.3);
+        box-shadow: 0 0 15px rgba(88, 166, 255, 0.4);
+        text-shadow: 0 0 5px rgba(88, 166, 255, 0.8);
     }
     
     /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: transparent;
-        padding-bottom: 5px;
-        flex-wrap: wrap;
-    }
+    .stTabs [data-baseweb="tab-list"] {gap: 8px; background-color: transparent; padding-bottom: 5px; flex-wrap: wrap;}
     .stTabs [data-baseweb="tab"] {
-        height: 45px;
-        white-space: pre-wrap;
-        background-color: #0d1117; 
-        border: 1px solid #30363D; 
-        border-radius: 6px;
-        color: #8B949E;
-        font-family: 'Roboto Mono', monospace;
-        font-size: 0.9rem;
-        transition: all 0.2s ease;
-        padding: 0px 20px;
-        margin-bottom: 5px;
+        height: 45px; white-space: pre-wrap; background-color: #0d1117; border: 1px solid #30363D; 
+        border-radius: 6px; color: #8B949E; font-family: 'Roboto Mono', monospace; font-size: 0.9rem; 
+        transition: all 0.2s ease; padding: 0px 20px; margin-bottom: 5px;
     }
-    .stTabs [data-baseweb="tab"]:hover {
-        border-color: #8B949E;
-        color: #E6EDF3;
-        background-color: #161B22;
-    }
+    .stTabs [data-baseweb="tab"]:hover {border-color: #58A6FF; color: #58A6FF; background-color: #161B22;}
     .stTabs [aria-selected="true"] {
-        background-color: #238636 !important;
-        border-color: #2ea043 !important; 
-        color: white !important;
-        font-weight: bold;
-        box-shadow: 0 0 10px rgba(35, 134, 54, 0.4); 
+        background-color: #238636 !important; border-color: #2ea043 !important; color: white !important; 
+        font-weight: bold; box-shadow: 0 0 15px rgba(35, 134, 54, 0.5); 
     }
-    a {text-decoration: none; color: #58A6FF !important;} 
+    
+    a {text-decoration: none; color: #58A6FF !important; transition: color 0.3s;} 
+    a:hover {color: #79c0ff !important; text-shadow: 0 0 5px #79c0ff;}
+
     .stProgress > div > div > div > div {
-        background-color: #238636;
+        background: linear-gradient(90deg, #238636, #2ea043);
         box-shadow: 0 0 10px rgba(35, 134, 54, 0.5);
     }
     
-    /* Bot Floating Window */
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) {
-        position: fixed !important;
-        bottom: 20px !important;
-        right: 20px !important;
-        width: 380px !important;
-        max-width: 85vw !important;
-        z-index: 99999 !important;
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-    }
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) details {
-        border-radius: 20px !important;
-        background-color: #161B22 !important;
-        border: 1px solid #30363D !important;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
-        transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-    }
+    /* Bot Floating Window - Hover Levitation */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary {
-        background-color: transparent !important;
-        color: transparent !important;
-        height: 70px !important;
-        width: 70px !important;
-        border-radius: 50% !important;
-        padding: 0 !important;
-        margin-left: auto !important;
+        background-color: transparent !important; color: transparent !important;
+        height: 70px !important; width: 70px !important; border-radius: 50% !important;
+        padding: 0 !important; margin-left: auto !important;
         background-image: url('https://i.postimg.cc/cK5DmzZv/1000001805.jpg'); 
-        background-size: cover;
-        background-position: center;
+        background-size: cover; background-position: center;
         border: 3px solid #238636 !important;
         box-shadow: 0 0 15px rgba(35, 134, 54, 0.5);
         animation: float 6s ease-in-out infinite;
-        transition: transform 0.2s, box-shadow 0.2s;
+        transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55), box-shadow 0.3s;
     }
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary:hover {
-        transform: scale(1.1) rotate(5deg);
-        box-shadow: 0 0 25px rgba(35, 134, 54, 0.8);
+        transform: scale(1.1) rotate(10deg);
+        box-shadow: 0 0 30px rgba(35, 134, 54, 0.9);
         cursor: pointer;
     }
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) summary svg {
-        display: none !important;
-    }
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary {
-        width: 100% !important;
-        height: 40px !important;
-        border-radius: 15px 15px 0 0 !important;
-        background-image: none !important;
-        background-color: #238636 !important;
-        color: white !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        animation: none !important;
-        border: none !important;
-        margin: 0 !important;
-    }
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary::after {
-        content: "❌ ZAVŘÍT CHAT";
-        font-weight: bold;
-        font-size: 0.9rem;
-        color: white;
-    }
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) div[data-testid="stExpanderDetails"] {
-        max-height: 400px;
-        overflow-y: auto;
-        background-color: #0d1117;
-        border-bottom-left-radius: 20px;
-        border-bottom-right-radius: 20px;
-        border-top: 1px solid #30363D;
-        padding: 15px;
-    }
+    /* Zbytek bota... */
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) {position: fixed !important; bottom: 20px !important; right: 20px !important; width: 380px !important; max-width: 85vw !important; z-index: 99999 !important; background-color: transparent !important; border: none !important; box-shadow: none !important;}
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) details {border-radius: 20px !important; background-color: #161B22 !important; border: 1px solid #30363D !important; box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;}
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) summary svg {display: none !important;}
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary {width: 100% !important; height: 40px !important; border-radius: 15px 15px 0 0 !important; background-image: none !important; background-color: #238636 !important; color: white !important; display: flex; align-items: center; justify-content: center; animation: none !important; border: none !important; margin: 0 !important;}
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary::after {content: "❌ ZAVŘÍT CHAT"; font-weight: bold; font-size: 0.9rem; color: white;}
+    div[data-testid="stExpander"]:has(#floating-bot-anchor) div[data-testid="stExpanderDetails"] {max-height: 400px; overflow-y: auto; background-color: #0d1117; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; border-top: 1px solid #30363D; padding: 15px;}
+    
     @keyframes float {
         0% { transform: translateY(0px); }
         50% { transform: translateY(-10px); }
         100% { transform: translateY(0px); }
     }
     @media (max-width: 600px) {
-        .ticker-text {
-            font-size: 0.8rem !important;
-        }
+        .ticker-text {font-size: 0.8rem !important;}
     }
 </style>
 """, unsafe_allow_html=True)
@@ -294,6 +258,13 @@ def zasifruj(text):
 # --- COOKIE MANAGER ---
 def get_manager():
     return stx.CookieManager(key="cookie_manager_inst")
+
+# --- LOTTIE LOADER ---
+@st.cache_data
+def load_lottieurl(url: str):
+    r = requests.get(url)
+    if r.status_code != 200: return None
+    return r.json()
 
 # --- EXTERNÍ DATA ---
 @st.cache_data(ttl=3600)
@@ -787,6 +758,39 @@ def main():
     
     USER = st.session_state['user']
     
+    # --- BOOT SEQUENCE (POUZE JEDNOU) ---
+    if 'boot_completed' not in st.session_state:
+        st.session_state['boot_completed'] = False
+
+    if not st.session_state['boot_completed']:
+        boot_placeholder = st.empty()
+        with boot_placeholder.container():
+            st.markdown("""<style>.stApp {background-color: black !important;}</style>""", unsafe_allow_html=True)
+            st.markdown("## 🖥️ TERMINAL PRO v4.0", unsafe_allow_html=True)
+            
+            steps = [
+                "Initializing secure connection...",
+                "Loading neural network weights...",
+                "Accessing global market data...",
+                "Decrypting user wallet...",
+                "Bypassing firewalls...",
+                "ACCESS GRANTED"
+            ]
+            
+            bar = st.progress(0)
+            status_text = st.empty()
+            
+            for i, step in enumerate(steps):
+                status_text.markdown(f"```bash\n> {step}\n```")
+                bar.progress((i + 1) * (100 // len(steps)))
+                time.sleep(0.3) # Rychlost bootování
+            
+            st.success("SYSTEM ONLINE")
+            time.sleep(0.5)
+        
+        boot_placeholder.empty()
+        st.session_state['boot_completed'] = True
+    
     # --- 2. NAČTENÍ DAT ---
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
@@ -933,6 +937,12 @@ def main():
 
     # --- 4. SIDEBAR ---
     with st.sidebar:
+        # Lottie Animation Placeholder - Generic tech loop
+        lottie_url = "https://lottie.host/02092823-3932-4467-9d7e-976934440263/3q5XJg2Z2W.json" # Public generic tech URL
+        lottie_json = load_lottieurl(lottie_url)
+        if lottie_json:
+            st_lottie(lottie_json, height=150, key="sidebar_anim")
+        
         st.header(f"👤 {USER.upper()}")
         
         # --- GAME LEVELING SYSTEM ---
@@ -1868,39 +1878,6 @@ def main():
                             if st.button(f"🤖 Analyzovat s AI (Kontext)", key=f"analyze_ai_{i}"):
                                 analyze_news_with_ai(n['title'], n['link'])
         else: st.info("Žádné nové zprávy.")
-
-    elif page == "💎 Dividendy":
-        st.title("💎 DIVIDENDY")
-        if not df_div.empty:
-            df_div['Datum'] = pd.to_datetime(df_div['Datum']); df_div['Mesic'] = df_div['Datum'].dt.strftime('%Y-%m')
-            
-            kurz_usd_czk = kurzy.get('CZK', 20.85)
-            kurz_eur_usd = kurzy.get('EUR', 1.16)
-            kurz_eur_czk = kurz_eur_usd * kurz_usd_czk
-
-            def prepocet_dividendy_na_czk(row):
-                if row['Mena'] == 'USD':
-                    return row['Castka'] * kurz_usd_czk
-                elif row['Mena'] == 'EUR':
-                    return row['Castka'] * kurz_eur_czk 
-                else:
-                    return row['Castka'] 
-
-            df_div['CastkaCZK'] = df_div.apply(prepocet_dividendy_na_czk, axis=1)
-
-            monthly_data = df_div.groupby('Mesic')['CastkaCZK'].sum()
-            with st.container(border=True):
-                k1, k2 = st.columns([2, 1])
-                with k1: st.subheader("📅 Pasivní příjem (CZK)"); st.bar_chart(monthly_data, color="#00FF00")
-                with k2: st.metric("CELKEM VYPLACENO", f"{df_div['CastkaCZK'].sum():,.0f} Kč"); st.write("Poslední 3 měsíce:"); st.dataframe(monthly_data.sort_index(ascending=False).head(3), use_container_width=True)
-            st.divider()
-        c1, c2 = st.columns([1, 2])
-        with c1:
-            with st.form("div"):
-                t = st.text_input("Ticker").upper(); a = st.number_input("Částka", 0.01); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
-                if st.form_submit_button("PŘIPSAT"): pridat_dividendu(t, a, c, USER); st.toast("Připsáno", icon="💎"); st.balloons(); time.sleep(2); st.rerun()
-        with c2:
-            if not df_div.empty: st.dataframe(df_div[["Datum", "Ticker", "Castka", "Mena", "CastkaCZK"]].sort_values("Datum", ascending=False).style.format({"Castka": "{:,.2f}", "CastkaCZK": "{:,.0f} Kč", "Datum": "{:%d.%m.%Y}"}), use_container_width=True, hide_index=True)
 
     elif page == "⚙️ Nastavení":
         st.title("⚙️ DATA & SPRÁVA")
