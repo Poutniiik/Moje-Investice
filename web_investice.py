@@ -2444,7 +2444,7 @@ def main():
                 st.plotly_chart(fig_mc, use_container_width=True)
                 st.success(f"Průměrná hodnota na konci: {sim_data['Average'].iloc[-1]:,.0f} Kč")
 
-                with tab4:
+                
                 st.subheader("💥 CRASH TEST & HISTORICKÉ SCÉNÁŘE")
                 st.info("Otestuj odolnost svého portfolia proti historickým krizím nebo vlastnímu scénáři.")
                 
@@ -2989,6 +2989,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
