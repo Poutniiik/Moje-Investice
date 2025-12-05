@@ -2054,7 +2054,7 @@ def main():
                                             # 👇👇👇 NAHRAĎ TENTO BLOK (VÝPOČET RŮSTU) 👇👇👇
                                             
                                             # Rychlý AI komentář k trendu (Bezpečnější verze)
-                            try:
+                                                try:
                                                 last_rev = plot_data["Tržby (Revenue)"].iloc[-1]
                                                 first_rev = plot_data["Tržby (Revenue)"].iloc[0]
                                                 
@@ -3119,6 +3119,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
