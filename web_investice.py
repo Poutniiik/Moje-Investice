@@ -1996,6 +1996,56 @@ def main():
                                 fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['RSI'], mode='lines', name='RSI', line=dict(color='#A56CC1', width=2)), row=2, col=1)
                                 fig_candle.add_hline(y=70, line_dash="dot", line_color="red", row=2, col=1, annotation_text="Překoupené (70)", annotation_position="top right")
                                 fig_candle.add_hline(y=30, line_dash="dot", line_color="green", row=2, col=1, annotation_text="Přeprodané (30)", annotation_position="bottom right")
+                                
+                                # --- NOVÉ: OSOBNÍ HLADINY V GRAFU ---
+                                # 1. Průměrná nákupní cena (pokud vlastníme)
+                                user_position = df[df['Ticker'] == vybrana_akcie]
+                                if not user_position.empty:
+                                    # Vypočítat vážený průměr, pokud je více nákupů
+                                    total_cost = (user_position['Pocet'] * user_position['Cena']).sum()
+                                    total_qty = user_position['Pocet'].sum()
+                                    avg_price = total_cost / total_qty if total_qty > 0 else 0
+                                    
+                                    if avg_price > 0:
+                                        fig_candle.add_hline(
+                                            y=avg_price, 
+                                            line_dash="dash", 
+                                            line_color="#58A6FF", 
+                                            line_width=2,
+                                            row=1, col=1, 
+                                            annotation_text=f"MOJE NÁKUPKA ({avg_price:.2f})", 
+                                            annotation_position="top left",
+                                            annotation_font_color="#58A6FF"
+                                        )
+
+                                # 2. Watchlist Cíle (pokud sledujeme)
+                                user_watch = df_watch[df_watch['Ticker'] == vybrana_akcie]
+                                if not user_watch.empty:
+                                    tg_buy = user_watch.iloc[0]['TargetBuy']
+                                    tg_sell = user_watch.iloc[0]['TargetSell']
+                                    
+                                    if tg_buy > 0:
+                                        fig_candle.add_hline(
+                                            y=tg_buy, 
+                                            line_dash="dot", 
+                                            line_color="#238636", 
+                                            row=1, col=1, 
+                                            annotation_text=f"CÍL NÁKUP ({tg_buy:.2f})", 
+                                            annotation_position="bottom left",
+                                            annotation_font_color="#238636"
+                                        )
+                                    if tg_sell > 0:
+                                        fig_candle.add_hline(
+                                            y=tg_sell, 
+                                            line_dash="dot", 
+                                            line_color="#da3633", 
+                                            row=1, col=1, 
+                                            annotation_text=f"CÍL PRODEJ ({tg_sell:.2f})", 
+                                            annotation_position="top left",
+                                            annotation_font_color="#da3633"
+                                        )
+                                # -------------------------------------
+
                                 fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=600, margin=dict(l=0, r=0, t=30, b=0), legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0)"), font_family="Roboto Mono")
                                 fig_candle.update_yaxes(title_text="Cena", row=1, col=1, showgrid=True, gridcolor='#30363D'); fig_candle.update_yaxes(title_text="RSI", row=2, col=1, range=[0, 100], showgrid=True, gridcolor='#30363D')
                                 fig_candle.update_xaxes(showgrid=False)
