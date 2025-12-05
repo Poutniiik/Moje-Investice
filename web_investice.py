@@ -490,13 +490,28 @@ def nacti_csv(nazev_souboru):
         # Konverze sloupců
         for col in ['Datum', 'Date']:
             if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
-        for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD', 'Investice', 'Target']:
+        for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD', 'Investice', 'Target', 'TargetBuy', 'TargetSell']:
             if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
             
-        # Doplnění chybějících sloupců pro kompatibilitu
-        if 'Sektor' not in df.columns and nazev_souboru == SOUBOR_DATA: df['Sektor'] = "Doplnit"
-        if 'Poznamka' not in df.columns and nazev_souboru == SOUBOR_DATA: df['Poznamka'] = ""
-        if nazev_souboru == SOUBOR_WATCHLIST and 'Target' not in df.columns: df['Target'] = 0.0
+        # Doplnění a kompatibilita Watchlistu (OPRAVA DVOJITÝCH CÍLŮ)
+        if nazev_souboru == SOUBOR_WATCHLIST:
+             # Zpětná kompatibilita: Pokud existuje starý 'Target' ale chybí nové, zkopírujeme ho do TargetBuy
+             if 'Target' in df.columns and 'TargetBuy' not in df.columns:
+                 df['TargetBuy'] = df['Target']
+             
+             if 'TargetBuy' not in df.columns: df['TargetBuy'] = 0.0
+             if 'TargetSell' not in df.columns: df['TargetSell'] = 0.0
+             
+             # Odstranění starého sloupce Target pro čistotu
+             if 'Target' in df.columns: df = df.drop(columns=['Target'])
+             
+             cols = ["Ticker", "TargetBuy", "TargetSell", "Owner"] # Upravené sloupce pro Watchlist
+        
+        # Doplnění chybějících sloupců pro ostatní soubory
+        if nazev_souboru == SOUBOR_DATA:
+            if 'Sektor' not in df.columns: df['Sektor'] = "Doplnit"
+            if 'Poznamka' not in df.columns: df['Poznamka'] = ""
+        
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         
         df['Owner'] = df['Owner'].astype(str)
@@ -507,7 +522,7 @@ def nacti_csv(nazev_souboru):
         if nazev_souboru == SOUBOR_HISTORIE: cols = ["Ticker", "Kusu", "Prodejka", "Zisk", "Mena", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_CASH: cols = ["Typ", "Castka", "Mena", "Poznamka", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_VYVOJ: cols = ["Date", "TotalUSD", "Owner"]
-        if nazev_souboru == SOUBOR_WATCHLIST: cols = ["Ticker", "Target", "Owner"]
+        if nazev_souboru == SOUBOR_WATCHLIST: cols = ["Ticker", "TargetBuy", "TargetSell", "Owner"] # Upravené sloupce
         if nazev_souboru == SOUBOR_DIVIDENDY: cols = ["Ticker", "Castka", "Mena", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_UZIVATELE: cols = ["username", "password", "recovery_key"]
         return pd.DataFrame(columns=cols)
@@ -524,10 +539,10 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
 def nacti_uzivatele(): 
     return nacti_csv(SOUBOR_UZIVATELE)
 
-def pridat_do_watchlistu(ticker, target, user):
+def pridat_do_watchlistu(ticker, target_buy, target_sell, user): # UPRAVENÁ FUNKCE
     df_w = st.session_state['df_watch']
     if ticker not in df_w['Ticker'].values:
-        new = pd.DataFrame([{"Ticker": ticker, "Target": float(target), "Owner": user}])
+        new = pd.DataFrame([{"Ticker": ticker, "TargetBuy": float(target_buy), "TargetSell": float(target_sell), "Owner": user}]) # Nové sloupce
         updated = pd.concat([df_w, new], ignore_index=True)
         st.session_state['df_watch'] = updated
         uloz_data_uzivatele(updated, user, SOUBOR_WATCHLIST)
@@ -739,8 +754,7 @@ def main():
                     u=st.text_input("Uživatelské jméno")
                     p=st.text_input("Heslo", type="password")
                     if st.form_submit_button("VSTOUPIT", use_container_width=True):
-                        df_u = nacti_uzivatele()
-                        row = df_u[df_u['username'] == u] if not df_u.empty else pd.DataFrame()
+                        df_u = nacti_uzivatele(); row = df_u[df_u['username'] == u]
                         if not row.empty and row.iloc[0]['password'] == zasifruj(p):
                             cookie_manager.set("invest_user", u, expires_at=datetime.now() + timedelta(days=30))
                             st.session_state.update({'prihlasen':True, 'user':u})
@@ -815,16 +829,22 @@ def main():
     alerts = []
     if not df_watch.empty:
         for _, r in df_watch.iterrows():
-            tk = r['Ticker']; trg = r['Target']
-            if trg > 0:
+            tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell'] # Dvojité cíle
+            
+            if buy_trg > 0 or sell_trg > 0:
                 inf = LIVE_DATA.get(tk, {})
                 price = inf.get('price')
                 if not price: # Fallback if not in batch
                     price, _, _ = ziskej_info(tk)
                 
-                if price and price <= trg:
-                    alerts.append(f"{tk}: {price:.2f} <= {trg:.2f}")
-                    st.toast(f"🔔 {tk} je ve slevě! ({price:.2f})", icon="🔥")
+                if price:
+                    if buy_trg > 0 and price <= buy_trg:
+                        alerts.append(f"{tk}: KUPNÍ ALERT! Cena {price:.2f} <= {buy_trg:.2f}")
+                        st.toast(f"🔔 {tk} je ve slevě! ({price:.2f})", icon="🔥")
+                    
+                    if sell_trg > 0 and price >= sell_trg:
+                        alerts.append(f"{tk}: PRODEJNÍ ALERT! Cena {price:.2f} >= {sell_trg:.2f}")
+                        st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
     # --- VÝPOČET PORTFOLIA + ZÍSKÁNÍ FUNDAMENTŮ ---
     # Musíme získat fundamenty pro všechny akcie v portfoliu
@@ -1103,33 +1123,63 @@ def main():
         else: st.info("Portfolio je prázdné.")
 
     elif page == "👀 Sledování":
-        st.title("👀 WATCHLIST (Hlídač)")
+        st.title("👀 WATCHLIST (Hlídač) – Cenové zóny")
+        
+        # --- FORMULÁŘ PRO PŘIDÁNÍ DVOU CÍLŮ ---
         with st.expander("➕ Přidat novou akcii", expanded=False):
             with st.form("add_w", clear_on_submit=True):
-                c1,c2 = st.columns([3,1])
-                with c1: t = st.text_input("Symbol (např. AAPL)").upper()
-                with c2: tg = st.number_input("Cílová cena ($)", min_value=0.0)
+                t = st.text_input("Symbol (např. AAPL)").upper()
+                c_buy, c_sell = st.columns(2)
+                with c_buy: target_buy = st.number_input("Cílová NÁKUPNÍ cena ($)", min_value=0.0, key="tg_buy")
+                with c_sell: target_sell = st.number_input("Cílová PRODEJNÍ cena ($)", min_value=0.0, key="tg_sell")
+                
                 if st.form_submit_button("Sledovat"):
-                    if t: pridat_do_watchlistu(t, tg, USER); st.rerun()
+                    if t and (target_buy > 0 or target_sell > 0):
+                        pridat_do_watchlistu(t, target_buy, target_sell, USER); st.rerun() # UPRAVENÉ VOLÁNÍ
+                    else:
+                        st.warning("Zadejte symbol a alespoň jednu cílovou cenu (Buy nebo Sell).")
         
+        # --- ZOBRAZENÍ TABULKY S DVOJITÝM CÍLEM ---
         if not df_watch.empty:
             w_data = []
             for _, r in df_watch.iterrows():
-                tk = r['Ticker']; trg = r['Target']
+                tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell'] # Nové cíle
                 inf = LIVE_DATA.get(tk, {}); p = inf.get('price'); cur = inf.get('curr', 'USD')
                 if not p: p, _, _ = ziskej_info(tk)
-                diff_str = "---"
-                if p and trg > 0:
-                    diff = ((p/trg)-1)*100
-                    diff_str = f"{diff:+.1f}%"
-                status = "💤"
-                if p and trg > 0:
-                    if p <= trg: status = "🔥 SLEVA! KUPUJ"
-                    elif p <= trg * 1.05: status = "👀 BLÍZKO"
-                w_data.append({"Symbol": tk, "Aktuální Cena": p, "Měna": cur, "Cílová Cena": trg, "Odchylka": diff_str, "Status": status})
+                
+                status_text = "💤 Sleduji"
+                
+                if p:
+                    # Logika pro STATUS
+                    if sell_trg > 0 and p >= sell_trg:
+                        status_text = "💰 PRODEJNÍ ZÓNA (Cíl splněn!)"
+                    elif buy_trg > 0 and p <= buy_trg:
+                        status_text = "🔥 NÁKUPNÍ ZÓNA (SLEVA!)"
+                    elif sell_trg > 0 and p > buy_trg and p < sell_trg:
+                        status_text = "⚖️ Mezi cíli"
+                
+                w_data.append({
+                    "Symbol": tk, 
+                    "Aktuální Cena": p, 
+                    "Měna": cur, 
+                    "Nákupní Cíl (Buy)": buy_trg, 
+                    "Prodejní Cíl (Sell)": sell_trg, 
+                    "Status": status_text
+                })
             
             wdf = pd.DataFrame(w_data)
-            st.dataframe(wdf, use_container_width=True, hide_index=True)
+            st.dataframe(
+                wdf, 
+                column_config={
+                    "Aktuální Cena": st.column_config.NumberColumn(format="%.2f"),
+                    "Nákupní Cíl (Buy)": st.column_config.NumberColumn(format="%.2f"),
+                    "Prodejní Cíl (Sell)": st.column_config.NumberColumn(format="%.2f")
+                },
+                use_container_width=True, 
+                hide_index=True
+            )
+            
+            # --- Původní funkce pro mazání zůstala ---
             st.divider()
             c_del1, c_del2 = st.columns([3, 1])
             with c_del2:
@@ -1482,6 +1532,7 @@ def main():
                             
                             # 4. Vykreslení
                             fig_ef = go.Figure()
+                             # Ponecháme image tag pro dokumentaci
 
                             # Body simulace
                             fig_ef.add_trace(go.Scatter(
