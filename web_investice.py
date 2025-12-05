@@ -2691,6 +2691,46 @@ def main():
         if celk_hod_czk < 500000:
             st.caption(f"Do další úrovně ti chybí majetek.")
         else: st.success("Gratulace! Dosáhl jsi maximální úrovně Velryba 🐋")
+
+        if AI_AVAILABLE:
+            st.divider()
+            st.subheader("🎲 DENNÍ LOGBOOK (AI Narrator)")
+            
+            # Příprava kontextu pro AI
+            denni_zmena_czk = (celk_hod_usd - celk_inv_usd) * kurzy.get("CZK", 21) # Zjednodušený odhad
+            if len(hist_vyvoje) > 1:
+                denni_zmena_czk = (hist_vyvoje.iloc[-1]['TotalUSD'] - hist_vyvoje.iloc[-2]['TotalUSD']) * kurzy.get("CZK", 21)
+            
+            nalada_ikona = "💀" if denni_zmena_czk < 0 else "💰"
+            
+            if st.button("🎲 GENEROVAT PŘÍBĚH DNE", type="secondary"):
+                with st.spinner("Dungeon Master hází kostkou..."):
+                    prompt_rpg = f"""
+                    Jsi cynický vypravěč (Dungeon Master) ve sci-fi cyberpunk hře. Hráč je "Trader".
+                    
+                    AKTUÁLNÍ STAV MISIE:
+                    - Úroveň hráče: {level_name}
+                    - Dnešní výsledek: {denni_zmena_czk:,.0f} CZK
+                    - Celkové jmění: {celk_hod_czk:,.0f} CZK
+                    - Nálada trhu (Fear/Greed): {score if 'score' in locals() else 'Neznámá'}
+                    
+                    ÚKOL:
+                    Napiš krátký "Zápis z kapitánského deníku" (max 3 věty).
+                    Pokud je výsledek mínusový, popiš to jako poškození lodi, útok hackerů nebo krvácení. Buď drsný.
+                    Pokud je výsledek plusový, popiš to jako úspěšný raid, nalezení lootu nebo upgrade systému. Buď oslavný.
+                    Používej herní/kyberpunkový slang.
+                    """
+                    
+                    try:
+                        rpg_res = AI_MODEL.generate_content(prompt_rpg)
+                        st.markdown(f"""
+                        <div style="background-color: #161B22; border-left: 5px solid {'#da3633' if denni_zmena_czk < 0 else '#238636'}; padding: 15px; border-radius: 5px;">
+                            <h4 style="margin:0">{nalada_ikona} DENNÍ ZÁPIS</h4>
+                            <p style="font-style: italic; color: #8B949E; margin-top: 10px;">"{rpg_res.text}"</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error(f"Dungeon Master usnul: {e}")
         
         st.divider()
         st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
@@ -2844,3 +2884,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
