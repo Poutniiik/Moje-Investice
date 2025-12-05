@@ -722,6 +722,41 @@ def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_y
     sharpe_ratio = np.sqrt(periods_per_year) * (excess_returns.mean() / returns.std())
     return sharpe_ratio
 
+# --- POMOCNÁ FUNKCE PRO STÁHNUTÍ GRAFU (NOVÉ) ---
+# Tato funkce je vložena jako HTML/JS pro interakci s Plotly grafy.
+def add_download_button(fig_id, filename):
+    js_code = f"""
+    <script>
+        function downloadPlotlyChart(chartId, filename) {{
+            const chartDiv = document.getElementById(chartId);
+            if (chartDiv) {{
+                Plotly.downloadImage(chartDiv, {{format: 'png', filename: filename}});
+            }} else {{
+                alert('Graf nebyl nalezen. Zkuste prosím znovu.');
+            }}
+        }}
+    </script>
+    <button onclick="downloadPlotlyChart('graph_{fig_id}', '{filename}')" 
+            style="
+                background-color: #21262D; 
+                color: #C9D1D9; 
+                border: 1px solid #30363D; 
+                border-radius: 6px; 
+                padding: 5px 10px; 
+                cursor: pointer;
+                transition: background-color 0.2s;
+            " 
+            onmouseover="this.style.backgroundColor='#161B22'"
+            onmouseout="this.style.backgroundColor='#21262D'"
+            >
+            ⬇️ Stáhnout graf (PNG)
+    </button>
+    """
+    # Použijeme st.markdown s unsafe_allow_html=True a vyhneme se st.components,
+    # abychom nekomplikovali state management.
+    st.markdown(js_code, unsafe_allow_html=True)
+
+
 # --- HLAVNÍ FUNKCE ---
 def main():
     # 1. Start Cookie Manager
@@ -736,6 +771,9 @@ def main():
     time.sleep(0.3)
     
     # 4. LOGIKA PŘIHLÁŠENÍ (Gatekeeper)
+    if 'chat_expanded' not in st.session_state:
+        st.session_state['chat_expanded'] = False
+        
     if not st.session_state['prihlasen']:
         cookie_user = cookie_manager.get("invest_user")
         if cookie_user:
@@ -1060,6 +1098,7 @@ def main():
                 }
             ))
             fig_gauge.update_layout(paper_bgcolor="#161B22", font={'color': "white", 'family': "Arial"}, height=250, margin=dict(l=20, r=20, t=30, b=20))
+            # Abychom Plotly graf stáhli, musíme mu dát ID. Zde to není nutné, protože toto je jen GO.Indicator
             st.plotly_chart(fig_gauge, use_container_width=True)
         
         st.divider()
@@ -1074,7 +1113,8 @@ def main():
                 chart_data['TotalCZK'] = chart_data['TotalUSD'] * kurzy.get("CZK", 20.85)
                 fig_area = px.area(chart_data, x='Date', y='TotalCZK', template="plotly_dark", color_discrete_sequence=['#00CC96'])
                 fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
-                st.plotly_chart(fig_area, use_container_width=True)
+                st.plotly_chart(fig_area, use_container_width=True, key="fig_vyvoj_maj") # Přidán key pro ID
+                add_download_button("fig_vyvoj_maj", "vyvoj_majetku")
         
         with col_graf2:
             if not vdf.empty:
@@ -1082,7 +1122,8 @@ def main():
                 fig_pie = px.pie(vdf, values='HodnotaUSD', names='Sektor', hole=0.4, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_pie.update_traces(textposition='inside', textinfo='percent+label')
                 fig_pie.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0), height=300)
-                st.plotly_chart(fig_pie, use_container_width=True)
+                st.plotly_chart(fig_pie, use_container_width=True, key="fig_sektory") # Přidán key pro ID
+                add_download_button("fig_sektory", "sektorova_analyza")
 
         st.subheader("💰 INVESTOVÁNO DLE MĚN")
         inv_usd, inv_czk, inv_eur = 0, 0, 0
@@ -1108,9 +1149,9 @@ def main():
             
         col_view1, col_view2, _ = st.columns([1, 1, 3])
         with col_view1:
-            st.session_state['show_portfolio_live'] = st.checkbox("Zobrazit Portfolio Tabulku", value=st.session_state['show_portfolio_live'])
+            st.session_state['show_portfolio_live'] = st.checkbox("Zobrazit Portfolio Tabulku", value=st.session_state['show_portfolio_live'], key="chk_portfolio") # Přidán key
         with col_view2:
-             st.session_state['show_cash_history'] = st.checkbox("Zobrazit Historii Hotovosti", value=st.session_state['show_cash_history'])
+             st.session_state['show_cash_history'] = st.checkbox("Zobrazit Historii Hotovosti", value=st.session_state['show_cash_history'], key="chk_cash") # Přidán key
         st.write("") # Mezera pro oddělení od tabulky
 
         if st.session_state['show_portfolio_live']:
@@ -1437,7 +1478,8 @@ def main():
                                 height=500,
                                 margin=dict(t=50, b=0, l=0, r=0)
                             )
-                            st.plotly_chart(fig_multi_comp, use_container_width=True)
+                            st.plotly_chart(fig_multi_comp, use_container_width=True, key="fig_srovnani")
+                            add_download_button("fig_srovnani", "srovnani_akcii")
 
                             # --- ZACHOVÁNÍ PŮVODNÍ TABULKY METRIK (Jen pro první dva/tři porovnávané) ---
                             st.divider()
@@ -1488,13 +1530,15 @@ def main():
                     fig_map = px.scatter_geo(df_map, locations="Země", locationmode="country names", hover_name="Země", size="HodnotaUSD", projection="orthographic", color="Země", template="plotly_dark")
                     fig_map.update_geos(bgcolor="#161B22", showcountries=True, countrycolor="#30363D", showocean=True, oceancolor="#0E1117", showland=True, landcolor="#1c2128")
                     fig_map.update_layout(paper_bgcolor="#161B22", font={"color": "white"}, height=500, margin={"r":0,"t":0,"l":0,"b":0})
-                    st.plotly_chart(fig_map, use_container_width=True)
+                    st.plotly_chart(fig_map, use_container_width=True, key="fig_mapa_imperia")
+                    add_download_button("fig_mapa_imperia", "mapa_imperia")
                 except Exception as e: st.error(f"Chyba mapy: {e}")
                 st.divider()
                 st.caption("MAPA TRHU (Sektory)")
                 try:
                     fig = px.treemap(vdf, path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'], values='HodnotaUSD', color='Zisk', color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key="fig_sektor_map")
+                    add_download_button("fig_sektor_map", "mapa_sektoru")
                 except Exception: st.error("Chyba mapy.")
             else: st.info("Portfolio je prázdné.")
 
@@ -1606,7 +1650,8 @@ def main():
                                 hovermode='closest',
                                 height=550
                             )
-                            st.plotly_chart(fig_ef, use_container_width=True)
+                            st.plotly_chart(fig_ef, use_container_width=True, key="fig_ef_frontier")
+                            add_download_button("fig_ef_frontier", "efektivni_hranice")
                             
                             # 5. Výsledky Optimalizace (OPRAVENO FORMÁTOVÁNÍ)
                             st.divider()
@@ -1739,7 +1784,8 @@ def main():
                         fig_bench.add_trace(go.Scatter(x=user_df.index, y=user_df['MyReturn'], mode='lines', name='Moje Portfolio', line=dict(color='#00CC96', width=3)))
                         fig_bench.add_trace(go.Scatter(x=sp500_norm.index, y=sp500_norm, mode='lines', name='S&P 500', line=dict(color='#808080', width=2, dash='dot')))
                         fig_bench.update_layout(title="Výkonnost v % od začátku měření", xaxis_title="", yaxis_title="Změna (%)", template="plotly_dark", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
-                        st.plotly_chart(fig_bench, use_container_width=True)
+                        st.plotly_chart(fig_bench, use_container_width=True, key="fig_benchmark")
+                        add_download_button("fig_benchmark", "benchmark_analyza")
                         
                         my_last = user_df['MyReturn'].iloc[-1]; sp_last = sp500_norm.iloc[-1]; diff = my_last - sp_last
                         c_b1, c_b2, c_b3, c_b4 = st.columns(4)
@@ -1796,8 +1842,6 @@ def main():
             ])
             fig_curr.update_layout(barmode='group', template="plotly_dark", height=300, margin=dict(l=0, r=0, t=30, b=0))
             st.plotly_chart(fig_curr, use_container_width=True)
-            if diff < 0: st.warning(f"📉 Pokud koruna posílí, přijdeš o {abs(diff):,.0f} Kč jen na kurzu!")
-            elif diff > 0: st.success(f"📈 Pokud koruna oslabí, vyděláš {diff:,.0f} Kč navíc.")
         
         with tab7:
             st.subheader("⚖️ REBALANČNÍ KALKULAČKA")
