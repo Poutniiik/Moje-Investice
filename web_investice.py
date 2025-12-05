@@ -338,6 +338,53 @@ def ziskej_yield(ticker):
         if d and d > 0.30: return d / 100 
         return d if d else 0
     except Exception: return 0
+@st.cache_data(ttl=86400)
+def ziskej_yield(ticker):
+    try:
+        t = yf.Ticker(str(ticker))
+        d = t.info.get('dividendYield')
+        if d and d > 0.30: return d / 100 
+        return d if d else 0
+    except Exception: return 0
+
+# --- NOVÁ FUNKCE PRO KALENDÁŘ ---
+@st.cache_data(ttl=43200) # Cache 12 hodin
+def ziskej_planovane_dividendy(tickers_list):
+    future_divs = []
+    if not tickers_list: return []
+    
+    for tkr in tickers_list:
+        try:
+            t = yf.Ticker(str(tkr))
+            info = t.info
+            
+            # Zkusíme získat ex-dividend date
+            ex_date_ts = info.get('exDividendDate')
+            if ex_date_ts:
+                ex_date = datetime.fromtimestamp(ex_date_ts)
+                # Zajímá nás jen budoucnost nebo nedávná minulost (kdyby výplata teprve šla)
+                if ex_date >= datetime.now() - timedelta(days=30):
+                    rate = info.get('dividendRate', 0)
+                    currency = info.get('currency', 'USD')
+                    
+                    # Pokud nemáme rate, zkusíme odhadnout z yield
+                    if not rate:
+                        dy = info.get('dividendYield', 0)
+                        price = info.get('currentPrice', 0)
+                        if dy and price: rate = (price * dy) / 4 # Hrubý odhad čtvrtletní
+                        
+                    if rate > 0:
+                        future_divs.append({
+                            "Ticker": tkr,
+                            "Ex-Date": ex_date,
+                            "Sazba": rate,
+                            "Měna": currency,
+                            "Pay-Date": info.get('dividendPayDate') # Může být None
+                        })
+        except Exception:
+            pass
+            
+    return future_divs
 
 # --- POKROČILÉ CACHING FUNKCE PRO RENTGEN ---
 
@@ -1963,41 +2010,94 @@ def main():
         else: st.info("Žádné nové zprávy.")
 
     elif page == "💎 Dividendy":
-        st.title("💎 DIVIDENDY")
-        if not df_div.empty:
-            df_div['Datum'] = pd.to_datetime(df_div['Datum']); df_div['Mesic'] = df_div['Datum'].dt.strftime('%Y-%m')
+        st.title("💎 DIVIDENDOVÉ CENTRUM")
+        
+        # Rozdělení na záložky - BEZPEČNÁ IMPLEMENTACE NOVÉ FUNKCE
+        tab_div_hist, tab_div_cal = st.tabs(["📜 HISTORIE VÝPLAT", "🔮 KALENDÁŘ (Budoucnost)"])
+        
+        # --- ZÁLOŽKA 1: PŮVODNÍ HISTORIE (ZACHOVÁNO) ---
+        with tab_div_hist:
+            if not df_div.empty:
+                df_div['Datum'] = pd.to_datetime(df_div['Datum']); df_div['Mesic'] = df_div['Datum'].dt.strftime('%Y-%m')
+                
+                # OPRAVA: Použití živých kurzů z proměnné 'kurzy' pro přepočet
+                kurz_usd_czk = kurzy.get('CZK', 20.85)
+                kurz_eur_usd = kurzy.get('EUR', 1.16)
+                kurz_eur_czk = kurz_eur_usd * kurz_usd_czk
+
+                def prepocet_dividendy_na_czk(row):
+                    if row['Mena'] == 'USD':
+                        return row['Castka'] * kurz_usd_czk
+                    elif row['Mena'] == 'EUR':
+                        return row['Castka'] * kurz_eur_czk 
+                    else:
+                        return row['Castka'] # Předpokládáme, že CZK dividenda je už v CZK.
+
+                df_div['CastkaCZK'] = df_div.apply(prepocet_dividendy_na_czk, axis=1)
+
+                monthly_data = df_div.groupby('Mesic')['CastkaCZK'].sum()
+                with st.container(border=True):
+                    k1, k2 = st.columns([2, 1])
+                    with k1: st.subheader("📅 Pasivní příjem (CZK)"); st.bar_chart(monthly_data, color="#00FF00")
+                    with k2: st.metric("CELKEM VYPLACENO", f"{df_div['CastkaCZK'].sum():,.0f} Kč"); st.write("Poslední 3 měsíce:"); st.dataframe(monthly_data.sort_index(ascending=False).head(3), use_container_width=True)
+                st.divider()
             
-            # OPRAVA: Použití živých kurzů z proměnné 'kurzy' pro přepočet
-            kurz_usd_czk = kurzy.get('CZK', 20.85)
-            # Předpokládáme, že EUR/CZK kurz není přímo v kurzy, ale je odvozen z EUR/USD a USD/CZK. 
-            # Použijeme zjednodušený odhad: EUR/CZK = EUR/USD (kurzy['EUR']) * USD/CZK (kurzy['CZK'])
-            kurz_eur_usd = kurzy.get('EUR', 1.16)
-            kurz_eur_czk = kurz_eur_usd * kurz_usd_czk
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                with st.form("div"):
+                    t = st.text_input("Ticker").upper(); a = st.number_input("Částka", 0.01); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
+                    if st.form_submit_button("PŘIPSAT"): pridat_dividendu(t, a, c, USER); st.toast("Připsáno", icon="💎"); st.balloons(); time.sleep(2); st.rerun()
+            with c2:
+                if not df_div.empty: st.dataframe(df_div[["Datum", "Ticker", "Castka", "Mena", "CastkaCZK"]].sort_values("Datum", ascending=False).style.format({"Castka": "{:,.2f}", "CastkaCZK": "{:,.0f} Kč", "Datum": "{:%d.%m.%Y}"}), use_container_width=True, hide_index=True)
 
-            def prepocet_dividendy_na_czk(row):
-                if row['Mena'] == 'USD':
-                    return row['Castka'] * kurz_usd_czk
-                elif row['Mena'] == 'EUR':
-                    # Přepočet EUR -> CZK
-                    return row['Castka'] * kurz_eur_czk 
+        # --- ZÁLOŽKA 2: NOVÝ KALENDÁŘ (NOVÁ FUNKCE) ---
+        with tab_div_cal:
+            st.subheader("📅 Kdy přijdou další peníze?")
+            if not df.empty:
+                portfolio_tickers = df['Ticker'].unique().tolist()
+                
+                with st.spinner("Zjišťuji termíny výplat z burzy..."):
+                    future_data = ziskej_planovane_dividendy(portfolio_tickers)
+                
+                if future_data:
+                    # Vytvoříme DataFrame pro zobrazení
+                    df_future = pd.DataFrame(future_data)
+                    
+                    # Spočítáme odhadovanou výplatu (Mám kusů * Sazba)
+                    # Musíme napojit na aktuální počet kusů v portfoliu
+                    def calc_est_payout(row):
+                        kusy = df[df['Ticker'] == row['Ticker']]['Pocet'].sum()
+                        return kusy * row['Sazba']
+
+                    df_future['Kusy'] = df_future['Ticker'].apply(lambda t: df[df['Ticker'] == t]['Pocet'].sum())
+                    df_future['Odhad'] = df_future.apply(calc_est_payout, axis=1)
+                    
+                    # Seřazení podle data
+                    df_future = df_future.sort_values('Ex-Date')
+
+                    # Zobrazení
+                    st.dataframe(
+                        df_future,
+                        column_config={
+                            "Ticker": "Symbol",
+                            "Ex-Date": st.column_config.DateColumn("Ex-Dividend (Nárok)", format="DD.MM.YYYY"),
+                            "Sazba": st.column_config.NumberColumn("Divi/Akcie", format="%.2f"),
+                            "Kusy": st.column_config.NumberColumn("Drženo", format="%.2f"),
+                            "Odhad": st.column_config.NumberColumn("Odhad výplaty", format="%.2f"),
+                            "Měna": "Měna"
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                    
+                    # Rychlý součet očekávaných
+                    total_est_usd = df_future[df_future['Měna'] == 'USD']['Odhad'].sum()
+                    st.info(f"💰 V nejbližší době čekáš cca: **${total_est_usd:,.2f}** (jen z USD akcií se známým datem)")
+                    
                 else:
-                    return row['Castka'] # Předpokládáme, že CZK dividenda je už v CZK.
-
-            df_div['CastkaCZK'] = df_div.apply(prepocet_dividendy_na_czk, axis=1)
-
-            monthly_data = df_div.groupby('Mesic')['CastkaCZK'].sum()
-            with st.container(border=True):
-                k1, k2 = st.columns([2, 1])
-                with k1: st.subheader("📅 Pasivní příjem (CZK)"); st.bar_chart(monthly_data, color="#00FF00")
-                with k2: st.metric("CELKEM VYPLACENO", f"{df_div['CastkaCZK'].sum():,.0f} Kč"); st.write("Poslední 3 měsíce:"); st.dataframe(monthly_data.sort_index(ascending=False).head(3), use_container_width=True)
-            st.divider()
-        c1, c2 = st.columns([1, 2])
-        with c1:
-            with st.form("div"):
-                t = st.text_input("Ticker").upper(); a = st.number_input("Částka", 0.01); c = st.selectbox("Měna", ["USD", "CZK", "EUR"])
-                if st.form_submit_button("PŘIPSAT"): pridat_dividendu(t, a, c, USER); st.toast("Připsáno", icon="💎"); st.balloons(); time.sleep(2); st.rerun()
-        with c2:
-            if not df_div.empty: st.dataframe(df_div[["Datum", "Ticker", "Castka", "Mena", "CastkaCZK"]].sort_values("Datum", ascending=False).style.format({"Castka": "{:,.2f}", "CastkaCZK": "{:,.0f} Kč", "Datum": "{:%d.%m.%Y}"}), use_container_width=True, hide_index=True)
+                    st.info("Zatím nebyly oznámeny žádné nové termíny dividend pro tvé akcie (nebo se nepodařilo data načíst).")
+            else:
+                st.warning("Nejdřív si kup nějaké akcie do portfolia! 😊")
 
     elif page == "⚙️ Nastavení":
         st.title("⚙️ DATA & SPRÁVA")
@@ -2035,3 +2135,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
