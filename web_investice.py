@@ -1277,15 +1277,25 @@ def main():
         
         with t_div1:
             if not df_div.empty:
-                # Graf
-                df_div['Datum'] = pd.to_datetime(df_div['Datum'])
-                df_div_sorted = df_div.sort_values('Datum')
-                fig_div = px.bar(df_div_sorted, x='Datum', y='Castka', color='Ticker', title="Historie výplat", template="plotly_dark")
+                # Graf - OPRAVA VIZUALIZACE
+                # Vytvoříme pomocný dataframe jen pro graf
+                plot_df = df_div.copy()
+                # Převedeme přesný čas jen na datum (string YYYY-MM-DD), aby měly sloupce šířku "1 den" a byly vidět
+                plot_df['Datum_Den'] = pd.to_datetime(plot_df['Datum']).dt.strftime('%Y-%m-%d')
+                
+                # Seskupíme podle dne a tickeru (aby se v jednom dni sloupce sečetly/navrstvily)
+                plot_df_grouped = plot_df.groupby(['Datum_Den', 'Ticker'])['Castka'].sum().reset_index()
+                plot_df_grouped = plot_df_grouped.sort_values('Datum_Den')
+
+                fig_div = px.bar(plot_df_grouped, x='Datum_Den', y='Castka', color='Ticker', 
+                                 title="Historie výplat (po dnech)", 
+                                 labels={'Datum_Den': 'Datum', 'Castka': 'Částka'},
+                                 template="plotly_dark")
                 fig_div.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
                 st.plotly_chart(fig_div, use_container_width=True)
                 
-                # Tabulka
-                st.dataframe(df_div_sorted.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
+                # Tabulka - tu necháme s původními detailními daty
+                st.dataframe(df_div.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.info("Zatím žádné dividendy.")
         
