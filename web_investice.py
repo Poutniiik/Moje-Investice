@@ -1997,6 +1997,79 @@ def main():
                                 fig_own.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", showlegend=True, legend=dict(y=0.5))
                                 fig_own.update_traces(textinfo='percent+label', textposition='outside')
                                 st.plotly_chart(fig_own, use_container_width=True)
+                                # 👇👇👇 VLOŽIT HNED POD Velrybí Radar (st.plotly_chart(fig_own...)) 👇👇👇
+                            
+                            st.write("")
+                            st.subheader("📊 HISTORIE VÝSLEDKŮ (Rostou, nebo stagnují?)")
+                            
+                            try:
+                                with st.spinner("Stahuji účetní výkazy..."):
+                                    # Získáme čerstvé finanční výkazy přímo z Yahoo
+                                    stock_obj = yf.Ticker(vybrana_akcie)
+                                    financials = stock_obj.financials
+                                    
+                                    if financials is not None and not financials.empty:
+                                        # Transpozice (otočení tabulky), aby roky byly řádky
+                                        fin_T = financials.T
+                                        # Seřadíme od nejstaršího po nejnovější
+                                        fin_T = fin_T.sort_index()
+                                        
+                                        # Zkusíme najít klíčové sloupce (Yahoo občas mění názvy)
+                                        col_rev = next((c for c in fin_T.columns if 'Total Revenue' in c or 'TotalRevenue' in c), None)
+                                        col_inc = next((c for c in fin_T.columns if 'Net Income' in c or 'NetIncome' in c), None)
+                                        
+                                        if col_rev and col_inc:
+                                            # Vytvoření dat pro graf
+                                            plot_data = pd.DataFrame({
+                                                "Rok": fin_T.index.strftime('%Y'),
+                                                "Tržby (Revenue)": fin_T[col_rev],
+                                                "Čistý Zisk (Income)": fin_T[col_inc]
+                                            })
+                                            
+                                            # Převod na "Long format" pro Plotly (aby šlo udělat Grouped Bar)
+                                            plot_melted = plot_data.melt(id_vars="Rok", var_name="Metrika", value_name="Hodnota")
+                                            
+                                            # Vykreslení grafu
+                                            fig_fin = px.bar(plot_melted, x="Rok", y="Hodnota", color="Metrika", 
+                                                             barmode="group",
+                                                             title=f"Tržby vs. Zisk: {vybrana_akcie}",
+                                                             color_discrete_map={"Tržby (Revenue)": "#58A6FF", "Čistý Zisk (Income)": "#238636"},
+                                                             template="plotly_dark")
+                                            
+                                            fig_fin.update_layout(
+                                                xaxis_title="", 
+                                                yaxis_title="USD", 
+                                                legend=dict(orientation="h", y=1.1),
+                                                paper_bgcolor="rgba(0,0,0,0)", 
+                                                plot_bgcolor="rgba(0,0,0,0)",
+                                                font_family="Roboto Mono",
+                                                height=350
+                                            )
+                                            
+                                            # Formátování osy Y na miliardy (B) nebo miliony (M)
+                                            fig_fin.update_yaxes(tickprefix="$")
+                                            
+                                            st.plotly_chart(fig_fin, use_container_width=True)
+                                            
+                                            # Rychlý AI komentář k trendu (pokud máme data)
+                                            last_rev = plot_data["Tržby (Revenue)"].iloc[-1]
+                                            first_rev = plot_data["Tržby (Revenue)"].iloc[0]
+                                            growth = ((last_rev / first_rev) - 1) * 100
+                                            
+                                            if growth > 20:
+                                                st.success(f"🚀 **Růstová mašina:** Tržby za zobrazené období vzrostly o {growth:.1f} %.")
+                                            elif growth > 0:
+                                                st.info(f"⚖️ **Stabilita:** Mírný růst tržeb o {growth:.1f} %.")
+                                            else:
+                                                st.error(f"⚠️ **Varování:** Tržby klesají ({growth:.1f} %).")
+                                        else:
+                                            st.warning("Data o tržbách nejsou v databázi dostupná pod standardními názvy.")
+                                    else:
+                                        st.info("Pro tuto firmu nejsou detailní finanční výkazy k dispozici (často u ETF).")
+                            except Exception as e:
+                                st.warning(f"Nepodařilo se načíst graf výsledků ({e})")
+                                
+                            st.divider()
                             # -----------------------------------------------
 
                             if target_price > 0 and current_price > 0:
@@ -3042,6 +3115,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
