@@ -22,10 +22,6 @@ from fpdf import FPDF
 import extra_streamlit_components as stx
 import random
 
-# --- GLOBÁLNÍ JS INJEKCE PRO PLOTLY EXPORT ---
-# Zajišťuje, že je Plotly.js k dispozici pro naši funkci downloadPlotlyChart.
-st.markdown('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>', unsafe_allow_html=True)
-
 # --- KONFIGURACE ---
 # Musí být vždy jako první příkaz Streamlitu
 st.set_page_config(
@@ -726,32 +722,21 @@ def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_y
     sharpe_ratio = np.sqrt(periods_per_year) * (excess_returns.mean() / returns.std())
     return sharpe_ratio
 
-# --- POMOCNÁ FUNKCE PRO STÁHNUTÍ GRAFU (OPRAVENO) ---
+# --- POMOCNÁ FUNKCE PRO STÁHNUTÍ GRAFU (NOVÉ) ---
+# Tato funkce je vložena jako HTML/JS pro interakci s Plotly grafy.
 def add_download_button(fig_id, filename):
-    # Přidáváme kontrolu, zda je Plotly knihovna načtená.
-    # Používáme duální strategii: snažíme se najít element buď s přímo daným ID, nebo skrze Streamlit wrapper.
     js_code = f"""
     <script>
         function downloadPlotlyChart(chartId, filename) {{
-            // Streamlit key se mapuje na data-testid='st-plotly-chart-fig_vyvoj_maj'
-            const container = document.querySelector(`[data-testid*="${chartId}"]`);
-            let plotlyDiv = null;
-
-            if (container) {{
-                 // Hledáme samotný Plotly div (třída 'js-plotly-plot') uvnitř Streamlit kontejneru
-                 plotlyDiv = container.querySelector('.js-plotly-plot');
-            }}
-
-            // Fallback kontrola pro jistotu a kontrola načtení knihovny
-            if (plotlyDiv && typeof Plotly !== 'undefined') {{
-                // Plotly.downloadImage potřebuje div element.
-                Plotly.downloadImage(plotlyDiv, {{format: 'png', filename: filename}});
+            const chartDiv = document.getElementById(chartId);
+            if (chartDiv) {{
+                Plotly.downloadImage(chartDiv, {{format: 'png', filename: filename}});
             }} else {{
-                console.error('Plotly graf nebo knihovna nebyla nalezena pro ID:', chartId);
+                alert('Graf nebyl nalezen. Zkuste prosím znovu.');
             }}
         }}
     </script>
-    <button onclick="downloadPlotlyChart('{fig_id}', '{filename}')" 
+    <button onclick="downloadPlotlyChart('graph_{fig_id}', '{filename}')" 
             style="
                 background-color: #21262D; 
                 color: #C9D1D9; 
@@ -767,6 +752,8 @@ def add_download_button(fig_id, filename):
             ⬇️ Stáhnout graf (PNG)
     </button>
     """
+    # Použijeme st.markdown s unsafe_allow_html=True a vyhneme se st.components,
+    # abychom nekomplikovali state management.
     st.markdown(js_code, unsafe_allow_html=True)
 
 
@@ -1442,6 +1429,7 @@ def main():
                                 fig_candle.add_hline(y=70, line_dash="dot", line_color="red", row=2, col=1, annotation_text="Překoupené (70)", annotation_position="top right")
                                 fig_candle.add_hline(y=30, line_dash="dot", line_color="green", row=2, col=1, annotation_text="Přeprodané (30)", annotation_position="bottom right")
                                 fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=600, margin=dict(l=0, r=0, t=30, b=0), legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0)"))
+                                fig_candle.update_yaxes(title_text="Cena", row=1, col=1); fig_candle.update_yaxes(title_text="RSI", row=2, col=1, range=[0, 100])
                                 st.plotly_chart(fig_candle, use_container_width=True)
                             else: st.warning("Graf historie není k dispozici.")
                         except Exception as e: st.error(f"Chyba zobrazení rentgenu: {e}")
