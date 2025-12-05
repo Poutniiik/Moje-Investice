@@ -1367,46 +1367,122 @@ def main():
                         st.warning("Zadejte symbol a alespoň jednu cílovou cenu (Buy nebo Sell).")
         
         if not df_watch.empty:
+            st.subheader("📡 TAKTICKÝ RADAR")
+            st.info("Rychlý přehled technického stavu sledovaných akcií.")
+            
+            # Příprava dat pro Radar
             w_data = []
+            tickers_list = df_watch['Ticker'].unique().tolist()
+            
+            # Hromadné stažení historie pro RSI (rychlejší než po jednom)
+            if tickers_list:
+                with st.spinner("Skenuji trh a počítám indikátory..."):
+                    try:
+                        batch_data = yf.download(tickers_list, period="3mo", group_by='ticker', progress=False)
+                    except: batch_data = pd.DataFrame()
+
             for _, r in df_watch.iterrows():
                 tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
-                inf = LIVE_DATA.get(tk, {}); p = inf.get('price'); cur = inf.get('curr', 'USD')
                 
+                # Získání live ceny a info
+                inf = LIVE_DATA.get(tk, {})
+                price = inf.get('price')
+                cur = inf.get('curr', 'USD')
+                
+                # Fallback pro měnu
                 if tk.upper().endswith(".PR"): cur = "CZK"
                 elif tk.upper().endswith(".DE"): cur = "EUR"
                 
-                if not p: p, _, _ = ziskej_info(tk)
+                if not price: 
+                    price, _, _ = ziskej_info(tk)
                 
+                # Výpočet RSI
+                rsi_val = 50 # Default neutral
+                try:
+                    if len(tickers_list) > 1:
+                        # Multi-index
+                        if tk in batch_data.columns.levels[0]:
+                            hist = batch_data[tk]['Close']
+                        else: hist = pd.Series()
+                    else:
+                        # Single index (pokud je jen jedna akcie ve watchlistu)
+                        if 'Close' in batch_data.columns: hist = batch_data['Close']
+                        else: hist = pd.Series()
+
+                    if not hist.empty and len(hist) > 14:
+                        delta = hist.diff()
+                        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                        rs = gain / loss
+                        rsi_series = 100 - (100 / (1 + rs))
+                        rsi_val = rsi_series.iloc[-1]
+                except: pass
+
+                # 52 Week Range (z fast_info)
+                year_low = 0; year_high = 0; range_pos = 0.5
+                try:
+                    t_obj = yf.Ticker(tk)
+                    year_low = t_obj.fast_info.year_low
+                    year_high = t_obj.fast_info.year_high
+                    if price and year_high > year_low:
+                        range_pos = (price - year_low) / (year_high - year_low)
+                        range_pos = max(0.0, min(1.0, range_pos)) # Ořezání 0-1
+                except: pass
+
+                # Status text
                 status_text = "💤 Sleduji"
+                dist_to_buy = 0
+                if price:
+                    if buy_trg > 0:
+                        dist = ((price - buy_trg) / price) * 100
+                        dist_to_buy = dist
+                        if price <= buy_trg: status_text = "🔥 BUY ZONE"
+                        else: status_text = f"Wait (-{dist:.1f}%)"
+                    
+                    if sell_trg > 0 and price >= sell_trg:
+                        status_text = "💰 SELL ZONE"
                 
-                if p:
-                    if sell_trg > 0 and p >= sell_trg:
-                        status_text = "💰 PRODEJNÍ ZÓNA (Cíl splněn!)"
-                    elif buy_trg > 0 and p <= buy_trg:
-                        status_text = "🔥 NÁKUPNÍ ZÓNA (SLEVA!)"
-                    elif sell_trg > 0 and p > buy_trg and p < sell_trg:
-                        status_text = "⚖️ Mezi cíli"
+                # RSI Interpretace pro tabulku
+                rsi_display = f"{rsi_val:.0f}"
                 
                 w_data.append({
                     "Symbol": tk, 
-                    "Aktuální Cena": p, 
+                    "Cena": price, 
                     "Měna": cur, 
-                    "Nákupní Cíl (Buy)": buy_trg, 
-                    "Prodejní Cíl (Sell)": sell_trg, 
+                    "RSI (14)": rsi_val, # Číselná hodnota pro sorting/logiku
+                    "52T Range": range_pos,
+                    "Cíl Buy": buy_trg,
                     "Status": status_text
                 })
             
             wdf = pd.DataFrame(w_data)
-            st.dataframe(
-                wdf, 
-                column_config={
-                    "Aktuální Cena": st.column_config.NumberColumn(format="%.2f"),
-                    "Nákupní Cíl (Buy)": st.column_config.NumberColumn(format="%.2f"),
-                    "Prodejní Cíl (Sell)": st.column_config.NumberColumn(format="%.2f")
-                },
-                use_container_width=True, 
-                hide_index=True
-            )
+            
+            if not wdf.empty:
+                st.dataframe(
+                    wdf, 
+                    column_config={
+                        "Cena": st.column_config.NumberColumn(format="%.2f"),
+                        "Cíl Buy": st.column_config.NumberColumn(format="%.2f"),
+                        "RSI (14)": st.column_config.NumberColumn(
+                            "RSI Indikátor",
+                            help="< 30: Přeprodáno (Levné) | > 70: Překoupeno (Drahé)",
+                            format="%.0f",
+                        ),
+                        "52T Range": st.column_config.ProgressColumn(
+                            "Roční Rozsah",
+                            help="Poloha ceny mezi ročním minimem (vlevo) a maximem (vpravo)",
+                            min_value=0,
+                            max_value=1,
+                            format="" 
+                        )
+                    },
+                    column_order=["Symbol", "Cena", "Měna", "RSI (14)", "52T Range", "Cíl Buy", "Status"],
+                    use_container_width=True, 
+                    hide_index=True
+                )
+                
+                # Legenda k RSI
+                st.caption("💡 **RSI Legenda:** Hodnoty pod **30** značí přeprodanost (možný odraz nahoru 📈). Hodnoty nad **70** značí překoupenost (možná korekce dolů 📉).")
             
             st.divider()
             c_del1, c_del2 = st.columns([3, 1])
