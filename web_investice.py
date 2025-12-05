@@ -1377,6 +1377,16 @@ def main():
                                 rs = gain / loss
                                 hist_data['RSI'] = 100 - (100 / (1 + rs))
                                 
+                                # --- VÝPOČTY PRO AI ANALÝZU (PŘIDÁNO) ---
+                                last_row = hist_data.iloc[-1]
+                                current_price_scan = last_row['Close']
+                                rsi_scan = last_row['RSI']
+                                sma20_scan = last_row['SMA20'] if 'SMA20' in last_row else 0
+                                sma50_scan = last_row['SMA50'] if 'SMA50' in last_row else 0
+                                bb_upper_scan = last_row['BB_Upper']
+                                bb_lower_scan = last_row['BB_Lower']
+                                # ----------------------------------------
+
                                 fig_candle = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
                                 fig_candle.add_trace(go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie), row=1, col=1)
 
@@ -1395,6 +1405,41 @@ def main():
                                 fig_candle.update_xaxes(showgrid=False)
                                 st.plotly_chart(fig_candle, use_container_width=True)
                                 add_download_button(fig_candle, f"rentgen_{vybrana_akcie}")
+                                
+                                # --- NOVÁ FUNKCE: AI TECHNICKÁ ANALÝZA ---
+                                if AI_AVAILABLE:
+                                    st.divider()
+                                    if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="secondary"):
+                                        with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
+                                            prompt_tech = f"""
+                                            Jsi expert na technickou analýzu akcií. Analyzuj následující data pro {vybrana_akcie}:
+                                            Aktuální Cena: {current_price_scan:.2f}
+                                            RSI (14): {rsi_scan:.2f}
+                                            SMA 20 (Krátkodobý trend): {sma20_scan:.2f}
+                                            SMA 50 (Střednědobý trend): {sma50_scan:.2f}
+                                            Bollinger Upper: {bb_upper_scan:.2f}
+                                            Bollinger Lower: {bb_lower_scan:.2f}
+                                            
+                                            Úkol:
+                                            1. Urči trend (SMA20 vs SMA50, Cena vs SMA).
+                                            2. Zhodnoť RSI (Překoupeno > 70, Přeprodáno < 30).
+                                            3. Zkontroluj Bollinger Bands (Je cena u kraje?).
+                                            4. Dej finální verdikt: BÝČÍ / MEDVĚDÍ / NEUTRÁLNÍ.
+                                            Odpověz stručně v bodech, česky.
+                                            """
+                                            try:
+                                                tech_res = AI_MODEL.generate_content(prompt_tech)
+                                                st.success("Analýza dokončena!")
+                                                st.markdown(f"""
+                                                <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 10px; padding: 20px;">
+                                                    <h3 style="color: #58A6FF;">🤖 AI VERDIKT: {vybrana_akcie}</h3>
+                                                    {tech_res.text}
+                                                </div>
+                                                """, unsafe_allow_html=True)
+                                            except Exception as e:
+                                                st.error(f"Chyba AI analýzy: {e}")
+                                # -----------------------------------------
+
                             else: st.warning("Graf historie není k dispozici.")
                         except Exception as e: st.error(f"Chyba zobrazení rentgenu: {e}")
                     else: st.error("Nepodařilo se načíst data o firmě.")
