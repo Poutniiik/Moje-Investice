@@ -548,6 +548,22 @@ def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
     uloz_csv(full_hist, SOUBOR_VYVOJ, "Daily snapshot")
     return full_hist[full_hist['Owner'] == str(user)]
 
+# --- NOVÁ FUNKCE: PROVEDENÍ NÁKUPU (Refactoring pro CLI) ---
+def proved_nakup(ticker, kusy, cena, user):
+    df_p = st.session_state['df']
+    _, mena, _ = ziskej_info(ticker)
+    cost = kusy * cena
+    zustatky = get_zustatky(user)
+    
+    if zustatky.get(mena, 0) >= cost:
+        pohyb_penez(-cost, mena, "Nákup", ticker, user)
+        d = pd.DataFrame([{"Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), "Owner": user, "Sektor": "Doplnit", "Poznamka": "CLI/Auto"}])
+        st.session_state['df'] = pd.concat([df_p, d], ignore_index=True)
+        uloz_data_uzivatele(st.session_state['df'], user, SOUBOR_DATA)
+        return True, f"✅ Koupeno: {kusy}x {ticker} za {cena} {mena}"
+    else:
+        return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
+
 def proved_prodej(ticker, kusy, cena, user, mena):
     df_p = st.session_state['df'].copy()
     df_h = st.session_state['df_hist'].copy()
@@ -1015,6 +1031,57 @@ def main():
             st.error("🔔 CENOVÉ ALERTY!", icon="🔥")
             for a in alerts:
                 st.markdown(f"- **{a}**")
+
+        # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
+        st.divider()
+        st.caption("💻 TERMINÁL (Příkazová řádka)")
+        cli_input = st.text_input(">", key="cli_cmd", placeholder="/help pro nápovědu", help="Příkazy: /price TICKER, /buy TICKER KUSY, /sell TICKER KUSY, /cash")
+        
+        if cli_input:
+            cmd_parts = cli_input.strip().split()
+            cmd = cmd_parts[0].lower()
+            
+            if cmd == "/help":
+                st.info("Příkazy:\n- /price [TICKER]\n- /buy [TICKER] [KUSY] (za market cenu)\n- /sell [TICKER] [KUSY]\n- /cash (zůstatky)")
+            
+            elif cmd == "/price" and len(cmd_parts) > 1:
+                t_cli = cmd_parts[1].upper()
+                p_cli, m_cli, z_cli = ziskej_info(t_cli)
+                if p_cli: st.toast(f"💰 {t_cli}: {p_cli:.2f} {m_cli} ({z_cli*100:+.2f}%)", icon="📈")
+                else: st.toast(f"❌ Ticker {t_cli} nenalezen.", icon="⚠️")
+            
+            elif cmd == "/cash":
+                bals = get_zustatky(USER)
+                txt = " | ".join([f"{k}: {v:,.0f}" for k,v in bals.items()])
+                st.toast(f"🏦 {txt}", icon="💵")
+                
+            elif cmd == "/buy" and len(cmd_parts) >= 3:
+                try:
+                    t_cli = cmd_parts[1].upper()
+                    k_cli = float(cmd_parts[2])
+                    p_cli, m_cli, _ = ziskej_info(t_cli)
+                    if p_cli:
+                        ok, msg = proved_nakup(t_cli, k_cli, p_cli, USER)
+                        if ok: st.toast(msg, icon="✅"); time.sleep(1); st.rerun()
+                        else: st.toast(msg, icon="❌")
+                    else: st.toast("❌ Chyba ceny", icon="⚠️")
+                except: st.toast("❌ Chyba formátu: /buy TICKER KUSY", icon="⚠️")
+
+            elif cmd == "/sell" and len(cmd_parts) >= 3:
+                try:
+                    t_cli = cmd_parts[1].upper()
+                    k_cli = float(cmd_parts[2])
+                    p_cli, m_cli, _ = ziskej_info(t_cli)
+                    if p_cli:
+                        ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m_cli)
+                        if ok: st.toast(msg, icon="✅"); time.sleep(1); st.rerun()
+                        else: st.toast(msg, icon="❌")
+                    else: st.toast("❌ Chyba ceny", icon="⚠️")
+                except: st.toast("❌ Chyba formátu: /sell TICKER KUSY", icon="⚠️")
+            
+            else:
+                if cli_input != "": st.toast("❌ Neznámý příkaz", icon="❓")
+        # ---------------------------------------
 
         st.divider(); st.subheader("NAVIGACE")
         page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
@@ -1505,15 +1572,18 @@ def main():
             with c2:
                 st.info("Zkontroluj zůstatek v peněžence!")
                 if st.button("KOUPIT AKCIE", use_container_width=True):
+                    # --- POUŽITÍ NOVÉ FUNKCE proved_nakup ---
                     _, m, _ = ziskej_info(t)
-                    cost = k*c
-                    if zustatky.get(m, 0) >= cost:
-                        pohyb_penez(-cost, m, "Nákup", t, USER)
-                        d = pd.DataFrame([{"Ticker": t, "Pocet": k, "Cena": c, "Datum": datetime.now(), "Owner": USER, "Sektor": "Doplnit", "Poznamka": ""}])
-                        st.session_state['df'] = pd.concat([df, d], ignore_index=True)
-                        uloz_data_uzivatele(st.session_state['df'], USER, SOUBOR_DATA)
-                        st.success("OK"); time.sleep(1); st.rerun()
-                    else: st.error("Nedostatek peněz")
+                    # Pokud uživatel nezadal cenu (0), zkusíme ji stáhnout
+                    final_c = c if c > 0 else ziskej_info(t)[0]
+                    
+                    if final_c and final_c > 0:
+                        ok, msg = proved_nakup(t, k, final_c, USER)
+                        if ok: st.success(msg); time.sleep(1); st.rerun()
+                        else: st.error(msg)
+                    else:
+                        st.error("Nepodařilo se získat cenu. Zadej ji ručně.")
+                    # ----------------------------------------
         with t2:
             ts = df['Ticker'].unique() if not df.empty else []
             s_t = st.selectbox("Prodat:", ts)
