@@ -2071,9 +2071,7 @@ def main():
                                                 else:
                                                     st.info("ℹ️ Data pro výpočet růstu nejsou kompletní.")
                                             except:
-                                                st.info("ℹ️ Nelze automaticky vyhodnotit trend.")
-                                                
-                                            # 👆👆👆 KONEC OPRAVY 👆👆👆
+                                st.info("ℹ️ Nelze automaticky vyhodnotit trend.")
                                 
                             st.divider()
                             # -----------------------------------------------
@@ -3121,6 +3119,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
