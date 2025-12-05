@@ -880,7 +880,7 @@ def main():
                 if (dnes - d).days < limit_dni: vsechny_ok = False 
                 else: vsechny_fail = False 
             
-            if vsechny_ok: dan_status = "🟢 Free"       
+            if vsechny_ok: dan_status = "🟢 Free"        
             elif vsechny_fail: dan_status = "🔴 Zdanit" 
             else: dan_status = "🟠 Mix" 
             
@@ -1209,42 +1209,6 @@ def main():
         else:
             st.info("Zatím nic nesleduješ. Přidej první akcii nahoře.")
 
-    elif page == "🎮 Gamifikace":
-        st.title("🎮 INVESTIČNÍ ARÉNA")
-        st.subheader(f"Tvá úroveň: {level_name}")
-        st.progress(level_progress)
-        if celk_hod_czk < 500000:
-            st.caption(f"Do další úrovně ti chybí majetek.")
-        else: st.success("Gratulace! Dosáhl jsi maximální úrovně Velryba 🐋")
-        
-        st.divider()
-        st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
-        c1,c2,c3,c4 = st.columns(4)
-        has_first = not df.empty
-        cnt = len(df['Ticker'].unique()) if not df.empty else 0
-        divi_total = 0
-        if not df_div.empty:
-            divi_total = df_div.apply(lambda r: r['Castka'] * (kurzy.get('CZK', 20.85) if r['Mena'] == 'USD' else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)), axis=1).sum()
-        
-        def render_badge(col, title, desc, cond, icon, color):
-            with col:
-                with st.container(border=True):
-                    if cond:
-                        st.markdown(f"<div style='text-align:center; color:{color}'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
-                        st.success("ZÍSKÁNO")
-                    else:
-                        st.markdown(f"<div style='text-align:center; color:gray; opacity:0.3'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
-                        st.caption("UZAMČENO")
-
-        render_badge(c1, "Začátečník", "Kup první akcii", has_first, "🥉", "#CD7F32")
-        render_badge(c2, "Stratég", "Drž 3 různé firmy", cnt >= 3, "🥈", "#C0C0C0")
-        render_badge(c3, "Boháč", "Portfolio > 100k", celk_hod_czk > 100000, "🥇", "#FFD700")
-        render_badge(c4, "Rentiér", "Dividendy > 500 Kč", divi_total > 500, "💎", "#00BFFF")
-        st.divider()
-        st.subheader("💡 Moudro dne")
-        if 'quote' not in st.session_state: st.session_state['quote'] = random.choice(CITATY)
-        st.info(f"*{st.session_state['quote']}*")
-
     elif page == "💸 Obchod":
         st.title("💸 OBCHODNÍ TERMINÁL")
         t1, t2, t3, t4 = st.tabs(["NÁKUP", "PRODEJ", "SMĚNÁRNA", "VKLADY/VÝBĚRY"])
@@ -1294,6 +1258,49 @@ def main():
                 if st.button("VYBRAT"): pohyb_penez(-v_a, v_m, "Výběr", "Man", USER); st.rerun()
             with c2:
                 st.dataframe(df_cash.sort_values('Datum', ascending=False).head(10), use_container_width=True, hide_index=True)
+
+    elif page == "💎 Dividendy":
+        st.title("💎 DIVIDENDOVÝ KALENDÁŘ")
+        
+        # 1. Metriky
+        total_div_czk = 0
+        if not df_div.empty:
+            for _, r in df_div.iterrows():
+                amt = r['Castka']; currency = r['Mena']
+                if currency == "USD": total_div_czk += amt * kurzy.get("CZK", 20.85)
+                elif currency == "EUR": total_div_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85)) # approx
+                else: total_div_czk += amt
+        
+        st.metric("CELKEM VYPLACENO (CZK)", f"{total_div_czk:,.0f} Kč")
+        
+        t_div1, t_div2 = st.tabs(["HISTORIE & GRAF", "PŘIDAT DIVIDENDU"])
+        
+        with t_div1:
+            if not df_div.empty:
+                # Graf
+                df_div['Datum'] = pd.to_datetime(df_div['Datum'])
+                df_div_sorted = df_div.sort_values('Datum')
+                fig_div = px.bar(df_div_sorted, x='Datum', y='Castka', color='Ticker', title="Historie výplat", template="plotly_dark")
+                fig_div.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+                st.plotly_chart(fig_div, use_container_width=True)
+                
+                # Tabulka
+                st.dataframe(df_div_sorted.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
+            else:
+                st.info("Zatím žádné dividendy.")
+        
+        with t_div2:
+            st.caption("Peníze se automaticky připíší do peněženky.")
+            with st.form("add_div"):
+                dt_ticker = st.selectbox("Ticker", df['Ticker'].unique() if not df.empty else ["Jiny"])
+                dt_amount = st.number_input("Částka (Netto)", 0.0, step=0.1)
+                dt_curr = st.selectbox("Měna", ["USD", "CZK", "EUR"])
+                
+                if st.form_submit_button("💰 PŘIPSAT DIVIDENDU"):
+                    pridat_dividendu(dt_ticker, dt_amount, dt_curr, USER)
+                    st.success(f"Připsáno {dt_amount} {dt_curr} od {dt_ticker}")
+                    time.sleep(1)
+                    st.rerun()
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
@@ -1815,6 +1822,42 @@ def main():
                     except Exception as e: st.error(f"Chyba při výpočtu korelace: {e}")
                 else: st.warning("Pro výpočet korelace potřebuješ alespoň 2 různé akcie.")
             else: st.info("Portfolio je prázdné.")
+
+    elif page == "🎮 Gamifikace":
+        st.title("🎮 INVESTIČNÍ ARÉNA")
+        st.subheader(f"Tvá úroveň: {level_name}")
+        st.progress(level_progress)
+        if celk_hod_czk < 500000:
+            st.caption(f"Do další úrovně ti chybí majetek.")
+        else: st.success("Gratulace! Dosáhl jsi maximální úrovně Velryba 🐋")
+        
+        st.divider()
+        st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
+        c1,c2,c3,c4 = st.columns(4)
+        has_first = not df.empty
+        cnt = len(df['Ticker'].unique()) if not df.empty else 0
+        divi_total = 0
+        if not df_div.empty:
+            divi_total = df_div.apply(lambda r: r['Castka'] * (kurzy.get('CZK', 20.85) if r['Mena'] == 'USD' else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)), axis=1).sum()
+        
+        def render_badge(col, title, desc, cond, icon, color):
+            with col:
+                with st.container(border=True):
+                    if cond:
+                        st.markdown(f"<div style='text-align:center; color:{color}'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
+                        st.success("ZÍSKÁNO")
+                    else:
+                        st.markdown(f"<div style='text-align:center; color:gray; opacity:0.3'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
+                        st.caption("UZAMČENO")
+
+        render_badge(c1, "Začátečník", "Kup první akcii", has_first, "🥉", "#CD7F32")
+        render_badge(c2, "Stratég", "Drž 3 různé firmy", cnt >= 3, "🥈", "#C0C0C0")
+        render_badge(c3, "Boháč", "Portfolio > 100k", celk_hod_czk > 100000, "🥇", "#FFD700")
+        render_badge(c4, "Rentiér", "Dividendy > 500 Kč", divi_total > 500, "💎", "#00BFFF")
+        st.divider()
+        st.subheader("💡 Moudro dne")
+        if 'quote' not in st.session_state: st.session_state['quote'] = random.choice(CITATY)
+        st.info(f"*{st.session_state['quote']}*")
 
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
