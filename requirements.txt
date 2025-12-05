@@ -12,3 +12,4 @@ feedparser
 fpdf
 extra-streamlit-components
 kaleido
+wordcloud matplotlib
