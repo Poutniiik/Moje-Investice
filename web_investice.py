@@ -1062,7 +1062,11 @@ def main():
                     p_cli, m_cli, _ = ziskej_info(t_cli)
                     if p_cli:
                         ok, msg = proved_nakup(t_cli, k_cli, p_cli, USER)
-                        if ok: st.toast(msg, icon="✅"); time.sleep(1); st.rerun()
+                        if ok: 
+                            st.toast(msg, icon="✅")
+                            time.sleep(1)
+                            st.session_state['cli_cmd'] = "" # FIX: Vymazat příkaz z paměti
+                            st.rerun()
                         else: st.toast(msg, icon="❌")
                     else: st.toast("❌ Chyba ceny", icon="⚠️")
                 except: st.toast("❌ Chyba formátu: /buy TICKER KUSY", icon="⚠️")
@@ -1074,7 +1078,11 @@ def main():
                     p_cli, m_cli, _ = ziskej_info(t_cli)
                     if p_cli:
                         ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m_cli)
-                        if ok: st.toast(msg, icon="✅"); time.sleep(1); st.rerun()
+                        if ok: 
+                            st.toast(msg, icon="✅")
+                            time.sleep(1)
+                            st.session_state['cli_cmd'] = "" # FIX: Vymazat příkaz z paměti
+                            st.rerun()
                         else: st.toast(msg, icon="❌")
                     else: st.toast("❌ Chyba ceny", icon="⚠️")
                 except: st.toast("❌ Chyba formátu: /sell TICKER KUSY", icon="⚠️")
