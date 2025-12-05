@@ -822,6 +822,82 @@ def main():
         boot_placeholder.empty()
         st.session_state['boot_completed'] = True
     
+    # --- DEFINICE CLI CALLBACKU (OPRAVA VYKONÁVÁNÍ PŘÍKAZŮ) ---
+    # Tento callback se spustí PŘED tím, než se stránka znovu načte.
+    # To zaručuje, že se příkaz provede, vstup se vymaže a nic se necyklí.
+    
+    if 'cli_msg' not in st.session_state: st.session_state['cli_msg'] = None
+
+    def process_cli_command():
+        cmd_raw = st.session_state.cli_cmd
+        if not cmd_raw: return
+        
+        # 1. Okamžitě vymažeme vstup v session state (takže po reloadu bude prázdný)
+        st.session_state.cli_cmd = ""
+        
+        cmd_parts = cmd_raw.strip().split()
+        cmd = cmd_parts[0].lower()
+        
+        msg_text = None
+        msg_icon = None
+
+        try:
+            if cmd == "/help":
+                msg_text = "Příkazy:\n/price [TICKER]\n/buy [TICKER] [KUSY]\n/sell [TICKER] [KUSY]\n/cash"
+                msg_icon = "ℹ️"
+            
+            elif cmd == "/price" and len(cmd_parts) > 1:
+                t_cli = cmd_parts[1].upper()
+                p_cli, m_cli, z_cli = ziskej_info(t_cli)
+                if p_cli: 
+                    msg_text = f"💰 {t_cli}: {p_cli:.2f} {m_cli} ({z_cli*100:+.2f}%)"
+                    msg_icon = "📈"
+                else: 
+                    msg_text = f"❌ Ticker {t_cli} nenalezen."
+                    msg_icon = "⚠️"
+            
+            elif cmd == "/cash":
+                bals = get_zustatky(USER)
+                txt = " | ".join([f"{k}: {v:,.0f}" for k,v in bals.items()])
+                msg_text = f"🏦 {txt}"
+                msg_icon = "💵"
+                
+            elif cmd == "/buy" and len(cmd_parts) >= 3:
+                t_cli = cmd_parts[1].upper()
+                k_cli = float(cmd_parts[2])
+                p_cli, m_cli, _ = ziskej_info(t_cli)
+                if p_cli:
+                    ok, msg = proved_nakup(t_cli, k_cli, p_cli, USER)
+                    msg_text = msg
+                    msg_icon = "✅" if ok else "❌"
+                else: 
+                    msg_text = "❌ Chyba ceny"
+                    msg_icon = "⚠️"
+
+            elif cmd == "/sell" and len(cmd_parts) >= 3:
+                t_cli = cmd_parts[1].upper()
+                k_cli = float(cmd_parts[2])
+                p_cli, m_cli, _ = ziskej_info(t_cli)
+                if p_cli:
+                    ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m_cli)
+                    msg_text = msg
+                    msg_icon = "✅" if ok else "❌"
+                else:
+                    msg_text = "❌ Chyba ceny"
+                    msg_icon = "⚠️"
+            else:
+                msg_text = "❌ Neznámý příkaz nebo formát"
+                msg_icon = "❓"
+        except Exception as e:
+            msg_text = f"❌ Chyba: {str(e)}"
+            msg_icon = "⚠️"
+            
+        # Uložíme zprávu do session state, aby se zobrazila po reloadu
+        if msg_text:
+            st.session_state['cli_msg'] = (msg_text, msg_icon)
+
+    # -----------------------------------------------------------
+
     # --- 2. NAČTENÍ DAT ---
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
@@ -1032,63 +1108,18 @@ def main():
             for a in alerts:
                 st.markdown(f"- **{a}**")
 
-        # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
+        # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) - S CALLBACKEM ---
         st.divider()
         st.caption("💻 TERMINÁL (Příkazová řádka)")
-        cli_input = st.text_input(">", key="cli_cmd", placeholder="/help pro nápovědu", help="Příkazy: /price TICKER, /buy TICKER KUSY, /sell TICKER KUSY, /cash")
         
-        if cli_input:
-            cmd_parts = cli_input.strip().split()
-            cmd = cmd_parts[0].lower()
-            
-            if cmd == "/help":
-                st.info("Příkazy:\n- /price [TICKER]\n- /buy [TICKER] [KUSY] (za market cenu)\n- /sell [TICKER] [KUSY]\n- /cash (zůstatky)")
-            
-            elif cmd == "/price" and len(cmd_parts) > 1:
-                t_cli = cmd_parts[1].upper()
-                p_cli, m_cli, z_cli = ziskej_info(t_cli)
-                if p_cli: st.toast(f"💰 {t_cli}: {p_cli:.2f} {m_cli} ({z_cli*100:+.2f}%)", icon="📈")
-                else: st.toast(f"❌ Ticker {t_cli} nenalezen.", icon="⚠️")
-            
-            elif cmd == "/cash":
-                bals = get_zustatky(USER)
-                txt = " | ".join([f"{k}: {v:,.0f}" for k,v in bals.items()])
-                st.toast(f"🏦 {txt}", icon="💵")
-                
-            elif cmd == "/buy" and len(cmd_parts) >= 3:
-                try:
-                    t_cli = cmd_parts[1].upper()
-                    k_cli = float(cmd_parts[2])
-                    p_cli, m_cli, _ = ziskej_info(t_cli)
-                    if p_cli:
-                        ok, msg = proved_nakup(t_cli, k_cli, p_cli, USER)
-                        if ok: 
-                            st.toast(msg, icon="✅")
-                            time.sleep(1)
-                            st.session_state['cli_cmd'] = "" # FIX: Vymazat příkaz z paměti
-                            st.rerun()
-                        else: st.toast(msg, icon="❌")
-                    else: st.toast("❌ Chyba ceny", icon="⚠️")
-                except: st.toast("❌ Chyba formátu: /buy TICKER KUSY", icon="⚠️")
+        # Zobrazení zprávy z callbacku (pokud existuje z minulé akce)
+        if st.session_state.get('cli_msg'):
+            txt, ic = st.session_state['cli_msg']
+            st.toast(txt, icon=ic)
+            st.session_state['cli_msg'] = None # Vyčistit po zobrazení, aby se toast neopakoval
 
-            elif cmd == "/sell" and len(cmd_parts) >= 3:
-                try:
-                    t_cli = cmd_parts[1].upper()
-                    k_cli = float(cmd_parts[2])
-                    p_cli, m_cli, _ = ziskej_info(t_cli)
-                    if p_cli:
-                        ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m_cli)
-                        if ok: 
-                            st.toast(msg, icon="✅")
-                            time.sleep(1)
-                            st.session_state['cli_cmd'] = "" # FIX: Vymazat příkaz z paměti
-                            st.rerun()
-                        else: st.toast(msg, icon="❌")
-                    else: st.toast("❌ Chyba ceny", icon="⚠️")
-                except: st.toast("❌ Chyba formátu: /sell TICKER KUSY", icon="⚠️")
-            
-            else:
-                if cli_input != "": st.toast("❌ Neznámý příkaz", icon="❓")
+        # Input s callbackem - klíčová změna!
+        st.text_input(">", key="cli_cmd", placeholder="/help pro nápovědu", on_change=process_cli_command)
         # ---------------------------------------
 
         st.divider(); st.subheader("NAVIGACE")
