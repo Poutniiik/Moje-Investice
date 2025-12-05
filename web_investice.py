@@ -463,14 +463,11 @@ def vytvor_pdf_report(user, total_czk, cash_usd, profit_czk, data_list):
 
 # --- DATABÁZE ---
 def uloz_csv(df, nazev_souboru, zprava):
-    repo = get_repo()
-    if not repo: return
-    csv = df.to_csv(index=False)
-    try:
-        file = repo.get_contents(nazev_souboru)
-        repo.update_file(file.path, zprava, csv, file.sha)
-    except Exception: 
-        repo.create_file(nazev_souboru, zprava, csv)
+    """
+    WRAPPER: Stará funkce, která nyní jen předává práci nové bezpečné funkci.
+    Tím jsme zabezpečili celou aplikaci bez nutnosti přepisovat zbytek kódu.
+    """
+    return uloz_csv_bezpecne(df, nazev_souboru, zprava)
 
 def uloz_csv_bezpecne(df, nazev_souboru, zprava):
     """
@@ -932,19 +929,6 @@ def main():
                 txt = " | ".join([f"{k}: {v:,.0f}" for k,v in bals.items()])
                 msg_text = f"🏦 {txt}"
                 msg_icon = "💵"
-                
-            elif cmd == "/testsave":
-                # Vytvoříme malá testovací data
-                test_df = pd.DataFrame([{"Test": "OK", "Cas": datetime.now()}])
-                # Zkusíme je uložit novou funkcí
-                vysledek = uloz_csv_bezpecne(test_df, "test_safety.csv", "Test bezpecneho ulozeni")
-                
-                if vysledek:
-                    msg_text = "✅ Test úspěšný! Soubor test_safety.csv vytvořen na GitHubu."
-                    msg_icon = "🛡️"
-                else:
-                    msg_text = "❌ Test selhal. Podívej se na chyby nahoře."
-                    msg_icon = "⚠️"
                 
             elif cmd == "/buy" and len(cmd_parts) >= 3:
                 t_cli = cmd_parts[1].upper()
@@ -2865,5 +2849,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
