@@ -11,3 +11,4 @@ google-generativeai
 feedparser
 fpdf
 extra-streamlit-components
+kaleido
