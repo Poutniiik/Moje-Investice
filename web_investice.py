@@ -2054,7 +2054,7 @@ def main():
                                             # 👇👇👇 NAHRAĎ TENTO BLOK (VÝPOČET RŮSTU) 👇👇👇
                                             
                                             # Rychlý AI komentář k trendu (Bezpečnější verze)
-                                            try:
+                            try:
                                                 last_rev = plot_data["Tržby (Revenue)"].iloc[-1]
                                                 first_rev = plot_data["Tržby (Revenue)"].iloc[0]
                                                 
@@ -2070,7 +2070,7 @@ def main():
                                                         st.error(f"⚠️ **Varování:** Tržby klesají ({growth:.1f} %).")
                                                 else:
                                                     st.info("ℹ️ Data pro výpočet růstu nejsou kompletní.")
-                                            except:
+                            except:
                                 st.info("ℹ️ Nelze automaticky vyhodnotit trend.")
                                 
                             st.divider()
@@ -3119,6 +3119,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
