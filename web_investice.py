@@ -1829,7 +1829,6 @@ def main():
 
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
-        # PŘIDÁNA ZÁLOŽKA KALENDÁŘ
         tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE", "📅 KALENDÁŘ"])
         
         with tab1:
@@ -1948,9 +1947,20 @@ def main():
                                 fig_target.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", 'family': "Roboto Mono"}, height=250)
                                 st.plotly_chart(fig_target, use_container_width=True)
 
-                            st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
+                            st.divider()
+                            st.subheader(f"📈 PROFESIONÁLNÍ CHART: {vybrana_akcie}")
+                            
                             if hist_data is not None and not hist_data.empty:
-                                # --- 1. VÝPOČTY INDIKÁTORŮ (MUSÍ BÝT PRVNÍ!) ---
+                                # --- OVLÁDÁNÍ GRAFU (Interaktivita) ---
+                                c_ch1, c_ch2, c_ch3, c_ch4, c_ch5 = st.columns(5)
+                                show_sma = c_ch1.checkbox("SMA (Průměry)", value=True)
+                                show_bb = c_ch2.checkbox("Bollinger Bands", value=True)
+                                show_rsi = c_ch3.checkbox("RSI", value=True)
+                                show_macd = c_ch4.checkbox("MACD (Trend)", value=True)
+                                show_vol = c_ch5.checkbox("Volume (Objem)", value=True)
+                                # --------------------------------------
+
+                                # --- 1. VÝPOČTY INDIKÁTORŮ ---
                                 # Bollinger Bands
                                 hist_data['BB_Middle'] = hist_data['Close'].rolling(window=20).mean()
                                 hist_data['BB_Std'] = hist_data['Close'].rolling(window=20).std()
@@ -1968,13 +1978,19 @@ def main():
                                 hist_data['SMA20'] = hist_data['Close'].rolling(window=20).mean()
                                 hist_data['SMA50'] = hist_data['Close'].rolling(window=50).mean()
 
-                                # --- 2. PŘÍPRAVA DAT PRO AI (TEĎ UŽ BEZPEČNÁ) ---
-                                # Najdeme poslední řádek, kde JSOU data pro SMA vypočítaná (ne NaN)
+                                # MACD (Novinka)
+                                exp12 = hist_data['Close'].ewm(span=12, adjust=False).mean()
+                                exp26 = hist_data['Close'].ewm(span=26, adjust=False).mean()
+                                hist_data['MACD'] = exp12 - exp26
+                                hist_data['Signal'] = hist_data['MACD'].ewm(span=9, adjust=False).mean()
+                                hist_data['MACD_Hist'] = hist_data['MACD'] - hist_data['Signal']
+
+                                # --- 2. PŘÍPRAVA DAT PRO AI ---
                                 valid_data = hist_data.dropna(subset=['SMA50'])
                                 if not valid_data.empty:
-                                    last_row = valid_data.iloc[-1] # Použijeme poslední PLATNÝ řádek
+                                    last_row = valid_data.iloc[-1] 
                                 else:
-                                    last_row = hist_data.iloc[-1] # Fallback
+                                    last_row = hist_data.iloc[-1]
 
                                 current_price_scan = last_row['Close']
                                 rsi_scan = last_row['RSI']
@@ -1984,70 +2000,81 @@ def main():
                                 bb_lower_scan = last_row['BB_Lower']
                                 # ----------------------------------------
 
-                                # --- 3. VYKRESLENÍ GRAFU ---
-                                fig_candle = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
+                                # --- 3. VYKRESLENÍ GRAFU (DYNAMIC ROWS) ---
+                                # Určení počtu řádků podle vybraných indikátorů
+                                rows_specs = [[{"rowspan": 1}]] # Cena je vždy
+                                row_heights = [0.5] # Cena zabere 50%
+                                current_row = 2
+                                
+                                if show_vol:
+                                    rows_specs.append([{"rowspan": 1}])
+                                    row_heights.append(0.15)
+                                if show_rsi:
+                                    rows_specs.append([{"rowspan": 1}])
+                                    row_heights.append(0.15)
+                                if show_macd:
+                                    rows_specs.append([{"rowspan": 1}])
+                                    row_heights.append(0.20)
+
+                                # Normalizace výšek, aby součet byl 1.0 (pokud ne, plotly si poradí, ale pro jistotu)
+                                total_h = sum(row_heights)
+                                row_heights = [h/total_h for h in row_heights]
+
+                                fig_candle = make_subplots(
+                                    rows=len(row_heights), 
+                                    cols=1, 
+                                    shared_xaxes=True, 
+                                    vertical_spacing=0.02, 
+                                    row_heights=row_heights
+                                )
+
+                                # --- HLAVNÍ GRAF (Cena) ---
                                 fig_candle.add_trace(go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie), row=1, col=1)
 
-                                fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Upper'], mode='lines', name='BB Upper', line=dict(color='gray', width=1)), row=1, col=1)
-                                fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Lower'], mode='lines', name='BB Lower', line=dict(color='gray', width=1), fill='tonexty', fillcolor='rgba(255, 255, 255, 0.1)'), row=1, col=1)
+                                if show_bb:
+                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Upper'], mode='lines', name='BB Upper', line=dict(color='gray', width=1), showlegend=False), row=1, col=1)
+                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Lower'], mode='lines', name='BB Lower', line=dict(color='gray', width=1), fill='tonexty', fillcolor='rgba(255, 255, 255, 0.05)', showlegend=False), row=1, col=1)
 
-                                fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA20'], mode='lines', name='SMA 20 (Trend)', line=dict(color='orange', width=1.5)), row=1, col=1)
-                                fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA50'], mode='lines', name='SMA 50 (Dlouhý)', line=dict(color='cyan', width=1.5)), row=1, col=1)
-                                fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['RSI'], mode='lines', name='RSI', line=dict(color='#A56CC1', width=2)), row=2, col=1)
-                                fig_candle.add_hline(y=70, line_dash="dot", line_color="red", row=2, col=1, annotation_text="Překoupené (70)", annotation_position="top right")
-                                fig_candle.add_hline(y=30, line_dash="dot", line_color="green", row=2, col=1, annotation_text="Přeprodané (30)", annotation_position="bottom right")
-                                
-                                # --- NOVÉ: OSOBNÍ HLADINY V GRAFU ---
-                                # 1. Průměrná nákupní cena (pokud vlastníme)
-                                user_position = df[df['Ticker'] == vybrana_akcie]
-                                if not user_position.empty:
-                                    # Vypočítat vážený průměr, pokud je více nákupů
-                                    total_cost = (user_position['Pocet'] * user_position['Cena']).sum()
-                                    total_qty = user_position['Pocet'].sum()
-                                    avg_price = total_cost / total_qty if total_qty > 0 else 0
-                                    
-                                    if avg_price > 0:
-                                        fig_candle.add_hline(
-                                            y=avg_price, 
-                                            line_dash="dash", 
-                                            line_color="#58A6FF", 
-                                            line_width=2,
-                                            row=1, col=1, 
-                                            annotation_text=f"MOJE NÁKUPKA ({avg_price:.2f})", 
-                                            annotation_position="top left",
-                                            annotation_font_color="#58A6FF"
-                                        )
+                                if show_sma:
+                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA20'], mode='lines', name='SMA 20', line=dict(color='orange', width=1.5)), row=1, col=1)
+                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA50'], mode='lines', name='SMA 50', line=dict(color='cyan', width=1.5)), row=1, col=1)
 
-                                # 2. Watchlist Cíle (pokud sledujeme)
+                                # Osobní hladiny (Buy/Sell targets) - přidáme vždy
                                 user_watch = df_watch[df_watch['Ticker'] == vybrana_akcie]
                                 if not user_watch.empty:
-                                    tg_buy = user_watch.iloc[0]['TargetBuy']
-                                    tg_sell = user_watch.iloc[0]['TargetSell']
-                                    
-                                    if tg_buy > 0:
-                                        fig_candle.add_hline(
-                                            y=tg_buy, 
-                                            line_dash="dot", 
-                                            line_color="#238636", 
-                                            row=1, col=1, 
-                                            annotation_text=f"CÍL NÁKUP ({tg_buy:.2f})", 
-                                            annotation_position="bottom left",
-                                            annotation_font_color="#238636"
-                                        )
-                                    if tg_sell > 0:
-                                        fig_candle.add_hline(
-                                            y=tg_sell, 
-                                            line_dash="dot", 
-                                            line_color="#da3633", 
-                                            row=1, col=1, 
-                                            annotation_text=f"CÍL PRODEJ ({tg_sell:.2f})", 
-                                            annotation_position="top left",
-                                            annotation_font_color="#da3633"
-                                        )
-                                # -------------------------------------
+                                    tg_buy = user_watch.iloc[0]['TargetBuy']; tg_sell = user_watch.iloc[0]['TargetSell']
+                                    if tg_buy > 0: fig_candle.add_hline(y=tg_buy, line_dash="dot", line_color="#238636", row=1, col=1, annotation_text="BUY CÍL")
+                                    if tg_sell > 0: fig_candle.add_hline(y=tg_sell, line_dash="dot", line_color="#da3633", row=1, col=1, annotation_text="SELL CÍL")
+                                
+                                next_plot_row = 2
 
-                                fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=600, margin=dict(l=0, r=0, t=30, b=0), legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0)"), font_family="Roboto Mono")
-                                fig_candle.update_yaxes(title_text="Cena", row=1, col=1, showgrid=True, gridcolor='#30363D'); fig_candle.update_yaxes(title_text="RSI", row=2, col=1, range=[0, 100], showgrid=True, gridcolor='#30363D')
+                                # --- VOLUME (Objem) ---
+                                if show_vol:
+                                    colors = ['#238636' if c >= o else '#da3633' for c, o in zip(hist_data['Close'], hist_data['Open'])]
+                                    fig_candle.add_trace(go.Bar(x=hist_data.index, y=hist_data['Volume'], name='Volume', marker_color=colors), row=next_plot_row, col=1)
+                                    fig_candle.update_yaxes(title_text="Vol", row=next_plot_row, col=1, showgrid=False)
+                                    next_plot_row += 1
+
+                                # --- RSI ---
+                                if show_rsi:
+                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['RSI'], mode='lines', name='RSI', line=dict(color='#A56CC1', width=2)), row=next_plot_row, col=1)
+                                    fig_candle.add_hline(y=70, line_dash="dot", line_color="red", row=next_plot_row, col=1)
+                                    fig_candle.add_hline(y=30, line_dash="dot", line_color="green", row=next_plot_row, col=1)
+                                    fig_candle.update_yaxes(title_text="RSI", row=next_plot_row, col=1, range=[0, 100], showgrid=True, gridcolor='#30363D')
+                                    next_plot_row += 1
+
+                                # --- MACD ---
+                                if show_macd:
+                                    # Histogram colors
+                                    hist_colors = ['#238636' if h >= 0 else '#da3633' for h in hist_data['MACD_Hist']]
+                                    fig_candle.add_trace(go.Bar(x=hist_data.index, y=hist_data['MACD_Hist'], name='MACD Hist', marker_color=hist_colors), row=next_plot_row, col=1)
+                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['MACD'], mode='lines', name='MACD', line=dict(color='#58A6FF', width=1.5)), row=next_plot_row, col=1)
+                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['Signal'], mode='lines', name='Signal', line=dict(color='orange', width=1.5)), row=next_plot_row, col=1)
+                                    fig_candle.update_yaxes(title_text="MACD", row=next_plot_row, col=1, showgrid=True, gridcolor='#30363D')
+                                    next_plot_row += 1
+
+                                fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=800, margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), font_family="Roboto Mono")
+                                fig_candle.update_yaxes(showgrid=True, gridcolor='#30363D')
                                 fig_candle.update_xaxes(showgrid=False)
                                 st.plotly_chart(fig_candle, use_container_width=True)
                                 add_download_button(fig_candle, f"rentgen_{vybrana_akcie}")
@@ -2057,6 +2084,11 @@ def main():
                                     st.divider()
                                     if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="secondary"):
                                         with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
+                                            # Přidáme do promptu i MACD info
+                                            macd_val = last_row['MACD']
+                                            sig_val = last_row['Signal']
+                                            macd_hist_val = last_row['MACD_Hist']
+                                            
                                             prompt_tech = f"""
                                             Jsi expert na technickou analýzu akcií. Analyzuj následující data pro {vybrana_akcie}:
                                             Aktuální Cena: {current_price_scan:.2f}
@@ -2065,12 +2097,16 @@ def main():
                                             SMA 50 (Střednědobý trend): {sma50_scan:.2f}
                                             Bollinger Upper: {bb_upper_scan:.2f}
                                             Bollinger Lower: {bb_lower_scan:.2f}
+                                            MACD Line: {macd_val:.4f}
+                                            Signal Line: {sig_val:.4f}
+                                            MACD Histogram: {macd_hist_val:.4f}
                                             
                                             Úkol:
-                                            1. Urči trend (SMA20 vs SMA50, Cena vs SMA).
+                                            1. Urči trend (SMA, MACD Crossover, Cena vs SMA).
                                             2. Zhodnoť RSI (Překoupeno > 70, Přeprodáno < 30).
-                                            3. Zkontroluj Bollinger Bands (Je cena u kraje?).
-                                            4. Dej finální verdikt: BÝČÍ / MEDVĚDÍ / NEUTRÁLNÍ.
+                                            3. Zkontroluj Bollinger Bands (Je cena u kraje? Squeeze?).
+                                            4. MACD: Je momentum rostoucí (kladný histogram) nebo klesající?
+                                            5. Dej finální verdikt: BÝČÍ / MEDVĚDÍ / NEUTRÁLNÍ.
                                             Odpověz stručně v bodech, česky.
                                             """
                                             try:
