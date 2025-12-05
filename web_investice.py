@@ -1427,6 +1427,35 @@ def main():
         if st.session_state['show_portfolio_live']:
             st.subheader("📋 PORTFOLIO LIVE")
             if not vdf.empty:
+                # --- PŘÍPRAVA SPARKLINES (MINIGRAFY) ---
+                # Hromadné stažení dat pro minigrafy (30 dní)
+                tickers_list = vdf['Ticker'].tolist()
+                spark_data = {}
+                
+                if tickers_list:
+                    try:
+                        # Stáhneme data najednou (rychlejší než cyklus)
+                        batch_history = yf.download(tickers_list, period="1mo", interval="1d", group_by='ticker', progress=False)
+                        
+                        for t in tickers_list:
+                            # Získání dat pro konkrétní ticker (ošetření multi-indexu vs single indexu)
+                            if len(tickers_list) > 1:
+                                if t in batch_history.columns.levels[0]:
+                                    closes = batch_history[t]['Close'].dropna().tolist()
+                                    spark_data[t] = closes
+                                else:
+                                    spark_data[t] = []
+                            else:
+                                # Pokud je v portfoliu jen jedna akcie, struktura DF je jiná
+                                closes = batch_history['Close'].dropna().tolist()
+                                spark_data[t] = closes
+                    except Exception:
+                        pass # Pokud selže stahování, grafy prostě nebudou (safe fail)
+
+                # Přidání sloupce s daty pro graf do dataframe
+                vdf['Trend 30d'] = vdf['Ticker'].map(spark_data)
+                # ---------------------------------------
+
                 st.caption("Legenda daní: 🟢 > 3 roky (Osvobozeno) | 🔴 < 3 roky (Zdanit) | 🟠 Mix nákupů")
                 st.dataframe(
                     vdf,
@@ -1440,9 +1469,16 @@ def main():
                         "P/E": st.column_config.NumberColumn("P/E Ratio", format="%.2f", help="Poměr ceny k ziskům. Nízká hodnota může značit podhodnocení."),
                         "Kapitalizace": st.column_config.NumberColumn("Kapitalizace", format="$%.1fB", help="Tržní kapitalizace ve formátu miliard USD."),
                         "Dan": st.column_config.TextColumn("Daně", help="🟢 > 3 roky (Osvobozeno)\n🔴 < 3 roky (Zdanit)\n🟠 Mix nákupů"),
-                        "Země": "Země"
+                        "Země": "Země",
+                        "Trend 30d": st.column_config.LineChartColumn(
+                            "Trend (30 dní)",
+                            width="medium",
+                            help="Vývoj ceny za poslední měsíc",
+                            y_min=0, # Auto-škálování
+                            y_max=0  # Auto-škálování
+                        )
                     },
-                    column_order=["Ticker", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"],
+                    column_order=["Ticker", "Trend 30d", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"],
                     use_container_width=True,
                     hide_index=True
                 )
@@ -2337,105 +2373,6 @@ def main():
                     except Exception as e: st.error(f"Chyba při výpočtu korelace: {e}")
                 else: st.warning("Pro výpočet korelace potřebuješ alespoň 2 různé akcie.")
             else: st.info("Portfolio je prázdné.")
-
-    elif page == "🎮 Gamifikace":
-        st.title("🎮 INVESTIČNÍ ARÉNA")
-        st.subheader(f"Tvá úroveň: {level_name}")
-        st.progress(level_progress)
-        if celk_hod_czk < 500000:
-            st.caption(f"Do další úrovně ti chybí majetek.")
-        else: st.success("Gratulace! Dosáhl jsi maximální úrovně Velryba 🐋")
-        
-        st.divider()
-        st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
-        c1,c2,c3,c4 = st.columns(4)
-        has_first = not df.empty
-        cnt = len(df['Ticker'].unique()) if not df.empty else 0
-        divi_total = 0
-        if not df_div.empty:
-            divi_total = df_div.apply(lambda r: r['Castka'] * (kurzy.get('CZK', 20.85) if r['Mena'] == 'USD' else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)), axis=1).sum()
-        
-        def render_badge(col, title, desc, cond, icon, color):
-            with col:
-                with st.container(border=True):
-                    if cond:
-                        st.markdown(f"<div style='text-align:center; color:{color}'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
-                        st.success("ZÍSKÁNO")
-                    else:
-                        st.markdown(f"<div style='text-align:center; color:gray; opacity:0.3'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
-                        st.caption("UZAMČENO")
-
-        render_badge(c1, "Začátečník", "Kup první akcii", has_first, "🥉", "#CD7F32")
-        render_badge(c2, "Stratég", "Drž 3 různé firmy", cnt >= 3, "🥈", "#C0C0C0")
-        render_badge(c3, "Boháč", "Portfolio > 100k", celk_hod_czk > 100000, "🥇", "#FFD700")
-        render_badge(c4, "Rentiér", "Dividendy > 500 Kč", divi_total > 500, "💎", "#00BFFF")
-        st.divider()
-        st.subheader("💡 Moudro dne")
-        if 'quote' not in st.session_state: st.session_state['quote'] = random.choice(CITATY)
-        st.info(f"*{st.session_state['quote']}*")
-
-    elif page == "📰 Zprávy":
-        st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
-        if AI_AVAILABLE:
-            def analyze_news_with_ai(title, link):
-                prompt_to_send = f"Analyzuj následující finanční zprávu V KONTEXTU MÉHO PORTFOLIA. Zpráva: {title} (Odkaz: {link}). Jaký by měla mít dopad na mé současné držby?"
-                st.session_state["chat_messages"].append({"role": "user", "content": prompt_to_send})
-                st.session_state['chat_expanded'] = True
-                st.rerun()
-
-            if st.button("🧠 SPUSTIT AI SENTIMENT 2.0", type="primary"):
-                with st.spinner("AI analyzuje trh..."):
-                    raw_news = ziskej_zpravy()
-                    titles = [n['title'] for n in raw_news[:8]]
-                    titles_str = "\n".join([f"{i+1}. {t}" for i, t in enumerate(titles)])
-                    prompt = f"""Jsi finanční analytik. Analyzuj tyto novinové titulky a urči jejich sentiment.\nTITULKY:\n{titles_str}\nPro každý titulek vrať přesně tento formát na jeden řádek (bez odrážek):\nINDEX|SKÓRE(0-100)|VYSVĚTLENÍ (česky, max 1 věta)"""
-                    try:
-                        response = AI_MODEL.generate_content(prompt)
-                        analysis_map = {}
-                        for line in response.text.strip().split('\n'):
-                            parts = line.split('|')
-                            if len(parts) == 3:
-                                try:
-                                    idx = int(parts[0].replace('.', '').strip()) - 1; score = int(parts[1].strip()); reason = parts[2].strip()
-                                    analysis_map[idx] = {'score': score, 'reason': reason}
-                                except: pass
-                        st.session_state['ai_news_analysis'] = analysis_map
-                        st.session_state['news_timestamp'] = datetime.now()
-                        st.success("Analýza dokončena!")
-                    except Exception as e: st.error(f"Chyba AI: {e}")
-        
-        news = ziskej_zpravy()
-        ai_results = st.session_state.get('ai_news_analysis', {})
-        if news:
-            c1, c2 = st.columns(2)
-            for i, n in enumerate(news):
-                col = c1 if i % 2 == 0 else c2
-                with col:
-                    with st.container(border=True):
-                        if i in ai_results:
-                            res = ai_results[i]; score = res['score']; reason = res['reason']
-                            if score >= 60: color = "green"; emoji = "🟢 BÝČÍ"
-                            elif score <= 40: color = "red"; emoji = "🔴 MEDVĚDÍ"
-                            else: color = "orange"; emoji = "🟡 NEUTRÁL"
-                            st.markdown(f"#### {n['title']}")
-                            st.caption(f"📅 {n['published']}")
-                            st.markdown(f"**{emoji} (Skóre: {score}/100)**"); st.progress(score); st.info(f"🤖 {reason}")
-                        else:
-                            title_upper = n['title'].upper(); sentiment = "neutral"
-                            for kw in KW_POSITIVNI:
-                                if kw in title_upper: sentiment = "positive"; break
-                            if sentiment == "neutral":
-                                for kw in KW_NEGATIVNI:
-                                    if kw in title_upper: sentiment = "negative"; break
-                            if sentiment == "positive": st.success(f"🟢 **BÝČÍ ZPRÁVA**")
-                            elif sentiment == "negative": st.error(f"🔴 **MEDVĚDÍ SIGNÁL**")
-                            st.markdown(f"### {n['title']}"); st.caption(f"📅 {n['published']}")
-                        
-                        st.link_button("Číst článek", n['link'], help="Otevře článek v novém okně.")
-                        if AI_AVAILABLE:
-                            if st.button(f"🤖 Analyzovat s AI (Kontext)", key=f"analyze_ai_{i}"):
-                                analyze_news_with_ai(n['title'], n['link'])
-        else: st.info("Žádné nové zprávy.")
 
     elif page == "⚙️ Nastavení":
         st.title("⚙️ DATA & SPRÁVA")
