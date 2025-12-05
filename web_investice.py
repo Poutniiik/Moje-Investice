@@ -1399,18 +1399,25 @@ def main():
                             
                             st.subheader(f"📈 Cenový vývoj: {vybrana_akcie}")
                             if hist_data is not None and not hist_data.empty:
+                                # --- 1. VÝPOČTY INDIKÁTORŮ (MUSÍ BÝT PRVNÍ!) ---
+                                # Bollinger Bands
                                 hist_data['BB_Middle'] = hist_data['Close'].rolling(window=20).mean()
                                 hist_data['BB_Std'] = hist_data['Close'].rolling(window=20).std()
                                 hist_data['BB_Upper'] = hist_data['BB_Middle'] + (hist_data['BB_Std'] * 2)
                                 hist_data['BB_Lower'] = hist_data['BB_Middle'] - (hist_data['BB_Std'] * 2)
 
+                                # RSI
                                 delta = hist_data['Close'].diff()
                                 gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
                                 loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
                                 rs = gain / loss
                                 hist_data['RSI'] = 100 - (100 / (1 + rs))
                                 
-                                # --- VÝPOČTY PRO AI ANALÝZU (OPRAVA 0.00) ---
+                                # SMA
+                                hist_data['SMA20'] = hist_data['Close'].rolling(window=20).mean()
+                                hist_data['SMA50'] = hist_data['Close'].rolling(window=50).mean()
+
+                                # --- 2. PŘÍPRAVA DAT PRO AI (TEĎ UŽ BEZPEČNÁ) ---
                                 # Najdeme poslední řádek, kde JSOU data pro SMA vypočítaná (ne NaN)
                                 valid_data = hist_data.dropna(subset=['SMA50'])
                                 if not valid_data.empty:
@@ -1420,20 +1427,19 @@ def main():
 
                                 current_price_scan = last_row['Close']
                                 rsi_scan = last_row['RSI']
-                                sma20_scan = last_row['SMA20'] if 'SMA20' in last_row else 0
-                                sma50_scan = last_row['SMA50'] if 'SMA50' in last_row else 0
+                                sma20_scan = last_row['SMA20']
+                                sma50_scan = last_row['SMA50']
                                 bb_upper_scan = last_row['BB_Upper']
                                 bb_lower_scan = last_row['BB_Lower']
                                 # ----------------------------------------
 
+                                # --- 3. VYKRESLENÍ GRAFU ---
                                 fig_candle = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
                                 fig_candle.add_trace(go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie), row=1, col=1)
 
                                 fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Upper'], mode='lines', name='BB Upper', line=dict(color='gray', width=1)), row=1, col=1)
                                 fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Lower'], mode='lines', name='BB Lower', line=dict(color='gray', width=1), fill='tonexty', fillcolor='rgba(255, 255, 255, 0.1)'), row=1, col=1)
 
-                                hist_data['SMA20'] = hist_data['Close'].rolling(window=20).mean()
-                                hist_data['SMA50'] = hist_data['Close'].rolling(window=50).mean()
                                 fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA20'], mode='lines', name='SMA 20 (Trend)', line=dict(color='orange', width=1.5)), row=1, col=1)
                                 fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA50'], mode='lines', name='SMA 50 (Dlouhý)', line=dict(color='cyan', width=1.5)), row=1, col=1)
                                 fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['RSI'], mode='lines', name='RSI', line=dict(color='#A56CC1', width=2)), row=2, col=1)
