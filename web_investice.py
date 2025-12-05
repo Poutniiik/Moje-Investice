@@ -1470,6 +1470,57 @@ def main():
     elif page == "💎 Dividendy":
         st.title("💎 DIVIDENDOVÝ KALENDÁŘ")
         
+        # --- NOVINKA: PROJEKTOR PASIVNÍHO PŘÍJMU ---
+        est_annual_income_czk = 0
+        if viz_data:
+            for item in viz_data:
+                # Výpočet: Hodnota pozice * Dividend Yield
+                # viz_data má HodnotaUSD a Divi (v desítkovém tvaru, např. 0.05 pro 5%)
+                yield_val = item.get('Divi', 0)
+                val_usd = item.get('HodnotaUSD', 0)
+                if yield_val > 0 and val_usd > 0:
+                    est_annual_income_czk += (val_usd * yield_val) * kurzy.get("CZK", 20.85)
+        
+        est_monthly_income_czk = est_annual_income_czk / 12
+        
+        with st.container(border=True):
+            st.subheader("🔮 PROJEKTOR PASIVNÍHO PŘÍJMU")
+            cp1, cp2, cp3 = st.columns(3)
+            cp1.metric("Očekávaný roční příjem", f"{est_annual_income_czk:,.0f} Kč", help="Hrubý odhad na základě aktuálního dividendového výnosu držených akcií.")
+            cp2.metric("Měsíční průměr", f"{est_monthly_income_czk:,.0f} Kč", help="Kolik to dělá měsíčně k dobru.")
+            
+            # Svoboda Levels
+            levels = {
+                "Netflix (300 Kč)": 300,
+                "Internet (600 Kč)": 600,
+                "Energie (2 000 Kč)": 2000,
+                "Nájem/Hypo (15 000 Kč)": 15000
+            }
+            
+            next_goal = "Rentier"
+            next_val = 100000
+            progress = 0.0
+            
+            for name, val in levels.items():
+                if est_monthly_income_czk < val:
+                    next_goal = name
+                    next_val = val
+                    progress = min(est_monthly_income_czk / val, 1.0)
+                    break
+                else:
+                    # Pokud splněno, progress je 100% pro tento level
+                    pass
+            
+            if est_monthly_income_czk > 15000:
+                next_goal = "Finanční Svoboda 🏖️"
+                progress = 1.0
+
+            cp3.caption(f"Cíl: **{next_goal}**")
+            cp3.progress(progress)
+        
+        st.divider()
+        # -------------------------------------------
+
         # 1. Metriky
         total_div_czk = 0
         if not df_div.empty:
