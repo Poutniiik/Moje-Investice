@@ -933,6 +933,19 @@ def main():
                 msg_text = f"🏦 {txt}"
                 msg_icon = "💵"
                 
+            elif cmd == "/testsave":
+                # Vytvoříme malá testovací data
+                test_df = pd.DataFrame([{"Test": "OK", "Cas": datetime.now()}])
+                # Zkusíme je uložit novou funkcí
+                vysledek = uloz_csv_bezpecne(test_df, "test_safety.csv", "Test bezpecneho ulozeni")
+                
+                if vysledek:
+                    msg_text = "✅ Test úspěšný! Soubor test_safety.csv vytvořen na GitHubu."
+                    msg_icon = "🛡️"
+                else:
+                    msg_text = "❌ Test selhal. Podívej se na chyby nahoře."
+                    msg_icon = "⚠️"
+                
             elif cmd == "/buy" and len(cmd_parts) >= 3:
                 t_cli = cmd_parts[1].upper()
                 k_cli = float(cmd_parts[2])
@@ -2852,4 +2865,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
