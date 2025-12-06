@@ -2465,8 +2465,103 @@ def main():
                 except Exception: st.error("Chyba mapy.")
             else: st.info("Portfolio je prázdné.")
 
-        with tab4:
+       with tab4:
             st.subheader("🔮 FINANČNÍ STROJ ČASU")
+            
+            # 👇👇👇 VLOŽIT TENTO NOVÝ BLOK (NEURO-VĚŠTEC) ZDE 👇👇👇
+            
+            with st.expander("🤖 AI PREDIKCE (Neuro-Věštec)", expanded=False):
+                st.info("Experimentální modul využívající model Prophet (Meta/Facebook) k predikci budoucího trendu.")
+                
+                c_ai1, c_ai2 = st.columns(2)
+                with c_ai1:
+                    # Výběr aktiva - předvyplníme Bitcoin, protože ten je pro predikce nejzábavnější
+                    pred_ticker = st.text_input("Ticker pro predikci:", value="BTC-USD").upper()
+                with c_ai2:
+                    pred_days = st.slider("Predikce na (dny):", 7, 90, 30)
+                
+                if st.button("🧠 AKTIVOVAT NEURONOVOU SÍŤ", type="primary"):
+                    try:
+                        # Importujeme Prophet až tady uvnitř, aby to nebrzdilo start celé aplikace
+                        from prophet import Prophet
+                        
+                        with st.spinner(f"Trénuji model na datech {pred_ticker}... (Může to trvat)"):
+                            # 1. Stáhneme maximum dat pro trénink (aspoň 2 roky)
+                            hist_train = yf.download(pred_ticker, period="2y", progress=False)
+                            
+                            if not hist_train.empty:
+                                # 2. Příprava dat do formátu pro Prophet (ds = datum, y = hodnota)
+                                # Ošetření pro různé verze yfinance (MultiIndex vs SingleIndex)
+                                if isinstance(hist_train.columns, pd.MultiIndex):
+                                    y_data = hist_train['Close'].iloc[:, 0]
+                                else:
+                                    y_data = hist_train['Close']
+                                    
+                                # Odstraníme časové zóny (tz_localize(None)), Prophet je nemá rád
+                                df_prophet = pd.DataFrame({
+                                    'ds': y_data.index.tz_localize(None), 
+                                    'y': y_data.values
+                                })
+                                
+                                # 3. Trénink modelu (Fit)
+                                m = Prophet(daily_seasonality=True)
+                                m.fit(df_prophet)
+                                
+                                # 4. Budoucnost (Make Future)
+                                future = m.make_future_dataframe(periods=pred_days)
+                                forecast = m.predict(future)
+                                
+                                # 5. Vizualizace
+                                st.divider()
+                                st.subheader(f"🔮 Predikce pro {pred_ticker} na {pred_days} dní")
+                                
+                                # Vytáhneme dnešní a budoucí cenu z predikce
+                                last_price = df_prophet['y'].iloc[-1]
+                                future_price = forecast['yhat'].iloc[-1]
+                                diff_pred = future_price - last_price
+                                pct_pred = (diff_pred / last_price) * 100
+                                
+                                # Verdikt v metrice
+                                col_res1, col_res2 = st.columns(2)
+                                with col_res1:
+                                    st.metric("Poslední známá cena", f"{last_price:,.2f}")
+                                with col_res2:
+                                    st.metric(f"Predikce (+{pred_days} dní)", f"{future_price:,.2f}", f"{pct_pred:+.2f} %")
+                                
+                                # Graf s "intervalem jistoty"
+                                fig_pred = go.Figure()
+                                
+                                # Historie (Šedá)
+                                fig_pred.add_trace(go.Scatter(x=df_prophet['ds'], y=df_prophet['y'], name='Historie', line=dict(color='gray')))
+                                
+                                # Predikce (Modrá) - ukážeme jen tu budoucí část
+                                future_part = forecast[forecast['ds'] > df_prophet['ds'].iloc[-1]]
+                                fig_pred.add_trace(go.Scatter(x=future_part['ds'], y=future_part['yhat'], name='Predikce', line=dict(color='#58A6FF', width=3)))
+                                
+                                # Horní a dolní hranice (Stín nejistoty)
+                                fig_pred.add_trace(go.Scatter(
+                                    x=pd.concat([future_part['ds'], future_part['ds'][::-1]]),
+                                    y=pd.concat([future_part['yhat_upper'], future_part['yhat_lower'][::-1]]),
+                                    fill='toself',
+                                    fillcolor='rgba(88, 166, 255, 0.2)',
+                                    line=dict(color='rgba(255,255,255,0)'),
+                                    name='Rozptyl (Nejistota)'
+                                ))
+                                
+                                fig_pred.update_layout(template="plotly_dark", height=500, font_family="Roboto Mono", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                                st.plotly_chart(fig_pred, use_container_width=True)
+                                
+                                st.warning("⚠️ **Disclaimer:** Toto je statistický model, ne křišťálová koule. Šedá zóna ukazuje možný rozptyl. Nikdy neobchoduj jen podle tohoto grafu!")
+                                
+                            else:
+                                st.error(f"Nedostatek dat pro trénink modelu {pred_ticker}.")
+                    except Exception as e:
+                        st.error(f"Chyba Neuronové sítě: {e}")
+                        st.caption("Tip: Ujisti se, že máš v requirements.txt knihovnu 'prophet'.")
+            
+            st.divider()
+            
+            # 👇👇👇 ZDE BY MĚL POKRAČOVAT TVŮJ DCA STROJ ČASU A DALŠÍ VĚCI 👇👇👇
             
             # 👇👇👇 VLOŽIT TENTO NOVÝ BLOK (DCA BACKTESTER) HNED SEM NAHORU 👇👇👇
             
@@ -3303,6 +3398,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
