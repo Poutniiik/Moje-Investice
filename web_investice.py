@@ -2735,7 +2735,6 @@ with tab9:
     else:
         st.warning("Nemáš žádné akcie v portfoliu ani ve sledování.")
 
-    # konec with tab9
 elif page == "🎮 Gamifikace":
     st.title("🎮 INVESTIČNÍ ARÉNA")
     st.subheader(f"Tvá úroveň: {level_name}")
@@ -2973,6 +2972,7 @@ elif page == "🎮 Gamifikace":
 
 if __name__ == "__main__":
     main()
+
 
 
 
