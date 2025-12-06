@@ -98,7 +98,7 @@ def get_css(theme):
     base_css = """
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    .stApp {margin-top: -30px;}
+    .stApp {margin-top: -25px;}
 
     /* --- PEVNÝ AVATAR V ROHU (PSÍK) --- */
     .stApp::after {
@@ -3288,6 +3288,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
