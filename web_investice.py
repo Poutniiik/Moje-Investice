@@ -1917,7 +1917,7 @@ def main():
                 st.info("Vyberte alespoň jeden ticker (akcii nebo index) pro zobrazení srovnávacího grafu.")
 
 
-        with tab3:
+                with tab3:
     if not vdf.empty:
         st.subheader("🌍 MAPA IMPÉRIA")
         try:
@@ -2962,6 +2962,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
