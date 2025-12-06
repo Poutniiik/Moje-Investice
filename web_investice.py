@@ -64,17 +64,6 @@ CITATY = [
 KW_POSITIVNI = ["RŮST", "ZISK", "REKORD", "DIVIDEND", "POKLES INFLACE", "BÝČÍ", "UP", "PROFIT", "HIGHS", "SKOK", "VYDĚLAL"]
 KW_NEGATIVNI = ["PÁD", "ZTRÁTA", "KRIZE", "MEDVĚDÍ", "DOWN", "LOSS", "CRASH", "PRODĚLAL", "VÁLKA", "BANKROT", "INFLACE", "POKLES"]
 
-
-MAPA APLIKACE:
-1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka.
-2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Věštec, Crash Test.
-3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
-4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
-5. '💎 Dividendy': Historie a graf dividend.
-6. '⚙️ Správa Dat': Zálohy a editace.
-"""
-
-
  
 # --- APLIKACE STYLU (Tohle se musí stát hned) ---
 # Defaultně nastavíme Cyberpunk, ale uživatel si to může změnit v Sidebaru
@@ -2848,6 +2837,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
