@@ -1801,8 +1801,7 @@ def main():
                                             {tech_res_text}
                                         </div>
                                         """, unsafe_allow_html=True)
-                                            except Exception as e:
-                                                st.error(f"Chyba AI analýzy: {e}")
+                                        
                                 # -----------------------------------------
 
                             else: st.warning("Graf historie není k dispozici.")
@@ -2836,6 +2835,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
