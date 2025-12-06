@@ -1252,7 +1252,7 @@ def render_analýza_měny_page(vdf, viz_data_list, kurzy, celk_hod_usd):
         for item in data_to_use:
             curr = item['Měna']; val = item['Hodnota']
             if curr in assets_by_curr: assets_by_curr[curr] += val
-            else: assets_by_curr["USD"] += item['HodotaUSD'] # Fallback pro USD je OK, protože HodnotaUSD je v USD.
+            else: assets_by_curr["USD"] += item['HodnotaUSD'] # Zajištění, že se používá HodnotaUSD
 
     kurz_usd_now = kurzy.get("CZK", 20.85)
     kurz_eur_now = kurzy.get("EUR", 1.16) * kurz_usd_now
@@ -1396,6 +1396,324 @@ def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
             st.info("Žádná data o výsledcích nebyla nalezena (nebo jsou příliš daleko).")
     else:
         st.warning("Nemáš žádné akcie v portfoliu ani ve sledování.")
+
+
+def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
+    """Vykreslí kartu Rentgen (Tab 1 Analýzy)."""
+    st.write("")
+    vybrana_akcie = st.selectbox("Vyber firmu:", df['Ticker'].unique() if not df.empty else [])
+    
+    if vybrana_akcie:
+        with st.spinner(f"Načítám data pro {vybrana_akcie}..."):
+            t_info, hist_data = ziskej_detail_akcie(vybrana_akcie)
+            
+            if t_info or (hist_data is not None and not hist_data.empty):
+                try:
+                    long_name = t_info.get('longName', vybrana_akcie) if t_info else vybrana_akcie
+                    summary = t_info.get('longBusinessSummary', '') if t_info else ''
+                    recommendation = t_info.get('recommendationKey', 'N/A').upper().replace('_', ' ') if t_info else 'N/A'
+                    target_price = t_info.get('targetMeanPrice', 0) if t_info else 0
+                    pe_ratio = t_info.get('trailingPE', 0) if t_info else 0
+                    currency = t_info.get('currency', '?') if t_info else '?'
+                    current_price = t_info.get('currentPrice', 0) if t_info else 0
+                    profit_margin = t_info.get('profitMargins', 0)
+                    roe = t_info.get('returnOnEquity', 0)
+                    rev_growth = t_info.get('revenueGrowth', 0)
+                    debt_equity = t_info.get('debtToEquity', 0)
+                    insiders = t_info.get('heldPercentInsiders', 0)
+                    institutions = t_info.get('heldPercentInstitutions', 0)
+                    public = max(0, 1.0 - insiders - institutions)
+
+                    if (not summary or summary == "MISSING_SUMMARY" or "Yahoo" in summary) and AI_AVAILABLE:
+                        try:
+                            prompt_desc = f"Napíš krátký popis (max 2 věty) pro firmu {vybrana_akcie} v češtině. Jde o investiční aplikaci."
+                            res_desc = model.generate_content(prompt_desc)
+                            summary = f"🤖 AI Shrnutí: {res_desc.text}"
+                        except: summary = "Popis není k dispozici."
+                    elif not summary or "Yahoo" in summary: summary = "Popis není k dispozici."
+
+                    c_d1, c_d2 = st.columns([1, 3])
+                    with c_d1:
+                        if recommendation != "N/A":
+                            barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
+                            st.markdown(f"### :{barva_rec}[{recommendation}]")
+                            st.caption("Názor analytiků")
+                        else:
+                            st.markdown("### 🤷‍♂️ Neznámé"); st.caption("Bez doporučení")
+
+                        if target_price > 0: st.metric("Cílová cena", f"{target_price} {currency}")
+                        else: st.metric("Cílová cena", "---")
+
+                        if pe_ratio > 0: st.metric("P/E Ratio", f"{pe_ratio:.2f}")
+                        else: st.metric("P/E Ratio", "---")
+
+                    with c_d2:
+                        col_h1, col_h2 = st.columns([3, 1])
+                        with col_h1: st.subheader(long_name)
+                        with col_h2:
+                            if current_price > 0: st.metric("Cena", f"{current_price:,.2f} {currency}")
+                        st.info(summary)
+                        if t_info and t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
+                        else: st.link_button("🔍 Hledat na Google", f"https://www.google.com/search?q={vybrana_akcie}+stock")
+
+                    st.divider()
+                    st.subheader("🧬 FUNDAMENTÁLNÍ RENTGEN (Zdraví firmy)")
+                    fc1, fc2, fc3, fc4 = st.columns(4)
+                    fc1.metric("Zisková marže", f"{profit_margin*100:.1f} %", help="Kolik % z tržeb zůstane jako čistý zisk.")
+                    fc2.metric("ROE (Efektivita)", f"{roe*100:.1f} %", help="Návratnost vlastního kapitálu. Nad 15 % je super.")
+                    fc3.metric("Růst tržeb (YoY)", f"{rev_growth*100:.1f} %", help="Meziroční růst příjmů.")
+                    fc4.metric("Dluh / Vlastní jmění", f"{debt_equity:.2f}", help="Poměr dluhu k majetku akcionářů. Pod 1.0 je bezpečné, nad 2.0 rizikové.")
+
+                    st.write("")
+                    st.subheader("🐳 VELRYBÍ RADAR (Kdo to vlastní?)")
+
+                    own_col1, own_col2 = st.columns([1, 2])
+                    with own_col1:
+                        st.metric("🏦 Instituce (Fondy)", f"{institutions*100:.1f} %", help="Banky, hedge fondy, penzijní fondy. 'Smart Money'.")
+                        st.metric("👔 Insideři (Vedení)", f"{insiders*100:.1f} %", help="Lidé z vedení firmy. Vysoké číslo = věří si.")
+
+                    with own_col2:
+                        own_df = pd.DataFrame({
+                            "Kdo": ["Instituce 🏦", "Insideři 👔", "Veřejnost 👥"],
+                            "Podíl": [institutions, insiders, public]
+                        })
+                        fig_own = px.pie(own_df, values='Podíl', names='Kdo', hole=0.6,
+                                         color='Kdo',
+                                         color_discrete_map={"Instituce 🏦": "#58A6FF", "Insideři 👔": "#238636", "Veřejnost 👥": "#8B949E"},
+                                         template="plotly_dark")
+                        fig_own.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", showlegend=True, legend=dict(y=0.5))
+                        fig_own.update_traces(textinfo='percent+label', textposition='outside')
+                        fig_own = make_plotly_cyberpunk(fig_own)
+                        st.plotly_chart(fig_own, use_container_width=True)
+
+
+                    st.write("")
+                    st.subheader("📊 HISTORIE VÝSLEDKŮ (Rostou, nebo stagnují?)")
+
+                    try:
+                        with st.spinner("Stahuji účetní výkazy..."):
+                            stock_obj = yf.Ticker(vybrana_akcie)
+                            financials = stock_obj.financials
+
+                            if financials is not None and not financials.empty:
+                                fin_T = financials.T
+                                fin_T = fin_T.sort_index()
+
+                                col_rev = next((c for c in fin_T.columns if 'Total Revenue' in c or 'TotalRevenue' in c), None)
+                                col_inc = next((c for c in fin_T.columns if 'Net Income' in c or 'NetIncome' in c), None)
+
+                                if col_rev and col_inc:
+                                    plot_data = pd.DataFrame({
+                                        "Rok": fin_T.index.strftime('%Y'),
+                                        "Tržby (Revenue)": fin_T[col_rev],
+                                        "Čistý Zisk (Income)": fin_T[col_inc]
+                                    })
+
+                                    plot_melted = plot_data.melt(id_vars="Rok", var_name="Metrika", value_name="Hodnota")
+
+                                    fig_fin = px.bar(plot_melted, x="Rok", y="Hodnota", color="Metrika",
+                                                     barmode="group",
+                                                     title=f"Tržby vs. Zisk: {vybrana_akcie}",
+                                                     color_discrete_map={"Tržby (Revenue)": "#58A6FF", "Čistý Zisk (Income)": "#238636"},
+                                                     template="plotly_dark")
+
+                                    fig_fin.update_layout(
+                                        xaxis_title="",
+                                        yaxis_title="USD",
+                                        legend=dict(orientation="h", y=1.1),
+                                        paper_bgcolor="rgba(0,0,0,0)",
+                                        plot_bgcolor="rgba(0,0,0,0)",
+                                        font_family="Roboto Mono",
+                                        height=350
+                                    )
+
+                                    fig_fin.update_yaxes(tickprefix="$")
+                                    fig_fin = make_plotly_cyberpunk(fig_fin)
+                                    st.plotly_chart(fig_fin, use_container_width=True)
+
+                                    try:
+                                        last_rev = plot_data["Tržby (Revenue)"].iloc[-1]
+                                        first_rev = plot_data["Tržby (Revenue)"].iloc[0]
+
+                                        if pd.notnull(last_rev) and pd.notnull(first_rev) and first_rev != 0:
+                                            growth = ((last_rev / first_rev) - 1) * 100
+
+                                            if growth > 20:
+                                                st.success(f"🚀 **Růstová mašina:** Tržby za zobrazené období vzrostly o {growth:.1f} %.")
+                                            elif growth > 0:
+                                                st.info(f"⚖️ **Stabilita:** Mírný růst tržeb o {growth:.1f} %.")
+                                            else:
+                                                st.error(f"⚠️ **Varování:** Tržby klesají ({growth:.1f} %).")
+                                        else:
+                                            st.info("ℹ️ Data pro výpočet růstu nejsou kompletní.")
+                                    except:
+                                        st.info("ℹ️ Nelze automaticky vyhodnotit trend.")
+                                else:
+                                    st.warning("Data o tržbách nejsou v databázi dostupná pod standardními názvy.")
+                            else:
+                                st.info("Pro tuto firmu nejsou detailní finanční výkazy k dispozici (často u ETF).")
+                    except Exception as e:
+                        st.warning(f"Nepodařilo se načíst graf výsledků ({e})")
+
+                    st.divider()
+
+                    if target_price > 0 and current_price > 0:
+                        st.divider()
+                        st.subheader("🎯 CÍL ANALYTIKŮ (Upside Potential)")
+                        fig_target = go.Figure(go.Indicator(
+                            mode = "gauge+number+delta",
+                            value = current_price,
+                            domain = {'x': [0, 1], 'y': [0, 1]},
+                            title = {'text': f"Cena vs Cíl ({target_price} {currency})", 'font': {'size': 14}},
+                            delta = {'reference': target_price, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}},
+                            gauge = {
+                                'axis': {'range': [0, target_price * 1.5], 'tickwidth': 1, 'tickcolor': "white"},
+                                'bar': {'color': "#58A6FF"},
+                                'bgcolor': "black",
+                                'borderwidth': 2,
+                                'bordercolor': "gray",
+                                'threshold': {
+                                    'line': {'color': "yellow", 'width': 4},
+                                    'thickness': 0.75,
+                                    'value': target_price
+                                }
+                            }
+                        ))
+                        fig_target.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", "family": "Roboto Mono"}, height=250)
+                        fig_target = make_plotly_cyberpunk(fig_target)
+                        st.plotly_chart(fig_target, use_container_width=True)
+
+                    st.divider()
+                    st.subheader(f"📈 PROFESIONÁLNÍ CHART: {vybrana_akcie}")
+
+                    if hist_data is not None and not hist_data.empty:
+                        c_ch1, c_ch2, c_ch3, c_ch4, c_ch5 = st.columns(5)
+                        show_sma = c_ch1.checkbox("SMA (Průměry)", value=True)
+                        show_bb = c_ch2.checkbox("Bollinger Bands", value=True)
+                        show_rsi = c_ch3.checkbox("RSI", value=True)
+                        show_macd = c_ch4.checkbox("MACD (Trend)", value=True)
+                        show_vol = c_ch5.checkbox("Volume (Objem)", value=True)
+
+                        # --- 1. VÝPOČTY INDIKÁTORŮ ---
+                        hist_data['BB_Middle'] = hist_data['Close'].rolling(window=20).mean()
+                        hist_data['BB_Std'] = hist_data['Close'].rolling(window=20).std()
+                        hist_data['BB_Upper'] = hist_data['BB_Middle'] + (hist_data['BB_Std'] * 2)
+                        hist_data['BB_Lower'] = hist_data['BB_Middle'] - (hist_data['BB_Std'] * 2)
+                        delta = hist_data['Close'].diff()
+                        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                        rs = gain / loss
+                        hist_data['RSI'] = 100 - (100 / (1 + rs))
+                        hist_data['SMA20'] = hist_data['Close'].rolling(window=20).mean()
+                        hist_data['SMA50'] = hist_data['Close'].rolling(window=50).mean()
+                        exp12 = hist_data['Close'].ewm(span=12, adjust=False).mean()
+                        exp26 = hist_data['Close'].ewm(span=26, adjust=false).mean()
+                        hist_data['MACD'] = exp12 - exp26
+                        hist_data['Signal'] = hist_data['MACD'].ewm(span=9, adjust=False).mean()
+                        hist_data['MACD_Hist'] = hist_data['MACD'] - hist_data['Signal']
+
+                        # --- 2. PŘÍPRAVA DAT PRO AI ---
+                        valid_data = hist_data.dropna(subset=['SMA50'])
+                        if not valid_data.empty:
+                            last_row = valid_data.iloc[-1]
+                        else:
+                            last_row = hist_data.iloc[-1]
+                        
+                        # --- 3. VYKRESLENÍ GRAFU (DYNAMIC ROWS) ---
+                        rows_specs = [[{"rowspan": 1}]]
+                        row_heights = [0.5]
+                        current_row = 2
+
+                        if show_vol:
+                            rows_specs.append([{"rowspan": 1}])
+                            row_heights.append(0.15)
+                        if show_rsi:
+                            rows_specs.append([{"rowspan": 1}])
+                            row_heights.append(0.15)
+                        if show_macd:
+                            rows_specs.append([{"rowspan": 1}])
+                            row_heights.append(0.20)
+
+                        total_h = sum(row_heights)
+                        row_heights = [h/total_h for h in row_heights]
+
+                        fig_candle = make_subplots(
+                            rows=len(row_heights),
+                            cols=1,
+                            shared_xaxes=True,
+                            vertical_spacing=0.02,
+                            row_heights=row_heights
+                        )
+
+                        # --- HLAVNÍ GRAF (Cena) ---
+                        fig_candle.add_trace(go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie), row=1, col=1)
+
+                        if show_bb:
+                            fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Upper'], mode='lines', name='BB Upper', line=dict(color='gray', width=1), showlegend=False), row=1, col=1)
+                            fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Lower'], mode='lines', name='BB Lower', line=dict(color='gray', width=1), fill='tonexty', fillcolor='rgba(255, 255, 255, 0.05)', showlegend=False), row=1, col=1)
+
+                        if show_sma:
+                            fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA20'], mode='lines', name='SMA 20', line=dict(color='orange', width=1.5)), row=1, col=1)
+                            fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA50'], mode='lines', name='SMA 50', line=dict(color='cyan', width=1.5)), row=1, col=1)
+
+                        user_watch = df_watch[df_watch['Ticker'] == vybrana_akcie]
+                        if not user_watch.empty:
+                            tg_buy = user_watch.iloc[0]['TargetBuy']; tg_sell = user_watch.iloc[0]['TargetSell']
+                            if tg_buy > 0: fig_candle.add_hline(y=tg_buy, line_dash="dot", line_color="#238636", row=1, col=1, annotation_text="BUY CÍL")
+                            if tg_sell > 0: fig_candle.add_hline(y=tg_sell, line_dash="dot", line_color="#da3633", row=1, col=1, annotation_text="SELL CÍL")
+
+                        next_plot_row = 2
+
+                        # --- VOLUME (Objem) ---
+                        if show_vol:
+                            colors = ['#238636' if c >= o else '#da3633' for c, o in zip(hist_data['Close'], hist_data['Open'])]
+                            fig_candle.add_trace(go.Bar(x=hist_data.index, y=hist_data['Volume'], name='Volume', marker_color=colors), row=next_plot_row, col=1)
+                            fig_candle.update_yaxes(title_text="Vol", row=next_plot_row, col=1, showgrid=False)
+                            next_plot_row += 1
+
+                        # --- RSI ---
+                        if show_rsi:
+                            fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['RSI'], mode='lines', name='RSI', line=dict(color='#A56CC1', width=2)), row=next_plot_row, col=1)
+                            fig_candle.add_hline(y=70, line_dash="dot", line_color="red", row=next_plot_row, col=1)
+                            fig_candle.add_hline(y=30, line_dash="dot", line_color="green", row=next_plot_row, col=1)
+                            fig_candle.update_yaxes(title_text="RSI", row=next_plot_row, col=1, range=[0, 100], showgrid=True, gridcolor='#30363D')
+                            next_plot_row += 1
+
+                        # --- MACD ---
+                        if show_macd:
+                            hist_colors = ['#238636' if h >= 0 else '#da3633' for h in hist_data['MACD_Hist']]
+                            fig_candle.add_trace(go.Bar(x=hist_data.index, y=hist_data['MACD_Hist'], name='MACD Hist', marker_color=hist_colors), row=next_plot_row, col=1)
+                            fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['MACD'], mode='lines', name='MACD', line=dict(color='#58A6FF', width=1.5)), row=next_plot_row, col=1)
+                            fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['Signal'], mode='lines', name='Signal', line=dict(color='orange', width=1.5)), row=next_plot_row, col=1)
+                            fig_candle.update_yaxes(title_text="MACD", row=next_plot_row, col=1, showgrid=True, gridcolor='#30363D')
+                            next_plot_row += 1
+
+                        fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=800, margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), font_family="Roboto Mono")
+                        fig_candle.update_yaxes(showgrid=True, gridcolor='#30363D')
+                        fig_candle.update_xaxes(showgrid=False)
+                        fig_candle = make_plotly_cyberpunk(fig_candle)
+                        st.plotly_chart(fig_candle, use_container_width=True)
+                        add_download_button(fig_candle, f"rentgen_{vybrana_akcie}")
+
+                        # --- NOVÁ FUNKCE: AI TECHNICKÁ ANALÝZA ---
+                        if AI_AVAILABLE:
+                            st.divider()
+                        if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="primary"):
+                            with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
+                                # 1. Zavoláme funkci z ai_brain.py
+                                tech_res_text = get_tech_analysis(model, vybrana_akcie, last_row)
+
+                                # 2. Zobrazíme výsledek
+                                st.markdown(f"""
+                                <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 10px; padding: 20px; margin-top: 10px;">
+                                    <h3 style="color: #58A6FF; margin-top: 0;">🤖 AI VERDIKT: {vybrana_akcie}</h3>
+                                    {tech_res_text}
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                    else: st.warning("Graf historie není k dispozici.")
+                except Exception as e: st.error(f"Chyba zobrazení rentgenu: {e}")
+            else: st.error("Nepodařilo se načíst data o firmě.")
 
 
 # --- HLAVNÍ FUNKCE (Router) ---
@@ -1868,327 +2186,8 @@ def main():
         tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE", "📅 KALENDÁŘ"])
 
         with tab1:
-            st.write("")
-            vybrana_akcie = st.selectbox("Vyber firmu:", df['Ticker'].unique() if not df.empty else [])
-            if vybrana_akcie:
-                with st.spinner(f"Načítám data pro {vybrana_akcie}..."):
-                    t_info, hist_data = ziskej_detail_akcie(vybrana_akcie)
-                    if t_info or (hist_data is not None and not hist_data.empty):
-                        try:
-                            long_name = t_info.get('longName', vybrana_akcie) if t_info else vybrana_akcie
-                            summary = t_info.get('longBusinessSummary', '') if t_info else ''
-                            recommendation = t_info.get('recommendationKey', 'N/A').upper().replace('_', ' ') if t_info else 'N/A'
-                            target_price = t_info.get('targetMeanPrice', 0) if t_info else 0
-                            pe_ratio = t_info.get('trailingPE', 0) if t_info else 0
-                            currency = t_info.get('currency', '?') if t_info else '?'
-                            current_price = t_info.get('currentPrice', 0) if t_info else 0
-                            profit_margin = t_info.get('profitMargins', 0)
-                            roe = t_info.get('returnOnEquity', 0)
-                            rev_growth = t_info.get('revenueGrowth', 0)
-                            debt_equity = t_info.get('debtToEquity', 0)
-                            insiders = t_info.get('heldPercentInsiders', 0)
-                            institutions = t_info.get('heldPercentInstitutions', 0)
-                            public = max(0, 1.0 - insiders - institutions)
-
-                            if (not summary or summary == "MISSING_SUMMARY" or "Yahoo" in summary) and AI_AVAILABLE:
-                                try:
-                                    prompt_desc = f"Napíš krátký popis (max 2 věty) pro firmu {vybrana_akcie} v češtině. Jde o investiční aplikaci."
-                                    res_desc = model.generate_content(prompt_desc)
-                                    summary = f"🤖 AI Shrnutí: {res_desc.text}"
-                                except: summary = "Popis není k dispozici."
-                            elif not summary or "Yahoo" in summary: summary = "Popis není k dispozici."
-
-                            c_d1, c_d2 = st.columns([1, 3])
-                            with c_d1:
-                                if recommendation != "N/A":
-                                    barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
-                                    st.markdown(f"### :{barva_rec}[{recommendation}]")
-                                    st.caption("Názor analytiků")
-                                else:
-                                    st.markdown("### 🤷‍♂️ Neznámé"); st.caption("Bez doporučení")
-
-                                if target_price > 0: st.metric("Cílová cena", f"{target_price} {currency}")
-                                else: st.metric("Cílová cena", "---")
-
-                                if pe_ratio > 0: st.metric("P/E Ratio", f"{pe_ratio:.2f}")
-                                else: st.metric("P/E Ratio", "---")
-
-                            with c_d2:
-                                col_h1, col_h2 = st.columns([3, 1])
-                                with col_h1: st.subheader(long_name)
-                                with col_h2:
-                                    if current_price > 0: st.metric("Cena", f"{current_price:,.2f} {currency}")
-                                st.info(summary)
-                                if t_info and t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
-                                else: st.link_button("🔍 Hledat na Google", f"https://www.google.com/search?q={vybrana_akcie}+stock")
-
-                            st.divider()
-                            st.subheader("🧬 FUNDAMENTÁLNÍ RENTGEN (Zdraví firmy)")
-                            fc1, fc2, fc3, fc4 = st.columns(4)
-                            fc1.metric("Zisková marže", f"{profit_margin*100:.1f} %", help="Kolik % z tržeb zůstane jako čistý zisk.")
-                            fc2.metric("ROE (Efektivita)", f"{roe*100:.1f} %", help="Návratnost vlastního kapitálu. Nad 15 % je super.")
-                            fc3.metric("Růst tržeb (YoY)", f"{rev_growth*100:.1f} %", help="Meziroční růst příjmů.")
-                            fc4.metric("Dluh / Vlastní jmění", f"{debt_equity:.2f}", help="Poměr dluhu k majetku akcionářů. Pod 1.0 je bezpečné, nad 2.0 rizikové.")
-
-                            st.write("")
-                            st.subheader("🐳 VELRYBÍ RADAR (Kdo to vlastní?)")
-
-                            own_col1, own_col2 = st.columns([1, 2])
-                            with own_col1:
-                                st.metric("🏦 Instituce (Fondy)", f"{institutions*100:.1f} %", help="Banky, hedge fondy, penzijní fondy. 'Smart Money'.")
-                                st.metric("👔 Insideři (Vedení)", f"{insiders*100:.1f} %", help="Lidé z vedení firmy. Vysoké číslo = věří si.")
-
-                            with own_col2:
-                                own_df = pd.DataFrame({
-                                    "Kdo": ["Instituce 🏦", "Insideři 👔", "Veřejnost 👥"],
-                                    "Podíl": [institutions, insiders, public]
-                                })
-                                fig_own = px.pie(own_df, values='Podíl', names='Kdo', hole=0.6,
-                                                 color='Kdo',
-                                                 color_discrete_map={"Instituce 🏦": "#58A6FF", "Insideři 👔": "#238636", "Veřejnost 👥": "#8B949E"},
-                                                 template="plotly_dark")
-                                fig_own.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", showlegend=True, legend=dict(y=0.5))
-                                fig_own.update_traces(textinfo='percent+label', textposition='outside')
-                                fig_own = make_plotly_cyberpunk(fig_own)
-                                st.plotly_chart(fig_own, use_container_width=True)
-
-
-                            st.write("")
-                            st.subheader("📊 HISTORIE VÝSLEDKŮ (Rostou, nebo stagnují?)")
-
-                            try:
-                                with st.spinner("Stahuji účetní výkazy..."):
-                                    stock_obj = yf.Ticker(vybrana_akcie)
-                                    financials = stock_obj.financials
-
-                                    if financials is not None and not financials.empty:
-                                        fin_T = financials.T
-                                        fin_T = fin_T.sort_index()
-
-                                        col_rev = next((c for c in fin_T.columns if 'Total Revenue' in c or 'TotalRevenue' in c), None)
-                                        col_inc = next((c for c in fin_T.columns if 'Net Income' in c or 'NetIncome' in c), None)
-
-                                        if col_rev and col_inc:
-                                            plot_data = pd.DataFrame({
-                                                "Rok": fin_T.index.strftime('%Y'),
-                                                "Tržby (Revenue)": fin_T[col_rev],
-                                                "Čistý Zisk (Income)": fin_T[col_inc]
-                                            })
-
-                                            plot_melted = plot_data.melt(id_vars="Rok", var_name="Metrika", value_name="Hodnota")
-
-                                            fig_fin = px.bar(plot_melted, x="Rok", y="Hodnota", color="Metrika",
-                                                             barmode="group",
-                                                             title=f"Tržby vs. Zisk: {vybrana_akcie}",
-                                                             color_discrete_map={"Tržby (Revenue)": "#58A6FF", "Čistý Zisk (Income)": "#238636"},
-                                                             template="plotly_dark")
-
-                                            fig_fin.update_layout(
-                                                xaxis_title="",
-                                                yaxis_title="USD",
-                                                legend=dict(orientation="h", y=1.1),
-                                                paper_bgcolor="rgba(0,0,0,0)",
-                                                plot_bgcolor="rgba(0,0,0,0)",
-                                                font_family="Roboto Mono",
-                                                height=350
-                                            )
-
-                                            fig_fin.update_yaxes(tickprefix="$")
-                                            fig_fin = make_plotly_cyberpunk(fig_fin)
-                                            st.plotly_chart(fig_fin, use_container_width=True)
-
-                                            try:
-                                                last_rev = plot_data["Tržby (Revenue)"].iloc[-1]
-                                                first_rev = plot_data["Tržby (Revenue)"].iloc[0]
-
-                                                if pd.notnull(last_rev) and pd.notnull(first_rev) and first_rev != 0:
-                                                    growth = ((last_rev / first_rev) - 1) * 100
-
-                                                    if growth > 20:
-                                                        st.success(f"🚀 **Růstová mašina:** Tržby za zobrazené období vzrostly o {growth:.1f} %.")
-                                                    elif growth > 0:
-                                                        st.info(f"⚖️ **Stabilita:** Mírný růst tržeb o {growth:.1f} %.")
-                                                    else:
-                                                        st.error(f"⚠️ **Varování:** Tržby klesají ({growth:.1f} %).")
-                                                else:
-                                                    st.info("ℹ️ Data pro výpočet růstu nejsou kompletní.")
-                                            except:
-                                                st.info("ℹ️ Nelze automaticky vyhodnotit trend.")
-                                        else:
-                                            st.warning("Data o tržbách nejsou v databázi dostupná pod standardními názvy.")
-                                    else:
-                                        st.info("Pro tuto firmu nejsou detailní finanční výkazy k dispozici (často u ETF).")
-                            except Exception as e:
-                                st.warning(f"Nepodařilo se načíst graf výsledků ({e})")
-
-                            st.divider()
-
-                            if target_price > 0 and current_price > 0:
-                                st.divider()
-                                st.subheader("🎯 CÍL ANALYTIKŮ (Upside Potential)")
-                                fig_target = go.Figure(go.Indicator(
-                                    mode = "gauge+number+delta",
-                                    value = current_price,
-                                    domain = {'x': [0, 1], 'y': [0, 1]},
-                                    title = {'text': f"Cena vs Cíl ({target_price} {currency})", 'font': {'size': 14}},
-                                    delta = {'reference': target_price, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}},
-                                    gauge = {
-                                        'axis': {'range': [0, target_price * 1.5], 'tickwidth': 1, 'tickcolor': "white"},
-                                        'bar': {'color': "#58A6FF"},
-                                        'bgcolor': "black",
-                                        'borderwidth': 2,
-                                        'bordercolor': "gray",
-                                        'threshold': {
-                                            'line': {'color': "yellow", 'width': 4},
-                                            'thickness': 0.75,
-                                            'value': target_price
-                                        }
-                                    }
-                                ))
-                                fig_target.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", "family": "Roboto Mono"}, height=250)
-                                fig_target = make_plotly_cyberpunk(fig_target)
-                                st.plotly_chart(fig_target, use_container_width=True)
-
-                            st.divider()
-                            st.subheader(f"📈 PROFESIONÁLNÍ CHART: {vybrana_akcie}")
-
-                            if hist_data is not None and not hist_data.empty:
-                                c_ch1, c_ch2, c_ch3, c_ch4, c_ch5 = st.columns(5)
-                                show_sma = c_ch1.checkbox("SMA (Průměry)", value=True)
-                                show_bb = c_ch2.checkbox("Bollinger Bands", value=True)
-                                show_rsi = c_ch3.checkbox("RSI", value=True)
-                                show_macd = c_ch4.checkbox("MACD (Trend)", value=True)
-                                show_vol = c_ch5.checkbox("Volume (Objem)", value=True)
-
-                                # --- 1. VÝPOČTY INDIKÁTORŮ ---
-                                hist_data['BB_Middle'] = hist_data['Close'].rolling(window=20).mean()
-                                hist_data['BB_Std'] = hist_data['Close'].rolling(window=20).std()
-                                hist_data['BB_Upper'] = hist_data['BB_Middle'] + (hist_data['BB_Std'] * 2)
-                                hist_data['BB_Lower'] = hist_data['BB_Middle'] - (hist_data['BB_Std'] * 2)
-                                delta = hist_data['Close'].diff()
-                                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-                                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                                rs = gain / loss
-                                hist_data['RSI'] = 100 - (100 / (1 + rs))
-                                hist_data['SMA20'] = hist_data['Close'].rolling(window=20).mean()
-                                hist_data['SMA50'] = hist_data['Close'].rolling(window=50).mean()
-                                exp12 = hist_data['Close'].ewm(span=12, adjust=False).mean()
-                                exp26 = hist_data['Close'].ewm(span=26, adjust=False).mean()
-                                hist_data['MACD'] = exp12 - exp26
-                                hist_data['Signal'] = hist_data['MACD'].ewm(span=9, adjust=False).mean()
-                                hist_data['MACD_Hist'] = hist_data['MACD'] - hist_data['Signal']
-
-                                # --- 2. PŘÍPRAVA DAT PRO AI ---
-                                valid_data = hist_data.dropna(subset=['SMA50'])
-                                if not valid_data.empty:
-                                    last_row = valid_data.iloc[-1]
-                                else:
-                                    last_row = hist_data.iloc[-1]
-                                
-                                # Proměnné pro AI
-                                # current_price_scan = last_row['Close']
-                                # rsi_scan = last_row['RSI']
-                                # sma20_scan = last_row['SMA20']
-                                # sma50_scan = last_row['SMA50']
-                                # bb_upper_scan = last_row['BB_Upper']
-                                # bb_lower_scan = last_row['BB_Lower']
-                                
-
-                                # --- 3. VYKRESLENÍ GRAFU (DYNAMIC ROWS) ---
-                                rows_specs = [[{"rowspan": 1}]]
-                                row_heights = [0.5]
-                                current_row = 2
-
-                                if show_vol:
-                                    rows_specs.append([{"rowspan": 1}])
-                                    row_heights.append(0.15)
-                                if show_rsi:
-                                    rows_specs.append([{"rowspan": 1}])
-                                    row_heights.append(0.15)
-                                if show_macd:
-                                    rows_specs.append([{"rowspan": 1}])
-                                    row_heights.append(0.20)
-
-                                total_h = sum(row_heights)
-                                row_heights = [h/total_h for h in row_heights]
-
-                                fig_candle = make_subplots(
-                                    rows=len(row_heights),
-                                    cols=1,
-                                    shared_xaxes=True,
-                                    vertical_spacing=0.02,
-                                    row_heights=row_heights
-                                )
-
-                                # --- HLAVNÍ GRAF (Cena) ---
-                                fig_candle.add_trace(go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name=vybrana_akcie), row=1, col=1)
-
-                                if show_bb:
-                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Upper'], mode='lines', name='BB Upper', line=dict(color='gray', width=1), showlegend=False), row=1, col=1)
-                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['BB_Lower'], mode='lines', name='BB Lower', line=dict(color='gray', width=1), fill='tonexty', fillcolor='rgba(255, 255, 255, 0.05)', showlegend=False), row=1, col=1)
-
-                                if show_sma:
-                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA20'], mode='lines', name='SMA 20', line=dict(color='orange', width=1.5)), row=1, col=1)
-                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['SMA50'], mode='lines', name='SMA 50', line=dict(color='cyan', width=1.5)), row=1, col=1)
-
-                                user_watch = df_watch[df_watch['Ticker'] == vybrana_akcie]
-                                if not user_watch.empty:
-                                    tg_buy = user_watch.iloc[0]['TargetBuy']; tg_sell = user_watch.iloc[0]['TargetSell']
-                                    if tg_buy > 0: fig_candle.add_hline(y=tg_buy, line_dash="dot", line_color="#238636", row=1, col=1, annotation_text="BUY CÍL")
-                                    if tg_sell > 0: fig_candle.add_hline(y=tg_sell, line_dash="dot", line_color="#da3633", row=1, col=1, annotation_text="SELL CÍL")
-
-                                next_plot_row = 2
-
-                                # --- VOLUME (Objem) ---
-                                if show_vol:
-                                    colors = ['#238636' if c >= o else '#da3633' for c, o in zip(hist_data['Close'], hist_data['Open'])]
-                                    fig_candle.add_trace(go.Bar(x=hist_data.index, y=hist_data['Volume'], name='Volume', marker_color=colors), row=next_plot_row, col=1)
-                                    fig_candle.update_yaxes(title_text="Vol", row=next_plot_row, col=1, showgrid=False)
-                                    next_plot_row += 1
-
-                                # --- RSI ---
-                                if show_rsi:
-                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['RSI'], mode='lines', name='RSI', line=dict(color='#A56CC1', width=2)), row=next_plot_row, col=1)
-                                    fig_candle.add_hline(y=70, line_dash="dot", line_color="red", row=next_plot_row, col=1)
-                                    fig_candle.add_hline(y=30, line_dash="dot", line_color="green", row=next_plot_row, col=1)
-                                    fig_candle.update_yaxes(title_text="RSI", row=next_plot_row, col=1, range=[0, 100], showgrid=True, gridcolor='#30363D')
-                                    next_plot_row += 1
-
-                                # --- MACD ---
-                                if show_macd:
-                                    hist_colors = ['#238636' if h >= 0 else '#da3633' for h in hist_data['MACD_Hist']]
-                                    fig_candle.add_trace(go.Bar(x=hist_data.index, y=hist_data['MACD_Hist'], name='MACD Hist', marker_color=hist_colors), row=next_plot_row, col=1)
-                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['MACD'], mode='lines', name='MACD', line=dict(color='#58A6FF', width=1.5)), row=next_plot_row, col=1)
-                                    fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['Signal'], mode='lines', name='Signal', line=dict(color='orange', width=1.5)), row=next_plot_row, col=1)
-                                    fig_candle.update_yaxes(title_text="MACD", row=next_plot_row, col=1, showgrid=True, gridcolor='#30363D')
-                                    next_plot_row += 1
-
-                                fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=800, margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), font_family="Roboto Mono")
-                                fig_candle.update_yaxes(showgrid=True, gridcolor='#30363D')
-                                fig_candle.update_xaxes(showgrid=False)
-                                fig_candle = make_plotly_cyberpunk(fig_candle)
-                                st.plotly_chart(fig_candle, use_container_width=True)
-                                add_download_button(fig_candle, f"rentgen_{vybrana_akcie}")
-
-                                # --- NOVÁ FUNKCE: AI TECHNICKÁ ANALÝZA ---
-                                if AI_AVAILABLE:
-                                    st.divider()
-                                if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="primary"):
-                                    with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
-                                        # 1. Zavoláme funkci z ai_brain.py
-                                        tech_res_text = get_tech_analysis(model, vybrana_akcie, last_row)
-
-                                        # 2. Zobrazíme výsledek
-                                        st.markdown(f"""
-                                        <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 10px; padding: 20px; margin-top: 10px;">
-                                            <h3 style="color: #58A6FF; margin-top: 0;">🤖 AI VERDIKT: {vybrana_akcie}</h3>
-                                            {tech_res_text}
-                                        </div>
-                                        """, unsafe_allow_html=True)
-
-                            else: st.warning("Graf historie není k dispozici.")
-                        except Exception as e: st.error(f"Chyba zobrazení rentgenu: {e}")
-                    else: st.error("Nepodařilo se načíst data o firmě.")
+            # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
+            render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE)
 
         with tab2:
             st.subheader("⚔️ SROVNÁNÍ VÝKONNOSTI AKCIÍ")
@@ -2357,7 +2356,7 @@ def main():
                                     pass
 
                                 st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
-                                add_download_button(line_fig, "vyvoj_ceny")
+                                add_download_button(fig_map, "vyvoj_ceny")
                             except Exception:
                                 st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
                 except Exception:
