@@ -302,104 +302,6 @@ def vytvor_pdf_report(user, total_czk, cash_usd, profit_czk, data_list):
     return pdf.output(dest='S').encode('latin-1', 'replace')
 
 # --- DATABÁZE ---
-def uloz_csv(df, nazev_souboru, zprava):
-    """
-    WRAPPER: Stará funkce, která nyní jen předává práci nové bezpečné funkci.
-    Tím jsme zabezpečili celou aplikaci bez nutnosti přepisovat zbytek kódu.
-    """
-    return uloz_csv_bezpecne(df, nazev_souboru, zprava)
-
-def uloz_csv_bezpecne(df, nazev_souboru, zprava):
-    """
-    Vylepšená verze ukládání s ochranou proti výpadkům sítě.
-    Zkouší uložit data 3x, než nahlásí chybu.
-    """
-    repo = get_repo()
-    if not repo:
-        st.error("❌ CRITICAL: Nelze se připojit ke GitHubu. Data NEULOŽENA! Zkontroluj token.")
-        return False
-
-    # Převedeme data na CSV text
-    csv_content = df.to_csv(index=False)
-    
-    # Zkusíme to uložit až 3krát (pro případ výpadku WiFi/GitHubu)
-    pokusy = 3
-    for i in range(pokusy):
-        try:
-            # 1. Zkusíme soubor najít a aktualizovat
-            contents = repo.get_contents(nazev_souboru)
-            repo.update_file(contents.path, zprava, csv_content, contents.sha)
-            return True # Povedlo se! Končíme funkci.
-            
-        except Exception as e:
-            # Chyba 404 znamená, že soubor neexistuje -> musíme ho vytvořit
-            if "404" in str(e):
-                try:
-                    repo.create_file(nazev_souboru, zprava, csv_content)
-                    return True # Povedlo se vytvořit!
-                except Exception as create_err:
-                    st.warning(f"⚠️ Pokus {i+1}/{pokusy}: Chyba vytvoření souboru: {create_err}")
-            else:
-                # Jiná chyba (např. internet)
-                st.warning(f"⚠️ Pokus {i+1}/{pokusy}: GitHub neodpovídá, zkouším znovu... ({e})")
-                time.sleep(1) # Počkáme 1 vteřinu a zkusíme to znovu
-    
-    # Pokud jsme dojeli až sem, nepovedlo se to ani na 3. pokus
-    st.error(f"❌ CHYBA UKLÁDÁNÍ: Soubor {nazev_souboru} se nepodařilo uložit. Data jsou jen v paměti!")
-    return False
-
-def nacti_csv(nazev_souboru):
-    try:
-        repo = get_repo()
-        if not repo: raise Exception("No repo")
-        file = repo.get_contents(nazev_souboru)
-        df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
-        
-        for col in ['Datum', 'Date']:
-            if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
-        for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD', 'Investice', 'Target', 'TargetBuy', 'TargetSell']:
-            if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
-            
-        if nazev_souboru == SOUBOR_WATCHLIST:
-             if 'Target' in df.columns and 'TargetBuy' not in df.columns:
-                 df['TargetBuy'] = df['Target']
-             
-             if 'TargetBuy' not in df.columns: df['TargetBuy'] = 0.0
-             if 'TargetSell' not in df.columns: df['TargetSell'] = 0.0
-             
-             if 'Target' in df.columns: df = df.drop(columns=['Target'])
-             cols = ["Ticker", "TargetBuy", "TargetSell", "Owner"]
-        
-        if nazev_souboru == SOUBOR_DATA:
-            if 'Sektor' not in df.columns: df['Sektor'] = "Doplnit"
-            if 'Poznamka' not in df.columns: df['Poznamka'] = ""
-        
-        if 'Owner' not in df.columns: df['Owner'] = "admin"
-        
-        df['Owner'] = df['Owner'].astype(str)
-        return df
-    except Exception:
-        cols = ["Ticker", "Pocet", "Cena", "Datum", "Owner", "Sektor", "Poznamka"]
-        if nazev_souboru == SOUBOR_HISTORIE: cols = ["Ticker", "Kusu", "Prodejka", "Zisk", "Mena", "Datum", "Owner"]
-        if nazev_souboru == SOUBOR_CASH: cols = ["Typ", "Castka", "Mena", "Poznamka", "Datum", "Owner"]
-        if nazev_souboru == SOUBOR_VYVOJ: cols = ["Date", "TotalUSD", "Owner"]
-        if nazev_souboru == SOUBOR_WATCHLIST: cols = ["Ticker", "TargetBuy", "TargetSell", "Owner"]
-        if nazev_souboru == SOUBOR_DIVIDENDY: cols = ["Ticker", "Castka", "Mena", "Datum", "Owner"]
-        if nazev_souboru == SOUBOR_UZIVATELE: cols = ["username", "password", "recovery_key"]
-        return pd.DataFrame(columns=cols)
-
-def uloz_data_uzivatele(user_df, username, nazev_souboru):
-    full_df = nacti_csv(nazev_souboru)
-    full_df = full_df[full_df['Owner'] != str(username)]
-    if not user_df.empty:
-        user_df['Owner'] = str(username)
-        full_df = pd.concat([full_df, user_df], ignore_index=True)
-    uloz_csv(full_df, nazev_souboru, f"Update {username}")
-    st.cache_data.clear()
-
-def nacti_uzivatele(): 
-    return nacti_csv(SOUBOR_UZIVATELE)
-
 def pridat_do_watchlistu(ticker, target_buy, target_sell, user):
     df_w = st.session_state['df_watch']
     if ticker not in df_w['Ticker'].values:
@@ -3253,6 +3155,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
