@@ -39,26 +39,7 @@ from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis, 
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
-from utils import make_plotly_cyberpunk
 
-fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
-fig = make_plotly_cyberpunk(fig) # <--- TADY JE KOUZLO
-st.plotly_chart(fig, use_container_width=True)'
-)
-from utils import make_matplotlib_cyberpunk
-import matplotlib.pyplot as plt
-
-# 1. Vytvoříš graf klasicky
-fig, ax = plt.subplots()
-ax.plot(df['Datum'], df['Cena'], color='#00FF99') # Ideálně rovnou nastav barvu čáry
-ax.set_title("Historie Dividend")
-
-# 2. Aplikuješ Cyberpunk styl
-make_matplotlib_cyberpunk(fig, ax)# <--- TADY JE KOUZLO
-
-# 3. Zobrazíš
-st.pyplot(fig)
-)
 # --- KONFIGURACE ---
 st.set_page_config(
     page_title="Terminal Pro",
@@ -2877,4 +2858,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
