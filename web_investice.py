@@ -43,14 +43,6 @@ from ai_brain import (
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
 
-# ... Vykreslování druhého grafu ...
-fig, ax = plt.subplots()
-ax.plot(df['Datum'], df['Cena'], color='#00FF99')
-ax.set_title("Historie Dividend")
-make_matplotlib_cyberpunk(fig, ax)
-st.pyplot(fig)
-
-
 
 # --- KONFIGURACE ---
 st.set_page_config(
@@ -2896,5 +2888,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
