@@ -35,6 +35,10 @@ from utils import (
     ziskej_detail_akcie, zjisti_stav_trhu, vytvor_pdf_report, odeslat_email,
     ziskej_ceny_hromadne, ziskej_kurzy, ziskej_info, calculate_sharpe_ratio
 )
+from ai_brain import (
+    init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis, 
+    generate_rpg_story, analyze_headlines_sentiment, get_chat_response
+)
 
 # --- KONFIGURACE ---
 st.set_page_config(
@@ -2895,3 +2899,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
