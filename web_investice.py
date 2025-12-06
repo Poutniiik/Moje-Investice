@@ -1788,7 +1788,7 @@ def main():
                                # --- NOVÁ FUNKCE: AI TECHNICKÁ ANALÝZA ---
                                 if AI_AVAILABLE:
                                     st.divider()
-                                   if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="primary"):
+                                if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="primary"):
                                     with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
                                         # 1. Zavoláme funkci z ai_brain.py
                                         # (last_row už máš vypočítané o pár řádků výš v původním kódu)
@@ -2836,6 +2836,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
