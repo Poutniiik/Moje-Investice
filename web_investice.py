@@ -1607,17 +1607,24 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                         hist_data['SMA20'] = hist_data['Close'].rolling(window=20).mean()
                         hist_data['SMA50'] = hist_data['Close'].rolling(window=50).mean()
                         exp12 = hist_data['Close'].ewm(span=12, adjust=False).mean()
-                        exp26 = hist_data['Close'].ewm(span=26, adjust=false).mean()
+                        exp26 = hist_data['Close'].ewm(span=26, adjust=False).mean()
                         hist_data['MACD'] = exp12 - exp26
                         hist_data['Signal'] = hist_data['MACD'].ewm(span=9, adjust=False).mean()
                         hist_data['MACD_Hist'] = hist_data['MACD'] - hist_data['Signal']
 
                         # --- 2. PŘÍPRAVA DAT PRO AI ---
-                        valid_data = hist_data.dropna(subset=['SMA50'])
-                        if not valid_data.empty:
-                            last_row = valid_data.iloc[-1]
+                        # Opravená logika pro získání last_row, aby se zabránilo KeyError
+                        if not hist_data.empty and 'SMA50' in hist_data.columns:
+                            valid_data = hist_data.dropna(subset=['SMA50'])
+                            if not valid_data.empty:
+                                last_row = valid_data.iloc[-1]
+                            else:
+                                last_row = hist_data.iloc[-1]
+                        elif not hist_data.empty:
+                             last_row = hist_data.iloc[-1]
                         else:
-                            last_row = hist_data.iloc[-1]
+                             # V případě prázdného hist_data, což by se nemělo stát po kontrole 'if hist_data is not None'
+                             last_row = pd.Series({'Close': 0, 'RSI': 50, 'SMA20': 0, 'SMA50': 0, 'BB_Upper': 0, 'BB_Lower': 0})
                         
                         # --- 3. VYKRESLENÍ GRAFU (DYNAMIC ROWS) ---
                         rows_specs = [[{"rowspan": 1}]]
