@@ -126,10 +126,6 @@ def get_css(theme):
         100% { transform: translateY(0px); }
     }
     """
-    
-    if theme == "🕹️ Cyberpunk (Retro)":
-        # ... (zbytek funkce zůstává stejný) ...
-    
     if theme == "🕹️ Cyberpunk (Retro)":
         return base_css + """
         /* ANIMOVANÉ POZADÍ */
@@ -3292,6 +3288,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
