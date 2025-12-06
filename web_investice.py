@@ -2727,7 +2727,7 @@ def main():
                     titles_str = "\n".join([f"{i+1}. {t}" for i, t in enumerate(titles)])
                     prompt = f"""Jsi finanční analytik. Analyzuj tyto novinové titulky a urči jejich sentiment.\nTITULKY:\n{titles_str}\nPro každý titulek vrať přesně tento formát na jeden řádek (bez odrážek):\nINDEX|SKÓRE(0-100)|VYSVĚTLENÍ (česky, max 1 věta)"""
                     try:
-                        response = AI_MODEL.generate_content(prompt)
+                        response = model.generate_content(prompt)
                         analysis_map = {}
                         for line in response.text.strip().split('\n'):
                             parts = line.split('|')
@@ -2837,6 +2837,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
