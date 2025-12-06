@@ -1226,6 +1226,73 @@ def main():
     # --- 5. STRÁNKY ---
     if page == "🏠 Přehled":
         st.title(f"🏠 PŘEHLED: {USER.upper()}")
+        # --- MAKRO KOMPAS (Globální trhy) ---
+        st.caption("🧭 GLOBÁLNÍ KOMPAS")
+        try:
+            # Definice tickerů: S&P500, Zlato, Ropa, Bitcoin, Úrokové sazby
+            makro_tickers = {
+                "🇺🇸 S&P 500": "^GSPC",
+                "🥇 Zlato": "GC=F",
+                "🛢️ Ropa": "CL=F",
+                "₿ Bitcoin": "BTC-USD",
+                "🏦 Úroky 10Y": "^TNX"
+            }
+            
+            # Stáhneme data hromadně (rychlé)
+            makro_data = yf.download(list(makro_tickers.values()), period="5d", progress=False)['Close']
+            
+            # Vytvoříme sloupce (5 vedle sebe)
+            mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+            cols_list = [mc1, mc2, mc3, mc4, mc5]
+            
+            for i, (name, ticker) in enumerate(makro_tickers.items()):
+                with cols_list[i]:
+                    # Získání dat pro konkrétní ticker
+                    # Ošetření MultiIndexu
+                    if isinstance(makro_data.columns, pd.MultiIndex):
+                        if ticker in makro_data.columns.levels[0]:
+                            series = makro_data[ticker].dropna()
+                        else:
+                            series = pd.Series()
+                    else:
+                        series = makro_data[ticker].dropna() if ticker in makro_data.columns else pd.Series()
+                    
+                    if not series.empty:
+                        last = series.iloc[-1]
+                        prev = series.iloc[-2] if len(series) > 1 else last
+                        delta = ((last - prev) / prev) * 100
+                        
+                        # Barva grafu podle změny
+                        line_color = '#238636' if delta >= 0 else '#da3633'
+                        
+                        # Sparkline graf (zjednodušený)
+                        fig_spark = go.Figure(go.Scatter(
+                            y=series.values, 
+                            mode='lines', 
+                            line=dict(color=line_color, width=2),
+                            fill='tozeroy',
+                            fillcolor=f"rgba({'35, 134, 54' if delta >= 0 else '218, 54, 51'}, 0.2)"
+                        ))
+                        fig_spark.update_layout(
+                            margin=dict(l=0, r=0, t=0, b=0), 
+                            height=30, 
+                            showlegend=False, 
+                            xaxis=dict(visible=False), 
+                            yaxis=dict(visible=False),
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)'
+                        )
+                        
+                        st.metric(name, f"{last:,.2f}", f"{delta:+.2f}%")
+                        st.plotly_chart(fig_spark, use_container_width=True, config={'displayModeBar': False})
+                    else:
+                        st.metric(name, "N/A")
+                        
+        except Exception as e:
+            st.error(f"Kompas rozbitý: {e}")
+            
+        st.divider()
+        # 👆👆👆 KONEC NOVÉHO BLOKU 👆👆👆
         
         # HLAVNÍ METRIKY
         with st.container(border=True):
@@ -3241,6 +3308,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
