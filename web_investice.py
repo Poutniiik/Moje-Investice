@@ -38,8 +38,8 @@ from utils import (
 from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis, 
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
+    model, AI_AVAILABLE = init_ai()
 )
-model, AI_AVAILABLE = init_ai()
 
 # --- KONFIGURACE ---
 st.set_page_config(
@@ -2835,4 +2835,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
