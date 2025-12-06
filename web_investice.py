@@ -2132,7 +2132,7 @@ def main():
                                                   color_discrete_map={"Hodnota portfolia": "#00CC96", "Vloženo celkem": "#AB63FA"},
                                                   template="plotly_dark")
                                 fig_dca.update_layout(xaxis_title="", yaxis_title="Hodnota (Kč)", legend=dict(orientation="h", y=1.1), font_family="Roboto Mono", paper_bgcolor="rgba(0,0,0,0)")
-                                fig = px.line(df, x='Datum', y='Cena', title='Vývoj cas'
+                                fig = px.line(df, x='Datum', y='Cena', title='Vývoj cas')
                                 fig_dca = make_plotly_cyberpunk(fig_dca)
                                 st.plotly_chart(fig_dca, use_container_width=True)
                                 
@@ -2900,3 +2900,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
