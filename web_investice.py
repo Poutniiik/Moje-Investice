@@ -2032,8 +2032,37 @@ def main():
 
         try:
             if cmd == "/help":
-                msg_text = "Příkazy:\n/price [TICKER]\n/buy [TICKER] [KUSY]\n/sell [TICKER] [KUSY]\n/cash"
+                msg_text = "Příkazy:\n/price [TICKER]\n/buy [TICKER] [KUSY]\n/sell [TICKER] [KUSY]\n/cash\n/ai_audit"
                 msg_icon = "ℹ️"
+
+            elif cmd == "/ai_audit":
+                if not st.session_state.get('data_core'):
+                    msg_text = "❌ Datové jádro není inicializováno. Zkus obnovit stránku."
+                    msg_icon = "⚠️"
+                elif not AI_AVAILABLE:
+                    msg_text = "❌ AI není dostupná (Chybí API klíč)."
+                    msg_icon = "⚠️"
+                else:
+                    # Extrakce dat z centrálního jádra
+                    core = st.session_state['data_core']
+                    pct_24h = core['pct_24h']
+                    cash_usd = core['cash_usd']
+                    vdf = core['vdf']
+                    
+                    # Logika pro zjištění Skokana/Propadáku (přesunuto z render_prehled_page)
+                    best_ticker = "N/A"
+                    worst_ticker = "N/A"
+                    if not vdf.empty and 'Dnes' in vdf.columns:
+                        vdf_sorted = vdf.sort_values('Dnes', ascending=False)
+                        best_ticker = vdf_sorted.iloc[0]['Ticker']
+                        worst_ticker = vdf_sorted.iloc[-1]['Ticker']
+                    
+                    # Volání AI strážce
+                    # Používáme model z kontextu main()
+                    guard_res_text = ask_ai_guard(model, pct_24h, cash_usd, best_ticker, worst_ticker)
+                    
+                    msg_text = f"🛡️ **HLÁŠENÍ STRÁŽCE:**\n{guard_res_text}"
+                    msg_icon = "👮"
 
             elif cmd == "/price" and len(cmd_parts) > 1:
                 t_cli = cmd_parts[1].upper()
@@ -2131,7 +2160,7 @@ def main():
     fundament_data = data_core['fundament_data']
     LIVE_DATA = st.session_state['LIVE_DATA'] # Vždy musíme vytáhnout z SS, protože ho cachuje calculate_all_data
     
-    # NOVÉ: Přepisujeme lokální kurzy kurzy z data_core pro použití v funkcích volaných v Sidebaru
+    # OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
     kurzy = data_core['kurzy'] 
 
     kurz_czk = kurzy.get("CZK", 20.85)
