@@ -2720,7 +2720,7 @@ with tab3:
                 else:
                     st.info("Žádná data o výsledcích nebyla nalezena (nebo jsou příliš daleko).")
             else:
-                st.warning("Nemáš žádné akcie v portfoliu ani ve sledování.")
+                st.warning("Nemáš žádné akcie v portfoliu ani ve sledování."):
 
     elif page == "🎮 Gamifikace":
         st.title("🎮 INVESTIČNÍ ARÉNA")
@@ -2956,6 +2956,7 @@ with tab3:
 
 if __name__ == "__main__":
     main()
+
 
 
 
