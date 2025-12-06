@@ -57,7 +57,7 @@ st.set_page_config(
 CITATY = [
     "„Cena je to, co zaplatíš. Hodnota je to, co dostaneš.“ — Warren Buffett",
     "„Riziko pochází z toho, že nevíte, co děláte.“ — Warren Buffett",
-    "„Trh je nástroj k přesunu peněz od netrpělivých k trpělivým.“ — Warren Buffett",
+    "„Trh je nástroj k přesunu peněz od netrpělivých k trpělivým.“ — Benjamin Graham",
     "„Investování bez výzkumu je jako hrát poker a nedívat se na karty.“ — Peter Lynch",
     "„V krátkodobém horizontu je trh hlasovací stroj, v dlouhodobém váha.“ — Benjamin Graham",
     "„Neutrácejte to, co zbude po utrácení. Utrácejte to, co zbude po spoření.“ — Warren Buffett",
@@ -1488,7 +1488,7 @@ def main():
 
                             if (not summary or summary == "MISSING_SUMMARY" or "Yahoo" in summary) and AI_AVAILABLE:
                                 try:
-                                    prompt_desc = f"Napíš krátký popis (max 2 věty) pro firmu {vybrana_akcie} v češtině. Jde o investiční aplikaci."
+                                    prompt_desc = f"Napíš krátký popis (max 2 věty) pre firmu {vybrana_akcie} v češtině. Jde o investiční aplikaci."
                                     res_desc = model.generate_content(prompt_desc)
                                     summary = f"🤖 AI Shrnutí: {res_desc.text}"
                                 except: summary = "Popis není k dispozici."
@@ -2163,7 +2163,7 @@ def main():
                                 st.plotly_chart(fig_dca, use_container_width=True)
 
                                 if final_profit > 0:
-                                    st.success(f"🎉 Kdybys začal před {dca_years} lety, mohl jsi si dnes koupit ojeté auto (nebo hodně zmrzliny).")
+                                    st.success(f"🎉 Kdybys začal před {dca_years} lety, mohl jsi si dnes koupil ojeté auto (nebo hodně zmrzliny).")
                                 else:
                                     st.error("📉 Au. I s pravidelným investováním bys byl v mínusu. To chce silné nervy.")
 
@@ -2743,15 +2743,26 @@ def main():
                 axis=1
             ).sum()
 
+        # ÚPRAVA: NOVÁ render_badge FUNKCE POUŽÍVAJÍCÍ CUSTOM CSS TŘÍDY
         def render_badge(col, title, desc, cond, icon, color):
+            # Tady aplikujeme ty custom CSS třídy nadefinované ve styles.py
+            css_class = "badge-earned" if cond else "badge-locked"
+            status_text = "ZÍSKÁNO" if cond else "UZAMČENO"
+            status_color = "#00FF99" if cond else "#8B949E" # Neon Green / Grey
+
+            html = f"""
+            <div class="badge-card {css_class}">
+                <span class="badge-icon" style="color: {color};">{icon}</span>
+                <div class="badge-title">{title}</div>
+                <div class="badge-desc">{desc}</div>
+                <hr style="margin: 10px 0; border-color: #30363D;">
+                <div style="font-size: 0.7rem; color: {status_color}; font-weight: bold; letter-spacing: 1px;">
+                    {status_text}
+                </div>
+            </div>
+            """
             with col:
-                with st.container(border=True):
-                    if cond:
-                        st.markdown(f"<div style='text-align:center; color:{color}'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
-                        st.success("ZÍSKÁNO")
-                    else:
-                        st.markdown(f"<div style='text-align:center; color:gray; opacity:0.3'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
-                        st.caption("UZAMČENO")
+                st.markdown(html, unsafe_allow_html=True)
 
         render_badge(c1, "Začátečník", "Kup první akcii", has_first, "🥉", "#CD7F32")
         render_badge(c2, "Stratég", "Drž 3 různé firmy", cnt >= 3, "🥈", "#C0C0C0")
