@@ -244,6 +244,24 @@ def add_download_button(fig, filename):
 
 # --- HLAVNÍ FUNKCE ---
 def main():
+    # --- web_investice.py ---
+
+# Importy nahoře nech tak, jak jsou (s tím from ai_brain import ...)
+
+# Najdi začátek hlavní funkce
+    # ---------------------------------------------------------
+    # 1. ZDE JE TA ZMĚNA - VLOŽ TOTO HNED NA ZAČÁTEK FUNKCE MAIN
+    # Tím, že to dáme sem, máš 100% jistotu, že proměnná uvnitř funkce existuje.
+    # ---------------------------------------------------------
+    model, AI_AVAILABLE = init_ai()
+    
+    # (Volitelné debugovátko - pokud to bude zlobit, tohle nám to ukáže na obrazovce)
+    # st.write(f"DEBUG: AI status je {AI_AVAILABLE}") 
+    # ---------------------------------------------------------
+
+    # ... Zbytek tvého kódu ve funkci main pokračuje dál ...
+    st.set_page_config(page_title="Terminal Pro", layout="wide") 
+    # atd...
     # 1. Start Cookie Manager
     cookie_manager = get_manager()
     
@@ -2834,6 +2852,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
