@@ -244,9 +244,7 @@ def add_download_button(fig, filename):
 
 # --- HLAVNÍ FUNKCE ---
 def main():
-     model, AI_AVAILABLE = init_ai()
-    
-    # ... Zbytek tvého kódu ve funkci main pokračuje dál ...
+    model, AI_AVAILABLE = init_ai()
     st.set_page_config(page_title="Terminal Pro", layout="wide") 
     # atd...
     # 1. Start Cookie Manager
@@ -2839,6 +2837,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
