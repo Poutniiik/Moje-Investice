@@ -877,13 +877,20 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
     
     st.title("💎 DIVIDENDOVÝ KALENDÁŘ")
 
-    # --- PROJEKTOR PASIVNÍHO PŘÍJMU ---
+    # --- PROJEKTOR PASIVNÍHO PŘÍJMU (OPRAVENO) ---
     est_annual_income_czk = 0
-    if viz_data_list:
-        for item in viz_data_list:
+    # Abychom se vyhnuli chybě, zajistíme, že viz_data_list je list, i když je prázdný
+    if isinstance(viz_data_list, pd.DataFrame):
+        data_to_use = viz_data_list.to_dict('records')
+    else:
+        data_to_use = viz_data_list
+        
+    if data_to_use:
+        for item in data_to_use:
+            # Původní logika: HodnotaUSD * Divi Yield * Kurz CZK
             yield_val = item.get('Divi', 0)
             val_usd = item.get('HodnotaUSD', 0)
-            if yield_val > 0 and val_usd > 0:
+            if yield_val is not None and val_usd is not None and yield_val > 0 and val_usd > 0:
                 est_annual_income_czk += (val_usd * yield_val) * kurzy.get("CZK", 20.85)
 
     est_monthly_income_czk = est_annual_income_czk / 12
@@ -902,7 +909,6 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
         }
 
         next_goal = "Rentier"
-        # next_val je nutné pro výpočet progressu, ale v původním kódu je nepoužito, necháme ho jen pro výpočet
         next_val = 100000 
         progress = 0.0
 
@@ -1800,7 +1806,7 @@ def main():
                                         }
                                     }
                                 ))
-                                fig_target.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", 'family': "Roboto Mono"}, height=250)
+                                fig_target.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", "family": "Roboto Mono"}, height=250)
                                 fig_target = make_plotly_cyberpunk(fig_target)
                                 st.plotly_chart(fig_target, use_container_width=True)
 
