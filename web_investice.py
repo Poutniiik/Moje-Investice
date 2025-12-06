@@ -938,9 +938,9 @@ def main():
         if not df_div.empty:
              for _, r in df_div.iterrows():
                 amt = r['Castka']; currency = r['Mena']
-                if currency == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
-                elif currency == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
-                else: total_divi_czk += amt
+                if currency == "USD": total_div_czk += amt * kurzy.get("CZK", 20.85)
+                elif currency == "EUR": total_div_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+                else: total_div_czk += amt
 
         # Zisky (Nerealizované + Realizované)
         total_realized_czk = 0
