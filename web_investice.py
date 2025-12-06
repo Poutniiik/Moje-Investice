@@ -269,7 +269,7 @@ def get_task_progress(task_id, df, df_w, zustatky, vdf):
 
     elif task_id == 3: # Mód Rentiera: Drž 3 akcie s dividendovým výnosem > 1%.
         target = 3
-        current = len([i for i in vdf if i.get('Divi', 0) > 0.01])
+        current = len([i for i in vdf if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01])
         return current, target, f"Dividendových akcií: {current}/{target}"
      
     elif task_id == 4: # Cílovací expert: Nastav cílovou nákupní cenu u jedné akcie A cílovou prodejní cenu u jiné.
@@ -305,7 +305,7 @@ RPG_TASKS = [
     
     # 4. Income investing
     {"title": "Mód Rentiera", "desc": "Drž 3 akcie s dividendovým výnosem > 1%.", 
-     "check_fn": lambda df, df_w, zustatky, vdf: len([i for i in vdf if i.get('Divi', 0) > 0.01]) >= 3},
+     "check_fn": lambda df, df_w, zustatky, vdf: len([i for i in vdf if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01]) >= 3},
      
     # 5. Risk management (Setting both types of targets)
     {"title": "Cílovací expert", "desc": "Nastav cílovou nákupní cenu u jedné akcie A cílovou prodejní cenu u jiné.", 
@@ -890,6 +890,7 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
             # Původní logika: HodnotaUSD * Divi Yield * Kurz CZK
             yield_val = item.get('Divi', 0)
             val_usd = item.get('HodnotaUSD', 0)
+            # ZMĚNA: Používáme Divi yield (např. 0.03 pro 3%) a kontrolujeme None hodnoty
             if yield_val is not None and val_usd is not None and yield_val > 0 and val_usd > 0:
                 est_annual_income_czk += (val_usd * yield_val) * kurzy.get("CZK", 20.85)
 
@@ -1157,6 +1158,85 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
     st.subheader("💡 Moudro dne")
     if 'quote' not in st.session_state: st.session_state['quote'] = random.choice(CITATY)
     st.info(f"*{st.session_state['quote']}*")
+
+
+# --- NOVÉ FUNKCE PRO ANALÝZU (Tabulky 7 a 8) ---
+
+def render_analýza_rebalancing_page(df, vdf, kurzy):
+    """Vykreslí Rebalanční kalkulačku (Tab7 Analýzy)."""
+    st.subheader("⚖️ REBALANČNÍ KALKULAČKA")
+    if not vdf.empty:
+        df_reb = vdf.groupby('Sektor')['HodnotaUSD'].sum().reset_index()
+        total_val = df_reb['HodnotaUSD'].sum()
+        st.write("Nastav cílové váhy pro sektory:")
+        
+        # Abychom se vyhnuli problémům s klíči, musíme zajistit, že klíče jsou konzistentní
+        targets = {}; 
+        cols = st.columns(3)
+        for i, row in df_reb.iterrows():
+            current_pct = (row['HodnotaUSD'] / total_val) * 100
+            # Využití klíčů Session State pro uchování hodnoty slideru
+            key = f"reb_{row['Sektor']}"
+            with cols[i % 3]:
+                targets[row['Sektor']] = st.number_input(
+                    f"{row['Sektor']} (%)", 
+                    min_value=0.0, 
+                    max_value=100.0, 
+                    value=float(round(current_pct, 1)), 
+                    step=1.0, 
+                    key=key
+                )
+        
+        total_target = sum(targets.values())
+        if abs(total_target - 100) > 0.1: st.warning(f"⚠️ Součet cílů je {total_target:.1f}%. Měl by být 100%.")
+        
+        df_reb['Cíl %'] = df_reb['Sektor'].map(targets)
+        df_reb['Cílová Hodnota'] = total_val * (df_reb['Cíl %'] / 100)
+        df_reb['Rozdíl'] = df_reb['Cílová Hodnota'] - df_reb['HodnotaUSD']
+        
+        st.divider(); st.subheader("🛠️ Návrh akcí")
+        for _, r in df_reb.iterrows():
+            diff = r['Rozdíl']
+            if abs(diff) > 1:
+                if diff > 0: st.success(f"🟢 **{r['Sektor']}**: DOKOUPIT za {diff:,.0f} USD")
+                else: st.error(f"🔴 **{r['Sektor']}**: PRODAT za {abs(diff):,.0f} USD")
+        
+        st.dataframe(df_reb.style.format({"HodnotaUSD": "{:,.0f}", "Cílová Hodnota": "{:,.0f}", "Rozdíl": "{:+,.0f}"}))
+    else: 
+        st.info("Portfolio je prázdné.")
+
+def render_analýza_korelace_page(df, kurzy):
+    """Vykreslí Matice Korelace (Tab8 Analýzy)."""
+    st.subheader("📊 MATICE KORELACE (Diversifikace)")
+    st.info("Jak moc se tvé akcie hýbou společně? Čím více 'modrá', tím lepší diverzifikace.")
+    
+    if not df.empty:
+        tickers_list = df['Ticker'].unique().tolist()
+        if len(tickers_list) > 1:
+            try:
+                with st.spinner("Počítám korelace..."):
+                    hist_data = yf.download(tickers_list, period="1y")['Close']
+                    returns = hist_data.pct_change().dropna()
+                    corr_matrix = returns.corr()
+                    
+                    fig_corr = px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale="RdBu_r", origin='lower')
+                    fig_corr.update_layout(template="plotly_dark", height=600, font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+                    
+                    fig_corr = make_plotly_cyberpunk(fig_corr)
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                    
+                    avg_corr = corr_matrix.values[np.triu_indices_from(corr_matrix.values, 1)].mean()
+                    st.metric("Průměrná korelace portfolia", f"{avg_corr:.2f}")
+                    
+                    if avg_corr > 0.7: st.error("⚠️ Vysoká korelace! Tvé akcie se hýbou stejně.")
+                    elif avg_corr < 0.3: st.success("✅ Nízká korelace! Dobrá diverzifikace.")
+                    else: st.warning("⚖️ Střední korelace. Portfolio je vyvážené.")
+            except Exception as e: 
+                st.error(f"Chyba při výpočtu korelace: {e}")
+        else: 
+            st.warning("Pro výpočet korelace potřebuješ alespoň 2 různé akcie.")
+    else: 
+        st.info("Portfolio je prázdné.")
 
 
 # --- HLAVNÍ FUNKCE (Router) ---
@@ -2641,53 +2721,13 @@ def main():
             st.plotly_chart(fig_curr, use_container_width=True)
 
         with tab7:
-            st.subheader("⚖️ REBALANČNÍ KALKULAČKA")
-            if not vdf.empty:
-                df_reb = vdf.groupby('Sektor')['HodnotaUSD'].sum().reset_index()
-                total_val = df_reb['HodnotaUSD'].sum()
-                st.write("Nastav cílové váhy pro sektory:")
-                targets = {}; cols = st.columns(3)
-                for i, row in df_reb.iterrows():
-                    current_pct = (row['HodnotaUSD'] / total_val) * 100
-                    with cols[i % 3]:
-                        targets[row['Sektor']] = st.number_input(f"{row['Sektor']} (%)", min_value=0.0, max_value=100.0, value=float(round(current_pct, 1)), step=1.0, key=f"reb_{row['Sektor']}")
-                total_target = sum(targets.values())
-                if abs(total_target - 100) > 0.1: st.warning(f"⚠️ Součet cílů je {total_target:.1f}%. Měl by být 100%.")
-                df_reb['Cíl %'] = df_reb['Sektor'].map(targets)
-                df_reb['Cílová Hodnota'] = total_val * (df_reb['Cíl %'] / 100)
-                df_reb['Rozdíl'] = df_reb['Cílová Hodnota'] - df_reb['HodnotaUSD']
-                st.divider(); st.subheader("🛠️ Návrh akcí")
-                for _, r in df_reb.iterrows():
-                    diff = r['Rozdíl']
-                    if abs(diff) > 1:
-                        if diff > 0: st.success(f"🟢 **{r['Sektor']}**: DOKOUPIT za {diff:,.0f} USD")
-                        else: st.error(f"🔴 **{r['Sektor']}**: PRODAT za {abs(diff):,.0f} USD")
-                st.dataframe(df_reb.style.format({"HodnotaUSD": "{:,.0f}", "Cílová Hodnota": "{:,.0f}", "Rozdíl": "{:+,.0f}"}))
-            else: st.info("Portfolio je prázdné.")
+            # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
+            render_analýza_rebalancing_page(df, vdf, kurzy)
 
         with tab8:
-            st.subheader("📊 MATICE KORELACE (Diversifikace)")
-            st.info("Jak moc se tvé akcie hýbou společně? Čím více 'modrá', tím lepší diverzifikace.")
-            if not df.empty:
-                tickers_list = df['Ticker'].unique().tolist()
-                if len(tickers_list) > 1:
-                    try:
-                        with st.spinner("Počítám korelace..."):
-                            hist_data = yf.download(tickers_list, period="1y")['Close']
-                            returns = hist_data.pct_change().dropna()
-                            corr_matrix = returns.corr()
-                            fig_corr = px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale="RdBu_r", origin='lower')
-                            fig_corr.update_layout(template="plotly_dark", height=600, font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-                            fig_corr = make_plotly_cyberpunk(fig_corr)
-                            st.plotly_chart(fig_corr, use_container_width=True)
-                            avg_corr = corr_matrix.values[np.triu_indices_from(corr_matrix.values, 1)].mean()
-                            st.metric("Průměrná korelace portfolia", f"{avg_corr:.2f}")
-                            if avg_corr > 0.7: st.error("⚠️ Vysoká korelace! Tvé akcie se hýbou stejně.")
-                            elif avg_corr < 0.3: st.success("✅ Nízká korelace! Dobrá diverzifikace.")
-                            else: st.warning("⚖️ Střední korelace. Portfolio je vyvážené.")
-                    except Exception as e: st.error(f"Chyba při výpočtu korelace: {e}")
-                else: st.warning("Pro výpočet korelace potřebuješ alespoň 2 různé akcie.")
-            else: st.info("Portfolio je prázdné.")
+            # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
+            render_analýza_korelace_page(df, kurzy)
+
 
         with tab9:
             st.subheader("📅 KALENDÁŘ VÝSLEDKŮ (Earnings)")
