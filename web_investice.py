@@ -1918,40 +1918,40 @@ def main():
 
 
         with tab3:
-    if not vdf.empty:
-        st.subheader("🌍 MAPA IMPÉRIA")
-        try:
-            df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
-            fig_map = px.scatter_geo(
-                df_map,
-                locations="Země",
-                locationmode="country names",
-                hover_name="Země",
-                size="HodnotaUSD",
-                projection="orthographic",
-                color="Země",
-                template="plotly_dark"
-            )
-            fig_map.update_geos(
-                bgcolor="#161B22",
-                showcountries=True,
-                countrycolor="#30363D",
-                showocean=True,
-                oceancolor="#0E1117",
-                showland=True,
-                landcolor="#1c2128"
-            )
-            fig_map.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                font={"color": "white", "family": "Roboto Mono"},
-                height=500,
-                margin={"r": 0, "t": 0, "l": 0, "b": 0}
-            )
-
+        if not vdf.empty:
+            st.subheader("🌍 MAPA IMPÉRIA")
             try:
-                fig_map = make_plotly_cyberpunk(fig_map)
-            except Exception:
-                pass
+                df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
+                fig_map = px.scatter_geo(
+                    df_map,
+                    locations="Země",
+                    locationmode="country names",
+                    hover_name="Země",
+                    size="HodnotaUSD",
+                    projection="orthographic",
+                    color="Země",
+                    template="plotly_dark"
+                )
+                fig_map.update_geos(
+                    bgcolor="#161B22",
+                    showcountries=True,
+                    countrycolor="#30363D",
+                    showocean=True,
+                    oceancolor="#0E1117",
+                    showland=True,
+                    landcolor="#1c2128"
+                )
+                fig_map.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font={"color": "white", "family": "Roboto Mono"},
+                    height=500,
+                    margin={"r": 0, "t": 0, "l": 0, "b": 0}
+                )
+    
+                try:
+                    fig_map = make_plotly_cyberpunk(fig_map)
+                except Exception:
+                    pass
 
             st.plotly_chart(fig_map, use_container_width=True, key="fig_mapa_imperia")
             add_download_button(fig_map, "mapa_imperia")
@@ -2972,6 +2972,7 @@ elif page == "🎮 Gamifikace":
 
 if __name__ == "__main__":
     main()
+
 
 
 
