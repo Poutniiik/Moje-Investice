@@ -2627,7 +2627,7 @@ with tab3:
                 else: st.warning("Pro výpočet korelace potřebuješ alespoň 2 různé akcie.")
             else: st.info("Portfolio je prázdné.")
 
-        with tab9:
+with tab9:
     st.subheader("📅 KALENDÁŘ VÝSLEDKŮ (Earnings)")
     st.info("Termíny zveřejňování hospodářských výsledků tvých firem. Očekávej volatilitu!")
 
@@ -2646,7 +2646,6 @@ with tab3:
                 try:
                     e_date = ziskej_earnings_datum(tk)
                     if e_date:
-                        # Převedeme na datetime bez timezone pro výpočet
                         if hasattr(e_date, 'date'):
                             e_date_norm = datetime.combine(e_date, datetime.min.time())
                         else:
@@ -2671,7 +2670,6 @@ with tab3:
                             status = f"Za {days_left} dní"
                             color_icon = "🟢"
 
-                        # Přidáme jen budoucí nebo nedávno proběhlé (max 7 dní zpět)
                         if days_left > -7:
                             earnings_data.append({
                                 "Symbol": tk,
@@ -2681,9 +2679,7 @@ with tab3:
                                 "Ikona": color_icon
                             })
                 except Exception:
-                    # Pokud jedno volání selže, pokračujeme dál (nepřerušíme celý loop)
                     pass
-                # aktualizace progress baru (bez dělení nulou)
                 try:
                     prog_bar.progress((i + 1) / len(all_my_tickers))
                 except Exception:
@@ -2692,8 +2688,6 @@ with tab3:
 
         if earnings_data:
             df_cal = pd.DataFrame(earnings_data).sort_values('Dní do akce')
-
-            # Vizuální úprava tabulky
             try:
                 st.dataframe(
                     df_cal,
@@ -2705,10 +2699,8 @@ with tab3:
                     hide_index=True
                 )
             except Exception:
-                # Fallback pokud starší verze Streamlit nemá column_config
                 st.dataframe(df_cal, use_container_width=True)
 
-            # Timeline graf
             try:
                 df_future = df_cal[df_cal['Dní do akce'] >= 0].copy()
                 if not df_future.empty:
@@ -2731,8 +2723,6 @@ with tab3:
                         paper_bgcolor="rgba(0,0,0,0)",
                         font_family="Roboto Mono"
                     )
-
-                    # Bezpečné stylování a vykreslení
                     try:
                         fig_timeline = make_plotly_cyberpunk(fig_timeline)
                     except Exception:
@@ -2985,6 +2975,7 @@ elif page == "🎮 Gamifikace":
 
 if __name__ == "__main__":
     main()
+
 
 
 
