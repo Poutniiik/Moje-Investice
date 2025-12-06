@@ -2465,7 +2465,7 @@ def main():
                 except Exception: st.error("Chyba mapy.")
             else: st.info("Portfolio je prázdné.")
 
-       with tab4:
+        with tab4:
             st.subheader("🔮 FINANČNÍ STROJ ČASU")
             
             # 👇👇👇 VLOŽIT TENTO NOVÝ BLOK (NEURO-VĚŠTEC) ZDE 👇👇👇
@@ -3398,6 +3398,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
