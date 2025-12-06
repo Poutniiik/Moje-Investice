@@ -1702,7 +1702,7 @@ def main():
                     "RSI (14)": rsi_val, # Číselná hodnota pro sorting/logiku
                     "52T Range": range_pos,
                     "Cíl Buy": buy_trg,
-                    "Status": status_text
+                    "Status": status_text,
                     "Zaměřovač": proximity_score
                     
                 })
@@ -3228,6 +3228,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
