@@ -135,7 +135,7 @@ def pridat_dividendu(ticker, castka, mena, user):
     df_div = pd.concat([df_div, novy], ignore_index=True)
     st.session_state['df_div'] = df_div
     uloz_data_uzivatele(df_div, user, SOUBOR_DIVIDENDY)
-    # ZAVOLÁME POHYB PENĚZ (který již invaliduje data core)
+    # ZAVOLÁME POHYB PENĚZ (který již invaliduje cache)
     pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user)
 
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
@@ -2130,8 +2130,11 @@ def main():
     cash_usd = data_core['cash_usd']
     fundament_data = data_core['fundament_data']
     LIVE_DATA = st.session_state['LIVE_DATA'] # Vždy musíme vytáhnout z SS, protože ho cachuje calculate_all_data
+    
+    # NOVÉ: Přepisujeme lokální kurzy kurzy z data_core pro použití v funkcích volaných v Sidebaru
+    kurzy = data_core['kurzy'] 
 
-    kurz_czk = data_core['kurzy'].get("CZK", 20.85)
+    kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
 
