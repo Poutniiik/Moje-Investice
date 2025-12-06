@@ -13,3 +13,4 @@ fpdf
 extra-streamlit-components
 kaleido
 wordcloud
+prophet
