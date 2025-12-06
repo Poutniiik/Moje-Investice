@@ -5,12 +5,9 @@ import yfinance as yf
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots 
-from utils import make_plotly_cyberpunk
 from github import Github
 from io import StringIO
 from datetime import datetime, timedelta
-from utils import make_matplotlib_cyberpunk
-import matplotlib.pyplot as plt
 import hashlib
 import time
 import zipfile
@@ -42,6 +39,7 @@ from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis, 
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
+from utils import make_plotly_cyberpunk
 
 fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
 fig = make_plotly_cyberpunk(fig)
@@ -53,6 +51,11 @@ ax.plot(df['Datum'], df['Cena'], color='#00FF99')
 ax.set_title("Historie Dividend")
 make_matplotlib_cyberpunk(fig, ax)
 st.pyplot(fig)
+    
+    # ... zbytek aplikace ...
+
+from utils import make_matplotlib_cyberpunk
+import matplotlib.pyplot as plt
 
 
 
