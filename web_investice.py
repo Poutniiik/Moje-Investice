@@ -809,7 +809,7 @@ def main():
                     # Voláme novou funkci z ai_brain.py
                     try:
                         # 1. Získáme text od AI
-                        guard_res_text = ask_ai_guard(AI_MODEL, pct_24h, cash_usd, top_mover, flop_mover)
+                        guard_res_text = ask_ai_guard(model, pct_24h, cash_usd, top_mover, flop_mover)
                         
                         # 2. Rozhodneme o barvě hlášení podle toho, jestli jsme v plusu
                         if pct_24h >= 0:
@@ -849,7 +849,7 @@ def main():
                         
                         # 2. Volání MOZKU (ai_brain.py)
                         # Všimni si: Žádný prompt tady nepíšeme! Jen předáme data.
-                        audit_res_text = audit_portfolio(AI_MODEL, celk_hod_usd, cash_usd, port_summary)
+                        audit_res_text = audit_portfolio(model, celk_hod_usd, cash_usd, port_summary)
                         
                         # 3. Zobrazení výsledku
                         st.markdown("### 📝 VÝSLEDEK AUDITU")
@@ -1490,7 +1490,7 @@ def main():
                             if (not summary or summary == "MISSING_SUMMARY" or "Yahoo" in summary) and AI_AVAILABLE:
                                 try:
                                     prompt_desc = f"Napíš krátký popis (max 2 věty) pro firmu {vybrana_akcie} v češtině. Jde o investiční aplikaci."
-                                    res_desc = AI_MODEL.generate_content(prompt_desc)
+                                    res_desc = model.generate_content(prompt_desc)
                                     summary = f"🤖 AI Shrnutí: {res_desc.text}"
                                 except: summary = "Popis není k dispozici."
                             elif not summary or "Yahoo" in summary: summary = "Popis není k dispozici."
@@ -1795,7 +1795,7 @@ def main():
                                     with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
                                         # 1. Zavoláme funkci z ai_brain.py
                                         # (last_row už máš vypočítané o pár řádků výš v původním kódu)
-                                        tech_res_text = get_tech_analysis(AI_MODEL, vybrana_akcie, last_row)
+                                        tech_res_text = get_tech_analysis(model, vybrana_akcie, last_row)
                                         
                                         # 2. Zobrazíme výsledek
                                         st.markdown(f"""
@@ -2632,7 +2632,7 @@ def main():
                     actual_score = sc if sc else 50 # Default 50 kdyby API nejelo
 
                     # 2. Zavoláme funkci z ai_brain.py
-                    rpg_res_text = generate_rpg_story(AI_MODEL, level_name, denni_zmena_czk, celk_hod_czk, actual_score)
+                    rpg_res_text = generate_rpg_story(model, level_name, denni_zmena_czk, celk_hod_czk, actual_score)
                     
                     # 3. Zobrazíme výsledek (HTML/CSS design zůstává)
                     st.markdown(f"""
@@ -2829,7 +2829,7 @@ def main():
                     portfolio_context += f"\nSentiment zpráv: {avg_s:.0f}/100."
 
                 # --- VOLÁNÍ MOZKU (ai_brain.py) ---
-                ai_reply = get_chat_response(AI_MODEL, last_user_msg, portfolio_context)
+                ai_reply = get_chat_response(model, last_user_msg, portfolio_context)
                 
                 # Uložení a refresh
                 st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
@@ -2837,6 +2837,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
