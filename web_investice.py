@@ -5,9 +5,12 @@ import yfinance as yf
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots 
+from utils import make_plotly_cyberpunk
 from github import Github
 from io import StringIO
 from datetime import datetime, timedelta
+from utils import make_matplotlib_cyberpunk
+import matplotlib.pyplot as plt
 import hashlib
 import time
 import zipfile
@@ -39,6 +42,19 @@ from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis, 
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
+
+fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
+fig = make_plotly_cyberpunk(fig)
+st.plotly_chart(fig, use_container_width=True)
+
+# ... Vykreslování druhého grafu ...
+fig, ax = plt.subplots()
+ax.plot(df['Datum'], df['Cena'], color='#00FF99')
+ax.set_title("Historie Dividend")
+make_matplotlib_cyberpunk(fig, ax)
+st.pyplot(fig)
+
+
 
 # --- KONFIGURACE ---
 st.set_page_config(
@@ -761,6 +777,7 @@ def main():
                         )
                         
                         st.metric(name, f"{last:,.2f}", f"{delta:+.2f}%")
+                        fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                         fig_spark = make_plotly_cyberpunk(fig_spark)
                         st.plotly_chart(fig_spark, use_container_width=True, config={'displayModeBar': False})
                     else:
@@ -884,6 +901,7 @@ def main():
                 }
             ))
             fig_gauge.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", 'family': "Roboto Mono"}, height=250, margin=dict(l=20, r=20, t=30, b=20))
+            fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
             fig_gauge = make_plotly_cyberpunk(fig_gauge)
             st.plotly_chart(fig_gauge, use_container_width=True)
         
@@ -902,6 +920,7 @@ def main():
                 fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False, font_family="Roboto Mono")
                 fig_area.update_xaxes(showgrid=False)
                 fig_area.update_yaxes(showgrid=True, gridcolor='#30363D')
+                fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                 fig_area = make_plotly_cyberpunk(fig_area)
                 st.plotly_chart(fig_area, use_container_width=True, key="fig_vyvoj_maj")
                 add_download_button(fig_area, "vyvoj_majetku")
@@ -912,6 +931,7 @@ def main():
                 fig_pie = px.pie(vdf, values='HodnotaUSD', names='Sektor', hole=0.4, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_pie.update_traces(textposition='inside', textinfo='percent+label')
                 fig_pie.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0), height=300, paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+                fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                 fig_pie = make_plotly_cyberpunk(fig_pie)
                 st.plotly_chart(fig_pie, use_container_width=True, key="fig_sektory")
                 add_download_button(fig_pie, "sektorova_analyza")
@@ -1036,6 +1056,7 @@ def main():
           ))])
 
         fig_sankey.update_layout(title_text="Tok peněz v portfoliu (CZK)", font_size=12, height=400, paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+        fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
         fig_sankey = make_plotly_cyberpunk(fig_sankey)
         st.plotly_chart(fig_sankey, use_container_width=True)
         # ----------------------------------------
@@ -1440,6 +1461,7 @@ def main():
                 fig_div.update_xaxes(type='category')
                 
                 fig_div.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+                fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                 fig_div = make_plotly_cyberpunk(fig_div)
                 st.plotly_chart(fig_div, use_container_width=True)
                 
@@ -1553,6 +1575,7 @@ def main():
                                                  template="plotly_dark")
                                 fig_own.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", showlegend=True, legend=dict(y=0.5))
                                 fig_own.update_traces(textinfo='percent+label', textposition='outside')
+                                fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                                 fig_own = make_plotly_cyberpunk(fig_own)
                                 st.plotly_chart(fig_own, use_container_width=True)
                                 # 👇👇👇 VLOŽIT HNED POD Velrybí Radar (st.plotly_chart(fig_own...)) 👇👇👇
@@ -1606,6 +1629,7 @@ def main():
                                             
                                             # Formátování osy Y na miliardy (B) nebo miliony (M)
                                             fig_fin.update_yaxes(tickprefix="$")
+                                            fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                                             fig_fin = make_plotly_cyberpunk(fig_fin)
                                             st.plotly_chart(fig_fin, use_container_width=True)
                                             
@@ -1661,6 +1685,7 @@ def main():
                                     }
                                 ))
                                 fig_target.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", 'family': "Roboto Mono"}, height=250)
+                                fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                                 fig_target = make_plotly_cyberpunk(fig_target)
                                 st.plotly_chart(fig_target, use_container_width=True)
 
@@ -1793,6 +1818,7 @@ def main():
                                 fig_candle.update_layout(xaxis_rangeslider_visible=False, template="plotly_dark", height=800, margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), font_family="Roboto Mono")
                                 fig_candle.update_yaxes(showgrid=True, gridcolor='#30363D')
                                 fig_candle.update_xaxes(showgrid=False)
+                                fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                                 fig_candle = make_plotly_cyberpunk(fig_candle)
                                 st.plotly_chart(fig_candle, use_container_width=True)
                                 add_download_button(fig_candle, f"rentgen_{vybrana_akcie}")
@@ -1860,6 +1886,7 @@ def main():
                             )
                             fig_multi_comp.update_xaxes(showgrid=False)
                             fig_multi_comp.update_yaxes(showgrid=True, gridcolor='#30363D')
+                            fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                             fig_multi_comp = make_plotly_cyberpunk(fig_multi_comp)
                             st.plotly_chart(fig_multi_comp, use_container_width=True, key="fig_srovnani")
                             add_download_button(fig_multi_comp, "srovnani_akcii")
@@ -1910,6 +1937,7 @@ def main():
                     fig_map = px.scatter_geo(df_map, locations="Země", locationmode="country names", hover_name="Země", size="HodnotaUSD", projection="orthographic", color="Země", template="plotly_dark")
                     fig_map.update_geos(bgcolor="#161B22", showcountries=True, countrycolor="#30363D", showocean=True, oceancolor="#0E1117", showland=True, landcolor="#1c2128")
                     fig_map.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={"color": "white", "family": "Roboto Mono"}, height=500, margin={"r":0,"t":0,"l":0,"b":0})
+                    fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                     fig_map = make_plotly_cyberpunk(fig_map)
                     st.plotly_chart(fig_map, use_container_width=True, key="fig_mapa_imperia")
                     add_download_button(fig_map, "mapa_imperia")
@@ -1919,6 +1947,7 @@ def main():
                 try:
                     fig = px.treemap(vdf, path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'], values='HodnotaUSD', color='Zisk', color_continuous_scale=['red', '#161B22', 'green'], color_continuous_midpoint=0)
                     fig.update_layout(font_family="Roboto Mono", paper_bgcolor="rgba(0,0,0,0)")
+                    fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                     fig_fig = make_plotly_cyberpunk(fig_fig)
                     st.plotly_chart(fig, use_container_width=True, key="fig_sektor_map")
                     add_download_button(fig, "mapa_sektoru")
@@ -2009,6 +2038,7 @@ def main():
                                 ))
                                 
                                 fig_pred.update_layout(template="plotly_dark", height=500, font_family="Roboto Mono", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                                fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                                 fig_pred = make_plotly_cyberpunk(fig_pred)
                                 st.plotly_chart(fig_pred, use_container_width=True)
                                 
@@ -2102,6 +2132,7 @@ def main():
                                                   color_discrete_map={"Hodnota portfolia": "#00CC96", "Vloženo celkem": "#AB63FA"},
                                                   template="plotly_dark")
                                 fig_dca.update_layout(xaxis_title="", yaxis_title="Hodnota (Kč)", legend=dict(orientation="h", y=1.1), font_family="Roboto Mono", paper_bgcolor="rgba(0,0,0,0)")
+                                fig = px.line(df, x='Datum', y='Cena', title='Vývoj cas'
                                 fig_dca = make_plotly_cyberpunk(fig_dca)
                                 st.plotly_chart(fig_dca, use_container_width=True)
                                 
@@ -2217,6 +2248,7 @@ def main():
                             )
                             fig_ef.update_xaxes(showgrid=False)
                             fig_ef.update_yaxes(showgrid=True, gridcolor='#30363D')
+                            fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                             fig_ef = make_plotly_cyberpunk(fig_ef)
                             st.plotly_chart(fig_ef, use_container_width=True, key="fig_ef_frontier")
                             add_download_button(fig_ef, "efektivni_hranice")
@@ -2301,6 +2333,7 @@ def main():
                 fig_mc.update_layout(title=f"Monte Carlo: {num_simulations} scénářů na {mc_years} let", xaxis_title="Dny", yaxis_title="Hodnota (CZK)", template="plotly_dark", font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
                 fig_mc.update_xaxes(showgrid=False)
                 fig_mc.update_yaxes(showgrid=True, gridcolor='#30363D')
+                fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                 fig_mc = make_plotly_cyberpunk(fig_mc)
                 st.plotly_chart(fig_mc, use_container_width=True)
                 st.success(f"Průměrná hodnota na konci: {sim_data['Average'].iloc[-1]:,.0f} Kč")
@@ -2383,6 +2416,7 @@ def main():
                 fig_crash = px.pie(chart_data, values='Hodnota', names='Stav', hole=0.5, 
                                  color='Stav', color_discrete_map={"Ztráta 💸": "#da3633", "Zůstatek 💰": "#238636"})
                 fig_crash.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), showlegend=True, paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+                fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                 fig_crash = make_plotly_cyberpunk(fig_crash)
                 st.plotly_chart(fig_crash, use_container_width=True)
 
@@ -2423,6 +2457,8 @@ def main():
                         fig_bench.update_layout(title="Výkonnost v % od začátku měření", xaxis_title="", yaxis_title="Změna (%)", template="plotly_dark", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01), font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
                         fig_bench.update_xaxes(showgrid=False)
                         fig_bench.update_yaxes(showgrid=True, gridcolor='#30363D')
+                        fig_bench = make_plotly_cyberpunk(fig_bench)
+                        fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                         fig_bench = make_plotly_cyberpunk(fig_bench)
                         st.plotly_chart(fig_bench, use_container_width=True, key="fig_benchmark")
                         add_download_button(fig_bench, "benchmark_analyza")
@@ -2481,6 +2517,7 @@ def main():
             fig_curr.update_layout(barmode='group', template="plotly_dark", height=300, margin=dict(l=0, r=0, t=30, b=0), font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
             fig_curr.update_xaxes(showgrid=False)
             fig_curr.update_yaxes(showgrid=True, gridcolor='#30363D')
+            fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
             fig_curr = make_plotly_cyberpunk(fig_curr)
             st.plotly_chart(fig_curr, use_container_width=True)
         
@@ -2522,6 +2559,7 @@ def main():
                             corr_matrix = returns.corr()
                             fig_corr = px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale="RdBu_r", origin='lower')
                             fig_corr.update_layout(template="plotly_dark", height=600, font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+                            fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                             fig_corr = make_plotly_cyberpunk(fig_corr)
                             st.plotly_chart(fig_corr, use_container_width=True)
                             avg_corr = corr_matrix.values[np.triu_indices_from(corr_matrix.values, 1)].mean()
@@ -2617,6 +2655,7 @@ def main():
                                 template="plotly_dark"
                             )
                             fig_timeline.update_layout(height=300, xaxis_title="Datum", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+                            fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
                             fig_timeline = make_plotly_cyberpunk(fig_timeline)
                             st.plotly_chart(fig_timeline, use_container_width=True)
                     except Exception as e:
@@ -2726,6 +2765,9 @@ def main():
                 # Nastavení průhlednosti grafu
                 fig_cloud.patch.set_alpha(0) 
                 ax.patch.set_alpha(0)
+                fig, ax = plt.subplots()
+                ax.plot(df['Datum'], df['Cena'], color='#00FF99')
+                ax.set_title("Historie Dividend")
                 make_matplotlib_cyberpunk(fig, ax)
                 st.pyplot(fig_cloud, use_container_width=True)
                 st.divider()
