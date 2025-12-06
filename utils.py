@@ -9,7 +9,8 @@ from email.mime.text import MIMEText
 from fpdf import FPDF
 from datetime import datetime
 import pytz
-
+import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 # Importujeme konstantu z data_manageru, abychom ji nemuseli definovat znovu
 from data_manager import RISK_FREE_RATE 
 
@@ -266,3 +267,56 @@ def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_y
     excess_returns = returns - daily_risk_free_rate
     sharpe_ratio = np.sqrt(periods_per_year) * (excess_returns.mean() / returns.std())
     return sharpe_ratio
+
+import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+
+# --- 1. STYLOVÁNÍ PRO PLOTLY (Interaktivní) ---
+def make_plotly_cyberpunk(fig):
+    """Aplikuje Cyberpunk skin na Plotly graf."""
+    neon_green = "#00FF99"
+    dark_bg = "rgba(0,0,0,0)" # Průhledná
+    grid_color = "#30363D"
+
+    fig.update_layout(
+        paper_bgcolor=dark_bg,
+        plot_bgcolor=dark_bg,
+        font=dict(color=neon_green, family="Courier New"),
+        xaxis=dict(gridcolor=grid_color, zerolinecolor=grid_color, showline=True, linecolor=grid_color),
+        yaxis=dict(gridcolor=grid_color, zerolinecolor=grid_color, showline=True, linecolor=grid_color),
+        legend=dict(bgcolor=dark_bg, bordercolor=grid_color, borderwidth=1),
+        hovermode="x unified"
+    )
+    # Zkusíme nastavit neonovou čáru jako default
+    fig.update_traces(line=dict(width=3, color=neon_green))
+    return fig
+
+# --- 2. STYLOVÁNÍ PRO MATPLOTLIB (Statické) ---
+def make_matplotlib_cyberpunk(fig, ax):
+    """Aplikuje Cyberpunk skin na Matplotlib Figure a Axes."""
+    neon_green = "#00FF99"
+    dark_bg = "#0E1117" # Tmavá (stejná jako pozadí appky), Matplotlib neumí 100% průhlednost vždy hezky
+    text_color = "#00FF99"
+    grid_color = "#30363D"
+
+    # Barva pozadí celého obrázku i grafu
+    fig.patch.set_facecolor(dark_bg)
+    ax.set_facecolor(dark_bg)
+
+    # Barvy textů a popisů
+    ax.xaxis.label.set_color(text_color)
+    ax.yaxis.label.set_color(text_color)
+    ax.title.set_color(text_color)
+    
+    # Barvy čísel na osách (ticks)
+    ax.tick_params(axis='x', colors=text_color)
+    ax.tick_params(axis='y', colors=text_color)
+
+    # Barvy rámečku (spines)
+    for spine in ax.spines.values():
+        spine.set_edgecolor(grid_color)
+
+    # Mřížka
+    ax.grid(True, color=grid_color, linestyle='--', linewidth=0.5, alpha=0.5)
+    
+    return fig
