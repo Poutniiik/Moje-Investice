@@ -1301,9 +1301,6 @@ def main():
             k2.metric("JMĚNÍ (CZK)", f"{celk_hod_czk:,.0f} Kč", f"{(celk_hod_usd-celk_inv_usd)*kurzy['CZK']:+,.0f} Kč")
             k3.metric("ZMĚNA 24H", f"${zmena_24h:+,.0f}", f"{pct_24h:+.2f}%")
             k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
-
-        # ... (tady jsou ty metriky k1, k2...) ...
-            k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
         
         # 👇👇👇 VLOŽIT TENTO NOVÝ BLOK HNED POD METRIKY 👇👇👇
         
@@ -3308,6 +3305,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
