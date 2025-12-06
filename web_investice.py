@@ -97,8 +97,7 @@ def get_css(theme):
     base_css = """
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stApp {margin-top: -80px;}
+    .stApp {margin-top: -30px;}
     """
     
     if theme == "🕹️ Cyberpunk (Retro)":
@@ -3263,6 +3262,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
