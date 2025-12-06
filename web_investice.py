@@ -2383,8 +2383,6 @@ def main():
 
         with tab4:
             st.subheader("🔮 FINANČNÍ STROJ ČASU")
-            with tab4:
-            st.subheader("🔮 FINANČNÍ STROJ ČASU")
             
             # 👇👇👇 VLOŽIT TENTO NOVÝ BLOK (DCA BACKTESTER) HNED SEM NAHORU 👇👇👇
             
@@ -3221,6 +3219,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
