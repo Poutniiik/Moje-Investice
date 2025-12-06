@@ -1631,6 +1631,7 @@ def main():
                         batch_data = yf.download(tickers_list, period="3mo", group_by='ticker', progress=False)
                     except: batch_data = pd.DataFrame()
 
+            # Procházíme sledované akcie
             for _, r in df_watch.iterrows():
                 tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
                 
@@ -1650,12 +1651,9 @@ def main():
                 rsi_val = 50 # Default neutral
                 try:
                     if len(tickers_list) > 1:
-                        # Multi-index
-                        if tk in batch_data.columns.levels[0]:
-                            hist = batch_data[tk]['Close']
+                        if tk in batch_data.columns.levels[0]: hist = batch_data[tk]['Close']
                         else: hist = pd.Series()
                     else:
-                        # Single index (pokud je jen jedna akcie ve watchlistu)
                         if 'Close' in batch_data.columns: hist = batch_data['Close']
                         else: hist = pd.Series()
 
@@ -1668,7 +1666,7 @@ def main():
                         rsi_val = rsi_series.iloc[-1]
                 except: pass
 
-                # 52 Week Range (z fast_info)
+                # 52 Week Range
                 year_low = 0; year_high = 0; range_pos = 0.5
                 try:
                     t_obj = yf.Ticker(tk)
@@ -1676,35 +1674,51 @@ def main():
                     year_high = t_obj.fast_info.year_high
                     if price and year_high > year_low:
                         range_pos = (price - year_low) / (year_high - year_low)
-                        range_pos = max(0.0, min(1.0, range_pos)) # Ořezání 0-1
+                        range_pos = max(0.0, min(1.0, range_pos))
                 except: pass
 
-                # Status text
-                status_text = "💤 Sleduji"
-                dist_to_buy = 0
-                if price:
+                # --- NOVÁ LOGIKA SNIPERA (ZAMĚŘOVAČ) ---
+                status_text = "💤 Wait"
+                proximity_score = 0.0 # 0 = Daleko, 1 = Cíl zasažen
+                
+                if price and price > 0:
+                    # Logika pro NÁKUP (Chceme, aby cena klesla k TargetBuy)
                     if buy_trg > 0:
-                        dist = ((price - buy_trg) / price) * 100
-                        dist_to_buy = dist
-                        if price <= buy_trg: status_text = "🔥 BUY ZONE"
-                        else: status_text = f"Wait (-{dist:.1f}%)"
-                    
-                    if sell_trg > 0 and price >= sell_trg:
-                        status_text = "💰 SELL ZONE"
+                        if price <= buy_trg:
+                            status_text = "🔥 BUY NOW"
+                            proximity_score = 1.0 # Plný zásah
+                        else:
+                            # Pokud je cena do 20% nad cílem, začne se bar plnit
+                            diff_pct = (price - buy_trg) / price
+                            if diff_pct > 0.20: proximity_score = 0.0
+                            else:
+                                proximity_score = 1.0 - (diff_pct / 0.20)
+                                status_text = f"Blíží se ({diff_pct*100:.1f}%)"
+
+                    # Logika pro PRODEJ (Chceme, aby cena rostla k TargetSell)
+                    elif sell_trg > 0:
+                        if price >= sell_trg:
+                            status_text = "💰 SELL NOW"
+                            proximity_score = 1.0
+                        else:
+                            # Pokud je cena do 20% pod cílem
+                            diff_pct = (sell_trg - price) / price
+                            if diff_pct > 0.20: proximity_score = 0.0
+                            else:
+                                proximity_score = 1.0 - (diff_pct / 0.20)
+                                status_text = f"Blíží se ({diff_pct*100:.1f}%)"
                 
-                # RSI Interpretace pro tabulku
-                rsi_display = f"{rsi_val:.0f}"
-                
+                # ULOŽENÍ DO DAT (Tohle jsi tam předtím neměl!)
                 w_data.append({
                     "Symbol": tk, 
                     "Cena": price, 
                     "Měna": cur, 
-                    "RSI (14)": rsi_val, # Číselná hodnota pro sorting/logiku
+                    "RSI (14)": rsi_val,
                     "52T Range": range_pos,
                     "Cíl Buy": buy_trg,
-                    "Status": status_text,
-                    "Zaměřovač": proximity_score
-                    })
+                    "Zaměřovač": proximity_score, # <--- TADY JE TEN BENZÍN!
+                    "Status": status_text
+                })
             
             wdf = pd.DataFrame(w_data)
             
@@ -3227,6 +3241,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
