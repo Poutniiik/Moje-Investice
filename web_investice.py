@@ -1917,7 +1917,7 @@ def main():
                 st.info("Vyberte alespoň jeden ticker (akcii nebo index) pro zobrazení srovnávacího grafu.")
 
 
-                with tab3:
+     with tab3:
     if not vdf.empty:
         st.subheader("🌍 MAPA IMPÉRIA")
         try:
@@ -1948,7 +1948,6 @@ def main():
                 margin={"r": 0, "t": 0, "l": 0, "b": 0}
             )
 
-            # Bezpečné aplikování skinu
             try:
                 fig_map = make_plotly_cyberpunk(fig_map)
             except Exception:
@@ -1966,7 +1965,6 @@ def main():
             if vdf.empty:
                 st.info("Portfolio je prázdné.")
             else:
-                # --- Treemap podle sektorů (hodnota v USD) ---
                 treemap_fig = px.treemap(
                     vdf,
                     path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'],
@@ -1982,7 +1980,6 @@ def main():
                     title="Treemap: rozložení podle sektorů"
                 )
 
-                # Aplikuj cyberpunk skin bezpečně
                 try:
                     treemap_fig = make_plotly_cyberpunk(treemap_fig)
                 except Exception:
@@ -1991,7 +1988,6 @@ def main():
                 st.plotly_chart(treemap_fig, use_container_width=True, key="fig_sektor_map")
                 add_download_button(treemap_fig, "mapa_sektoru")
 
-                # --- Volitelně: samostatný line chart (nepřepisuje treemap) ---
                 if 'Datum' in df.columns and 'Cena' in df.columns and not df.empty:
                     try:
                         line_fig = px.line(df.sort_values('Datum'), x='Datum', y='Cena', title='Vývoj ceny', markers=True)
@@ -2013,8 +2009,6 @@ def main():
             st.error("Chyba mapy.")
     else:
         st.info("Portfolio je prázdné.")
-
-
 
         with tab4:
             st.subheader("🔮 FINANČNÍ STROJ ČASU")
@@ -2962,6 +2956,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
