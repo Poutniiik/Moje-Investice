@@ -44,7 +44,7 @@ from utils import make_plotly_cyberpunk
 fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
 fig = make_plotly_cyberpunk(fig) # <--- TADY JE KOUZLO
 st.plotly_chart(fig, use_container_width=True)
-
+)
 
 from utils import make_matplotlib_cyberpunk
 import matplotlib.pyplot as plt
@@ -2878,6 +2878,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
