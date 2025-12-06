@@ -71,7 +71,7 @@ MAPA APLIKACE:
 3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
 4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
 5. '💎 Dividendy': Historie a graf dividend.
-6. ⚙️ Správa Dat': Zálohy a editace.
+6. '⚙️ Správa Dat': Zálohy a editace.
 """
 
 
@@ -2848,5 +2848,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
