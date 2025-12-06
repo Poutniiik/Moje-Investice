@@ -1720,13 +1720,20 @@ def main():
                         ),
                         "52T Range": st.column_config.ProgressColumn(
                             "Roční Rozsah",
-                            help="Poloha ceny mezi ročním minimem (vlevo) a maximem (vpravo)",
-                            min_value=0,
+                            help="Vlevo = Low, Vpravo = High",
+                            min_value=0, max_value=1, format="" 
+                        ),
+                        # 👇👇👇 NOVÝ SLOUPEC ZAMĚŘOVAČ 👇👇👇
+                        "Zaměřovač": st.column_config.ProgressColumn(
+                            "🎯 Vzdálenost k cíli",
+                            help="Jak blízko je cena k tvému limitu? (Plný = Akce!)",
+                            min_value=0, 
                             max_value=1,
-                            format="" 
+                            format="" # Schováme čísla, chceme jen vizuál
                         )
                     },
-                    column_order=["Symbol", "Cena", "Měna", "RSI (14)", "52T Range", "Cíl Buy", "Status"],
+                    # Přidáme "Zaměřovač" do pořadí sloupců
+                    column_order=["Symbol", "Cena", "Cíl Buy", "Zaměřovač", "Status", "RSI (14)", "52T Range", "Měna"],
                     use_container_width=True, 
                     hide_index=True
                 )
@@ -3219,6 +3226,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
