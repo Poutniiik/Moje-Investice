@@ -3,7 +3,7 @@ import streamlit as st
 # --- STYLY & THEMES ---
 def get_css(theme):
     # =========================================================================
-    # 1. ZÁKLAD (LÉTAJÍCÍ BOT) - TOTO NECHÁVÁME PŮVODNÍ (BEZPEČNÁ ZÓNA)
+    # 1. ZÁKLAD (LÉTAJÍCÍ BOT) - TOTO NECHÁVÁME PŮVODNÍ
     # =========================================================================
     base_css = """
     #MainMenu {visibility: hidden;}
@@ -71,7 +71,7 @@ def get_css(theme):
     """
     
     # =========================================================================
-    # 2. VYLEPŠENÉ TÉMA CYBERPUNK (Tady proběhl upgrade)
+    # 2. VYLEPŠENÉ TÉMA CYBERPUNK (Neon + Nové Menu)
     # =========================================================================
     if theme == "🕹️ Cyberpunk (Retro)":
         return base_css + """
@@ -83,32 +83,30 @@ def get_css(theme):
             font-family: 'Roboto Mono', monospace;
         }
         
-        /* B. Efekt CRT monitoru (proužky přes obrazovku) */
+        /* B. Efekt CRT monitoru */
         .stApp::before {
             content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
             z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
         }
         
-        /* C. NEONOVÉ KARTY PRO ČÍSLA (Metrics) - Upgrade */
+        /* C. NEONOVÉ KARTY */
         div[data-testid="stMetric"] {
             background-color: rgba(22, 27, 34, 0.9); 
             border: 1px solid #30363D; 
             padding: 15px; 
             border-radius: 8px;
-            color: #00FF99; /* Neon zelená čísla */
+            color: #00FF99;
             box-shadow: 0 0 5px rgba(0, 255, 153, 0.1);
-            transition: all 0.3s ease; /* Plynulá animace */
+            transition: all 0.3s ease;
         }
-        
-        /* D. Efekt při najetí myší na kartu */
         div[data-testid="stMetric"]:hover {
-            transform: translateY(-5px); /* Karta trochu povyskočí */
+            transform: translateY(-5px);
             border-color: #00FF99; 
-            box-shadow: 0 0 20px rgba(0, 255, 153, 0.4); /* Záře */
+            box-shadow: 0 0 20px rgba(0, 255, 153, 0.4);
         }
         
-        /* E. TLAČÍTKA (Hacker Style) */
+        /* D. TLAČÍTKA */
         .stButton > button {
             background-color: transparent;
             color: #00FF99;
@@ -119,28 +117,26 @@ def get_css(theme):
         }
         .stButton > button:hover {
             background-color: #00FF99;
-            color: black; /* Text zčerná */
+            color: black;
             box-shadow: 0 0 15px #00FF99;
         }
         
-        /* F. INPUTY (Jako příkazový řádek) */
+        /* E. INPUTY */
         .stTextInput > div > div > input {
             background-color: #0d1117;
             color: #00FF99;
             border: 1px solid #30363D;
             font-family: 'Courier New', monospace;
         }
-        """
-        /* ... předchozí CSS pro Cyberpunk ... */
 
-        /* G. TRANSFORMACE RADIO BUTTONŮ NA MENU (Tohle je ta novinka) */
+        /* F. NOVÉ MENU (Falešný Hover Efekt) */
         
-        /* 1. Schováme ty ošklivé puntíky */
+        /* Schování puntíků */
         div.stRadio > div[role="radiogroup"] > label > div:first-child {
             display: none !important;
         }
 
-        /* 2. Uděláme z textů tlačítka */
+        /* Styl položek menu */
         div.stRadio > div[role="radiogroup"] > label {
             background-color: rgba(13, 17, 23, 0.8);
             border: 1px solid #30363D;
@@ -148,22 +144,22 @@ def get_css(theme):
             margin-bottom: 8px;
             border-radius: 5px;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            color: #8b949e; /* Šedá pro neaktivní */
+            color: #8b949e;
             cursor: pointer;
             display: flex;
-            justify-content: center; /* Zarovnání na střed */
+            justify-content: center;
         }
 
-        /* 3. Efekt při najetí myší (HOVER) - Tady se děje to kouzlo */
+        /* Hover efekt - vysunutí a rozsvícení */
         div.stRadio > div[role="radiogroup"] > label:hover {
             background-color: rgba(0, 255, 153, 0.1);
             border-color: #00FF99;
             color: #00FF99;
-            transform: translateX(10px); /* Tlačítko ujede doprava */
+            transform: translateX(10px);
             box-shadow: -5px 0 10px rgba(0, 255, 153, 0.2);
         }
 
-        /* 4. Aktivní vybraná stránka (Aby svítila trvale) */
+        /* Aktivní položka */
         div.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
             background-color: #00FF99 !important;
             color: black !important;
@@ -172,8 +168,10 @@ def get_css(theme):
             box-shadow: 0 0 15px rgba(0, 255, 153, 0.5);
             transform: scale(1.05);
         }
+        """
+        
     # =========================================================================
-    # 3. OSTATNÍ TÉMATA (Necháváme beze změny)
+    # 3. OSTATNÍ TÉMATA
     # =========================================================================
     elif theme == "💎 Glassmorphism (Modern)":
         return base_css + """
