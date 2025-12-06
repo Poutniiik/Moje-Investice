@@ -44,8 +44,7 @@ from utils import make_plotly_cyberpunk
 fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
 fig = make_plotly_cyberpunk(fig) # <--- TADY JE KOUZLO
 st.plotly_chart(fig, use_container_width=True)
-
-
+)
 from utils import make_matplotlib_cyberpunk
 import matplotlib.pyplot as plt
 
@@ -59,7 +58,7 @@ make_matplotlib_cyberpunk(fig, ax)# <--- TADY JE KOUZLO
 
 # 3. Zobrazíš
 st.pyplot(fig)
-
+)
 # --- KONFIGURACE ---
 st.set_page_config(
     page_title="Terminal Pro",
