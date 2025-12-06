@@ -43,10 +43,6 @@ from ai_brain import (
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
 
-fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
-fig = make_plotly_cyberpunk(fig)
-st.plotly_chart(fig, use_container_width=True)
-
 # ... Vykreslování druhého grafu ...
 fig, ax = plt.subplots()
 ax.plot(df['Datum'], df['Cena'], color='#00FF99')
@@ -2900,4 +2896,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
