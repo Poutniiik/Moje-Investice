@@ -1971,13 +1971,13 @@ try:
                 line_fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono", margin=dict(t=30, l=10, r=10, b=10))
                 try:
                     line_fig = make_plotly_cyberpunk(line_fig)
-                except Exception:
+        except Exception:
                     pass
                 st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
                 add_download_button(line_fig, "vyvoj_ceny")
-            except Exception:
+        except Exception:
                 st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
-            except Exception:
+        except Exception:
             st.error("Chyba mapy.")
 
 
@@ -2927,6 +2927,7 @@ try:
 
 if __name__ == "__main__":
     main()
+
 
 
 
