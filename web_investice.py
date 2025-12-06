@@ -1977,8 +1977,8 @@ try:
                 add_download_button(line_fig, "vyvoj_ceny")
             except Exception:
                 st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
-except Exception:
-    st.error("Chyba mapy.")
+            except Exception:
+            st.error("Chyba mapy.")
 
 
         with tab4:
@@ -2927,6 +2927,7 @@ except Exception:
 
 if __name__ == "__main__":
     main()
+
 
 
 
