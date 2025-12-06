@@ -2056,59 +2056,87 @@ def main():
                     # --- CÍLENÝ AUDIT AKCIE ---
                     target_ticker = cmd_parts[1].upper()
                     
-                    # 1. Najdi fundamentální data
+                    # 1. Najdi fundamentální data z cache Data Core
                     fund_info = core['fundament_data'].get(target_ticker, {})
                     
-                    # 2. Kontrola, zda máme aspoň nějaká data (live data nebo fundamenty)
-                    if not fund_info and target_ticker not in LIVE_DATA:
-                        msg_text = f"❌ Akcie {target_ticker} nebyla nalezena v portfoliu/sledování ani v živých datech. Analýza nelze provést."
-                        msg_icon = "⚠️"
-                    else:
-                        # Získání dat
-                        current_price = LIVE_DATA.get(target_ticker, {}).get('price', 'N/A')
-                        pe_ratio = fund_info.get('trailingPE', 'N/A')
-                        
-                        # Získání Divi Yield pro AI: Hledáme v Data Core (vdf) nebo v fundamentálních datech
-                        divi_yield_raw = fund_info.get('dividendYield', 'N/A')
-                        
-                        # Zkusíme i z portfolia, pokud je akcie držená a má Divi
-                        vdf = core['vdf']
-                        if not vdf.empty and target_ticker in vdf['Ticker'].values:
-                            portfolio_row = vdf[vdf['Ticker'] == target_ticker].iloc[0]
-                            if pd.notna(portfolio_row.get('Divi')):
-                                divi_yield_raw = portfolio_row['Divi']
-                        
-                        # Formátujeme yield pro AI prompt (z 0.005 na 0.5%)
-                        if isinstance(divi_yield_raw, (float, int)) and pd.notna(divi_yield_raw):
-                            # Pro AI pošleme hodnotu, aby ji mohla použít v logice
-                            divi_yield_for_ai = divi_yield_raw
-                            # Pro zobrazení pošleme formátované %
-                            divi_yield_display = f"{divi_yield_raw * 100:.2f}%" 
-                        else:
-                            divi_yield_for_ai = 'N/A'
-                            divi_yield_display = 'N/A'
+                    # NOVINKA: Pokud fundamenty chybí, zkusíme je stáhnout a přidat do cache
+                    if not fund_info:
+                        try:
+                            t_info, _ = ziskej_detail_akcie(target_ticker)
+                            if t_info:
+                                fund_info = t_info
+                                core['fundament_data'][target_ticker] = t_info # Aktualizujeme cache
+                                # Také zkusíme aktualizovat LIVE data, pokud je potřeba
+                                if target_ticker not in LIVE_DATA:
+                                    LIVE_DATA[target_ticker] = {"price": fund_info.get('currentPrice', 'N/A'), "curr": fund_info.get('currency', 'USD')}
+                            else:
+                                msg_text = f"❌ Fundamentální data pro {target_ticker} nebyla nalezena. Analýza nemožná."
+                                msg_icon = "⚠️"
+                                st.session_state['cli_msg'] = (msg_text, msg_icon)
+                                return
 
-                        # Sestavení textu pro AI model
-                        ai_prompt = (
-                            f"Jsi finanční analytik. Analyzuj akcii {target_ticker} na základě jejích fundamentálních dat:\n"
-                            f"Aktuální P/E: {pe_ratio}. Dividendový výnos (jako desetinne cislo, napr. 0.03): {divi_yield_for_ai}.\n"
-                            "Poskytni stručné shrnutí (max 3 věty) o tom, zda je akcie drahá, levná, nebo neutrální, a jaké je její hlavní riziko/příležitost. Pamatuj, ze vykazany dividendovy vynos je již v procentech."
-                        )
-                        
-                        # Volání AI pro kontextuální analýzu akcie
+                        except Exception as e:
+                            msg_text = f"❌ Chyba při získávání dat pro {target_ticker}: {e}"
+                            msg_icon = "⚠️"
+                            st.session_state['cli_msg'] = (msg_text, msg_icon)
+                            return
+                    
+                    # Získání dat
+                    current_price = LIVE_DATA.get(target_ticker, {}).get('price', 'N/A')
+                    pe_ratio = fund_info.get('trailingPE', 'N/A')
+                    
+                    # Získání Divi Yield pro AI: Hledáme v Data Core (vdf) nebo v fundamentálních datech
+                    divi_yield_raw = fund_info.get('dividendYield', 'N/A')
+                    
+                    # Zkusíme i z portfolia, pokud je akcie držená a má Divi
+                    vdf = core['vdf']
+                    if not vdf.empty and target_ticker in vdf['Ticker'].values:
+                        portfolio_row = vdf[vdf['Ticker'] == target_ticker].iloc[0]
+                        if pd.notna(portfolio_row.get('Divi')):
+                            divi_yield_raw = portfolio_row['Divi']
+                    
+                    # Formátujeme yield pro AI prompt (z 0.005 na 0.5%)
+                    if isinstance(divi_yield_raw, (float, int)) and pd.notna(divi_yield_raw):
+                        # Pro AI pošleme hodnotu, aby ji mohla použít v logice
+                        divi_yield_for_ai = divi_yield_raw
+                        # Pro zobrazení pošleme formátované %
+                        divi_yield_display = f"{divi_yield_raw * 100:.2f}%" 
+                    else:
+                        divi_yield_for_ai = 'N/A'
+                        divi_yield_display = 'N/A'
+
+                    # Sestavení textu pro AI model
+                    ai_prompt = (
+                        f"Jsi finanční analytik. Analyzuj akcii {target_ticker} na základě jejích fundamentálních dat:\n"
+                        f"Aktuální P/E: {pe_ratio}. Dividendový výnos (jako desetinne cislo, napr. 0.03): {divi_yield_for_ai}.\n"
+                        "Poskytni stručné shrnutí (max 3 věty) o tom, zda je akcie drahá, levná, nebo neutrální, a jaké je její hlavní riziko/příležitost. Pamatuj, ze vykazany dividendovy vynos je již v procentech."
+                    )
+                    
+                    # Volání AI pro kontextuální analýzu akcie
+                    try:
                         with st.spinner(f"AI provádí analýzu pro {target_ticker}..."):
                             ai_response = model.generate_content(ai_prompt).text
-                        
-                        summary_text = (
-                            f"## 🕵️ Analýza: {target_ticker}\n"
-                            f"- Cena: {current_price}\n"
-                            f"- P/E Ratio: {pe_ratio}\n"
-                            f"- Dividend Yield: {divi_yield_display}\n"
-                            "---"
-                        )
-                        
-                        msg_text = f"🛡️ **HLÁŠENÍ PRO {target_ticker}:**\n{summary_text}\n🤖 **AI Verdikt:** {ai_response}"
-                        msg_icon = "🔬"
+                    except Exception as e:
+                        # Chyba AI volání (včetně 429 quota, síťové chyby, timeout)
+                        if "429" in str(e):
+                            msg_text = f"❌ Chyba kvóty (429): Překročena frekvence volání AI. Zkus to prosím za pár minut."
+                        else:
+                            msg_text = f"❌ Chyba AI ({target_ticker}): Analýza se nezdařila ({e})."
+                        msg_icon = "⚠️"
+                        st.session_state['cli_msg'] = (msg_text, msg_icon)
+                        return # Konec
+
+                    # Zobrazení výsledku
+                    summary_text = (
+                        f"## 🕵️ Analýza: {target_ticker}\n"
+                        f"- Cena: {current_price}\n"
+                        f"- P/E Ratio: {pe_ratio}\n"
+                        f"- Dividend Yield: {divi_yield_display}\n"
+                        "---"
+                    )
+                    
+                    msg_text = f"🛡️ **HLÁŠENÍ PRO {target_ticker}:**\n{summary_text}\n🤖 **AI Verdikt:** {ai_response}"
+                    msg_icon = "🔬"
 
                 else:
                     # --- GLOBÁLNÍ AUDIT PORTFOLIA (Původní logika) ---
@@ -2123,7 +2151,18 @@ def main():
                         best_ticker = vdf_sorted.iloc[0]['Ticker']
                         worst_ticker = vdf_sorted.iloc[-1]['Ticker']
                     
-                    guard_res_text = ask_ai_guard(model, pct_24h, cash_usd, best_ticker, worst_ticker)
+                    # Volání AI strážce
+                    try:
+                        guard_res_text = ask_ai_guard(model, pct_24h, cash_usd, best_ticker, worst_ticker)
+                    except Exception as e:
+                        if "429" in str(e):
+                             msg_text = f"❌ Chyba kvóty (429): Překročena frekvence volání AI. Zkus to prosím za pár minut."
+                        else:
+                            msg_text = f"❌ Chyba AI: Globální audit se nezdařil ({e})."
+                        msg_icon = "⚠️"
+                        st.session_state['cli_msg'] = (msg_text, msg_icon)
+                        return # Konec
+
                     msg_text = f"🛡️ **HLÁŠENÍ STRÁŽCE:**\n{guard_res_text}"
                     msg_icon = "👮"
 
@@ -2171,7 +2210,7 @@ def main():
                 msg_text = "❌ Neznámý příkaz nebo formát"
                 msg_icon = "❓"
         except Exception as e:
-            msg_text = f"❌ Chyba: {str(e)}"
+            msg_text = f"❌ Neočekávaná chyba: {str(e)}"
             msg_icon = "⚠️"
 
         # Uložíme zprávu do session state, aby se zobrazila po reloadu
