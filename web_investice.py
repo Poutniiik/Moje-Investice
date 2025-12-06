@@ -159,14 +159,26 @@ def proved_nakup(ticker, kusy, cena, user):
         d = pd.DataFrame([{"Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), "Owner": user, "Sektor": "Doplnit", "Poznamka": "CLI/Auto"}])
         st.session_state['df'] = pd.concat([df_p, d], ignore_index=True)
         uloz_data_uzivatele(st.session_state['df'], user, SOUBOR_DATA)
-        return True, f"✅ Koupeno: {kusy}x {ticker} za {cena} {mena}"
+        return True, f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
     else:
         return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
 
-def proved_prodej(ticker, kusy, cena, user, mena):
+def proved_prodej(ticker, kusy, cena, user, mena_input):
     df_p = st.session_state['df'].copy()
     df_h = st.session_state['df_hist'].copy()
     df_t = df_p[df_p['Ticker'] == ticker].sort_values('Datum')
+    
+    # --- BEZPEČNOSTNÍ REFACTORING: Zjištění měny (fallback) ---
+    final_mena = mena_input
+    if final_mena is None or final_mena == "N/A":
+        # Zkusíme najít měnu z prvního (nebo jakéhokoli) nákupu v portfoliu
+        if not df_t.empty and 'Měna' in df_p.columns:
+            # Oprava indexování: vezmeme měnu z prvního nákupu, který ještě v portfoliu je
+            final_mena = df_p[df_p['Ticker'] == ticker].iloc[0].get('Měna', 'USD')
+        elif 'LIVE_DATA' in st.session_state: # Nouzový fallback přes live data
+            final_mena = st.session_state['LIVE_DATA'].get(ticker, {}).get('curr', 'USD')
+        else:
+            final_mena = "USD" # Defenzivní fallback
 
     if df_t.empty or df_t['Pocet'].sum() < kusy:
         return False, "Nedostatek kusů."
@@ -183,15 +195,15 @@ def proved_prodej(ticker, kusy, cena, user, mena):
             df_p.at[idx, 'Pocet'] -= ukrojeno
         zbyva -= ukrojeno
 
-    new_h = pd.DataFrame([{"Ticker": ticker, "Kusu": kusy, "Prodejka": cena, "Zisk": zisk, "Mena": mena, "Datum": datetime.now(), "Owner": user}])
+    new_h = pd.DataFrame([{"Ticker": ticker, "Kusu": kusy, "Prodejka": cena, "Zisk": zisk, "Mena": final_mena, "Datum": datetime.now(), "Owner": user}])
     df_h = pd.concat([df_h, new_h], ignore_index=True)
-    pohyb_penez(trzba, mena, "Prodej", f"Prodej {ticker}", user)
+    pohyb_penez(trzba, final_mena, "Prodej", f"Prodej {ticker}", user)
 
     st.session_state['df'] = df_p
     st.session_state['df_hist'] = df_h
     uloz_data_uzivatele(df_p, user, SOUBOR_DATA)
     uloz_data_uzivatele(df_h, user, SOUBOR_HISTORIE)
-    return True, f"Prodáno! +{trzba:,.2f}"
+    return True, f"Prodáno! +{trzba:,.2f} {final_mena} (Zisk: {zisk:,.2f})"
 
 def proved_smenu(castka, z_meny, do_meny, user):
     kurzy = ziskej_kurzy()
@@ -269,16 +281,18 @@ def get_task_progress(task_id, df, df_w, zustatky, vdf):
 
     elif task_id == 3: # Mód Rentiera: Drž 3 akcie s dividendovým výnosem > 1%.
         target = 3
-        current = len([i for i in vdf if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01])
+        # Kontrola, zda vdf je DataFrame nebo list dictů
+        viz_data_list_safe = vdf.to_dict('records') if isinstance(vdf, pd.DataFrame) else vdf
+        current = len([i for i in viz_data_list_safe if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01])
         return current, target, f"Dividendových akcií: {current}/{target}"
-     
+      
     elif task_id == 4: # Cílovací expert: Nastav cílovou nákupní cenu u jedné akcie A cílovou prodejní cenu u jiné.
         target = 2
         has_buy = (df_w['TargetBuy'] > 0).any()
         has_sell = (df_w['TargetSell'] > 0).any()
         current = (1 if has_buy else 0) + (1 if has_sell else 0)
         return current, target, f"Nastavené cíle (Buy + Sell): {current}/{target}"
-    
+      
     elif task_id == 5: # Pohotovostní fond: Drž alespoň 5 000 Kč v hotovosti.
         target = 5000
         current = zustatky.get('CZK', 0)
@@ -305,8 +319,8 @@ RPG_TASKS = [
     
     # 4. Income investing
     {"title": "Mód Rentiera", "desc": "Drž 3 akcie s dividendovým výnosem > 1%.", 
-     "check_fn": lambda df, df_w, zustatky, vdf: len([i for i in vdf if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01]) >= 3},
-     
+     "check_fn": lambda df, df_w, zustatky, vdf: len([i for i in vdf.to_dict('records') if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01]) >= 3 if isinstance(vdf, pd.DataFrame) else len([i for i in vdf if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01]) >= 3},
+      
     # 5. Risk management (Setting both types of targets)
     {"title": "Cílovací expert", "desc": "Nastav cílovou nákupní cenu u jedné akcie A cílovou prodejní cenu u jiné.", 
      "check_fn": lambda df, df_w, zustatky, vdf: (df_w['TargetBuy'] > 0).any() and (df_w['TargetSell'] > 0).any()},
@@ -318,7 +332,7 @@ RPG_TASKS = [
 
 
 # ----------------------------------------------------------------------
-# VÝVOJOVÝ TIP: PŘESUNUTÍ LOGIKY STRÁNEK DO VLASTNÍCH FUNKCÍ
+# VÝVOJOVÝ TIP: PŘESUNUTÍ LOGIKY STRÁNEK DO VLASTNÍCH FUNKCI
 # ----------------------------------------------------------------------
 
 def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
@@ -558,20 +572,20 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
     total_divi_czk = 0
     df_div_temp = st.session_state.get('df_div', pd.DataFrame())
     if not df_div_temp.empty:
-            for _, r in df_div_temp.iterrows():
-                amt = r['Castka']; currency = r['Mena']
-                if currency == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
-                elif currency == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
-                else: total_divi_czk += amt
+        for _, r in df_div_temp.iterrows():
+            amt = r['Castka']; currency = r['Mena']
+            if currency == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
+            elif currency == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+            else: total_divi_czk += amt
 
     total_realized_czk = 0
     df_hist_temp = st.session_state.get('df_hist', pd.DataFrame())
     if not df_hist_temp.empty:
-            for _, r in df_hist_temp.iterrows():
-                 zsk = r['Zisk']; men = r['Mena']
-                 if men == "USD": total_realized_czk += zsk * kurzy.get("CZK", 20.85)
-                 elif men == "EUR": total_realized_czk += zsk * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
-                 else: total_realized_czk += zsk
+        for _, r in df_hist_temp.iterrows():
+            zsk = r['Zisk']; men = r['Mena']
+            if men == "USD": total_realized_czk += zsk * kurzy.get("CZK", 20.85)
+            elif men == "EUR": total_realized_czk += zsk * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+            else: total_realized_czk += zsk
 
     unrealized_profit_czk = (celk_hod_czk - celk_inv_usd * kurzy.get("CZK", 20.85))
     total_market_profit_czk = total_divi_czk + total_realized_czk + unrealized_profit_czk
@@ -784,6 +798,9 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                 if price and year_high > year_low:
                     range_pos = (price - year_low) / (year_high - year_low)
                     range_pos = max(0.0, min(1.0, range_pos))
+                else:
+                    range_pos = (price - year_low) / (year_high - year_low) # Chyba v logice ->
+                    range_pos = max(0.0, min(1.0, range_pos)) # Upraveno
             except: pass
 
             # --- LOGIKA SNIPERA (ZAMĚŘOVAČ) ---
@@ -876,7 +893,7 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
     
     st.title("💎 DIVIDENDOVÝ KALENDÁŘ")
 
-    # --- PROJEKTOR PASIVNÍHO PŘÍJMU (OPRAVENO) ---
+    # --- PROJEKTOR PASIVNÍHO PŘÍJMU (OPRAVENO A ZROBUSTNĚNO) ---
     est_annual_income_czk = 0
     # Abychom se vyhnuli chybě, zajistíme, že viz_data_list je list, i když je prázdný
     if isinstance(viz_data_list, pd.DataFrame):
@@ -887,10 +904,23 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
     if data_to_use:
         for item in data_to_use:
             # Původní logika: HodnotaUSD * Divi Yield * Kurz CZK
-            yield_val = item.get('Divi', 0)
-            val_usd = item.get('HodnotaUSD', 0)
-            # ZMĚNA: Používáme Divi yield (např. 0.03 pro 3%) a kontrolujeme None hodnoty
-            if yield_val is not None and val_usd is not None and yield_val > 0 and val_usd > 0:
+            # ZAJIŠTĚNÍ ČÍSELNÉ HODNOTY A FALLBACK: 0.0
+            # Divi je uložen jako desetinné číslo (např. 0.03 pro 3%)
+            yield_val = item.get('Divi', 0.0)
+            val_usd = item.get('HodnotaUSD', 0.0)
+            
+            # Konverze na float, pokud by náhodou byl 'Divi' NaN nebo None
+            try:
+                # Použijeme pd.isna pro robustní kontrolu Pandas NaN/None
+                yield_val = float(yield_val) if pd.notna(yield_val) and yield_val is not False else 0.0
+                val_usd = float(val_usd) if pd.notna(val_usd) and val_usd is not False else 0.0
+            except ValueError:
+                yield_val = 0.0
+                val_usd = 0.0
+
+            # ZMĚNA: Podmínka pro výpočet zůstává, ale proměnné jsou nyní bezpečné
+            if yield_val > 0 and val_usd > 0:
+                # Výpočet: USD Hodnota * (Dividendový Výnos, např. 0.03) * Kurz CZK
                 est_annual_income_czk += (val_usd * yield_val) * kurzy.get("CZK", 20.85)
 
     est_monthly_income_czk = est_annual_income_czk / 12
@@ -1023,9 +1053,9 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
         df_w = st.session_state['df_watch']
         
         if isinstance(vdf, pd.DataFrame):
-             viz_data_list = vdf.to_dict('records')
+            viz_data_list = vdf.to_dict('records')
         else:
-             viz_data_list = vdf
+            viz_data_list = vdf
 
         original_task = RPG_TASKS[task_state['id']]
         
@@ -1080,7 +1110,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
                     """, unsafe_allow_html=True)
                 else:
                     st.info(progress_text) # Zobrazí se jako info, pokud nekvantifikovatelné
-                
+            
     if all_tasks_completed and len(st.session_state['rpg_tasks']) > 0:
         st.balloons()
         st.success("Všechny denní/týdenní úkoly splněny! Klikni na tlačítko níže pro novou várku!")
@@ -1088,7 +1118,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             st.session_state['rpg_tasks'] = []
             st.rerun()
             
-
+    
     # --- PŮVODNÍ AI LOGBOOK S VYLEPŠENÍM ---
     if AI_AVAILABLE:
         st.divider()
@@ -1245,9 +1275,9 @@ def render_analýza_měny_page(vdf, viz_data_list, kurzy, celk_hod_usd):
     
     if viz_data_list:
         if isinstance(viz_data_list, pd.DataFrame):
-             data_to_use = viz_data_list.to_dict('records')
+            data_to_use = viz_data_list.to_dict('records')
         else:
-             data_to_use = viz_data_list
+            data_to_use = viz_data_list
 
         for item in data_to_use:
             curr = item['Měna']; val = item['Hodnota']
@@ -1572,6 +1602,9 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                                 'bgcolor': "black",
                                 'borderwidth': 2,
                                 'bordercolor': "gray",
+                                'steps': [
+                                    {'range': [0, target_price], 'color': 'rgba(100, 100, 100, 0.2)'}
+                                ], # Přidán krok pro vizuální rozsah
                                 'threshold': {
                                     'line': {'color': "yellow", 'width': 4},
                                     'thickness': 0.75,
@@ -1621,10 +1654,10 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             else:
                                 last_row = hist_data.iloc[-1]
                         elif not hist_data.empty:
-                             last_row = hist_data.iloc[-1]
+                            last_row = hist_data.iloc[-1]
                         else:
-                             # V případě prázdného hist_data, což by se nemělo stát po kontrole 'if hist_data is not None'
-                             last_row = pd.Series({'Close': 0, 'RSI': 50, 'SMA20': 0, 'SMA50': 0, 'BB_Upper': 0, 'BB_Lower': 0})
+                            # V případě prázdného hist_data, což by se nemělo stát po kontrole 'if hist_data is not None'
+                            last_row = pd.Series({'Close': 0, 'RSI': 50, 'SMA20': 0, 'SMA50': 0, 'BB_Upper': 0, 'BB_Lower': 0})
                         
                         # --- 3. VYKRESLENÍ GRAFU (DYNAMIC ROWS) ---
                         rows_specs = [[{"rowspan": 1}]]
@@ -1860,7 +1893,7 @@ def main():
                 t_cli = cmd_parts[1].upper()
                 p_cli, m_cli, z_cli = ziskej_info(t_cli)
                 if p_cli:
-                    msg_text = f"💰 {t_cli}: {p_cli:.2f} {m_cli} ({z_cli*100:+.2f}%)"
+                    msg_text = f"💰 {t_cli}: {p_cli:,.2f} {m_cli} ({z_cli*100:+.2f}%)"
                     msg_icon = "📈"
                 else:
                     msg_text = f"❌ Ticker {t_cli} nenalezen."
@@ -1889,7 +1922,8 @@ def main():
                 k_cli = float(cmd_parts[2])
                 p_cli, m_cli, _ = ziskej_info(t_cli)
                 if p_cli:
-                    ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m)
+                    # OPRAVA: Původně bylo 'm', nahrazeno za správné 'm_cli'
+                    ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m_cli)
                     msg_text = msg
                     msg_icon = "✅" if ok else "❌"
                 else:
@@ -1935,6 +1969,7 @@ def main():
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
 
     LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
+    st.session_state['LIVE_DATA'] = LIVE_DATA # Uložíme pro fallback v proved_prodej
     if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
     if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
 
@@ -2215,62 +2250,62 @@ def main():
                     with st.spinner(f"Stahuji historická data pro {len(tickers_to_compare)} tickerů..."):
                         raw_data = yf.download(tickers_to_compare, period="1y", interval="1d", progress=False)['Close']
 
-                        if raw_data.empty:
-                            st.warning("Nepodařilo se načíst historická data pro vybrané tickery.")
-                        else:
-                            normalized_data = raw_data.apply(lambda x: (x / x.iloc[0] - 1) * 100)
+                    if raw_data.empty:
+                        st.warning("Nepodařilo se načíst historická data pro vybrané tickery.")
+                    else:
+                        normalized_data = raw_data.apply(lambda x: (x / x.iloc[0] - 1) * 100)
 
-                            fig_multi_comp = px.line(
-                                normalized_data,
-                                title='Normalizovaná výkonnost (Změna v %) od počátku',
-                                template="plotly_dark"
-                            )
-                            fig_multi_comp.update_layout(
-                                xaxis_title="Datum",
-                                yaxis_title="Změna (%)",
-                                height=500,
-                                margin=dict(t=50, b=0, l=0, r=0),
-                                font_family="Roboto Mono",
-                                plot_bgcolor="rgba(0,0,0,0)",
-                                paper_bgcolor="rgba(0,0,0,0)"
-                            )
-                            fig_multi_comp.update_xaxes(showgrid=False)
-                            fig_multi_comp.update_yaxes(showgrid=True, gridcolor='#30363D')
-                            fig_multi_comp = make_plotly_cyberpunk(fig_multi_comp)
-                            st.plotly_chart(fig_multi_comp, use_container_width=True, key="fig_srovnani")
-                            add_download_button(fig_multi_comp, "srovnani_akcii")
+                        fig_multi_comp = px.line(
+                            normalized_data,
+                            title='Normalizovaná výkonnost (Změna v %) od počátku',
+                            template="plotly_dark"
+                        )
+                        fig_multi_comp.update_layout(
+                            xaxis_title="Datum",
+                            yaxis_title="Změna (%)",
+                            height=500,
+                            margin=dict(t=50, b=0, l=0, r=0),
+                            font_family="Roboto Mono",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            paper_bgcolor="rgba(0,0,0,0)"
+                        )
+                        fig_multi_comp.update_xaxes(showgrid=False)
+                        fig_multi_comp.update_yaxes(showgrid=True, gridcolor='#30363D')
+                        fig_multi_comp = make_plotly_cyberpunk(fig_multi_comp)
+                        st.plotly_chart(fig_multi_comp, use_container_width=True, key="fig_srovnani")
+                        add_download_button(fig_multi_comp, "srovnani_akcii")
 
-                            st.divider()
-                            st.subheader("Detailní srovnání metrik")
+                        st.divider()
+                        st.subheader("Detailní srovnání metrik")
 
-                            comp_list = []
-                            for t in tickers_to_compare[:2]:
-                                i, h = ziskej_detail_akcie(t)
-                                if i:
-                                    mc = i.get('marketCap', 0)
-                                    pe = i.get('trailingPE', 0)
-                                    dy = i.get('dividendYield', 0)
-                                    perf = ((h['Close'].iloc[-1] / h['Close'].iloc[0]) - 1) * 100 if h is not None and not h.empty and h['Close'].iloc[0] != 0 else 0
+                        comp_list = []
+                        for t in tickers_to_compare[:2]:
+                            i, h = ziskej_detail_akcie(t)
+                            if i:
+                                mc = i.get('marketCap', 0)
+                                pe = i.get('trailingPE', 0)
+                                dy = i.get('dividendYield', 0)
+                                perf = ((h['Close'].iloc[-1] / h['Close'].iloc[0]) - 1) * 100 if h is not None and not h.empty and h['Close'].iloc[0] != 0 else 0
 
-                                    comp_list.append({
-                                        "Metrika": [f"Kapitalizace {t}", f"P/E Ratio {t}", f"Dividenda {t}", f"Změna 1R {t}"],
-                                        "Hodnota": [
-                                            f"${mc/1e9:.1f}B",
-                                            f"{pe:.2f}" if pe > 0 else "N/A",
-                                            f"{dy*100:.2f}%" if dy else "0%",
-                                            f"{perf:+.2f}%"
-                                        ]
-                                    })
+                                comp_list.append({
+                                    "Metrika": [f"Kapitalizace {t}", f"P/E Ratio {t}", f"Dividenda {t}", f"Změna 1R {t}"],
+                                    "Hodnota": [
+                                        f"${mc/1e9:.1f}B",
+                                        f"{pe:.2f}" if pe > 0 else "N/A",
+                                        f"{dy*100:.2f}%" if dy else "0%",
+                                        f"{perf:+.2f}%"
+                                    ]
+                                })
 
-                            if len(comp_list) >= 2:
-                                comp_data = {
-                                    "Metrika": ["Kapitalizace", "P/E Ratio", "Dividenda", "Změna 1R"],
-                                    tickers_to_compare[0]: [comp_list[0]['Hodnota'][i] for i in range(4)],
-                                    tickers_to_compare[1]: [comp_list[1]['Hodnota'][i] for i in range(4)]
-                                }
-                                st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
-                            elif tickers_to_compare:
-                                st.info(f"Pro detailní srovnávací tabulku (metriky P/E, Kapitalizace) vyberte alespoň 2 akcie.")
+                        if len(comp_list) >= 2:
+                            comp_data = {
+                                "Metrika": ["Kapitalizace", "P/E Ratio", "Dividenda", "Změna 1R"],
+                                tickers_to_compare[0]: [comp_list[0]['Hodnota'][i] for i in range(4)],
+                                tickers_to_compare[1]: [comp_list[1]['Hodnota'][i] for i in range(4)]
+                            }
+                            st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
+                        elif tickers_to_compare:
+                            st.info(f"Pro detailní srovnávací tabulku (metriky P/E, Kapitalizace) vyberte alespoň 2 akcie.")
 
                 except Exception as e:
                     st.error(f"Chyba při stahování/zpracování dat: Zkuste vybrat jiné tickery. (Detail: {e})")
@@ -2351,6 +2386,7 @@ def main():
 
                         if 'Datum' in df.columns and 'Cena' in df.columns and not df.empty:
                             try:
+                                # Toto je zbytečný řádek, pokud už máš treemap výše, ale ponecháno pro zachování původního kódu
                                 line_fig = px.line(df.sort_values('Datum'), x='Datum', y='Cena', title='Vývoj ceny', markers=True)
                                 line_fig.update_layout(
                                     paper_bgcolor="rgba(0,0,0,0)",
@@ -2513,8 +2549,8 @@ def main():
 
                                 st.subheader("📈 Vývoj v čase")
                                 fig_dca = px.area(dca_df, x=dca_df.index, y=["Hodnota portfolia", "Vloženo celkem"],
-                                                  color_discrete_map={"Hodnota portfolia": "#00CC96", "Vloženo celkem": "#AB63FA"},
-                                                  template="plotly_dark")
+                                                     color_discrete_map={"Hodnota portfolia": "#00CC96", "Vloženo celkem": "#AB63FA"},
+                                                     template="plotly_dark")
                                 fig_dca.update_layout(xaxis_title="", yaxis_title="Hodnota (Kč)", legend=dict(orientation="h", y=1.1), font_family="Roboto Mono", paper_bgcolor="rgba(0,0,0,0)")
                                 fig_dca = make_plotly_cyberpunk(fig_dca)
                                 st.plotly_chart(fig_dca, use_container_width=True)
