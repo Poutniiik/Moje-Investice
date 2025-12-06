@@ -42,14 +42,6 @@ from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis, 
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
-# ... Vykreslování druhého grafu ...
-fig, ax = plt.subplots()
-ax.plot(df['Datum'], df['Cena'], color='#00FF99')
-ax.set_title("Historie Dividend")
-make_matplotlib_cyberpunk(fig, ax)
-st.pyplot(fig)
-
-
 
 # --- KONFIGURACE ---
 st.set_page_config(
@@ -455,6 +447,12 @@ def main():
     fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
     fig = make_plotly_cyberpunk(fig)
     st.plotly_chart(fig, use_container_width=True)
+    # ... Vykreslování druhého grafu ...
+    fig, ax = plt.subplots()
+    ax.plot(df['Datum'], df['Cena'], color='#00FF99')
+    ax.set_title("Historie Dividend")
+    make_matplotlib_cyberpunk(fig, ax)
+    st.pyplot(fig)
     df_cash = st.session_state['df_cash']
     df_div = st.session_state['df_div']
     df_watch = st.session_state['df_watch']
@@ -2872,6 +2870,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
