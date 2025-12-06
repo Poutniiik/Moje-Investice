@@ -23,6 +23,11 @@ import extra_streamlit_components as stx
 import random
 import pytz
 from styles import get_css
+from data_manager import (
+    REPO_NAZEV, SOUBOR_DATA, SOUBOR_UZIVATELE, SOUBOR_HISTORIE, 
+    SOUBOR_CASH, SOUBOR_VYVOJ, SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY,
+    get_repo, zasifruj, uloz_csv, uloz_csv_bezpecne, nacti_csv, 
+    uloz_data_uzivatele, nacti_uzivatele
 
 # --- KONFIGURACE ---
 st.set_page_config(
@@ -32,16 +37,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- KONSTANTY ---
-REPO_NAZEV = "Poutniiik/Moje-Investice" 
-SOUBOR_DATA = "portfolio_data.csv"
-SOUBOR_UZIVATELE = "users_db.csv"
-SOUBOR_HISTORIE = "history_data.csv"
-SOUBOR_CASH = "cash_data.csv"
-SOUBOR_VYVOJ = "value_history.csv"
-SOUBOR_WATCHLIST = "watchlist.csv"
-SOUBOR_DIVIDENDY = "dividends.csv"
-RISK_FREE_RATE = 0.04 
+
 
 # --- ZDROJE ZPRÁV ---
 RSS_ZDROJE = [
@@ -99,28 +95,6 @@ if 'ui_theme' not in st.session_state:
 
 # Aplikujeme styl
 st.markdown(f"<style>{get_css(st.session_state['ui_theme'])}</style>", unsafe_allow_html=True)
-
-# --- PŘIPOJENÍ ---
-try: 
-    if "github" in st.secrets:
-        GITHUB_TOKEN = st.secrets["github"]["token"]
-    else:
-        st.warning("⚠️ GitHub Token nenalezen v Secrets. Aplikace běží v demo režimu (bez ukládání).")
-        GITHUB_TOKEN = ""
-except Exception: 
-    st.error("❌ CHYBA: Problém s načtením Secrets!")
-    st.stop()
-
-def get_repo(): 
-    if not GITHUB_TOKEN: return None
-    try:
-        return Github(GITHUB_TOKEN).get_repo(REPO_NAZEV)
-    except Exception as e:
-        st.error(f"Chyba při připojení k repozitáři: {e}")
-        return None
-
-def zasifruj(text): 
-    return hashlib.sha256(str(text).encode()).hexdigest()
 
 # --- COOKIE MANAGER ---
 def get_manager():
@@ -3279,6 +3253,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
