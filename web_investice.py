@@ -2383,6 +2383,104 @@ def main():
 
         with tab4:
             st.subheader("🔮 FINANČNÍ STROJ ČASU")
+            with tab4:
+            st.subheader("🔮 FINANČNÍ STROJ ČASU")
+            
+            # 👇👇👇 VLOŽIT TENTO NOVÝ BLOK (DCA BACKTESTER) HNED SEM NAHORU 👇👇👇
+            
+            with st.expander("⏳ DCA BACKTESTER (Co kdybych investoval pravidelně?)", expanded=True):
+                st.info("Zjisti, kolik bys měl dnes, kdyby jsi pravidelně nakupoval konkrétní akcii v minulosti.")
+                
+                c_dca1, c_dca2, c_dca3 = st.columns(3)
+                with c_dca1:
+                    dca_ticker = st.text_input("Ticker (např. AAPL, CEZ.PR, BTC-USD)", value="BTC-USD").upper()
+                with c_dca2:
+                    dca_amount = st.number_input("Měsíční vklad (Kč)", value=2000, step=500)
+                with c_dca3:
+                    dca_years = st.slider("Délka investice (roky)", 1, 10, 5)
+
+                if st.button("🚀 SPUSTIT STROJ ČASU", type="primary"):
+                    with st.spinner(f"Vracím se do roku {datetime.now().year - dca_years}..."):
+                        try:
+                            # 1. Stažení historických dat
+                            start_date_dca = datetime.now() - timedelta(days=dca_years*365)
+                            # Stáhneme data s měsíčním intervalem, abychom simulovali výplatu
+                            # Interval '1mo' nám dá cenu vždy k začátku/konci měsíce
+                            dca_hist = yf.download(dca_ticker, start=start_date_dca, interval="1mo", progress=False)
+                            
+                            if not dca_hist.empty:
+                                # Ošetření MultiIndexu (pokud by yfinance zlobilo)
+                                if isinstance(dca_hist.columns, pd.MultiIndex):
+                                    close_prices = dca_hist['Close'].iloc[:, 0]
+                                else:
+                                    close_prices = dca_hist['Close']
+                                
+                                # Vyhodíme prázdné řádky (NaN)
+                                close_prices = close_prices.dropna()
+
+                                # Získání měny pro přepočet (zjednodušeně)
+                                # Pokud je to .PR -> CZK, jinak předpokládáme USD (pro jednoduchost) a násobíme kurzem
+                                is_czk_stock = ".PR" in dca_ticker
+                                conversion_rate = 1.0 if is_czk_stock else kurzy.get("CZK", 21) # Použijeme tvůj fixní kurz nebo načtený
+                                
+                                total_invested_czk = 0
+                                total_shares = 0
+                                portfolio_evolution = []
+                                
+                                # Simulace měsíc po měsíci
+                                for date, price in close_prices.items():
+                                    price_czk = price * conversion_rate
+                                    
+                                    # Nákup za měsíční vklad
+                                    shares_bought = dca_amount / price_czk
+                                    total_shares += shares_bought
+                                    total_invested_czk += dca_amount
+                                    
+                                    # Aktuální hodnota v daném měsíci
+                                    current_value = total_shares * price_czk
+                                    
+                                    portfolio_evolution.append({
+                                        "Datum": date,
+                                        "Hodnota portfolia": current_value,
+                                        "Vloženo celkem": total_invested_czk
+                                    })
+                                
+                                # Výsledek
+                                dca_df = pd.DataFrame(portfolio_evolution).set_index("Datum")
+                                final_val = dca_df["Hodnota portfolia"].iloc[-1]
+                                final_profit = final_val - total_invested_czk
+                                final_roi = (final_profit / total_invested_czk) * 100
+                                
+                                st.divider()
+                                # Metriky
+                                cm1, cm2, cm3 = st.columns(3)
+                                cm1.metric("Vloženo celkem", f"{total_invested_czk:,.0f} Kč")
+                                cm2.metric("Hodnota DNES", f"{final_val:,.0f} Kč", delta=f"{final_profit:+,.0f} Kč")
+                                cm3.metric("Zhodnocení", f"{final_roi:+.2f} %")
+                                
+                                # Graf (Area Chart)
+                                st.subheader("📈 Vývoj v čase")
+                                fig_dca = px.area(dca_df, x=dca_df.index, y=["Hodnota portfolia", "Vloženo celkem"],
+                                                  color_discrete_map={"Hodnota portfolia": "#00CC96", "Vloženo celkem": "#AB63FA"},
+                                                  template="plotly_dark")
+                                fig_dca.update_layout(xaxis_title="", yaxis_title="Hodnota (Kč)", legend=dict(orientation="h", y=1.1), font_family="Roboto Mono", paper_bgcolor="rgba(0,0,0,0)")
+                                st.plotly_chart(fig_dca, use_container_width=True)
+                                
+                                if final_profit > 0:
+                                    st.success(f"🎉 Kdybys začal před {dca_years} lety, mohl jsi si dnes koupit ojeté auto (nebo hodně zmrzliny).")
+                                else:
+                                    st.error("📉 Au. I s pravidelným investováním bys byl v mínusu. To chce silné nervy.")
+                                    
+                            else:
+                                st.warning(f"Nepodařilo se stáhnout historii pro {dca_ticker}. Zkus jiný symbol.")
+                        except Exception as e:
+                            st.error(f"Chyba ve stroji času: {e}")
+            
+            st.divider()
+            
+            # 👇👇👇 TADY POKRAČUJE TVŮJ PŮVODNÍ KÓD (Efektivní Hranice...) 👇👇👇
+            tickers_for_ef = df['Ticker'].unique().tolist()
+            # ... atd ...
             st.write("")
             
             tickers_for_ef = df['Ticker'].unique().tolist()
@@ -3123,6 +3221,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
