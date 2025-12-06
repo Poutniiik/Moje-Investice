@@ -17,6 +17,7 @@ MAPA APLIKACE:
 
 # --- INICIALIZACE ---
 def init_ai():
+    model, AI_AVAILABLE = init_ai()
     """
     Pokusí se připojit k Google Gemini.
     Vrací: (model, True) pokud ok, jinak (None, False)
