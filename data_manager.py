@@ -15,6 +15,7 @@ SOUBOR_CASH = "cash_data.csv"
 SOUBOR_VYVOJ = "value_history.csv"
 SOUBOR_WATCHLIST = "watchlist.csv"
 SOUBOR_DIVIDENDY = "dividends.csv"
+RISK_FREE_RATE = 0.04 # <--- PŘIDÁNO: Bezriziková úroková míra (např. 4%)
 
 # --- PŘIPOJENÍ (GitHub) ---
 # Logika se přesunula sem, aby neznečišťovala main.py
