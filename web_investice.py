@@ -1756,6 +1756,133 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
             else: st.error("Nepodařilo se načíst data o firmě.")
 
 
+# --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
+def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
+    """
+    Spouští všechny složité výpočty a cachuje výsledky do session_state.
+    Tím se zabrání zbytečnému opakování stahování dat a kalkulací.
+    """
+    
+    # Krok 1: Inicializace (zajištění, že máme data k práci)
+    all_tickers = []
+    if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
+    if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
+    
+    # Stáhneme živá data a kurzy
+    LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
+    if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
+    if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
+    st.session_state['LIVE_DATA'] = LIVE_DATA # Uložíme pro fallback v proved_prodej
+    
+    # Krok 2: Fundamentální data pro portfolio
+    fundament_data = {}
+    if not df.empty:
+        tickers_in_portfolio = df['Ticker'].unique().tolist()
+        for tkr in tickers_in_portfolio:
+            info, _ = ziskej_detail_akcie(tkr)
+            fundament_data[tkr] = info
+
+    # Krok 3: Výpočet portfolia
+    viz_data = []
+    celk_hod_usd = 0
+    celk_inv_usd = 0
+
+    if not df.empty:
+        df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
+        df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
+        df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
+
+        for i, (idx, row) in enumerate(df_g.iterrows()):
+            tkr = row['Ticker']
+            p, m, d_zmena = ziskej_info(tkr)
+            if p is None: p = row['Cena']
+            if m is None or m == "N/A": m = "USD"
+
+            fundamenty = fundament_data.get(tkr, {})
+            pe_ratio = fundamenty.get('trailingPE', 0)
+            market_cap = fundamenty.get('marketCap', 0)
+
+            try:
+                raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
+                sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
+            except Exception: sektor = "Doplnit"
+
+            nakupy_data = df[df['Ticker'] == tkr]['Datum']
+            dnes = datetime.now()
+            limit_dni = 1095
+            vsechny_ok = True
+            vsechny_fail = True
+
+            for d in nakupy_data:
+                if (dnes - d).days < limit_dni: vsechny_ok = False
+                else: vsechny_fail = False
+
+            if vsechny_ok: dan_status = "🟢 Free"
+            elif vsechny_fail: dan_status = "🔴 Zdanit"
+            else: dan_status = "🟠 Mix"
+
+            country = "United States"
+            tkr_upper = str(tkr).upper()
+            if tkr_upper.endswith(".PR"): country = "Czechia"
+            elif tkr_upper.endswith(".DE"): country = "Germany"
+            elif tkr_upper.endswith(".L"): country = "United Kingdom"
+            elif tkr_upper.endswith(".PA"): country = "France"
+
+            div_vynos = ziskej_yield(tkr)
+            hod = row['Pocet']*p
+            inv = row['Investice']
+            z = hod-inv
+
+            try:
+                if m == "CZK": k = 1.0 / kurzy.get("CZK", 20.85)
+                elif m == "EUR": k = kurzy.get("EUR", 1.16)
+                else: k = 1.0
+            except Exception: k = 1.0
+
+            celk_hod_usd += hod*k
+            celk_inv_usd += inv*k
+
+            viz_data.append({
+                "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m,
+                "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena,
+                "Země": country,
+                "P/E": pe_ratio,
+                "Kapitalizace": market_cap / 1e9 if market_cap else 0
+            })
+
+    vdf = pd.DataFrame(viz_data) if viz_data else pd.DataFrame()
+
+    # Krok 4: Výpočet denní změny
+    hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
+    zmena_24h = 0
+    pct_24h = 0
+    if len(hist_vyvoje) > 1:
+        vcera = hist_vyvoje.iloc[-2]['TotalUSD']
+        if pd.notnull(vcera) and vcera > 0:
+            zmena_24h = celk_hod_usd - vcera
+            pct_24h = (zmena_24h / vcera * 100)
+
+    # Krok 5: Výpočet hotovosti (USD ekvivalent)
+    cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*kurzy.get("EUR", 1.16))
+
+    # Krok 6: Sestavení a uložení Data Core
+    data_core = {
+        'vdf': vdf,
+        'viz_data_list': viz_data,
+        'celk_hod_usd': celk_hod_usd,
+        'celk_inv_usd': celk_inv_usd,
+        'hist_vyvoje': hist_vyvoje,
+        'zmena_24h': zmena_24h,
+        'pct_24h': pct_24h,
+        'cash_usd': cash_usd,
+        'fundament_data': fundament_data,
+        'kurzy': kurzy,
+        'timestamp': datetime.now()
+    }
+    st.session_state['data_core'] = data_core
+    return data_core
+
+
 # --- HLAVNÍ FUNKCE (Router) ---
 def main():
     # --- INICIALIZACE ---
@@ -1942,7 +2069,7 @@ def main():
 
     # -----------------------------------------------------------
 
-    # --- 2. NAČTENÍ DAT ---
+    # --- 5. NAČTENÍ ZÁKLADNÍCH DAT A JÁDRA ---
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
             st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
@@ -1950,30 +2077,47 @@ def main():
             st.session_state['df_cash'] = nacti_csv(SOUBOR_CASH).query(f"Owner=='{USER}'").copy()
             st.session_state['df_div'] = nacti_csv(SOUBOR_DIVIDENDY).query(f"Owner=='{USER}'").copy()
             st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
+            # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
-
+    
     df = st.session_state['df']
     df_cash = st.session_state['df_cash']
     df_div = st.session_state['df_div']
     df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER)
-    kurzy = ziskej_kurzy()
+    kurzy = ziskej_kurzy() # Inicializace, hodnoty se upřesní v jádru
 
-    # --- 3. VÝPOČTY (Tento blok musí být v main, protože připravuje kontext pro VŠECHNY stránky) ---
-    all_tickers = []
-    viz_data = []
-    celk_hod_usd = 0
-    celk_inv_usd = 0
+    # --- 6. VÝPOČTY (CENTRALIZOVANÝ DAT CORE) ---
+    # Zkontrolujeme cache (např. platnost 5 minut)
+    cache_timeout = timedelta(minutes=5)
+    
+    if ('data_core' not in st.session_state or 
+        (datetime.now() - st.session_state['data_core']['timestamp']) > cache_timeout):
+        
+        with st.spinner("🔄 Aktualizuji datové jádro (LIVE data)..."):
+            data_core = calculate_all_data(USER, df, df_watch, zustatky, kurzy)
+    else:
+        # Použijeme data z cache
+        data_core = st.session_state['data_core']
 
-    if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
-    if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
+    # --- 7. EXTRACT DATA CORE ---
+    vdf = data_core['vdf']
+    viz_data_list = data_core['viz_data_list']
+    celk_hod_usd = data_core['celk_hod_usd']
+    celk_inv_usd = data_core['celk_inv_usd']
+    hist_vyvoje = data_core['hist_vyvoje']
+    zmena_24h = data_core['zmena_24h']
+    pct_24h = data_core['pct_24h']
+    cash_usd = data_core['cash_usd']
+    fundament_data = data_core['fundament_data']
+    LIVE_DATA = st.session_state['LIVE_DATA'] # Vždy musíme vytáhnout z SS, protože ho cachuje calculate_all_data
 
-    LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
-    st.session_state['LIVE_DATA'] = LIVE_DATA # Uložíme pro fallback v proved_prodej
-    if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
-    if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
+    kurz_czk = data_core['kurzy'].get("CZK", 20.85)
+    celk_hod_czk = celk_hod_usd * kurz_czk
+    celk_inv_czk = celk_inv_usd * kurz_czk
 
-    # --- 3.5. KONTROLA WATCHLISTU (ALERTY) ---
+
+    # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
     alerts = []
     if not df_watch.empty:
         for _, r in df_watch.iterrows():
@@ -1994,101 +2138,7 @@ def main():
                         alerts.append(f"{tk}: PRODEJNÍ ALERT! Cena {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # --- VÝPOČET PORTFOLIA + ZÍSKÁNÍ FUNDAMENTŮ ---
-    fundament_data = {}
-    if not df.empty:
-        tickers_in_portfolio = df['Ticker'].unique().tolist()
-        for tkr in tickers_in_portfolio:
-            info, _ = ziskej_detail_akcie(tkr)
-            fundament_data[tkr] = info
-
-    if not df.empty:
-        df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
-        df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
-        df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
-
-        for i, (idx, row) in enumerate(df_g.iterrows()):
-            tkr = row['Ticker']
-            p, m, d_zmena = ziskej_info(tkr)
-            if p is None: p = row['Cena']
-            if m is None or m == "N/A": m = "USD"
-
-            fundamenty = fundament_data.get(tkr, {})
-            pe_ratio = fundamenty.get('trailingPE', 0)
-            market_cap = fundamenty.get('marketCap', 0)
-
-            try:
-                raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
-                sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
-            except Exception: sektor = "Doplnit"
-
-            nakupy_data = df[df['Ticker'] == tkr]['Datum']
-            dnes = datetime.now()
-            limit_dni = 1095
-            vsechny_ok = True
-            vsechny_fail = True
-
-            for d in nakupy_data:
-                if (dnes - d).days < limit_dni: vsechny_ok = False
-                else: vsechny_fail = False
-
-            if vsechny_ok: dan_status = "🟢 Free"
-            elif vsechny_fail: dan_status = "🔴 Zdanit"
-            else: dan_status = "🟠 Mix"
-
-            country = "United States"
-            tkr_upper = str(tkr).upper()
-            if tkr_upper.endswith(".PR"): country = "Czechia"
-            elif tkr_upper.endswith(".DE"): country = "Germany"
-            elif tkr_upper.endswith(".L"): country = "United Kingdom"
-            elif tkr_upper.endswith(".PA"): country = "France"
-
-            div_vynos = ziskej_yield(tkr)
-            hod = row['Pocet']*p
-            inv = row['Investice']
-            z = hod-inv
-
-            try:
-                if m == "CZK": k = 1.0 / kurzy.get("CZK", 20.85)
-                elif m == "EUR": k = kurzy.get("EUR", 1.16)
-                else: k = 1.0
-            except Exception: k = 1.0
-
-            celk_hod_usd += hod*k
-            celk_inv_usd += inv*k
-
-            viz_data.append({
-                "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m,
-                "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena,
-                "Země": country,
-                "P/E": pe_ratio,
-                "Kapitalizace": market_cap / 1e9 if market_cap else 0
-            })
-
-    vdf = pd.DataFrame(viz_data) if viz_data else pd.DataFrame()
-    viz_data_list = viz_data # Pro Gamifikaci (historický formát)
-
-    hist_vyvoje = st.session_state['hist_vyvoje']
-    if celk_hod_usd > 0 and pd.notnull(celk_hod_usd):
-        hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
-
-    kurz_czk = kurzy.get("CZK", 20.85)
-    celk_hod_czk = celk_hod_usd * kurz_czk
-    celk_inv_czk = celk_inv_usd * kurz_czk
-
-    zmena_24h = 0
-    pct_24h = 0
-    if len(hist_vyvoje) > 1:
-        vcera = hist_vyvoje.iloc[-2]['TotalUSD']
-        if pd.notnull(vcera) and vcera > 0:
-            zmena_24h = celk_hod_usd - vcera
-            pct_24h = (zmena_24h / vcera * 100)
-
-    try:
-        cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*kurzy.get("EUR", 1.16))
-    except Exception: cash_usd = 0
-
-    # --- 4. SIDEBAR ---
+    # --- 9. SIDEBAR ---
     with st.sidebar:
         # Lottie Animation Placeholder - Generic tech loop
         lottie_url = "https://lottie.host/02092823-3932-4467-9d7e-976934440263/3q5XJg2Z2W.json" # Public generic tech URL
@@ -2190,7 +2240,7 @@ def main():
             if odeslat_email(st.secrets["email"]["sender"], "Report", msg) == True: st.success("Odesláno!")
             else: st.error("Chyba")
 
-        pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data)
+        pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
         st.download_button(label="📄 STÁHNOUT PDF REPORT", data=pdf_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf", use_container_width=True)
 
         st.divider()
@@ -2214,7 +2264,7 @@ def main():
     if page not in ["🎮 Gamifikace", "⚙️ Nastavení"]:
         render_ticker_tape(LIVE_DATA)
 
-    # --- 5. STRÁNKY (Refaktorovaný router) ---
+    # --- 10. STRÁNKY (Refaktorovaný router) ---
     if page == "🏠 Přehled":
         render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, 
                             zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA)
