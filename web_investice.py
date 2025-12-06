@@ -1917,7 +1917,7 @@ def main():
                 st.info("Vyberte alespoň jeden ticker (akcii nebo index) pro zobrazení srovnávacího grafu.")
 
         with tab3:
-        if not vdf.empty: 
+            if not vdf.empty: 
             st.subheader("🌍 MAPA IMPÉRIA")
             try:
                 df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
@@ -2971,6 +2971,7 @@ elif page == "🎮 Gamifikace":
 
 if __name__ == "__main__":
     main()
+
 
 
 
