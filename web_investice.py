@@ -2062,7 +2062,8 @@ def main():
                     # NOVINKA: Pokud fundamenty chybí, zkusíme je stáhnout a přidat do cache
                     if not fund_info:
                         try:
-                            t_info, _ = ziskej_detail_akcie(target_ticker)
+                            # POZNÁMKA: V reálném kódu by se zde mělo zvážit, zda nechat uživatele čekat na externí API volání
+                            t_info, _ = ziskej_detail_akcie(target_ticker) 
                             if t_info:
                                 fund_info = t_info
                                 core['fundament_data'][target_ticker] = t_info # Aktualizujeme cache
@@ -2126,7 +2127,7 @@ def main():
                         st.session_state['cli_msg'] = (msg_text, msg_icon)
                         return # Konec
 
-                    # Zobrazení výsledku
+                    # Zobrazení výsledku (OPRAVENO FORMÁTOVÁNÍ PRO ČITELNOST)
                     summary_text = (
                         f"## 🕵️ Analýza: {target_ticker}\n"
                         f"- Cena: {current_price}\n"
@@ -2377,7 +2378,24 @@ def main():
         # Zobrazení zprávy z callbacku (pokud existuje z minulé akce)
         if st.session_state.get('cli_msg'):
             txt, ic = st.session_state['cli_msg']
-            st.toast(txt, icon=ic)
+            
+            # --- ZDE JE OPRAVA PRO ZOBRAZENÍ DLOUHÝCH AI REPORTŮ ---
+            if ic in ["🔬", "👮"]:
+                # Pro AI reporty zobrazíme jen notifikaci
+                st.toast(f"{ic} Nové hlášení od AI strážce!", icon=ic)
+                
+                # A celý text reportu zobrazíme čitelně do hlavního panelu (pokud je na domovské stránce)
+                st.markdown(
+                    f"""
+                    <div style="background-color: #161B22; border-left: 4px solid #58A6FF; padding: 15px; border-radius: 5px; margin-top: 15px;">
+                        <p style="margin:0; font-family: 'Roboto Mono'; font-weight: bold;">{txt.replace('\n', '<br>')}</p>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
+            else:
+                st.toast(txt, icon=ic)
+
             st.session_state['cli_msg'] = None # Vyčistit po zobrazení, aby se toast neopakoval
 
         # Input s callbackem - klíčová změna!
