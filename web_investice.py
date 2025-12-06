@@ -28,7 +28,7 @@ from data_manager import (
     SOUBOR_CASH, SOUBOR_VYVOJ, SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY,
     get_repo, zasifruj, uloz_csv, uloz_csv_bezpecne, nacti_csv, 
     uloz_data_uzivatele, nacti_uzivatele
-
+)
 # --- KONFIGURACE ---
 st.set_page_config(
     page_title="Terminal Pro",
@@ -3155,6 +3155,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
