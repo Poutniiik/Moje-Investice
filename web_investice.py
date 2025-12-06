@@ -447,16 +447,16 @@ def main():
             st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
 
-    df = st.session_state['df']
-    fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
-    fig = make_plotly_cyberpunk(fig)
-    st.plotly_chart(fig, use_container_width=True)
+    df = st.session_state['df']  
+def  fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
+     fig = make_plotly_cyberpunk(fig)
+     st.plotly_chart(fig, use_container_width=True)
     # ... Vykreslování druhého grafu ...
-    fig, ax = plt.subplots()
-    ax.plot(df['Datum'], df['Cena'], color='#00FF99')
-    ax.set_title("Historie Dividend")
-    make_matplotlib_cyberpunk(fig, ax)
-    st.pyplot(fig)
+     fig, ax = plt.subplots()
+     ax.plot(df['Datum'], df['Cena'], color='#00FF99')
+     ax.set_title("Historie Dividend")
+     make_matplotlib_cyberpunk(fig, ax)
+     st.pyplot(fig)
     df_cash = st.session_state['df_cash']
     df_div = st.session_state['df_div']
     df_watch = st.session_state['df_watch']
@@ -2874,6 +2874,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
