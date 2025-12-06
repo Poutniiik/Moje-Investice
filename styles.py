@@ -3,7 +3,7 @@ import streamlit as st
 # --- STYLY & THEMES ---
 def get_css(theme):
     # =========================================================================
-    # 1. ZÁKLAD (LÉTAJÍCÍ BOT) - TOTO NECHÁVÁME PŮVODNÍ (BEZPEČNÁ ZÓNA)
+    # 1. ZÁKLAD (LÉTAJÍCÍ BOT) - TOTO NECHÁVÁME PŮVODNÍ
     # =========================================================================
     base_css = """
     #MainMenu {visibility: hidden;}
@@ -11,19 +11,16 @@ def get_css(theme):
     .stApp {margin-top: -30px;}
 
     /* --- MAGIE PRO LÉTAJÍCÍHO BOTA (CSS HACK) --- */
-    /* 1. Pozice celého okna fixně vpravo dole */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) {
         position: fixed !important; bottom: 20px !important; right: 20px !important; 
         width: 380px !important; max-width: 85vw !important; z-index: 99999 !important; 
         background-color: transparent !important; border: none !important; box-shadow: none !important;
     }
     
-    /* 2. Styl zavřeného tlačítka (KULIČKA S FOTKOU) */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary {
         background-color: transparent !important; color: transparent !important;
         height: 70px !important; width: 70px !important; border-radius: 50% !important;
         padding: 0 !important; margin-left: auto !important;
-        /* 👇👇👇 TADY SI VRÁTÍŠ FOTKU SVÉHO PSÍKA 👇👇👇 */
         /* FOTKA PSÍKA ZŮSTÁVÁ ZDE: */
         background-image: url('https://i.postimg.cc/cK5DmzZv/1000001805.jpg'); 
         background-size: cover; background-position: center;
@@ -33,17 +30,14 @@ def get_css(theme):
         transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55), box-shadow 0.3s;
     }
     
-    /* 3. Hover efekt (když na to najedeš myší) */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary:hover {
         transform: scale(1.1) rotate(10deg);
         box-shadow: 0 0 30px rgba(35, 134, 54, 0.9);
         cursor: pointer;
     }
     
-    /* 4. Schování té malé šipky defaultního expandéru */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) summary svg {display: none !important;}
     
-    /* 5. Styl OTEVŘENÉHO okna (Chat) */
     div[data-testid="stExpander"]:has(#floating-bot-anchor) details {
         border-radius: 20px !important; background-color: #161B22 !important; 
         border: 1px solid #30363D !important; box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
@@ -75,48 +69,44 @@ def get_css(theme):
         100% { transform: translateY(0px); }
     }
     """
+    
     # =========================================================================
-    # 2. VYLEPŠENÉ TÉMA CYBERPUNK (Tady proběhl upgrade)
+    # 2. VYLEPŠENÉ TÉMA CYBERPUNK (Neon + Nové Menu)
     # =========================================================================
     if theme == "🕹️ Cyberpunk (Retro)":
         return base_css + """
         /* A. Animované pozadí */
         @keyframes gradient { 0% {background-position: 0% 50%;} 50% {background-position: 100% 50%;} 100% {background-position: 0% 50%;} }
         .stApp {
-            background: linear-gradient(-45deg, #05070a, #0E1117, #161b22, #0d1117);
             background: linear-gradient(-45deg, #05070a, #0E1117, #161b22, #000000);
             background-size: 400% 400%; animation: gradient 20s ease infinite;
             font-family: 'Roboto Mono', monospace;
         }
         
-        /* B. Efekt CRT monitoru (proužky přes obrazovku) */
+        /* B. Efekt CRT monitoru */
         .stApp::before {
             content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
             z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
         }
         
-        /* C. NEONOVÉ KARTY PRO ČÍSLA (Metrics) - Upgrade */
+        /* C. NEONOVÉ KARTY */
         div[data-testid="stMetric"] {
-            background-color: rgba(22, 27, 34, 0.8); border: 1px solid #30363D; padding: 15px; border-radius: 8px;
-            color: #E6EDF3; box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
             background-color: rgba(22, 27, 34, 0.9); 
             border: 1px solid #30363D; 
             padding: 15px; 
             border-radius: 8px;
-            color: #00FF99; /* Neon zelená čísla */
+            color: #00FF99;
             box-shadow: 0 0 5px rgba(0, 255, 153, 0.1);
-            transition: all 0.3s ease; /* Plynulá animace */
+            transition: all 0.3s ease;
         }
-        
-        /* D. Efekt při najetí myší na kartu */
         div[data-testid="stMetric"]:hover {
-            transform: translateY(-5px); /* Karta trochu povyskočí */
+            transform: translateY(-5px);
             border-color: #00FF99; 
-            box-shadow: 0 0 20px rgba(0, 255, 153, 0.4); /* Záře */
+            box-shadow: 0 0 20px rgba(0, 255, 153, 0.4);
         }
         
-        /* E. TLAČÍTKA (Hacker Style) */
+        /* D. TLAČÍTKA */
         .stButton > button {
             background-color: transparent;
             color: #00FF99;
@@ -127,21 +117,61 @@ def get_css(theme):
         }
         .stButton > button:hover {
             background-color: #00FF99;
-            color: black; /* Text zčerná */
+            color: black;
             box-shadow: 0 0 15px #00FF99;
         }
         
-        /* F. INPUTY (Jako příkazový řádek) */
+        /* E. INPUTY */
         .stTextInput > div > div > input {
             background-color: #0d1117;
             color: #00FF99;
             border: 1px solid #30363D;
             font-family: 'Courier New', monospace;
         }
-        """
 
+        /* F. NOVÉ MENU (Falešný Hover Efekt) */
+        
+        /* Schování puntíků */
+        div.stRadio > div[role="radiogroup"] > label > div:first-child {
+            display: none !important;
+        }
+
+        /* Styl položek menu */
+        div.stRadio > div[role="radiogroup"] > label {
+            background-color: rgba(13, 17, 23, 0.8);
+            border: 1px solid #30363D;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            color: #8b949e;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Hover efekt - vysunutí a rozsvícení */
+        div.stRadio > div[role="radiogroup"] > label:hover {
+            background-color: rgba(0, 255, 153, 0.1);
+            border-color: #00FF99;
+            color: #00FF99;
+            transform: translateX(10px);
+            box-shadow: -5px 0 10px rgba(0, 255, 153, 0.2);
+        }
+
+        /* Aktivní položka */
+        div.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
+            background-color: #00FF99 !important;
+            color: black !important;
+            border-color: #00FF99 !important;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(0, 255, 153, 0.5);
+            transform: scale(1.05);
+        }
+        """
+        
     # =========================================================================
-    # 3. OSTATNÍ TÉMATA (Necháváme beze změny)
+    # 3. OSTATNÍ TÉMATA
     # =========================================================================
     elif theme == "💎 Glassmorphism (Modern)":
         return base_css + """
@@ -157,7 +187,7 @@ def get_css(theme):
         h1, h2, h3 { text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
         .stButton>button { border-radius: 20px; background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%); border: none; }
         """
-
+        
     elif theme == "💼 Wall Street (Profi)":
         return base_css + """
         .stApp { background-color: #0e1117; font-family: 'Helvetica Neue', sans-serif; }
