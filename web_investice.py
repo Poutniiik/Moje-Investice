@@ -851,9 +851,7 @@ def main():
                         # 3. Zobrazení výsledku
                         st.markdown("### 📝 VÝSLEDEK AUDITU")
                         st.markdown(audit_res_text)
-                        
-                    except Exception as e:
-                            st.error(f"Chyba auditu: {e}")
+        
         # ----------------------------------
 
         st.write("")
@@ -2838,6 +2836,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
