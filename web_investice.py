@@ -1703,7 +1703,7 @@ def main():
                     "52T Range": range_pos,
                     "Cíl Buy": buy_trg,
                     "Status": status_text,
-                    "Zaměřovač": proximity_score,
+                    "Zaměřovač": proximity_score
                     })
             
             wdf = pd.DataFrame(w_data)
@@ -3227,6 +3227,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
