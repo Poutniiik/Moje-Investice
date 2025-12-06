@@ -2638,8 +2638,7 @@ def main():
                         <p style="font-style: italic; color: #8B949E; margin-top: 10px;">"{rpg_res_text}"</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"Dungeon Master usnul: {e}")
+                   
         
         st.divider()
         st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
@@ -2835,11 +2834,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
