@@ -53,13 +53,13 @@ import matplotlib.pyplot as plt
 fig, ax = plt.subplots()
 ax.plot(df['Datum'], df['Cena'], color='#00FF99') # Ideálně rovnou nastav barvu čáry
 ax.set_title("Historie Dividend")
-)
+
 # 2. Aplikuješ Cyberpunk styl
 make_matplotlib_cyberpunk(fig, ax)# <--- TADY JE KOUZLO
 
 # 3. Zobrazíš
 st.pyplot(fig)
-
+)
 # --- KONFIGURACE ---
 st.set_page_config(
     page_title="Terminal Pro",
@@ -2878,6 +2878,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
