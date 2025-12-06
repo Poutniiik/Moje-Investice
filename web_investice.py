@@ -42,21 +42,17 @@ from ai_brain import (
 from utils import make_plotly_cyberpunk
 
 fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
-fig = make_plotly_cyberpunk(fig)
-st.plotly_chart(fig, use_container_width=True)
-
-# ... Vykreslování druhého grafu ...
-fig, ax = plt.subplots()
-ax.plot(df['Datum'], df['Cena'], color='#00FF99')
-ax.set_title("Historie Dividend")
-make_matplotlib_cyberpunk(fig, ax)
-st.pyplot(fig)
-    
-    # ... zbytek aplikace ...
+        fig = make_plotly_cyberpunk(fig) 
+        st.plotly_chart(fig, use_container_width=True)
 
 from utils import make_matplotlib_cyberpunk
 import matplotlib.pyplot as plt
 
+fig, ax = plt.subplots()
+        ax.plot(df['Datum'], df['Cena'], color='#00FF99')
+        ax.set_title("Historie Dividend")
+        make_matplotlib_cyberpunk(fig, ax)
+        st.pyplot(fig)
 
 
 # --- KONFIGURACE ---
