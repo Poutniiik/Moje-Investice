@@ -244,7 +244,7 @@ def add_download_button(fig, filename):
 
 # --- HLAVNÍ FUNKCE ---
 def main():
- model, AI_AVAILABLE = init_ai()
+     model, AI_AVAILABLE = init_ai()
     
     # ... Zbytek tvého kódu ve funkci main pokračuje dál ...
     st.set_page_config(page_title="Terminal Pro", layout="wide") 
@@ -2839,6 +2839,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
