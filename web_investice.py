@@ -89,6 +89,12 @@ def load_lottieurl(url: str):
     if r.status_code != 200: return None
     return r.json()
 
+# --- NÁSTROJ PRO ŘÍZENÍ STAVU: ZNEHODNOCENÍ DAT ---
+def invalidate_data_core():
+    """Vynutí opětovný přepočet datového jádra při příštím zobrazení stránky."""
+    if 'data_core' in st.session_state:
+        # Nastavíme timestamp do minulosti, čímž vyprší 5minutový limit
+        st.session_state['data_core']['timestamp'] = datetime.now() - timedelta(minutes=6)
 
 # --- DATABÁZE A TRANSAKČNÍ FUNKCE (Zachovány) ---
 def pridat_do_watchlistu(ticker, target_buy, target_sell, user):
@@ -98,6 +104,7 @@ def pridat_do_watchlistu(ticker, target_buy, target_sell, user):
         updated = pd.concat([df_w, new], ignore_index=True)
         st.session_state['df_watch'] = updated
         uloz_data_uzivatele(updated, user, SOUBOR_WATCHLIST)
+        # NEPOTŘEBUJEME INVALIDOVAT: Watchlist nemění hodnotu portfolia
         return True
     return False
 
@@ -106,6 +113,7 @@ def odebrat_z_watchlistu(ticker, user):
     updated = df_w[df_w['Ticker'] != ticker]
     st.session_state['df_watch'] = updated
     uloz_data_uzivatele(updated, user, SOUBOR_WATCHLIST)
+    # NEPOTŘEBUJEME INVALIDOVAT: Watchlist nemění hodnotu portfolia
 
 def get_zustatky(user):
     df_cash = st.session_state.get('df_cash', pd.DataFrame())
@@ -118,6 +126,8 @@ def pohyb_penez(castka, mena, typ, poznamka, user):
     df_cash = pd.concat([df_cash, novy], ignore_index=True)
     st.session_state['df_cash'] = df_cash
     uloz_data_uzivatele(df_cash, user, SOUBOR_CASH)
+    # INVALIDUJEME: Změna hotovosti mění celkovou hodnotu majetku!
+    invalidate_data_core()
 
 def pridat_dividendu(ticker, castka, mena, user):
     df_div = st.session_state['df_div']
@@ -125,6 +135,7 @@ def pridat_dividendu(ticker, castka, mena, user):
     df_div = pd.concat([df_div, novy], ignore_index=True)
     st.session_state['df_div'] = df_div
     uloz_data_uzivatele(df_div, user, SOUBOR_DIVIDENDY)
+    # ZAVOLÁME POHYB PENĚZ (který již invaliduje data core)
     pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user)
 
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
@@ -155,10 +166,13 @@ def proved_nakup(ticker, kusy, cena, user):
     zustatky = get_zustatky(user)
 
     if zustatky.get(mena, 0) >= cost:
-        pohyb_penez(-cost, mena, "Nákup", ticker, user)
+        # POHYB PENĚZ invaliduje cache
+        pohyb_penez(-cost, mena, "Nákup", ticker, user) 
         d = pd.DataFrame([{"Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), "Owner": user, "Sektor": "Doplnit", "Poznamka": "CLI/Auto"}])
         st.session_state['df'] = pd.concat([df_p, d], ignore_index=True)
         uloz_data_uzivatele(st.session_state['df'], user, SOUBOR_DATA)
+        # INVALIDUJEME: Změna portfolia VYŽADUJE přepočet fundamentů
+        invalidate_data_core()
         return True, f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
     else:
         return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
@@ -197,12 +211,15 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
 
     new_h = pd.DataFrame([{"Ticker": ticker, "Kusu": kusy, "Prodejka": cena, "Zisk": zisk, "Mena": final_mena, "Datum": datetime.now(), "Owner": user}])
     df_h = pd.concat([df_h, new_h], ignore_index=True)
+    # POHYB PENĚZ invaliduje cache
     pohyb_penez(trzba, final_mena, "Prodej", f"Prodej {ticker}", user)
 
     st.session_state['df'] = df_p
     st.session_state['df_hist'] = df_h
     uloz_data_uzivatele(df_p, user, SOUBOR_DATA)
     uloz_data_uzivatele(df_h, user, SOUBOR_HISTORIE)
+    # INVALIDUJEME: Změna portfolia VYŽADUJE přepočet fundamentů
+    invalidate_data_core()
     return True, f"Prodáno! +{trzba:,.2f} {final_mena} (Zisk: {zisk:,.2f})"
 
 def proved_smenu(castka, z_meny, do_meny, user):
@@ -215,8 +232,10 @@ def proved_smenu(castka, z_meny, do_meny, user):
     elif do_meny == "CZK": vysledna = castka_usd * kurzy.get("CZK", 20.85)
     elif do_meny == "EUR": vysledna = castka_usd / kurzy.get("EUR", 1.16)
 
+    # POHYB PENĚZ invaliduje cache
     pohyb_penez(-castka, z_meny, "Směna", f"Směna na {do_meny}", user)
     pohyb_penez(vysledna, do_meny, "Směna", f"Směna z {z_meny}", user)
+    # TŘETÍ INVALIDACE není potřeba, protože pohyb_penez invaliduje
     return True, f"Směněno: {vysledna:,.2f} {do_meny}"
 
 def render_ticker_tape(data_dict):
@@ -3120,10 +3139,10 @@ def main():
         t1, t2 = st.tabs(["PORTFOLIO", "HISTORIE"])
         with t1:
             new_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
-            if st.button("Uložit Portfolio"): st.session_state['df'] = new_df; uloz_data_uzivatele(new_df, USER, SOUBOR_DATA); st.success("Uloženo")
+            if st.button("Uložit Portfolio"): st.session_state['df'] = new_df; uloz_data_uzivatele(new_df, USER, SOUBOR_DATA); invalidate_data_core(); st.success("Uloženo"); st.rerun()
         with t2:
             new_h = st.data_editor(st.session_state['df_hist'], num_rows="dynamic", use_container_width=True)
-            if st.button("Uložit Historii"): st.session_state['df_hist'] = new_h; uloz_data_uzivatele(new_h, USER, SOUBOR_HISTORIE); st.success("Uloženo")
+            if st.button("Uložit Historii"): st.session_state['df_hist'] = new_h; uloz_data_uzivatele(new_h, USER, SOUBOR_HISTORIE); invalidate_data_core(); st.success("Uloženo"); st.rerun()
         st.divider(); st.subheader("📦 ZÁLOHA")
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
