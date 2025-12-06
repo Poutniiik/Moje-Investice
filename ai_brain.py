@@ -16,8 +16,9 @@ MAPA APLIKACE:
 """
 
 # --- INICIALIZACE ---
+# soubor: ai_brain.py
+
 def init_ai():
-    model, AI_AVAILABLE = init_ai()
     """
     Pokusí se připojit k Google Gemini.
     Vrací: (model, True) pokud ok, jinak (None, False)
@@ -32,6 +33,9 @@ def init_ai():
             return None, False
     except Exception:
         return None, False
+
+# Tady uvnitř funkce init_ai UŽ NIC DALŠÍHO NEBUDE.
+# A na konci souboru taky nic nespouštěj.
 
 # --- FUNKCE PRO JEDNOTLIVÉ ÚKOLY ---
 
