@@ -131,7 +131,47 @@ def get_css(theme):
             font-family: 'Courier New', monospace;
         }
         """
+        /* ... předchozí CSS pro Cyberpunk ... */
+
+        /* G. TRANSFORMACE RADIO BUTTONŮ NA MENU (Tohle je ta novinka) */
         
+        /* 1. Schováme ty ošklivé puntíky */
+        div.stRadio > div[role="radiogroup"] > label > div:first-child {
+            display: none !important;
+        }
+
+        /* 2. Uděláme z textů tlačítka */
+        div.stRadio > div[role="radiogroup"] > label {
+            background-color: rgba(13, 17, 23, 0.8);
+            border: 1px solid #30363D;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            color: #8b949e; /* Šedá pro neaktivní */
+            cursor: pointer;
+            display: flex;
+            justify-content: center; /* Zarovnání na střed */
+        }
+
+        /* 3. Efekt při najetí myší (HOVER) - Tady se děje to kouzlo */
+        div.stRadio > div[role="radiogroup"] > label:hover {
+            background-color: rgba(0, 255, 153, 0.1);
+            border-color: #00FF99;
+            color: #00FF99;
+            transform: translateX(10px); /* Tlačítko ujede doprava */
+            box-shadow: -5px 0 10px rgba(0, 255, 153, 0.2);
+        }
+
+        /* 4. Aktivní vybraná stránka (Aby svítila trvale) */
+        div.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
+            background-color: #00FF99 !important;
+            color: black !important;
+            border-color: #00FF99 !important;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(0, 255, 153, 0.5);
+            transform: scale(1.05);
+        }
     # =========================================================================
     # 3. OSTATNÍ TÉMATA (Necháváme beze změny)
     # =========================================================================
