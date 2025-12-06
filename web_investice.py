@@ -2628,147 +2628,176 @@ with tab3:
             else: st.info("Portfolio je prázdné.")
 
         with tab9:
-            st.subheader("📅 KALENDÁŘ VÝSLEDKŮ (Earnings)")
-            st.info("Termíny zveřejňování hospodářských výsledků tvých firem. Očekávej volatilitu!")
-            
-            all_my_tickers = []
-            if not df.empty: all_my_tickers.extend(df['Ticker'].unique().tolist())
-            if not df_watch.empty: all_my_tickers.extend(df_watch['Ticker'].unique().tolist())
-            all_my_tickers = list(set(all_my_tickers))
-            
-            if all_my_tickers:
-                earnings_data = []
-                with st.spinner(f"Skenuji kalendáře pro {len(all_my_tickers)} firem..."):
-                    # Progress bar pro lepší UX při stahování
-                    prog_bar = st.progress(0)
-                    for i, tk in enumerate(all_my_tickers):
-                        e_date = ziskej_earnings_datum(tk)
-                        if e_date:
-                            # Převedeme na datetime bez timezone pro výpočet
-                            if hasattr(e_date, 'date'): e_date_norm = datetime.combine(e_date, datetime.min.time())
-                            else: e_date_norm = pd.to_datetime(e_date).to_pydatetime()
-                            
-                            days_left = (e_date_norm - datetime.now()).days
-                            
-                            status = "V budoucnu"
-                            color_icon = "⚪️"
-                            
-                            if 0 <= days_left <= 7:
-                                status = f"🔥 POZOR! Za {days_left} dní"
-                                color_icon = "🔴"
-                                st.toast(f"⚠️ {tk} má výsledky za {days_left} dní!", icon="📢")
-                            elif 7 < days_left <= 30:
-                                status = f"Blíží se (za {days_left} dní)"
-                                color_icon = "🟡"
-                            elif days_left < 0:
-                                status = "Již proběhlo"
-                                color_icon = "✔️"
-                            else:
-                                status = f"Za {days_left} dní"
-                                color_icon = "🟢"
+    st.subheader("📅 KALENDÁŘ VÝSLEDKŮ (Earnings)")
+    st.info("Termíny zveřejňování hospodářských výsledků tvých firem. Očekávej volatilitu!")
 
-                            # Přidáme jen budoucí nebo nedávno proběhlé (max 7 dní zpět)
-                            if days_left > -7:
-                                earnings_data.append({
-                                    "Symbol": tk,
-                                    "Datum": e_date_norm.strftime("%d.%m.%Y"),
-                                    "Dní do akce": days_left,
-                                    "Status": status,
-                                    "Ikona": color_icon
-                                })
-                        prog_bar.progress((i + 1) / len(all_my_tickers))
-                    prog_bar.empty()
-                
-                if earnings_data:
-                    # Seřadíme podle počtu dní (nejbližší nahoře)
-                    df_cal = pd.DataFrame(earnings_data).sort_values('Dní do akce')
-                    
-                    # Vizuální úprava tabulky
-                    st.dataframe(
-                        df_cal,
-                        column_config={
-                            "Ikona": st.column_config.TextColumn("Riziko", width="small"),
-                            "Dní do akce": st.column_config.NumberColumn("Odpočet (dny)", format="%d")
-                        },
-                        use_container_width=True,
-                        hide_index=True
+    all_my_tickers = []
+    if not df.empty:
+        all_my_tickers.extend(df['Ticker'].unique().tolist())
+    if not df_watch.empty:
+        all_my_tickers.extend(df_watch['Ticker'].unique().tolist())
+    all_my_tickers = list(set(all_my_tickers))
+
+    if all_my_tickers:
+        earnings_data = []
+        with st.spinner(f"Skenuji kalendáře pro {len(all_my_tickers)} firem..."):
+            prog_bar = st.progress(0)
+            for i, tk in enumerate(all_my_tickers):
+                try:
+                    e_date = ziskej_earnings_datum(tk)
+                    if e_date:
+                        # Převedeme na datetime bez timezone pro výpočet
+                        if hasattr(e_date, 'date'):
+                            e_date_norm = datetime.combine(e_date, datetime.min.time())
+                        else:
+                            e_date_norm = pd.to_datetime(e_date).to_pydatetime()
+
+                        days_left = (e_date_norm - datetime.now()).days
+
+                        status = "V budoucnu"
+                        color_icon = "⚪️"
+
+                        if 0 <= days_left <= 7:
+                            status = f"🔥 POZOR! Za {days_left} dní"
+                            color_icon = "🔴"
+                            st.toast(f"⚠️ {tk} má výsledky za {days_left} dní!", icon="📢")
+                        elif 7 < days_left <= 30:
+                            status = f"Blíží se (za {days_left} dní)"
+                            color_icon = "🟡"
+                        elif days_left < 0:
+                            status = "Již proběhlo"
+                            color_icon = "✔️"
+                        else:
+                            status = f"Za {days_left} dní"
+                            color_icon = "🟢"
+
+                        # Přidáme jen budoucí nebo nedávno proběhlé (max 7 dní zpět)
+                        if days_left > -7:
+                            earnings_data.append({
+                                "Symbol": tk,
+                                "Datum": e_date_norm.strftime("%d.%m.%Y"),
+                                "Dní do akce": days_left,
+                                "Status": status,
+                                "Ikona": color_icon
+                            })
+                except Exception:
+                    # Pokud jedno volání selže, pokračujeme dál (nepřerušíme celý loop)
+                    pass
+                # aktualizace progress baru (bez dělení nulou)
+                try:
+                    prog_bar.progress((i + 1) / len(all_my_tickers))
+                except Exception:
+                    pass
+            prog_bar.empty()
+
+        if earnings_data:
+            df_cal = pd.DataFrame(earnings_data).sort_values('Dní do akce')
+
+            # Vizuální úprava tabulky
+            try:
+                st.dataframe(
+                    df_cal,
+                    column_config={
+                        "Ikona": st.column_config.TextColumn("Riziko", width="small"),
+                        "Dní do akce": st.column_config.NumberColumn("Odpočet (dny)", format="%d")
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+            except Exception:
+                # Fallback pokud starší verze Streamlit nemá column_config
+                st.dataframe(df_cal, use_container_width=True)
+
+            # Timeline graf
+            try:
+                df_future = df_cal[df_cal['Dní do akce'] >= 0].copy()
+                if not df_future.empty:
+                    df_future['Datum_ISO'] = pd.to_datetime(df_future['Datum'], format="%d.%m.%Y")
+                    fig_timeline = px.scatter(
+                        df_future,
+                        x="Datum_ISO",
+                        y="Symbol",
+                        color="Dní do akce",
+                        color_continuous_scale="RdYlGn_r",
+                        size=[20] * len(df_future),
+                        title="Časová osa výsledkové sezóny",
+                        template="plotly_dark"
                     )
-                    
-                    # Timeline graf
+                    fig_timeline.update_layout(
+                        height=300,
+                        xaxis_title="Datum",
+                        yaxis_title="",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font_family="Roboto Mono"
+                    )
+
+                    # Bezpečné stylování a vykreslení
                     try:
-                        # Filtrujeme jen budoucí pro timeline
-                        df_future = df_cal[df_cal['Dní do akce'] >= 0].copy()
-                        if not df_future.empty:
-                            df_future['Datum_ISO'] = pd.to_datetime(df_future['Datum'], format="%d.%m.%Y")
-                            fig_timeline = px.scatter(
-                                df_future, 
-                                x="Datum_ISO", 
-                                y="Symbol", 
-                                color="Dní do akce",
-                                color_continuous_scale="RdYlGn_r", # Červená blízko, Zelená daleko
-                                size=[20]*len(df_future),
-                                title="Časová osa výsledkové sezóny",
-                                template="plotly_dark"
-                            )
-                            fig_timeline.update_layout(height=300, xaxis_title="Datum", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
-                            fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
-                            fig_timeline = make_plotly_cyberpunk(fig_timeline)
-                            st.plotly_chart(fig_timeline, use_container_width=True)
-                    except Exception as e:
-                         st.error(f"Chyba timeline: {e}")
-                         
-                else:
-                    st.info("Žádná data o výsledcích nebyla nalezena (nebo jsou příliš daleko).")
-            else:
-                st.warning("Nemáš žádné akcie v portfoliu ani ve sledování."):
+                        fig_timeline = make_plotly_cyberpunk(fig_timeline)
+                    except Exception:
+                        pass
+                    st.plotly_chart(fig_timeline, use_container_width=True)
+            except Exception as e:
+                st.error(f"Chyba timeline: {e}")
+        else:
+            st.info("Žádná data o výsledcích nebyla nalezena (nebo jsou příliš daleko).")
+    else:
+        st.warning("Nemáš žádné akcie v portfoliu ani ve sledování.")
 
-    elif page == "🎮 Gamifikace":
-        st.title("🎮 INVESTIČNÍ ARÉNA")
-        st.subheader(f"Tvá úroveň: {level_name}")
-        st.progress(level_progress)
-        if celk_hod_czk < 500000:
-            st.caption(f"Do další úrovně ti chybí majetek.")
-        else: st.success("Gratulace! Dosáhl jsi maximální úrovně Velryba 🐋")
+    # konec with tab9
 
-        if AI_AVAILABLE:
-            st.divider()
-            st.subheader("🎲 DENNÍ LOGBOOK (AI Narrator)")
-            
-            # Příprava kontextu pro AI
-            denni_zmena_czk = (celk_hod_usd - celk_inv_usd) * kurzy.get("CZK", 21) # Zjednodušený odhad
-            if len(hist_vyvoje) > 1:
-                denni_zmena_czk = (hist_vyvoje.iloc[-1]['TotalUSD'] - hist_vyvoje.iloc[-2]['TotalUSD']) * kurzy.get("CZK", 21)
-            
-            nalada_ikona = "💀" if denni_zmena_czk < 0 else "💰"
-            
-            if st.button("🎲 GENEROVAT PŘÍBĚH DNE", type="secondary"):
-                with st.spinner("Dungeon Master hází kostkou..."):
-                    # 1. Pro jistotu načteme aktuální Fear & Greed skóre
-                    sc, _ = ziskej_fear_greed()
-                    actual_score = sc if sc else 50 # Default 50 kdyby API nejelo
+# pokračování hlavního flow: page kontrola atd.
+elif page == "🎮 Gamifikace":
+    st.title("🎮 INVESTIČNÍ ARÉNA")
+    st.subheader(f"Tvá úroveň: {level_name}")
+    st.progress(level_progress)
+    if celk_hod_czk < 500000:
+        st.caption("Do další úrovně ti chybí majetek.")
+    else:
+        st.success("Gratulace! Dosáhl jsi maximální úrovně Velryba 🐋")
 
-                    # 2. Zavoláme funkci z ai_brain.py
-                    rpg_res_text = generate_rpg_story(model, level_name, denni_zmena_czk, celk_hod_czk, actual_score)
-                    
-                    # 3. Zobrazíme výsledek (HTML/CSS design zůstává)
-                    st.markdown(f"""
-                    <div style="background-color: #161B22; border-left: 5px solid {'#da3633' if denni_zmena_czk < 0 else '#238636'}; padding: 15px; border-radius: 5px;">
-                        <h4 style="margin:0">{nalada_ikona} DENNÍ ZÁPIS</h4>
-                        <p style="font-style: italic; color: #8B949E; margin-top: 10px;">"{rpg_res_text}"</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                   
-        
+    if AI_AVAILABLE:
         st.divider()
-        st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
-        c1,c2,c3,c4 = st.columns(4)
-        has_first = not df.empty
-        cnt = len(df['Ticker'].unique()) if not df.empty else 0
-        divi_total = 0
-        if not df_div.empty:
-            divi_total = df_div.apply(lambda r: r['Castka'] * (kurzy.get('CZK', 20.85) if r['Mena'] == 'USD' else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)), axis=1).sum()
-        
-        def render_badge(col, title, desc, cond, icon, color):
+        st.subheader("🎲 DENNÍ LOGBOOK (AI Narrator)")
+
+        denni_zmena_czk = (celk_hod_usd - celk_inv_usd) * kurzy.get("CZK", 21)
+        if len(hist_vyvoje) > 1:
+            denni_zmena_czk = (hist_vyvoje.iloc[-1]['TotalUSD'] - hist_vyvoje.iloc[-2]['TotalUSD']) * kurzy.get("CZK", 21)
+
+        nalada_ikona = "💀" if denni_zmena_czk < 0 else "💰"
+
+        if st.button("🎲 GENEROVAT PŘÍBĚH DNE", type="secondary"):
+            with st.spinner("Dungeon Master hází kostkou..."):
+                sc, _ = ziskej_fear_greed()
+                actual_score = sc if sc else 50
+                rpg_res_text = generate_rpg_story(model, level_name, denni_zmena_czk, celk_hod_czk, actual_score)
+                st.markdown(f"""
+                <div style="background-color: #161B22; border-left: 5px solid {'#da3633' if denni_zmena_czk < 0 else '#238636'}; padding: 15px; border-radius: 5px;">
+                    <h4 style="margin:0">{nalada_ikona} DENNÍ ZÁPIS</h4>
+                    <p style="font-style: italic; color: #8B949E; margin-top: 10px;">"{rpg_res_text}"</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+    st.divider()
+    st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
+    c1, c2, c3, c4 = st.columns(4)
+    has_first = not df.empty
+    cnt = len(df['Ticker'].unique()) if not df.empty else 0
+    divi_total = 0
+    if not df_div.empty:
+        divi_total = df_div.apply(
+            lambda r: r['Castka'] * (
+                kurzy.get('CZK', 20.85) if r['Mena'] == 'USD'
+                else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)
+            ),
+            axis=1
+        ).sum()
+
+    def render_badge(col, title, desc, cond, icon, color):
+        # implementace render_badge pokračuje zde...
+        pass
+
             with col:
                 with st.container(border=True):
                     if cond:
@@ -2956,6 +2985,7 @@ with tab3:
 
 if __name__ == "__main__":
     main()
+
 
 
 
