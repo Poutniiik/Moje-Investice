@@ -64,10 +64,6 @@ CITATY = [
 KW_POSITIVNI = ["RŮST", "ZISK", "REKORD", "DIVIDEND", "POKLES INFLACE", "BÝČÍ", "UP", "PROFIT", "HIGHS", "SKOK", "VYDĚLAL"]
 KW_NEGATIVNI = ["PÁD", "ZTRÁTA", "KRIZE", "MEDVĚDÍ", "DOWN", "LOSS", "CRASH", "PRODĚLAL", "VÁLKA", "BANKROT", "INFLACE", "POKLES"]
 
-# --- MANUÁL PRO AI ---
-APP_MANUAL = """
-Jsi asistent v aplikaci 'Terminal Pro'.
-Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
 
 MAPA APLIKACE:
 1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka.
@@ -78,18 +74,8 @@ MAPA APLIKACE:
 6. ⚙️ Správa Dat': Zálohy a editace.
 """
 
-# --- AI SETUP ---
-try:
-    if "google" in st.secrets:
-        GOOGLE_API_KEY = st.secrets["google"]["api_key"]
-        genai.configure(api_key=GOOGLE_API_KEY)
-        AI_MODEL = genai.GenerativeModel('gemini-2.5-flash') 
-        AI_AVAILABLE = True
-    else:
-        AI_AVAILABLE = False
-except Exception:
-    AI_AVAILABLE = False
 
+ 
 # --- APLIKACE STYLU (Tohle se musí stát hned) ---
 # Defaultně nastavíme Cyberpunk, ale uživatel si to může změnit v Sidebaru
 if 'ui_theme' not in st.session_state:
@@ -827,14 +813,17 @@ def main():
                     - Mluv stručně, vojensky/profesionálně, česky.
                     """
                     
+                    # --- AI BODYGUARD (Novinka) ---
+                    # Voláme novou funkci z ai_brain.py
                     try:
-                        guard_res = AI_MODEL.generate_content(prompt_guard)
+                        # 1. Získáme text od AI
+                        guard_res_text = ask_ai_guard(AI_MODEL, pct_24h, cash_usd, top_mover, flop_mover)
                         
-                        # Barva hlášení podle výsledku
+                        # 2. Rozhodneme o barvě hlášení podle toho, jestli jsme v plusu
                         if pct_24h >= 0:
-                            st.success(f"👮 **HLÁŠENÍ:** {guard_res.text}")
+                            st.success(f"👮 **HLÁŠENÍ:** {guard_res_text}")
                         else:
-                            st.warning(f"👮 **HLÁŠENÍ:** {guard_res.text}")
+                            st.warning(f"👮 **HLÁŠENÍ:** {guard_res_text}")
                             
                     except Exception as e:
                         st.error("Strážce neodpovídá.")
@@ -856,37 +845,23 @@ def main():
                 st.metric("Změna", f"{worst['Dnes']*100:+.2f} %", f"Cena: {worst['Cena']:.2f} {worst['Měna']}")
         # -----------------------------------
 
-        # --- NOVÉ: AI PORTFOLIO AUDITOR ---
+       # --- NOVÉ: AI PORTFOLIO AUDITOR ---
         if AI_AVAILABLE and viz_data:
             with st.expander("🧠 AI AUDIT PORTFOLIA (Strategie)", expanded=False):
                 st.info("AI zanalyzuje tvé rozložení aktiv, rizikovost a navrhne vylepšení.")
+                
                 if st.button("🕵️ SPUSTIT HLOUBKOVÝ AUDIT"):
                     with st.spinner("AI počítá rizikové modely..."):
-                        # Příprava dat
+                        # 1. Příprava dat (jen seznam pozic, čísla předáme přímo)
                         port_summary = "\n".join([f"- {i['Ticker']} ({i['Sektor']}): {i['HodnotaUSD']:.0f} USD ({i['Zisk']:.0f} USD zisk)" for i in viz_data])
-                        cash_info = f"Hotovost: {cash_usd:.0f} USD"
-                        total_val = f"Celkové jmění: {celk_hod_usd:.0f} USD"
                         
-                        prompt_audit = f"""
-                        Jsi profesionální portfolio manažer (Hedge Fund). Udělej tvrdý a upřímný audit tohoto portfolia:
+                        # 2. Volání MOZKU (ai_brain.py)
+                        # Všimni si: Žádný prompt tady nepíšeme! Jen předáme data.
+                        audit_res_text = audit_portfolio(AI_MODEL, celk_hod_usd, cash_usd, port_summary)
                         
-                        {total_val}
-                        {cash_info}
-                        
-                        POZICE:
-                        {port_summary}
-                        
-                        ÚKOL:
-                        1. Zhodnoť diverzifikaci (sektory, jednotlivé akcie).
-                        2. Identifikuj největší riziko (koncentrace, měna, sektor).
-                        3. Navrhni 1 konkrétní krok pro vylepšení (co prodat/koupit/změnit).
-                        
-                        Odpověz stručně, profesionálně a česky. Používej formátování (body, tučné písmo).
-                        """
-                        try:
-                            audit_res = AI_MODEL.generate_content(prompt_audit)
-                            st.markdown("### 📝 VÝSLEDEK AUDITU")
-                            st.markdown(audit_res.text)
+                        # 3. Zobrazení výsledku
+                        st.markdown("### 📝 VÝSLEDEK AUDITU")
+                        st.markdown(audit_res_text)
                         except Exception as e:
                             st.error(f"Chyba auditu: {e}")
         # ----------------------------------
@@ -1825,37 +1800,19 @@ def main():
                                # --- NOVÁ FUNKCE: AI TECHNICKÁ ANALÝZA ---
                                 if AI_AVAILABLE:
                                     st.divider()
-                                    if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="primary"):
-                                        with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
-                                            # Vytáhneme data z posledního řádku (last_row už máš definované o kus výš v kódu)
-                                            prompt_tech = f"""
-                                            Jsi expert na technickou analýzu akcií. Analyzuj následující TVRDÁ DATA pro {vybrana_akcie}:
-                                            
-                                            CENA: {last_row['Close']:.2f}
-                                            RSI (14): {last_row['RSI']:.2f} (Nad 70=Překoupeno, Pod 30=Přeprodáno)
-                                            SMA 20: {last_row['SMA20']:.2f}
-                                            SMA 50: {last_row['SMA50']:.2f}
-                                            Bollinger Upper: {last_row['BB_Upper']:.2f}
-                                            Bollinger Lower: {last_row['BB_Lower']:.2f}
-                                            MACD: {last_row['MACD']:.4f} (Signal: {last_row['Signal']:.4f})
-                                            
-                                            ÚKOL:
-                                            1. Urči trend (Je cena nad SMA50?).
-                                            2. Zhodnoť RSI (Je bezpečné teď nakupovat?).
-                                            3. MACD signál (Blíží se překřížení?).
-                                            4. Dej finální verdikt: BÝČÍ (Růst) / MEDVĚDÍ (Pokles) / NEUTRÁLNÍ.
-                                            
-                                            Odpověz stručně, profesionálně, česky a použij formátování (tučné písmo).
-                                            """
-                                            
-                                            try:
-                                                tech_res = AI_MODEL.generate_content(prompt_tech)
-                                                st.markdown(f"""
-                                                <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 10px; padding: 20px; margin-top: 10px;">
-                                                    <h3 style="color: #58A6FF; margin-top: 0;">🤖 AI VERDIKT: {vybrana_akcie}</h3>
-                                                    {tech_res.text}
-                                                </div>
-                                                """, unsafe_allow_html=True)
+                                   if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="primary"):
+                                    with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
+                                        # 1. Zavoláme funkci z ai_brain.py
+                                        # (last_row už máš vypočítané o pár řádků výš v původním kódu)
+                                        tech_res_text = get_tech_analysis(AI_MODEL, vybrana_akcie, last_row)
+                                        
+                                        # 2. Zobrazíme výsledek
+                                        st.markdown(f"""
+                                        <div style="background-color: #0D1117; border: 1px solid #30363D; border-radius: 10px; padding: 20px; margin-top: 10px;">
+                                            <h3 style="color: #58A6FF; margin-top: 0;">🤖 AI VERDIKT: {vybrana_akcie}</h3>
+                                            {tech_res_text}
+                                        </div>
+                                        """, unsafe_allow_html=True)
                                             except Exception as e:
                                                 st.error(f"Chyba AI analýzy: {e}")
                                 # -----------------------------------------
@@ -2680,30 +2637,20 @@ def main():
             
             if st.button("🎲 GENEROVAT PŘÍBĚH DNE", type="secondary"):
                 with st.spinner("Dungeon Master hází kostkou..."):
-                    prompt_rpg = f"""
-                    Jsi cynický vypravěč (Dungeon Master) ve sci-fi cyberpunk hře. Hráč je "Trader".
+                    # 1. Pro jistotu načteme aktuální Fear & Greed skóre
+                    sc, _ = ziskej_fear_greed()
+                    actual_score = sc if sc else 50 # Default 50 kdyby API nejelo
+
+                    # 2. Zavoláme funkci z ai_brain.py
+                    rpg_res_text = generate_rpg_story(AI_MODEL, level_name, denni_zmena_czk, celk_hod_czk, actual_score)
                     
-                    AKTUÁLNÍ STAV MISIE:
-                    - Úroveň hráče: {level_name}
-                    - Dnešní výsledek: {denni_zmena_czk:,.0f} CZK
-                    - Celkové jmění: {celk_hod_czk:,.0f} CZK
-                    - Nálada trhu (Fear/Greed): {score if 'score' in locals() else 'Neznámá'}
-                    
-                    ÚKOL:
-                    Napiš krátký "Zápis z kapitánského deníku" (max 3 věty).
-                    Pokud je výsledek mínusový, popiš to jako poškození lodi, útok hackerů nebo krvácení. Buď drsný.
-                    Pokud je výsledek plusový, popiš to jako úspěšný raid, nalezení lootu nebo upgrade systému. Buď oslavný.
-                    Používej herní/kyberpunkový slang.
-                    """
-                    
-                    try:
-                        rpg_res = AI_MODEL.generate_content(prompt_rpg)
-                        st.markdown(f"""
-                        <div style="background-color: #161B22; border-left: 5px solid {'#da3633' if denni_zmena_czk < 0 else '#238636'}; padding: 15px; border-radius: 5px;">
-                            <h4 style="margin:0">{nalada_ikona} DENNÍ ZÁPIS</h4>
-                            <p style="font-style: italic; color: #8B949E; margin-top: 10px;">"{rpg_res.text}"</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    # 3. Zobrazíme výsledek (HTML/CSS design zůstává)
+                    st.markdown(f"""
+                    <div style="background-color: #161B22; border-left: 5px solid {'#da3633' if denni_zmena_czk < 0 else '#238636'}; padding: 15px; border-radius: 5px;">
+                        <h4 style="margin:0">{nalada_ikona} DENNÍ ZÁPIS</h4>
+                        <p style="font-style: italic; color: #8B949E; margin-top: 10px;">"{rpg_res_text}"</p>
+                    </div>
+                    """, unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"Dungeon Master usnul: {e}")
         
@@ -2871,32 +2818,35 @@ def main():
         if prompt := st.chat_input("Zeptej se..."):
             if not AI_AVAILABLE: st.error("Chybí API klíč.")
             else: st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
+        # 👇👇👇 VLOŽ TOTO MÍSTO TOHO SMAZANÉHO 👇👇👇
         if st.session_state["chat_messages"][-1]["role"] == "user":
             with st.spinner("Přemýšlím..."):
                 last_user_msg = st.session_state["chat_messages"][-1]["content"]
                 
-                # --- VYLEPŠENÝ KONTEXT (Market Awareness) ---
+                # --- Příprava kontextu pro AI (zjednodušeno) ---
+                # Sbíráme data o portfoliu, trhu a náladě, abychom je poslali do ai_brain
                 portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
                 if viz_data: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data])
                 
-                # Přidání tržních dat do promptu (Fear & Greed)
+                # Fear & Greed
                 fg_score, fg_rating = ziskej_fear_greed()
                 if fg_score:
-                    portfolio_context += f"\nAktuální tržní nálada (Fear & Greed Index): {fg_score} ({fg_rating}). Pokud je strach (pod 40), zmiň příležitost k nákupu. Pokud chamtivost (nad 75), varuj před rizikem."
+                    portfolio_context += f"\nTržní nálada: {fg_score} ({fg_rating})."
                 
-                # Přidání sentimentu zpráv (pokud existuje analýza)
+                # Sentiment zpráv
                 ai_news = st.session_state.get('ai_news_analysis', {})
                 if ai_news:
-                    avg_sentiment = sum([v['score'] for v in ai_news.values()]) / len(ai_news) if len(ai_news) > 0 else 50
-                    sentiment_str = "Pozitivní" if avg_sentiment > 60 else ("Negativní" if avg_sentiment < 40 else "Neutrální")
-                    portfolio_context += f"\nAnalýza posledních zpráv vyznívá: {sentiment_str} (Skóre {avg_sentiment:.0f}/100)."
-                # ---------------------------------------------
+                    avg_s = sum([v['score'] for v in ai_news.values()]) / len(ai_news) if len(ai_news) > 0 else 50
+                    portfolio_context += f"\nSentiment zpráv: {avg_s:.0f}/100."
 
-                full_prompt = f"{APP_MANUAL}\n\nDATA A TRŽNÍ KONTEXT:\n{portfolio_context}\n\nDOTAZ UŽIVATELE: {last_user_msg}"
-                try: response = AI_MODEL.generate_content(full_prompt); ai_reply = response.text
-                except Exception as e: ai_reply = f"Chyba: {str(e)}"
-                st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply}); st.rerun()
+                # --- VOLÁNÍ MOZKU (ai_brain.py) ---
+                ai_reply = get_chat_response(AI_MODEL, last_user_msg, portfolio_context)
+                
+                # Uložení a refresh
+                st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
+                st.rerun()
 
 if __name__ == "__main__":
     main()
+
 
