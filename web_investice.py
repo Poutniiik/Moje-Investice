@@ -2735,7 +2735,7 @@ with tab9:
     else:
         st.warning("Nemáš žádné akcie v portfoliu ani ve sledování.")
 
-    elif page == "🎮 Gamifikace":
+elif page == "🎮 Gamifikace":
     st.title("🎮 INVESTIČNÍ ARÉNA")
     st.subheader(f"Tvá úroveň: {level_name}")
     st.progress(level_progress)
@@ -2972,4 +2972,5 @@ with tab9:
 
 if __name__ == "__main__":
     main()
+
 
