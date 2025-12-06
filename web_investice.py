@@ -709,16 +709,6 @@ def main():
     # --- 5. STRÁNKY ---
     if page == "🏠 Přehled":
         st.title(f"🏠 PŘEHLED: {USER.upper()}")
-        fig = px.line(df, x='Datum', y='Cena', title='Vývoj ceny')
-        fig = make_plotly_cyberpunk(fig) 
-        st.plotly_chart(fig, use_container_width=True)
-
-        # 2. Matplotlib
-        fig, ax = plt.subplots()
-        ax.plot(df['Datum'], df['Cena'], color='#00FF99')
-        ax.set_title("Historie Dividend")
-        make_matplotlib_cyberpunk(fig, ax)
-        st.pyplot(fig)
         # --- MAKRO KOMPAS (Globální trhy) ---
         st.caption("🧭 GLOBÁLNÍ KOMPAS")
         try:
@@ -2874,6 +2864,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
