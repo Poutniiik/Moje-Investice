@@ -818,7 +818,7 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                     range_pos = (price - year_low) / (year_high - year_low)
                     range_pos = max(0.0, min(1.0, range_pos))
                 else:
-                    range_pos = (price - year_low) / (year_high - year_low) # Chyba v logice ->
+                    range_pos = (price - year_low) / (year_high - year_high) # Chyba v logice ->
                     range_pos = max(0.0, min(1.0, range_pos)) # Upraveno
             except: pass
 
@@ -2050,7 +2050,7 @@ def main():
                     return # Konec
                     
                 core = st.session_state['data_core']
-                LIVE_DATA = core.get('LIVE_DATA', {}) # Bezpečný přístup
+                LIVE_DATA = st.session_state.get('LIVE_DATA', {}) # Bezpečný přístup k Live datům
 
                 if len(cmd_parts) > 1:
                     # --- CÍLENÝ AUDIT AKCIE ---
@@ -2064,26 +2064,46 @@ def main():
                         msg_text = f"❌ Akcie {target_ticker} nebyla nalezena v portfoliu/sledování ani v živých datech. Analýza nelze provést."
                         msg_icon = "⚠️"
                     else:
-                        # Získání dat (LIVE_DATA je již z Data Core, nebo je prázdné)
+                        # Získání dat
                         current_price = LIVE_DATA.get(target_ticker, {}).get('price', 'N/A')
                         pe_ratio = fund_info.get('trailingPE', 'N/A')
-                        divi_yield = fund_info.get('dividendYield', 'N/A')
                         
+                        # Získání Divi Yield pro AI: Hledáme v Data Core (vdf) nebo v fundamentálních datech
+                        divi_yield_raw = fund_info.get('dividendYield', 'N/A')
+                        
+                        # Zkusíme i z portfolia, pokud je akcie držená a má Divi
+                        vdf = core['vdf']
+                        if not vdf.empty and target_ticker in vdf['Ticker'].values:
+                            portfolio_row = vdf[vdf['Ticker'] == target_ticker].iloc[0]
+                            if pd.notna(portfolio_row.get('Divi')):
+                                divi_yield_raw = portfolio_row['Divi']
+                        
+                        # Formátujeme yield pro AI prompt (z 0.005 na 0.5%)
+                        if isinstance(divi_yield_raw, (float, int)) and pd.notna(divi_yield_raw):
+                            # Pro AI pošleme hodnotu, aby ji mohla použít v logice
+                            divi_yield_for_ai = divi_yield_raw
+                            # Pro zobrazení pošleme formátované %
+                            divi_yield_display = f"{divi_yield_raw * 100:.2f}%" 
+                        else:
+                            divi_yield_for_ai = 'N/A'
+                            divi_yield_display = 'N/A'
+
                         # Sestavení textu pro AI model
                         ai_prompt = (
                             f"Jsi finanční analytik. Analyzuj akcii {target_ticker} na základě jejích fundamentálních dat:\n"
-                            f"Aktuální P/E: {pe_ratio}. Dividendový výnos (jako desetinne cislo, napr. 0.03): {divi_yield}.\n"
-                            "Poskytni stručné shrnutí (max 3 věty) o tom, zda je akcie drahá, levná, nebo neutrální, a jaké je její hlavní riziko/příležitost."
+                            f"Aktuální P/E: {pe_ratio}. Dividendový výnos (jako desetinne cislo, napr. 0.03): {divi_yield_for_ai}.\n"
+                            "Poskytni stručné shrnutí (max 3 věty) o tom, zda je akcie drahá, levná, nebo neutrální, a jaké je její hlavní riziko/příležitost. Pamatuj, ze vykazany dividendovy vynos je již v procentech."
                         )
                         
                         # Volání AI pro kontextuální analýzu akcie
-                        ai_response = model.generate_content(ai_prompt).text
+                        with st.spinner(f"AI provádí analýzu pro {target_ticker}..."):
+                            ai_response = model.generate_content(ai_prompt).text
                         
                         summary_text = (
                             f"## 🕵️ Analýza: {target_ticker}\n"
                             f"- Cena: {current_price}\n"
                             f"- P/E Ratio: {pe_ratio}\n"
-                            f"- Dividend Yield: {divi_yield}\n"
+                            f"- Dividend Yield: {divi_yield_display}\n"
                             "---"
                         )
                         
@@ -2813,9 +2833,6 @@ def main():
                             fig_ef = make_plotly_cyberpunk(fig_ef)
                             st.plotly_chart(fig_ef, use_container_width=True, key="fig_ef_frontier")
                             add_download_button(fig_ef, "efektivni_hranice")
-
-                            st.divider()
-                            c_ef1, c_ef2 = st.columns(2)
 
                             with c_ef1:
                                 st.success("🟢 OPTIMÁLNÍ SHARPE RATIO PORTFOLIO (Max. výnos k riziku)")
