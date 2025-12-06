@@ -1954,7 +1954,7 @@ def main():
 
                 st.plotly_chart(fig_map, use_container_width=True, key="fig_mapa_imperia")
                 add_download_button(fig_map, "mapa_imperia")
-    except Exception as e:
+        except Exception as e:
                 st.error(f"Chyba mapy: {e}")
 
         st.divider()
@@ -2971,6 +2971,7 @@ elif page == "🎮 Gamifikace":
 
 if __name__ == "__main__":
     main()
+
 
 
 
