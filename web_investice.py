@@ -2036,73 +2036,76 @@ def main():
                 msg_icon = "ℹ️"
 
             elif cmd == "/ai_audit":
-                if not st.session_state.get('data_core'):
-                    msg_text = "❌ Datové jádro není inicializováno. Zkus obnovit stránku."
-                    msg_icon = "⚠️"
-                elif not AI_AVAILABLE:
+                # Krok 1: Kontrola AI a Data Core (vždy provést před extenzivní logikou)
+                if not AI_AVAILABLE:
                     msg_text = "❌ AI není dostupná (Chybí API klíč)."
                     msg_icon = "⚠️"
-                else:
-                    # Extrakce dat z centrálního jádra
-                    core = st.session_state['data_core']
+                    st.session_state['cli_msg'] = (msg_text, msg_icon)
+                    return # Konec
+                
+                if 'data_core' not in st.session_state:
+                    msg_text = "❌ Datové jádro není inicializováno. Zkus obnovit stránku."
+                    msg_icon = "⚠️"
+                    st.session_state['cli_msg'] = (msg_text, msg_icon)
+                    return # Konec
                     
-                    if len(cmd_parts) > 1:
-                        # --- CÍLENÝ AUDIT AKCIE ---
-                        target_ticker = cmd_parts[1].upper()
-                        
-                        # 1. Najdi data k akcii
-                        vdf_filtered = core['vdf'][core['vdf']['Ticker'] == target_ticker]
-                        
-                        if vdf_filtered.empty:
-                            msg_text = f"❌ Akcie {target_ticker} není v portfoliu ani ve sledování. Analýza nelze provést."
-                            msg_icon = "⚠️"
-                        else:
-                            # 2. Získej fundamentální a technické data
-                            fund_info = core['fundament_data'].get(target_ticker, {})
-                            
-                            # Simulace získání technické analýzy (pro jednoduchost použijeme jen P/E a Yield)
-                            pe_ratio = fund_info.get('trailingPE', 'N/A')
-                            divi_yield = fund_info.get('dividendYield', 'N/A')
-                            
-                            # Kontrola, zda existuje price
-                            current_price = core['LIVE_DATA'].get(target_ticker, {}).get('price', 'N/A')
-                            
-                            # Sestavení zjednodušeného reportu
-                            summary_text = (
-                                f"## 🕵️ Analýza: {target_ticker}\n"
-                                f"- Cena: {current_price}\n"
-                                f"- P/E Ratio: {pe_ratio}\n"
-                                f"- Dividend Yield: {divi_yield}\n"
-                                "---"
-                            )
-                            
-                            # Volání AI pro kontextuální analýzu akcie
-                            ai_prompt = (
-                                f"Jsi finanční analytik. Analyzuj akcii {target_ticker} na základě jejích fundamentálních dat:\n"
-                                f"Aktuální P/E: {pe_ratio}. Dividendový výnos: {divi_yield}.\n"
-                                "Poskytni stručné shrnutí (max 3 věty) o tom, zda je akcie drahá, levná, nebo neutrální, a jaké je její hlavní riziko/příležitost."
-                            )
-                            ai_response = model.generate_content(ai_prompt).text
-                            
-                            msg_text = f"🛡️ **HLÁŠENÍ PRO {target_ticker}:**\n{summary_text}\n🤖 **AI Verdikt:** {ai_response}"
-                            msg_icon = "🔬"
+                core = st.session_state['data_core']
+                LIVE_DATA = core.get('LIVE_DATA', {}) # Bezpečný přístup
 
+                if len(cmd_parts) > 1:
+                    # --- CÍLENÝ AUDIT AKCIE ---
+                    target_ticker = cmd_parts[1].upper()
+                    
+                    # 1. Najdi fundamentální data
+                    fund_info = core['fundament_data'].get(target_ticker, {})
+                    
+                    # 2. Kontrola, zda máme aspoň nějaká data (live data nebo fundamenty)
+                    if not fund_info and target_ticker not in LIVE_DATA:
+                        msg_text = f"❌ Akcie {target_ticker} nebyla nalezena v portfoliu/sledování ani v živých datech. Analýza nelze provést."
+                        msg_icon = "⚠️"
                     else:
-                        # --- GLOBÁLNÍ AUDIT PORTFOLIA (Původní logika) ---
-                        pct_24h = core['pct_24h']
-                        cash_usd = core['cash_usd']
-                        vdf = core['vdf']
+                        # Získání dat (LIVE_DATA je již z Data Core, nebo je prázdné)
+                        current_price = LIVE_DATA.get(target_ticker, {}).get('price', 'N/A')
+                        pe_ratio = fund_info.get('trailingPE', 'N/A')
+                        divi_yield = fund_info.get('dividendYield', 'N/A')
                         
-                        best_ticker = "N/A"
-                        worst_ticker = "N/A"
-                        if not vdf.empty and 'Dnes' in vdf.columns:
-                            vdf_sorted = vdf.sort_values('Dnes', ascending=False)
-                            best_ticker = vdf_sorted.iloc[0]['Ticker']
-                            worst_ticker = vdf_sorted.iloc[-1]['Ticker']
+                        # Sestavení textu pro AI model
+                        ai_prompt = (
+                            f"Jsi finanční analytik. Analyzuj akcii {target_ticker} na základě jejích fundamentálních dat:\n"
+                            f"Aktuální P/E: {pe_ratio}. Dividendový výnos (jako desetinne cislo, napr. 0.03): {divi_yield}.\n"
+                            "Poskytni stručné shrnutí (max 3 věty) o tom, zda je akcie drahá, levná, nebo neutrální, a jaké je její hlavní riziko/příležitost."
+                        )
                         
-                        guard_res_text = ask_ai_guard(model, pct_24h, cash_usd, best_ticker, worst_ticker)
-                        msg_text = f"🛡️ **HLÁŠENÍ STRÁŽCE:**\n{guard_res_text}"
-                        msg_icon = "👮"
+                        # Volání AI pro kontextuální analýzu akcie
+                        ai_response = model.generate_content(ai_prompt).text
+                        
+                        summary_text = (
+                            f"## 🕵️ Analýza: {target_ticker}\n"
+                            f"- Cena: {current_price}\n"
+                            f"- P/E Ratio: {pe_ratio}\n"
+                            f"- Dividend Yield: {divi_yield}\n"
+                            "---"
+                        )
+                        
+                        msg_text = f"🛡️ **HLÁŠENÍ PRO {target_ticker}:**\n{summary_text}\n🤖 **AI Verdikt:** {ai_response}"
+                        msg_icon = "🔬"
+
+                else:
+                    # --- GLOBÁLNÍ AUDIT PORTFOLIA (Původní logika) ---
+                    pct_24h = core['pct_24h']
+                    cash_usd = core['cash_usd']
+                    vdf = core['vdf']
+                    
+                    best_ticker = "N/A"
+                    worst_ticker = "N/A"
+                    if not vdf.empty and 'Dnes' in vdf.columns:
+                        vdf_sorted = vdf.sort_values('Dnes', ascending=False)
+                        best_ticker = vdf_sorted.iloc[0]['Ticker']
+                        worst_ticker = vdf_sorted.iloc[-1]['Ticker']
+                    
+                    guard_res_text = ask_ai_guard(model, pct_24h, cash_usd, best_ticker, worst_ticker)
+                    msg_text = f"🛡️ **HLÁŠENÍ STRÁŽCE:**\n{guard_res_text}"
+                    msg_icon = "👮"
 
             elif cmd == "/price" and len(cmd_parts) > 1:
                 t_cli = cmd_parts[1].upper()
