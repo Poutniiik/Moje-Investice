@@ -2737,7 +2737,6 @@ with tab9:
 
     # konec with tab9
 
-# pokračování hlavního flow: page kontrola atd.
 elif page == "🎮 Gamifikace":
     st.title("🎮 INVESTIČNÍ ARÉNA")
     st.subheader(f"Tvá úroveň: {level_name}")
@@ -2975,6 +2974,7 @@ elif page == "🎮 Gamifikace":
 
 if __name__ == "__main__":
     main()
+
 
 
 
