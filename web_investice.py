@@ -1,39 +1,43 @@
-import streamlit as st
-import pandas as pd
+# --- Standardní knihovny ---
+import io
+import time
+import zipfile
+import hashlib
+import random
+import smtplib
+from io import StringIO
+from datetime import datetime, timedelta
+from email.mime.text import MIMEText
+import pytz
+
+# --- Externí knihovny ---
 import numpy as np
-import yfinance as yf
+import pandas as pd
+import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import matplotlib.pyplot as plt
-from utils import make_plotly_cyberpunk
-from github import Github
-from io import StringIO
-from datetime import datetime, timedelta
-from utils import make_matplotlib_cyberpunk
-import hashlib
-import time
-import zipfile
-import io
+import streamlit as st
+import yfinance as yf
 import requests
 import feedparser
-from streamlit_lottie import st_lottie
-import google.generativeai as genai
-import smtplib
-from email.mime.text import MIMEText
 from fpdf import FPDF
 import extra_streamlit_components as stx
-import random
-import pytz
+from streamlit_lottie import st_lottie
+import google.generativeai as genai
+from github import Github
+
+# --- Vlastní moduly ---
 from styles import get_css
 from data_manager import (
     REPO_NAZEV, SOUBOR_DATA, SOUBOR_UZIVATELE, SOUBOR_HISTORIE, 
     SOUBOR_CASH, SOUBOR_VYVOJ, SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY,
-    RISK_FREE_RATE, # <--- TADY JE NOVÁ ZMĚNA
+    RISK_FREE_RATE,
     get_repo, zasifruj, uloz_csv, uloz_csv_bezpecne, nacti_csv, 
     uloz_data_uzivatele, nacti_uzivatele
 )
 from utils import (
+    make_plotly_cyberpunk, make_matplotlib_cyberpunk,
     ziskej_fear_greed, ziskej_zpravy, ziskej_yield, ziskej_earnings_datum,
     ziskej_detail_akcie, zjisti_stav_trhu, vytvor_pdf_report, odeslat_email,
     ziskej_ceny_hromadne, ziskej_kurzy, ziskej_info, calculate_sharpe_ratio
@@ -2870,6 +2874,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
