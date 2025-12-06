@@ -140,14 +140,18 @@ def get_css(theme):
         div.stRadio > div[role="radiogroup"] > label {
             background-color: rgba(13, 17, 23, 0.8);
             border: 1px solid #30363D;
-            padding: 10px 15px;
+            padding: 12px 5px; /* Upraven padding, ať se to tam vejde */
             margin-bottom: 8px;
             border-radius: 5px;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             color: #8b949e;
             cursor: pointer;
-            display: flex;
-            justify-content: center;
+            
+            /* 👇 TOTO JE TA KLÍČOVÁ ZMĚNA 👇 */
+            display: block; /* Změna z flex na block, aby poslechlo width */
+            width: 100%;    /* Roztáhni se na plnou šířku sidebaru */
+            text-align: center; /* Text pěkně doprostřed */
+            box-sizing: border-box; /* Aby padding nenafukoval šířku */
         }
 
         /* Hover efekt - vysunutí a rozsvícení */
