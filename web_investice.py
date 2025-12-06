@@ -246,13 +246,74 @@ def add_download_button(fig, filename):
         # Tichý fallback - pokud to nejde, zobrazíme jen jemný tip místo chyby
         st.caption("💡 Tip: Pro stažení obrázku použij ikonu fotoaparátu 📷, která se objeví v pravém horním rohu grafu po najetí myší.")
 
+# --- NOVÁ FUNKCE: Progresní funkce pro RPG úkoly ---
+def get_task_progress(task_id, df, df_w, zustatky, vdf):
+    """Vrací tuple (current, target) pro vizuální progress bar."""
+    
+    # Úkoly jsou indexovány dle RPG_TASKS
+    
+    if task_id == 0: # První průzkum: Přidej do Watchlistu akcii, kterou nemáš v portfoliu.
+        target = 1
+        current = 1 if not df_w.empty and any(t not in df['Ticker'].unique() for t in df_w['Ticker'].unique()) else 0
+        return current, target, f"Sledované (mimo portfolio): {current}/{target}"
+
+    elif task_id == 1: # Diverzifikace: Sektor: Drž akcie ve 3 různých sektorech.
+        target = 3
+        current = df['Sektor'].nunique() if not df.empty else 0
+        return current, target, f"Sektorů: {current}/{target}"
+
+    elif task_id == 2: # Měnová rovnováha: Drž hotovost alespoň ve 2 měnách.
+        target = 2
+        current = sum(1 for v in zustatky.values() if v > 100)
+        return current, target, f"Aktivních měn: {current}/{target}"
+
+    elif task_id == 3: # Mód Rentiera: Drž 3 akcie s dividendovým výnosem > 1%.
+        target = 3
+        current = len([i for i in vdf if i.get('Divi', 0) > 0.01])
+        return current, target, f"Dividendových akcií: {current}/{target}"
+     
+    elif task_id == 4: # Cílovací expert: Nastav cílovou nákupní cenu u jedné akcie A cílovou prodejní cenu u jiné.
+        target = 2
+        has_buy = (df_w['TargetBuy'] > 0).any()
+        has_sell = (df_w['TargetSell'] > 0).any()
+        current = (1 if has_buy else 0) + (1 if has_sell else 0)
+        return current, target, f"Nastavené cíle (Buy + Sell): {current}/{target}"
+    
+    elif task_id == 5: # Pohotovostní fond: Drž alespoň 5 000 Kč v hotovosti.
+        target = 5000
+        current = zustatky.get('CZK', 0)
+        # Progress bar by mel být limitován do 1.0, i když máme více
+        current_progress = min(current, target)
+        return current_progress, target, f"CZK hotovost: {current:,.0f}/{target:,.0f} Kč"
+
+    return 0, 1, "Není kvantifikovatelné" # Výchozí hodnota
+
 # --- NOVÉ STATICKÉ DATOVÉ STRUKTURY PRO ÚKOLY ---
+# Zde rozšiřujeme a upřesňujeme seznam RPG úkolů
 RPG_TASKS = [
-    {"title": "První průzkum", "desc": "Přidej do Watchlistu akcii, kterou nemáš v portfoliu.", "check_fn": lambda df, df_watch, zustatky, vdf: not df_watch.empty and any(t not in df['Ticker'].unique() for t in df_watch['Ticker'].unique())},
-    {"title": "Diverzifikace: Sektor", "desc": "Drž alespoň 3 různé sektory.", "check_fn": lambda df, df_watch, zustatky, vdf: df['Sektor'].nunique() >= 3},
-    {"title": "Diverzifikace: Měna", "desc": "Drž alespoň 2 měny v hotovosti (USD, CZK, EUR).", "check_fn": lambda df, df_watch, zustatky, vdf: sum(1 for v in zustatky.values() if v > 10) >= 2},
-    {"title": "Mód Rentiera", "desc": "Drž 3 dividendové akcie (Divi Yield > 1%).", "check_fn": lambda df, df_watch, zustatky, vdf: len([i for i in vdf if i.get('Divi', 0) > 0.01]) >= 3},
-    {"title": "Akční limit", "desc": "Nastav u 2 akcií cílovou nákupní nebo prodejní cenu.", "check_fn": lambda df, df_watch, zustatky, vdf: len(df_watch[(df_watch['TargetBuy'] > 0) | (df_watch['TargetSell'] > 0)]) >= 2},
+    # 1. Watchlist research
+    {"title": "První průzkum", "desc": "Přidej do Watchlistu akcii, kterou nemáš v portfoliu.", 
+     "check_fn": lambda df, df_w, zustatky, vdf: not df_w.empty and any(t not in df['Ticker'].unique() for t in df_w['Ticker'].unique())},
+    
+    # 2. Diversification by sector
+    {"title": "Diverzifikace: Sektor", "desc": "Drž akcie ve 3 různých sektorech (Zkontroluj v Portfoliu).", 
+     "check_fn": lambda df, df_w, zustatky, vdf: df['Sektor'].nunique() >= 3 and df.shape[0] >= 3},
+    
+    # 3. Diversification by currency (cash)
+    {"title": "Měnová rovnováha", "desc": "Drž hotovost alespoň ve 2 měnách (USD, CZK, EUR).", 
+     "check_fn": lambda df, df_w, zustatky, vdf: sum(1 for v in zustatky.values() if v > 100) >= 2},
+    
+    # 4. Income investing
+    {"title": "Mód Rentiera", "desc": "Drž 3 akcie s dividendovým výnosem > 1%.", 
+     "check_fn": lambda df, df_w, zustatky, vdf: len([i for i in vdf if i.get('Divi', 0) > 0.01]) >= 3},
+     
+    # 5. Risk management (Setting both types of targets)
+    {"title": "Cílovací expert", "desc": "Nastav cílovou nákupní cenu u jedné akcie A cílovou prodejní cenu u jiné.", 
+     "check_fn": lambda df, df_w, zustatky, vdf: (df_w['TargetBuy'] > 0).any() and (df_w['TargetSell'] > 0).any()},
+    
+    # 6. Liquidity (CZK cash buffer) - NOVÝ ÚKOL
+    {"title": "Pohotovostní fond", "desc": "Drž alespoň 5 000 Kč v hotovosti (Měna CZK).", 
+     "check_fn": lambda df, df_w, zustatky, vdf: zustatky.get('CZK', 0) >= 5000},
 ]
 
 
@@ -844,7 +905,9 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
     all_tasks_completed = True
     
     for i, task_state in enumerate(st.session_state['rpg_tasks']):
-        # Musíme zkontrolovat, zda vdf není prázdné
+        # ZMĚNA: Přizpůsobení dat (vdf je buď DataFrame, nebo list dictů)
+        df_w = st.session_state['df_watch']
+        
         if isinstance(vdf, pd.DataFrame):
              viz_data_list = vdf.to_dict('records')
         else:
@@ -853,13 +916,21 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
         original_task = RPG_TASKS[task_state['id']]
         
         is_completed = False
+        current = 0
+        target = 1
+        progress_text = "Probíhá..."
+        
         try:
-            # Spuštění kontrolní funkce s aktuálními daty
-            # Předáváme viz_data_list jako vdf
-            is_completed = original_task['check_fn'](df, st.session_state['df_watch'], zustatky, viz_data_list)
-        except Exception:
-            # V případě chyby (např. prázdný df) se úkol nezapočítá
+            # Spuštění kontrolní funkce pro splnění
+            is_completed = original_task['check_fn'](df, df_w, zustatky, viz_data_list)
+            
+            # NOVINKA: Získání progress informací
+            current, target, progress_text = get_task_progress(task_state['id'], df, df_w, zustatky, viz_data_list)
+            
+        except Exception as e:
+            # V případě chyby se úkol nezapočítá (non-destructive)
             is_completed = False
+            progress_text = f"Chyba kontroly: {e}" 
             
         st.session_state['rpg_tasks'][i]['completed'] = is_completed
 
@@ -867,15 +938,34 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             all_tasks_completed = False
             
         icon = "✅" if is_completed else "⚪️"
-        color = "green" if is_completed else "orange"
         
         with st.container(border=True):
             st.markdown(f"**{icon} {task_state['title']}**")
             st.caption(f"_{task_state['desc']}_")
+            
             if is_completed:
                 st.success("HOTOVO!")
             else:
-                st.info("Probíhá...")
+                # NOVINKA: Vykreslení progress baru
+                if target > 0 and current <= target:
+                    progress_pct = current / target if target != 0 else 0
+                    
+                    # Logika pro barvu: žlutá (0-50%), oranžová (50-99%), zelená (100%)
+                    bar_color = "orange"
+                    if progress_pct >= 1.0: bar_color = "green"
+                    elif progress_pct < 0.5: bar_color = "yellow"
+
+                    # Custom HTML progress bar
+                    st.markdown(f"""
+                        <div style="width: 100%; background-color: #30363D; border-radius: 5px; margin-top: 10px; margin-bottom: 10px;">
+                            <div style="width: {progress_pct*100:.0f}%; background-color: {bar_color}; height: 15px; border-radius: 5px; text-align: center; color: black; font-weight: bold; font-size: 10px;">
+                                {progress_pct*100:.0f}%
+                            </div>
+                        </div>
+                        <p style='margin:0; font-size: 12px; color: #8B949E;'>{progress_text}</p>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info(progress_text) # Zobrazí se jako info, pokud nekvantifikovatelné
                 
     if all_tasks_completed and len(st.session_state['rpg_tasks']) > 0:
         st.balloons()
