@@ -94,11 +94,41 @@ except Exception:
 # --- STYLY & THEMES ---
 def get_css(theme):
     # Společný základ pro všechny styly (skrytí menu, padding atd.)
+    # 👇 PŘIDÁVÁME KÓD PRO PSÍKA SEM DO BASE_CSS 👇
     base_css = """
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     .stApp {margin-top: -30px;}
+
+    /* --- PEVNÝ AVATAR V ROHU (PSÍK) --- */
+    .stApp::after {
+        content: "";
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 90px;  /* Velikost */
+        height: 90px;
+        /* 👇👇👇 TADY MUSÍŠ VLOŽIT ODKAZ NA TVOJÍ FOTKU 👇👇👇 */
+        background-image: url('https://i.postimg.cc/cK5DmzZv/1000001805.jpg'); 
+        /* 👆👆👆 Pokud se jmenuje jinak, uprav to! 👆👆👆 */
+        background-size: cover;
+        background-position: center;
+        border-radius: 50%; /* Kulatý */
+        border: 3px solid #238636; /* Zelený rámeček */
+        box-shadow: 0 0 20px rgba(35, 134, 54, 0.6); /* Záře */
+        z-index: 9999; /* Vždy nahoře */
+        animation: floatAvatar 4s ease-in-out infinite;
+    }
+    /* Jemná animace vznášení */
+    @keyframes floatAvatar {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+    }
     """
+    
+    if theme == "🕹️ Cyberpunk (Retro)":
+        # ... (zbytek funkce zůstává stejný) ...
     
     if theme == "🕹️ Cyberpunk (Retro)":
         return base_css + """
@@ -3262,6 +3292,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
