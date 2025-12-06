@@ -1702,7 +1702,9 @@ def main():
                     "RSI (14)": rsi_val, # Číselná hodnota pro sorting/logiku
                     "52T Range": range_pos,
                     "Cíl Buy": buy_trg,
+                    "Zaměřovač": proximity_score,
                     "Status": status_text
+                    
                 })
             
             wdf = pd.DataFrame(w_data)
@@ -3226,6 +3228,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
