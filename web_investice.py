@@ -91,148 +91,93 @@ try:
 except Exception:
     AI_AVAILABLE = False
 
-# --- STYLY (ULTIMATE VISUAL UPGRADE - ANIMATED) ---
-st.markdown("""
-<style>
-    /* 1. ANIMOVANÉ POZADÍ (Breathing Gradient) */
-    @keyframes gradient {
-        0% {background-position: 0% 50%;}
-        50% {background-position: 100% 50%;}
-        100% {background-position: 0% 50%;}
-    }
-    .stApp {
-        background: linear-gradient(-45deg, #05070a, #0E1117, #161b22, #0d1117);
-        background-size: 400% 400%;
-        animation: gradient 20s ease infinite;
-        font-family: 'Roboto Mono', monospace;
-    }
+# --- STYLY & THEMES ---
+def get_css(theme):
+    # Společný základ pro všechny styly (skrytí menu, padding atd.)
+    base_css = """
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stApp {margin-top: -80px;}
+    """
+    
+    if theme == "🕹️ Cyberpunk (Retro)":
+        return base_css + """
+        /* ANIMOVANÉ POZADÍ */
+        @keyframes gradient {
+            0% {background-position: 0% 50%;}
+            50% {background-position: 100% 50%;}
+            100% {background-position: 0% 50%;}
+        }
+        .stApp {
+            background: linear-gradient(-45deg, #05070a, #0E1117, #161b22, #0d1117);
+            background-size: 400% 400%;
+            animation: gradient 20s ease infinite;
+            font-family: 'Roboto Mono', monospace;
+        }
+        /* CRT EFEKT */
+        .stApp::before {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+        /* METRIKY */
+        div[data-testid="stMetric"] {
+            background-color: rgba(22, 27, 34, 0.8); border: 1px solid #30363D; padding: 15px; border-radius: 8px;
+            color: #E6EDF3; box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
+        }
+        """
+        
+    elif theme == "💎 Glassmorphism (Modern)":
+        return base_css + """
+        .stApp {
+            background-image: url("https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop");
+            background-size: cover;
+            background-attachment: fixed;
+            font-family: 'Inter', sans-serif;
+        }
+        /* EFEKT MATNÉHO SKLA PRO VŠECHNY KONTEJNERY */
+        div[data-testid="stMetric"], div[data-testid="stExpander"], div.stDataFrame, div[data-testid="stForm"] {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        h1, h2, h3 { text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .stButton>button {
+            border-radius: 20px; background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%); border: none;
+        }
+        """
+        
+    elif theme == "💼 Wall Street (Profi)":
+        return base_css + """
+        .stApp {
+            background-color: #0e1117;
+            font-family: 'Helvetica Neue', sans-serif;
+        }
+        /* ČISTÝ DESIGN */
+        div[data-testid="stMetric"] {
+            background-color: #161b22;
+            border-left: 5px solid #238636;
+            border-radius: 4px;
+            padding: 10px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+        }
+        h1, h2, h3 { font-weight: 300; letter-spacing: 1px; color: #ffffff; }
+        .stProgress > div > div > div > div { background-color: #238636; }
+        """
+    return base_css
 
-    /* 2. CRT SCANLINE EFEKT (Retro-Futuristic Overlay) */
-    .stApp::before {
-        content: " ";
-        display: block;
-        position: absolute;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        right: 0;
-        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-        z-index: 2;
-        background-size: 100% 2px, 3px 100%;
-        pointer-events: none;
-    }
+# --- APLIKACE STYLU (Tohle se musí stát hned) ---
+# Defaultně nastavíme Cyberpunk, ale uživatel si to může změnit v Sidebaru
+if 'ui_theme' not in st.session_state:
+    st.session_state['ui_theme'] = "🕹️ Cyberpunk (Retro)"
 
-    /* 3. Vylepšený Scrollbar */
-    ::-webkit-scrollbar {width: 8px; height: 8px; background: #0E1117;}
-    ::-webkit-scrollbar-thumb {background: #30363D; border-radius: 4px;}
-    ::-webkit-scrollbar-thumb:hover {background: #58A6FF; box-shadow: 0 0 10px #58A6FF;}
-
-    /* 4. PULZUJÍCÍ METRIKY */
-    @keyframes pulse-border {
-        0% { border-color: #30363D; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        50% { border-color: #58A6FF; box-shadow: 0 0 15px rgba(88, 166, 255, 0.15); }
-        100% { border-color: #30363D; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-    }
-    div[data-testid="stMetric"] {
-        background-color: rgba(22, 27, 34, 0.8); /* Průhlednost pro efekt pozadí */
-        backdrop-filter: blur(5px);
-        border: 1px solid #30363D; 
-        padding: 15px; 
-        border-radius: 8px; 
-        color: #E6EDF3;
-        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    div[data-testid="stMetric"]:hover {
-        transform: translateY(-5px) scale(1.02);
-        animation: pulse-border 2s infinite;
-        z-index: 10;
-    }
-    div[data-testid="stMetricLabel"] {font-size: 0.85rem; color: #8B949E; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;}
-    div[data-testid="stMetricValue"] {font-size: 1.6rem; color: #E6EDF3; font-weight: bold; text-shadow: 0 0 10px rgba(230, 237, 243, 0.3);}
-    
-    /* Nadpisy s Glitch efektem (pouze statický styl pro čistotu) */
-    h1, h2, h3 {
-        color: #E6EDF3 !important; 
-        font-family: 'Roboto Mono', monospace; 
-        text-transform: uppercase; 
-        letter-spacing: 2px;
-        text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
-    }
-    
-    /* Tlačítka - Neon Style */
-    div[data-testid="column"] button {
-        border: 1px solid #30363D; 
-        background-color: #21262D; 
-        color: #C9D1D9;
-        border-radius: 6px;
-        min-height: 45px;
-        transition: all 0.3s;
-        position: relative;
-        overflow: hidden;
-    }
-    div[data-testid="column"] button:hover {
-        border-color: #58A6FF;
-        color: #58A6FF;
-        box-shadow: 0 0 15px rgba(88, 166, 255, 0.4);
-        text-shadow: 0 0 5px rgba(88, 166, 255, 0.8);
-    }
-    
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {gap: 8px; background-color: transparent; padding-bottom: 5px; flex-wrap: wrap;}
-    .stTabs [data-baseweb="tab"] {
-        height: 45px; white-space: pre-wrap; background-color: #0d1117; border: 1px solid #30363D; 
-        border-radius: 6px; color: #8B949E; font-family: 'Roboto Mono', monospace; font-size: 0.9rem; 
-        transition: all 0.2s ease; padding: 0px 20px; margin-bottom: 5px;
-    }
-    .stTabs [data-baseweb="tab"]:hover {border-color: #58A6FF; color: #58A6FF; background-color: #161B22;}
-    .stTabs [aria-selected="true"] {
-        background-color: #238636 !important; border-color: #2ea043 !important; color: white !important; 
-        font-weight: bold; box-shadow: 0 0 15px rgba(35, 134, 54, 0.5); 
-    }
-    
-    a {text-decoration: none; color: #58A6FF !important; transition: color 0.3s;} 
-    a:hover {color: #79c0ff !important; text-shadow: 0 0 5px #79c0ff;}
-
-    .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #238636, #2ea043);
-        box-shadow: 0 0 10px rgba(35, 134, 54, 0.5);
-    }
-    
-    /* Bot Floating Window - Hover Levitation */
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) summary {
-        background-color: transparent !important; color: transparent !important;
-        height: 70px !important; width: 70px !important; border-radius: 50% !important;
-        padding: 0 !important; margin-left: auto !important;
-        background-image: url('https://i.postimg.cc/cK5DmzZv/1000001805.jpg'); 
-        background-size: cover; background-position: center;
-        border: 3px solid #238636 !important;
-        box-shadow: 0 0 15px rgba(35, 134, 54, 0.5);
-        animation: float 6s ease-in-out infinite;
-        transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55), box-shadow 0.3s;
-    }
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) summary:hover {
-        transform: scale(1.1) rotate(10deg);
-        box-shadow: 0 0 30px rgba(35, 134, 54, 0.9);
-        cursor: pointer;
-    }
-    /* Zbytek bota... */
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) {position: fixed !important; bottom: 20px !important; right: 20px !important; width: 380px !important; max-width: 85vw !important; z-index: 99999 !important; background-color: transparent !important; border: none !important; box-shadow: none !important;}
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) details {border-radius: 20px !important; background-color: #161B22 !important; border: 1px solid #30363D !important; box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;}
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) summary svg {display: none !important;}
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary {width: 100% !important; height: 40px !important; border-radius: 15px 15px 0 0 !important; background-image: none !important; background-color: #238636 !important; color: white !important; display: flex; align-items: center; justify-content: center; animation: none !important; border: none !important; margin: 0 !important;}
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) details[open] summary::after {content: "❌ ZAVŘÍT CHAT"; font-weight: bold; font-size: 0.9rem; color: white;}
-    div[data-testid="stExpander"]:has(#floating-bot-anchor) div[data-testid="stExpanderDetails"] {max-height: 400px; overflow-y: auto; background-color: #0d1117; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; border-top: 1px solid #30363D; padding: 15px;}
-    
-    @keyframes float {
-        0% { transform: translateY(0px); }
-        50% { transform: translateY(-10px); }
-        100% { transform: translateY(0px); }
-    }
-    @media (max-width: 600px) {
-        .ticker-text {font-size: 0.8rem !important;}
-    }
-</style>
-""", unsafe_allow_html=True)
+# Aplikujeme styl
+st.markdown(f"<style>{get_css(st.session_state['ui_theme'])}</style>", unsafe_allow_html=True)
 
 # --- PŘIPOJENÍ ---
 try: 
@@ -1117,7 +1062,20 @@ def main():
         lottie_json = load_lottieurl(lottie_url)
         if lottie_json:
             st_lottie(lottie_json, height=150, key="sidebar_anim")
+
+        # Vlož pod st_lottie(...) a před st.header(...)
+        # --- THEME SELECTOR ---
+        selected_theme = st.selectbox(
+            "🎨 Vzhled aplikace", 
+            ["🕹️ Cyberpunk (Retro)", "💎 Glassmorphism (Modern)", "💼 Wall Street (Profi)"],
+            index=["🕹️ Cyberpunk (Retro)", "💎 Glassmorphism (Modern)", "💼 Wall Street (Profi)"].index(st.session_state.get('ui_theme', "🕹️ Cyberpunk (Retro)"))
+        )
         
+        if selected_theme != st.session_state.get('ui_theme'):
+            st.session_state['ui_theme'] = selected_theme
+            st.rerun()
+            
+        st.divider()
         st.header(f"👤 {USER.upper()}")
         
         # --- NOVÉ: SVĚTOVÉ TRHY (HODINY) ---
@@ -3305,6 +3263,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
