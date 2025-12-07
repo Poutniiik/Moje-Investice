@@ -1381,7 +1381,7 @@ def render_analýza_měny_page(vdf, viz_data_list, kurzy, celk_hod_usd):
     impact_data = pd.DataFrame({
         "Měna": ["USD Aktiva", "EUR Aktiva", "CZK Aktiva"],
         "Hodnota CZK (Teď)": [assets_by_curr["USD"] * kurz_usd_now, assets_by_curr["EUR"] * kurz_eur_now, assets_by_curr["CZK"]],
-        "Hodnota CZK (Simulace)": [assets_by_curr["USD"] * sim_usd, assets_by_curr["EUR"] * sim_eur, assets_by_curr["CZK"]]
+        "Hodnota CZK (Simulace)": [assets_by_curr["USD"] * sim_usd, assets_by_curr["EUR"] * kurz_eur_now, assets_by_curr["CZK"]]
     })
     
     fig_curr = go.Figure(data=[
@@ -2656,7 +2656,7 @@ def main():
                         )
 
                         try:
-                            treemap_fig = make_plotly_cyberpunk(treemap_fig)
+                            treemap_fig = make_plotly_cyberpunk(fig_map)
                         except Exception:
                             pass
 
