@@ -1973,10 +1973,24 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     return data_core
 
 
+@st.cache_resource(show_spinner="Připojuji neurální sítě...")
+def get_cached_ai_connection():
+    """
+    Tato funkce zajistí, že se init_ai() zavolá jen JEDNOU za běh serveru,
+    ne při každém kliknutí uživatele. To zabrání chybě 429.
+    """
+    try:
+        return init_ai()
+    except Exception as e:
+        # Pokud to selže, vrátíme None a False, aby aplikace nepadla
+        print(f"Chyba init_ai: {e}")
+        return None, False
+
 # --- HLAVNÍ FUNKCE (Router) ---
 def main():
-    # --- INICIALIZACE ---
-    model, AI_AVAILABLE = init_ai()
+    # --- 1. BEZPEČNÁ INICIALIZACE AI ---
+    # Voláme naši novou cachovanou funkci místo přímého volání
+    model, AI_AVAILABLE = get_cached_ai_connection()
 
     # 1. Start Cookie Manager
     cookie_manager = get_manager()
@@ -3355,52 +3369,87 @@ def main():
 
 
     elif page == "⚙️ Nastavení":
-        st.title("⚙️ NASTAVENÍ")
+        st.title("⚙️ KONFIGURACE SYSTÉMU")
         
-        # --- NOVÉ AI OVLÁDACÍ PRVKY ---
-        st.subheader("🤖 Umělá Inteligence (AI) Nastavení")
-
-        # 1. Tlačítko pro Aktivaci / Deaktivaci
-        if 'ai_enabled' not in st.session_state:
-            st.session_state['ai_enabled'] = AI_AVAILABLE
-        
-        col_ai1, col_ai2 = st.columns([1, 3])
-        with col_ai1:
-            # Tlačítko pro přepnutí stavu AI
-            if st.session_state['ai_enabled']:
-                if st.button("🛑 Deaktivovat AI", type="secondary", use_container_width=True):
-                    st.session_state['ai_enabled'] = False
+        # --- 1. AI KONFIGURACE A PROMPTY ---
+        with st.container(border=True):
+            st.subheader("🤖 AI Jádro & Osobnost")
+            
+            # Indikátor stavu
+            c_stat1, c_stat2 = st.columns([1, 3])
+            with c_stat1:
+                if AI_AVAILABLE:
+                    st.success("API: ONLINE")
+                else:
+                    st.error("API: OFFLINE")
+            
+            with c_stat2:
+                # Master Switch
+                is_on = st.toggle("Povolit AI funkce", value=st.session_state.get('ai_enabled', False))
+                if is_on != st.session_state.get('ai_enabled', False):
+                    st.session_state['ai_enabled'] = is_on
                     st.rerun()
-                st.success("AI Stav: AKTIVNÍ")
-            else:
-                if st.button("🚀 Aktivovat AI", type="primary", use_container_width=True):
-                    st.session_state['ai_enabled'] = True
-                    st.rerun()
-                st.warning("AI Stav: DEAKTIVOVANÁ")
 
-        with col_ai2:
-            st.caption("AI lze aktivovat pouze v případě dostupného API klíče a splnění kvót. Deaktivace zrychlí načítání.")
+            st.divider()
 
-        st.divider()
+            # --- NASTAVENÍ OSOBNOSTI (PROMPTY) ---
+            st.caption("🎭 Nastavení chování (System Prompts)")
+            
+            # Inicializace defaultních promptů v session state, pokud nejsou
+            if 'ai_prompts' not in st.session_state:
+                st.session_state['ai_prompts'] = {
+                    "Ranní report": "Jsi cynický burzovní makléř z Wall Street. Používej finanční slang.",
+                    "Analýza akcií": "Jsi konzervativní Warren Buffett. Hledej hodnotu a bezpečí.",
+                    "Chatbot": "Jsi stručný a efektivní asistent Terminalu Pro."
+                }
 
-        # 2. Zobrazení AI Konfigurace
-        st.caption("AI Konfigurace")
-        st.code(f"Model: {model} (Dostupnost: {AI_AVAILABLE})", language="text")
+            # Editace promptů (Tabulka/Editor)
+            prompts_df = pd.DataFrame(
+                list(st.session_state['ai_prompts'].items()),
+                columns=["Funkce", "Instrukce (Prompt)"]
+            )
+            
+            edited_prompts = st.data_editor(
+                prompts_df,
+                use_container_width=True,
+                num_rows="dynamic",
+                column_config={
+                    "Funkce": st.column_config.TextColumn(disabled=True), # Názvy funkcí neměnit
+                    "Instrukce (Prompt)": st.column_config.TextColumn(width="large")
+                },
+                key="prompt_editor"
+            )
 
-        # 3. Pole pro klíč (pokud by bylo nutné ho v budoucnu editovat)
-        # Nyní nebudeme ukládat klíč do Session State, ale pouze informovat.
-        
-        # --- PŮVODNÍ DATA EDITORY ---
-        st.divider()
+            # Tlačítko pro uložení změn v promptech
+            if st.button("💾 Uložit nastavení AI"):
+                # Převedení zpět do dictu a uložení
+                new_prompts = dict(zip(edited_prompts["Funkce"], edited_prompts["Instrukce (Prompt)"]))
+                st.session_state['ai_prompts'] = new_prompts
+                st.toast("Osobnost AI aktualizována!", icon="🧠")
+
+        # --- 2. DATA EDITORY (Původní kód) ---
+        st.write("")
         st.subheader("💾 DATA & SPRÁVA")
         st.info("Zde můžeš editovat data natvrdo.")
         t1, t2 = st.tabs(["PORTFOLIO", "HISTORIE"])
         with t1:
             new_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
-            if st.button("Uložit Portfolio"): st.session_state['df'] = new_df; uloz_data_uzivatele(new_df, USER, SOUBOR_DATA); invalidate_data_core(); st.success("Uloženo"); st.rerun()
+            if st.button("Uložit Portfolio"): 
+                st.session_state['df'] = new_df
+                uloz_data_uzivatele(new_df, USER, SOUBOR_DATA)
+                invalidate_data_core()
+                st.success("Uloženo")
+                time.sleep(1) # Počkáme, aby si uživatel přečetl zprávu
+                st.rerun()
         with t2:
             new_h = st.data_editor(st.session_state['df_hist'], num_rows="dynamic", use_container_width=True)
-            if st.button("Uložit Historii"): st.session_state['df_hist'] = new_h; uloz_data_uzivatele(new_h, USER, SOUBOR_HISTORIE); invalidate_data_core(); st.success("Uloženo"); st.rerun()
+            if st.button("Uložit Historii"): 
+                st.session_state['df_hist'] = new_h
+                uloz_data_uzivatele(new_h, USER, SOUBOR_HISTORIE)
+                invalidate_data_core()
+                st.success("Uloženo")
+                time.sleep(1)
+                st.rerun()
         
         st.divider(); st.subheader("📦 ZÁLOHA")
         buf = io.BytesIO()
@@ -3453,3 +3502,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
