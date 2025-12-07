@@ -1061,13 +1061,13 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
     if not df_div.empty:
         for _, r in df_div.iterrows():
             amt = r['Castka']; currency = r['Mena']
-            if currency == "USD": total_div_czk += amt * kurzy.get("CZK", 20.85)
-            elif currency == "EUR": total_div_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85)) # approx
-            else: total_div_czk += amt
+            if currency == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
+            elif currency == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85)) # approx
+            else: total_divi_czk += amt
 
     st.metric("CELKEM VYPLACENO (CZK)", f"{total_div_czk:,.0f} Kč")
 
-    t_div1, t_div2 = st.tabs(["HISTORIE & GRAF", "PŘIDAT DIVIDENDU"])
+    t_div1, t_div2, t_div3 = st.tabs(["HISTORIE VÝPLAT", "❄️ EFEKT SNĚHOVÉ KOULE", "PŘIDAT DIVIDENDU"])
 
     with t_div1:
         if not df_div.empty:
@@ -1098,6 +1098,52 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
             st.info("Zatím žádné dividendy.")
 
     with t_div2:
+        if not df_div.empty:
+            st.subheader("❄️ KUMULATIVNÍ RŮST (Snowball)")
+            st.info("Tento graf ukazuje, jak se tvé dividendy sčítají v čase. Cílem je exponenciální růst!")
+            
+            # Příprava dat pro snowball
+            snowball_df = df_div.copy()
+            snowball_df['Datum'] = pd.to_datetime(snowball_df['Datum'])
+            snowball_df = snowball_df.sort_values('Datum')
+            
+            # Přepočet na CZK pro jednotný graf
+            def convert_to_czk(row):
+                amt = row['Castka']; currency = row['Mena']
+                if currency == "USD": return amt * kurzy.get("CZK", 20.85)
+                elif currency == "EUR": return amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+                return amt
+            
+            snowball_df['CastkaCZK'] = snowball_df.apply(convert_to_czk, axis=1)
+            snowball_df['Kumulativni'] = snowball_df['CastkaCZK'].cumsum()
+            
+            fig_snow = px.area(
+                snowball_df, 
+                x='Datum', 
+                y='Kumulativni',
+                title="Celkem vyplaceno v čase (CZK)",
+                template="plotly_dark",
+                color_discrete_sequence=['#00BFFF'] # Deep Sky Blue
+            )
+            
+            fig_snow.update_traces(line_color='#00BFFF', fillcolor='rgba(0, 191, 255, 0.2)')
+            fig_snow.update_layout(
+                plot_bgcolor="rgba(0,0,0,0)", 
+                paper_bgcolor="rgba(0,0,0,0)", 
+                font_family="Roboto Mono",
+                yaxis_title="Celkem vyplaceno (Kč)",
+                xaxis_title=""
+            )
+            fig_snow = make_plotly_cyberpunk(fig_snow)
+            st.plotly_chart(fig_snow, use_container_width=True)
+            
+            last_total = snowball_df['Kumulativni'].iloc[-1]
+            st.metric("Celková 'Sněhová koule'", f"{last_total:,.0f} Kč", help="Suma všech dividend, které jsi kdy obdržel.")
+            
+        else:
+            st.info("Zatím nemáš data pro sněhovou kouli. Přidej první dividendu!")
+
+    with t_div3:
         st.caption("Peníze se automaticky připíší do peněženky.")
         with st.form("add_div"):
             dt_ticker = st.selectbox("Ticker", df['Ticker'].unique() if not df.empty else ["Jiny"])
