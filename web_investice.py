@@ -2323,6 +2323,7 @@ def main():
                     if raw_data.empty:
                         st.warning("Nepodařilo se načíst historická data pro vybrané tickery.")
                     else:
+                        # Normalizace (Start na 0%)
                         normalized_data = raw_data.apply(lambda x: (x / x.iloc[0] - 1) * 100)
 
                         fig_multi_comp = px.line(
@@ -2330,6 +2331,8 @@ def main():
                             title='Normalizovaná výkonnost (Změna v %) od počátku',
                             template="plotly_dark"
                         )
+                        
+                        # --- VYLEPŠENÍ PRO MOBIL (LEGENDA DOLE) ---
                         fig_multi_comp.update_layout(
                             xaxis_title="Datum",
                             yaxis_title="Změna (%)",
@@ -2337,50 +2340,64 @@ def main():
                             margin=dict(t=50, b=0, l=0, r=0),
                             font_family="Roboto Mono",
                             plot_bgcolor="rgba(0,0,0,0)",
-                            paper_bgcolor="rgba(0,0,0,0)"
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            legend=dict(
+                                orientation="h",  # Horizontální legenda
+                                yanchor="bottom", 
+                                y=-0.2,           # Posunutá pod graf
+                                xanchor="center", 
+                                x=0.5
+                            )
                         )
                         fig_multi_comp.update_xaxes(showgrid=False)
                         fig_multi_comp.update_yaxes(showgrid=True, gridcolor='#30363D')
-                        fig_multi_comp = make_plotly_cyberpunk(fig_multi_comp)
                         st.plotly_chart(fig_multi_comp, use_container_width=True, key="fig_srovnani")
                         add_download_button(fig_multi_comp, "srovnani_akcii")
 
                         st.divider()
                         st.subheader("Detailní srovnání metrik")
 
+                        # Tabulka metrik (zůstává stejná, je super)
                         comp_list = []
-                        for t in tickers_to_compare[:2]:
-                            i, h = cached_detail_akcie(t) # Použití cache
+                        # Omezíme to na max 4 pro přehlednost v tabulce, nebo necháme vše
+                        for t in tickers_to_compare[:4]: 
+                            i, h = cached_detail_akcie(t)
                             if i:
                                 mc = i.get('marketCap', 0)
                                 pe = i.get('trailingPE', 0)
                                 dy = i.get('dividendYield', 0)
-                                perf = ((h['Close'].iloc[-1] / h['Close'].iloc[0]) - 1) * 100 if h is not None and not h.empty and h['Close'].iloc[0] != 0 else 0
+                                # Bezpečný výpočet změny
+                                perf = 0
+                                if h is not None and not h.empty:
+                                    start_p = h['Close'].iloc[0]
+                                    end_p = h['Close'].iloc[-1]
+                                    if start_p != 0:
+                                        perf = ((end_p / start_p) - 1) * 100
 
                                 comp_list.append({
-                                    "Metrika": [f"Kapitalizace {t}", f"P/E Ratio {t}", f"Dividenda {t}", f"Změna 1R {t}"],
+                                    "Metrika": [f"Kapitalizace", f"P/E Ratio", f"Dividenda", f"Změna 1R"],
                                     "Hodnota": [
                                         f"${mc/1e9:.1f}B",
                                         f"{pe:.2f}" if pe > 0 else "N/A",
                                         f"{dy*100:.2f}%" if dy else "0%",
                                         f"{perf:+.2f}%"
-                                    ]
+                                    ],
+                                    "Ticker": t
                                 })
 
-                        if len(comp_list) >= 2:
-                            comp_data = {
-                                "Metrika": ["Kapitalizace", "P/E Ratio", "Dividenda", "Změna 1R"],
-                                tickers_to_compare[0]: [comp_list[0]['Hodnota'][i] for i in range(4)],
-                                tickers_to_compare[1]: [comp_list[1]['Hodnota'][i] for i in range(4)]
-                            }
-                            st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
-                        elif tickers_to_compare:
-                            st.info(f"Pro detailní srovnávací tabulku (metriky P/E, Kapitalizace) vyberte alespoň 2 akcie.")
+                        if comp_list:
+                            # Transpozice pro hezčí tabulku: Sloupce = Tickery, Řádky = Metriky
+                            final_data = {"Metrika": comp_list[0]["Metrika"]}
+                            for item in comp_list:
+                                final_data[item["Ticker"]] = item["Hodnota"]
+                            
+                            st.dataframe(pd.DataFrame(final_data), use_container_width=True, hide_index=True)
 
                 except Exception as e:
-                    st.error(f"Chyba při stahování/zpracování dat: Zkuste vybrat jiné tickery. (Detail: {e})")
+                    st.error(f"Chyba při stahování dat: {e}")
             else:
-                st.info("Vyberte alespoň jeden ticker (akcii nebo index) pro zobrazení srovnávacího grafu.")
+                st.info("Vyberte alespoň jeden ticker.")
+
 
 
         with tab3:
@@ -3282,6 +3299,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
