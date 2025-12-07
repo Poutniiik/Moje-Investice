@@ -553,20 +553,33 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
     # -----------------------------------
 
     # --- AI PORTFOLIO AUDITOR ---
-    if AI_AVAILABLE and viz_data_list:
-        with st.expander("🧠 AI AUDIT PORTFOLIA (Strategie)", expanded=False):
-            st.info("AI zanalyzuje tvé rozložení aktiv, rizikovost a navrhne vylepšení.")
+    if AI_AVAILABLE:
+        if viz_data_list:
+            with st.expander("🧠 AI AUDIT PORTFOLIA (Strategie)", expanded=False):
+                st.info("AI zanalyzuje tvé rozložení aktiv, rizikovost a navrhne vylepšení.")
 
-            if st.button("🕵️ SPUSTIT HLOUBKOVÝ AUDIT"):
-                with st.spinner("AI počítá rizikové modely..."):
-                    port_summary = "\n".join([f"- {i['Ticker']} ({i['Sektor']}): {i['HodnotaUSD']:.0f} USD ({i['Zisk']:.0f} USD zisk)" for i in viz_data_list])
+                if st.button("🕵️ SPUSTIT HLOUBKOVÝ AUDIT"):
+                    with st.spinner("AI počítá rizikové modely..."):
+                        port_summary = "\n".join([f"- {i['Ticker']} ({i['Sektor']}): {i['HodnotaUSD']:.0f} USD ({i['Zisk']:.0f} USD zisk)" for i in viz_data_list])
 
-                    # 2. Volání MOZKU (ai_brain.py)
-                    audit_res_text = audit_portfolio(model, celk_hod_usd, cash_usd, port_summary)
+                        # 2. Volání MOZKU (ai_brain.py)
+                        audit_res_text = audit_portfolio(model, celk_hod_usd, cash_usd, port_summary)
 
-                    # 3. Zobrazení výsledku
-                    st.markdown("### 📝 VÝSLEDEK AUDITU")
-                    st.markdown(audit_res_text)
+                        # 3. Zobrazení výsledku
+                        st.markdown("### 📝 VÝSLEDEK AUDITU")
+                        st.markdown(audit_res_text)
+    
+    # --- PŘEHLED Z CLI AUDITU ---
+    if st.session_state.get('cli_msg') and st.session_state['cli_msg'][1] in ["🔬", "👮"]:
+        st.markdown(
+            f"""
+            <div style="background-color: #161B22; border-left: 4px solid #58A6FF; padding: 15px; border-radius: 5px; margin-top: 15px;">
+                <p style="margin:0; font-family: 'Roboto Mono'; font-weight: bold;">{st.session_state['cli_msg'][0].replace('\n', '<br>')}</p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+
 
     st.write("")
 
@@ -1798,7 +1811,7 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 
                         # --- MACD ---
                         if show_macd:
-                            hist_colors = ['#238636' if h >= 0 else '#da3633' for h in hist_data['MACD_Hist']]
+                            hist_colors = ['#238636' if h >= 0 else '#da3633' for c, o in zip(hist_data['Close'], hist_data['Open'])]
                             fig_candle.add_trace(go.Bar(x=hist_data.index, y=hist_data['MACD_Hist'], name='MACD Hist', marker_color=hist_colors), row=next_plot_row, col=1)
                             fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['MACD'], mode='lines', name='MACD', line=dict(color='#58A6FF', width=1.5)), row=next_plot_row, col=1)
                             fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['Signal'], mode='lines', name='Signal', line=dict(color='orange', width=1.5)), row=next_plot_row, col=1)
@@ -2027,10 +2040,11 @@ def main():
                     rnp = st.text_input("Nové heslo", type="password")
                     if st.form_submit_button("OBNOVIT"):
                         df_u = nacti_uzivatele(); row = df_u[df_u['username'] == ru]
-                        if not row.empty and row.iloc[0]['recovery_key'] == zasifruj(rk): # Opraveno: kontrolujeme recovery_key, ne password
-                            df_u.at[row.index[0], 'password'] = zasifruj(rnp); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}")
-                            st.success("Heslo změněno!")
-                        else: st.error("Chyba údajů.")
+                        if not row.empty and row.iloc[0]['password'] == zasifruj(old):
+                            if new == conf and len(new) > 0:
+                                df_u.at[row.index[0], 'password'] = zasifruj(new); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Hotovo!")
+                            else: st.error("Chyba v novém hesle.")
+                        else: st.error("Staré heslo nesedí.")
         return
 
     # =========================================================================
@@ -3341,7 +3355,44 @@ def main():
 
 
     elif page == "⚙️ Nastavení":
-        st.title("⚙️ DATA & SPRÁVA")
+        st.title("⚙️ NASTAVENÍ")
+        
+        # --- NOVÉ AI OVLÁDACÍ PRVKY ---
+        st.subheader("🤖 Umělá Inteligence (AI) Nastavení")
+
+        # 1. Tlačítko pro Aktivaci / Deaktivaci
+        if 'ai_enabled' not in st.session_state:
+            st.session_state['ai_enabled'] = AI_AVAILABLE
+        
+        col_ai1, col_ai2 = st.columns([1, 3])
+        with col_ai1:
+            # Tlačítko pro přepnutí stavu AI
+            if st.session_state['ai_enabled']:
+                if st.button("🛑 Deaktivovat AI", type="secondary", use_container_width=True):
+                    st.session_state['ai_enabled'] = False
+                    st.rerun()
+                st.success("AI Stav: AKTIVNÍ")
+            else:
+                if st.button("🚀 Aktivovat AI", type="primary", use_container_width=True):
+                    st.session_state['ai_enabled'] = True
+                    st.rerun()
+                st.warning("AI Stav: DEAKTIVOVANÁ")
+
+        with col_ai2:
+            st.caption("AI lze aktivovat pouze v případě dostupného API klíče a splnění kvót. Deaktivace zrychlí načítání.")
+
+        st.divider()
+
+        # 2. Zobrazení AI Konfigurace
+        st.caption("AI Konfigurace")
+        st.code(f"Model: {model} (Dostupnost: {AI_AVAILABLE})", language="text")
+
+        # 3. Pole pro klíč (pokud by bylo nutné ho v budoucnu editovat)
+        # Nyní nebudeme ukládat klíč do Session State, ale pouze informovat.
+        
+        # --- PŮVODNÍ DATA EDITORY ---
+        st.divider()
+        st.subheader("💾 DATA & SPRÁVA")
         st.info("Zde můžeš editovat data natvrdo.")
         t1, t2 = st.tabs(["PORTFOLIO", "HISTORIE"])
         with t1:
@@ -3350,6 +3401,7 @@ def main():
         with t2:
             new_h = st.data_editor(st.session_state['df_hist'], num_rows="dynamic", use_container_width=True)
             if st.button("Uložit Historii"): st.session_state['df_hist'] = new_h; uloz_data_uzivatele(new_h, USER, SOUBOR_HISTORIE); invalidate_data_core(); st.success("Uloženo"); st.rerun()
+        
         st.divider(); st.subheader("📦 ZÁLOHA")
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
