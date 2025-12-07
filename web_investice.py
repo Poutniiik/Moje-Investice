@@ -2352,15 +2352,15 @@ def main():
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
     # --- 9. SIDEBAR ---
+    # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
     with st.sidebar:
-        # Lottie Animation Placeholder - Generic tech loop
-        lottie_url = "https://lottie.host/02092823-3932-4467-9d7e-976934440263/3q5XJg2Z2W.json" # Public generic tech URL
+        # Lottie Animace
+        lottie_url = "https://lottie.host/02092823-3932-4467-9d7e-976934440263/3q5XJg2Z2W.json"
         lottie_json = load_lottieurl(lottie_url)
         if lottie_json:
-            st_lottie(lottie_json, height=150, key="sidebar_anim")
+            st_lottie(lottie_json, height=120, key="sidebar_anim") # Trochu menší výška
 
-        # Vlož pod st_lottie(...) a před st.header(...)
-        # --- THEME SELECTOR ---
+        # Výběr tématu
         selected_theme = st.selectbox(
             "🎨 Vzhled aplikace",
             ["🕹️ Cyberpunk (Retro)", "💎 Glassmorphism (Modern)", "💼 Wall Street (Profi)"],
@@ -2373,26 +2373,14 @@ def main():
 
         st.divider()
         st.header(f"👤 {USER.upper()}")
-
-        # --- NOVÉ: SVĚTOVÉ TRHY (HODINY) ---
-        with st.expander("🌍 SVĚTOVÉ TRHY", expanded=True):
-            ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16) # NYSE: 9:30 - 16:00 (zjednodušeno na hodiny)
-            ln_time, ln_open = zjisti_stav_trhu("Europe/London", 8, 16) # LSE
-            jp_time, jp_open = zjisti_stav_trhu("Asia/Tokyo", 9, 15) # TSE
-
-            c_m1, c_m2 = st.columns([3, 1])
-            c_m1.caption("🇺🇸 New York"); c_m2.markdown(f"**{ny_time}** {'🟢' if ny_open else '🔴'}")
-
-            c_m1, c_m2 = st.columns([3, 1])
-            c_m1.caption("🇬🇧 Londýn"); c_m2.markdown(f"**{ln_time}** {'🟢' if ln_open else '🔴'}")
-
-            c_m1, c_m2 = st.columns([3, 1])
-            c_m1.caption("🇯🇵 Tokio"); c_m2.markdown(f"**{jp_time}** {'🟢' if jp_open else '🔴'}")
-
+        
+        # --- 1. NAVIGACE (POSUNUTO NAHORU PRO LEPŠÍ OVLÁDÁNÍ) ---
+        # Na mobilu je lepší mít tlačítka hned po ruce
+        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
+        
         st.divider()
-        # -----------------------------------
 
-        # --- GAME LEVELING SYSTEM ---
+        # --- 2. HERNÍ LEVEL ---
         level_name = "Novic"
         level_progress = 0.0
 
@@ -2415,80 +2403,87 @@ def main():
         st.caption(f"Úroveň: **{level_name}**")
         st.progress(level_progress)
 
-        # --- WALLET IN SIDEBAR ---
-        st.write("")
-        st.caption("Stav peněženky:")
-        for mena in ["USD", "CZK", "EUR"]:
-            castka = zustatky.get(mena, 0.0)
-            sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
-            st.info(f"**{castka:,.2f} {sym}**", icon="💰")
+        # --- 3. INFORMACE (ZABALENO DO EXPANDERŮ PRO ÚSPORU MÍSTA) ---
+        
+        # A. Světové trhy
+        with st.expander("🌍 SVĚTOVÉ TRHY", expanded=False):
+            ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16)
+            ln_time, ln_open = zjisti_stav_trhu("Europe/London", 8, 16)
+            jp_time, jp_open = zjisti_stav_trhu("Asia/Tokyo", 9, 15)
+
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇺🇸 New York"); c_m2.markdown(f"**{ny_time}** {'🟢' if ny_open else '🔴'}")
+
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇬🇧 Londýn"); c_m2.markdown(f"**{ln_time}** {'🟢' if ln_open else '🔴'}")
+
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇯🇵 Tokio"); c_m2.markdown(f"**{jp_time}** {'🟢' if jp_open else '🔴'}")
+
+        # B. Peněženka (Tohle zabíralo moc místa, teď je to schované)
+        with st.expander("💰 STAV PENĚŽENKY", expanded=False):
+            for mena in ["USD", "CZK", "EUR"]:
+                castka = zustatky.get(mena, 0.0)
+                sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
+                # Použijeme menší formát než st.info pro úsporu místa
+                st.markdown(f"""
+                <div style="background-color: #0D1117; padding: 10px; border-radius: 5px; margin-bottom: 5px; border: 1px solid #30363D;">
+                    <span style="color: #8B949E;">{mena}:</span> <span style="color: #00FF99; font-weight: bold; float: right;">{castka:,.2f} {sym}</span>
+                </div>
+                """, unsafe_allow_html=True)
 
         # --- SIDEBAR ALERTS ---
         if alerts:
-            st.divider()
             st.error("🔔 CENOVÉ ALERTY!", icon="🔥")
             for a in alerts:
                 st.markdown(f"- **{a}**")
 
-        # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) - S CALLBACKEM ---
+        # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
         st.divider()
-        st.caption("💻 TERMINÁL (Příkazová řádka)")
+        with st.expander("💻 TERMINÁL", expanded=False):
+            # Zobrazení zprávy z callbacku
+            if st.session_state.get('cli_msg'):
+                txt, ic = st.session_state['cli_msg']
+                if ic in ["🔬", "👮"]:
+                    st.toast(f"{ic} Nové hlášení od AI strážce!", icon=ic)
+                    st.markdown(f"<div style='font-size: 10px;'>{txt}</div>", unsafe_allow_html=True)
+                else:
+                    st.info(f"{ic} {txt}")
+                st.session_state['cli_msg'] = None 
 
-        # Zobrazení zprávy z callbacku (pokud existuje z minulé akce)
-        if st.session_state.get('cli_msg'):
-            txt, ic = st.session_state['cli_msg']
-            
-            # --- ZDE JE OPRAVA PRO ZOBRAZENÍ DLOUHÝCH AI REPORTŮ ---
-            if ic in ["🔬", "👮"]:
-                # Pro AI reporty zobrazíme jen notifikaci
-                st.toast(f"{ic} Nové hlášení od AI strážce!", icon=ic)
-                
-                # A celý text reportu zobrazíme čitelně do hlavního panelu (pokud je na domovské stránce)
-                st.markdown(
-                    f"""
-                    <div style="background-color: #161B22; border-left: 4px solid #58A6FF; padding: 15px; border-radius: 5px; margin-top: 15px;">
-                        <p style="margin:0; font-family: 'Roboto Mono'; font-weight: bold;">{txt.replace('\n', '<br>')}</p>
-                    </div>
-                    """, 
-                    unsafe_allow_html=True
-                )
-            else:
-                st.toast(txt, icon=ic)
+            st.text_input(">", key="cli_cmd", placeholder="/help", on_change=process_cli_command)
 
-            st.session_state['cli_msg'] = None # Vyčistit po zobrazení, aby se toast neopakoval
-
-        # Input s callbackem - klíčová změna!
-        st.text_input(">", key="cli_cmd", placeholder="/help pro nápovědu", on_change=process_cli_command)
-        # ---------------------------------------
-
-        st.divider(); st.subheader("NAVIGACE")
-        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
-
+        # --- AKCE (Tlačítka dole) ---
         st.divider()
-        if st.button("📧 ODESLAT RANNÍ REPORT", use_container_width=True):
-            msg = f"<h2>Report {USER}</h2><p>Jmění: {celk_hod_czk:,.0f} Kč</p>"
-            if odeslat_email(st.secrets["email"]["sender"], "Report", msg) == True: st.success("Odesláno!")
-            else: st.error("Chyba")
+        
+        # PDF a Email dáme vedle sebe, ať to nezabírá 2 řádky
+        c_act1, c_act2 = st.columns(2)
+        with c_act1:
+            if st.button("📧 REPORT", use_container_width=True):
+                msg = f"<h2>Report {USER}</h2><p>Jmění: {celk_hod_czk:,.0f} Kč</p>"
+                if odeslat_email(st.secrets["email"]["sender"], "Report", msg) == True: st.toast("Odesláno!", icon="✅")
+                else: st.toast("Chyba odeslání", icon="❌")
+        
+        with c_act2:
+            pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
+            st.download_button(label="📄 PDF", data=pdf_data, file_name=f"report.pdf", mime="application/pdf", use_container_width=True)
 
-        pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
-        st.download_button(label="📄 STÁHNOUT PDF REPORT", data=pdf_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf", use_container_width=True)
-
-        st.divider()
-        with st.expander("🔐 Změna hesla"):
+        with st.expander("🔐 Účet"):
             with st.form("pass_change"):
                 old = st.text_input("Staré", type="password"); new = st.text_input("Nové", type="password"); conf = st.text_input("Potvrdit", type="password")
-                if st.form_submit_button("Změnit"):
+                if st.form_submit_button("Změnit heslo"):
                     df_u = nacti_uzivatele(); row = df_u[df_u['username'] == USER]
                     if not row.empty and row.iloc[0]['password'] == zasifruj(old):
                         if new == conf and len(new) > 0:
                             df_u.at[row.index[0], 'password'] = zasifruj(new); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Pass change {USER}"); st.success("Hotovo!")
-                        else: st.error("Chyba v novém hesle.")
+                        else: st.error("Chyba")
                     else: st.error("Staré heslo nesedí.")
 
-        if st.button("🚪 ODHLÁSIT", use_container_width=True):
-            cookie_manager.delete("invest_user")
-            st.session_state.clear()
-            st.rerun()
+            if st.button("🚪 ODHLÁSIT", type="primary", use_container_width=True):
+                cookie_manager.delete("invest_user")
+                st.session_state.clear()
+                st.rerun()
+
 
     # BĚŽÍCÍ PÁS
     if page not in ["🎮 Gamifikace", "⚙️ Nastavení"]:
@@ -3492,5 +3487,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
