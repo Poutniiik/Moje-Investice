@@ -747,9 +747,10 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
 
 
 def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST):
-    """Vykreslí stránku '👀 Sledování' (Watchlist)."""
+    """Vykreslí stránku '👀 Sledování' (Watchlist) - VERZE 2.1 (Fix Buy/Sell Cíl)"""
     st.title("👀 WATCHLIST (Hlídač) – Cenové zóny")
 
+    # Sekce pro přidání nové akcie
     with st.expander("➕ Přidat novou akcii", expanded=False):
         with st.form("add_w", clear_on_submit=True):
             t = st.text_input("Symbol (např. AAPL)").upper()
@@ -767,36 +768,32 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
         st.subheader("📡 TAKTICKÝ RADAR")
         st.info("Rychlý přehled technického stavu sledovaných akcií.")
 
-        # Příprava dat pro Radar
         w_data = []
         tickers_list = df_watch['Ticker'].unique().tolist()
         batch_data = pd.DataFrame()
 
-        # Hromadné stažení historie pro RSI (rychlejší než po jednom)
+        # Hromadné stažení dat pro indikátory
         if tickers_list:
             with st.spinner("Skenuji trh a počítám indikátory..."):
                 try:
                     batch_data = yf.download(tickers_list, period="3mo", group_by='ticker', progress=False)
                 except: batch_data = pd.DataFrame()
 
-        # Procházíme sledované akcie
         for _, r in df_watch.iterrows():
             tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
 
-            # Získání live ceny a info
+            # Získání ceny
             inf = LIVE_DATA.get(tk, {})
             price = inf.get('price')
             cur = inf.get('curr', 'USD')
-
-            # Fallback pro měnu
             if tk.upper().endswith(".PR"): cur = "CZK"
             elif tk.upper().endswith(".DE"): cur = "EUR"
-
+            
             if not price:
                 price, _, _ = ziskej_info(tk)
 
             # Výpočet RSI
-            rsi_val = 50 # Default neutral
+            rsi_val = 50 
             try:
                 if len(tickers_list) > 1:
                     if tk in batch_data.columns.levels[0]: hist = batch_data[tk]['Close']
@@ -815,7 +812,7 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
             except: pass
 
             # 52 Week Range
-            year_low = 0; year_high = 0; range_pos = 0.5
+            range_pos = 0.5
             try:
                 t_obj = yf.Ticker(tk)
                 year_low = t_obj.fast_info.year_low
@@ -823,30 +820,34 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                 if price and year_high > year_low:
                     range_pos = (price - year_low) / (year_high - year_low)
                     range_pos = max(0.0, min(1.0, range_pos))
-                else:
-                    range_pos = (price - year_low) / (year_high - year_high) # Chyba v logice ->
-                    range_pos = max(0.0, min(1.0, range_pos)) # Upraveno
             except: pass
 
             # --- LOGIKA SNIPERA (ZAMĚŘOVAČ) ---
             status_text = "💤 Wait"
-            proximity_score = 0.0 # 0 = Daleko, 1 = Cíl zasažen
-
-            if price and price > 0:
-                # Logika pro NÁKUP (Chceme, aby cena klesla k TargetBuy)
-                if buy_trg > 0:
+            proximity_score = 0.0
+            
+            # --- FIX: Určení aktivního cíle a typu akce ---
+            active_target = 0
+            action_icon = "⚪️"
+            
+            if buy_trg > 0:
+                active_target = buy_trg
+                action_icon = "🟢 Buy"
+                if price and price > 0:
                     if price <= buy_trg:
                         status_text = "🔥 BUY NOW"
-                        proximity_score = 1.0 # Plný zásah
+                        proximity_score = 1.0
                     else:
                         diff_pct = (price - buy_trg) / price
                         if diff_pct > 0.20: proximity_score = 0.0
                         else:
                             proximity_score = 1.0 - (diff_pct / 0.20)
                             status_text = f"Blíží se ({diff_pct*100:.1f}%)"
-
-                # Logika pro PRODEJ (Chceme, aby cena rostla k TargetSell)
-                elif sell_trg > 0:
+            
+            elif sell_trg > 0:
+                active_target = sell_trg
+                action_icon = "🔴 Sell"
+                if price and price > 0:
                     if price >= sell_trg:
                         status_text = "💰 SELL NOW"
                         proximity_score = 1.0
@@ -864,7 +865,8 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                 "Měna": cur,
                 "RSI (14)": rsi_val,
                 "52T Range": range_pos,
-                "Cíl Buy": buy_trg,
+                "Cíl": active_target,     # Sloupec je nyní univerzální "Cíl"
+                "Akce": action_icon,      # Nový sloupec s ikonkou
                 "Zaměřovač": proximity_score,
                 "Status": status_text
             })
@@ -876,10 +878,11 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                 wdf,
                 column_config={
                     "Cena": st.column_config.NumberColumn(format="%.2f"),
-                    "Cíl Buy": st.column_config.NumberColumn(format="%.2f"),
+                    "Cíl": st.column_config.NumberColumn(format="%.2f", help="Tvůj nastavený limit (Nákup nebo Prodej)"),
+                    "Akce": st.column_config.TextColumn("Typ", width="small"),
                     "RSI (14)": st.column_config.NumberColumn(
-                        "RSI Indikátor",
-                        help="< 30: Přeprodáno (Levné) | > 70: Překoupeno (Drahé)",
+                        "RSI",
+                        help="< 30: Levné | > 70: Drahé",
                         format="%.0f",
                     ),
                     "52T Range": st.column_config.ProgressColumn(
@@ -888,26 +891,26 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                         min_value=0, max_value=1, format=""
                     ),
                     "Zaměřovač": st.column_config.ProgressColumn(
-                        "🎯 Vzdálenost k cíli",
-                        help="Jak blízko je cena k tvému limitu? (Plný = Akce!)",
+                        "🎯 Radar",
+                        help="Jak blízko je cena k limitu?",
                         min_value=0,
                         max_value=1,
                         format=""
                     )
                 },
-                column_order=["Symbol", "Cena", "Cíl Buy", "Zaměřovač", "Status", "RSI (14)", "52T Range", "Měna"],
+                # Upravené pořadí pro lepší mobile view
+                column_order=["Symbol", "Cena", "Akce", "Cíl", "Zaměřovač", "Status", "RSI (14)", "52T Range"],
                 use_container_width=True,
                 hide_index=True
             )
 
-            # Legenda k RSI
-            st.caption("💡 **RSI Legenda:** Hodnoty pod **30** značí přeprodanost (možný odraz nahoru 📈). Hodnoty nad **70** značí překoupenost (možná korekce dolů 📉).")
+            st.caption("💡 **RSI Legenda:** Pod **30** = Přeprodáno (Levné 📉), Nad **70** = Překoupeno (Drahé 📈).")
 
         st.divider()
         c_del1, c_del2 = st.columns([3, 1])
         with c_del2:
             to_del = st.selectbox("Vyber pro smazání:", df_watch['Ticker'].unique())
-            if st.button("🗑️ Smazat ze sledování", use_container_width=True):
+            if st.button("🗑️ Smazat", use_container_width=True):
                 odebrat_z_watchlistu(to_del, USER); st.rerun()
     else:
         st.info("Zatím nic nesleduješ. Přidej první akcii nahoře.")
@@ -3487,6 +3490,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
