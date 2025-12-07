@@ -96,6 +96,20 @@ def invalidate_data_core():
         # Nastavíme timestamp do minulosti, čímž vyprší 5minutový limit
         st.session_state['data_core']['timestamp'] = datetime.now() - timedelta(minutes=6)
 
+# --- OPRAVA 1: CACHOVANÁ INICIALIZACE AI (Aby se nevolala pořád dokola) ---
+@st.cache_resource(show_spinner="Připojuji neurální sítě...")
+def get_cached_ai_connection():
+    """
+    Tato funkce zajistí, že se init_ai() zavolá jen JEDNOU za běh serveru,
+    ne při každém kliknutí uživatele. To zabrání chybě 429.
+    """
+    try:
+        return init_ai()
+    except Exception as e:
+        # Pokud to selže, vrátíme None a False, aby aplikace nepadla
+        print(f"Chyba init_ai: {e}")
+        return None, False
+
 # --- DATABÁZE A TRANSAKČNÍ FUNKCE (Zachovány) ---
 def pridat_do_watchlistu(ticker, target_buy, target_sell, user):
     df_w = st.session_state['df_watch']
@@ -316,12 +330,9 @@ def render_ticker_tape(data_dict):
     """, unsafe_allow_html=True)
 
 def add_download_button(fig, filename):
-    # Tlačítko se pokusíme vygenerovat, ale pokud chybí systémové knihovny (což je časté na cloudu),
-    # zobrazíme jen návod na alternativní stažení, abychom uživatele neděsili chybou.
     try:
         import io
         buffer = io.BytesIO()
-        # Pokus o renderování
         fig.write_image(buffer, format="png", width=1200, height=800, scale=2)
 
         st.download_button(
@@ -332,7 +343,6 @@ def add_download_button(fig, filename):
             use_container_width=True
         )
     except Exception:
-        # Tichý fallback - pokud to nejde, zobrazíme jen jemný tip místo chyby
         st.caption("💡 Tip: Pro stažení obrázku použij ikonu fotoaparátu 📷, která se objeví v pravém horním rohu grafu po najetí myší.")
 
 # --- NOVÁ FUNKCE: Progresní funkce pro RPG úkoly ---
@@ -407,10 +417,6 @@ RPG_TASKS = [
      "check_fn": lambda df, df_w, zustatky, vdf: zustatky.get('CZK', 0) >= 5000},
 ]
 
-
-# ----------------------------------------------------------------------
-# VÝVOJOVÝ TIP: PŘESUNUTÍ LOGIKY STRÁNEK DO VLASTNÍCH FUNKCI
-# ----------------------------------------------------------------------
 
 def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
     """Vykreslí stránku '🏠 Přehled' (Dashboard)."""
@@ -1973,23 +1979,9 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     return data_core
 
 
-@st.cache_resource(show_spinner="Připojuji neurální sítě...")
-def get_cached_ai_connection():
-    """
-    Tato funkce zajistí, že se init_ai() zavolá jen JEDNOU za běh serveru,
-    ne při každém kliknutí uživatele. To zabrání chybě 429.
-    """
-    try:
-        return init_ai()
-    except Exception as e:
-        # Pokud to selže, vrátíme None a False, aby aplikace nepadla
-        print(f"Chyba init_ai: {e}")
-        return None, False
-
 # --- HLAVNÍ FUNKCE (Router) ---
 def main():
-    # --- 1. BEZPEČNÁ INICIALIZACE AI ---
-    # Voláme naši novou cachovanou funkci místo přímého volání
+    # --- 1. BEZPEČNÁ INICIALIZACE AI (Fix 1: Použití cache wrapperu) ---
     model, AI_AVAILABLE = get_cached_ai_connection()
 
     # 1. Start Cookie Manager
@@ -2856,8 +2848,8 @@ def main():
 
                                 st.subheader("📈 Vývoj v čase")
                                 fig_dca = px.area(dca_df, x=dca_df.index, y=["Hodnota portfolia", "Vloženo celkem"],
-                                                     color_discrete_map={"Hodnota portfolia": "#00CC96", "Vloženo celkem": "#AB63FA"},
-                                                     template="plotly_dark")
+                                                  color_discrete_map={"Hodnota portfolia": "#00CC96", "Vloženo celkem": "#AB63FA"},
+                                                  template="plotly_dark")
                                 fig_dca.update_layout(xaxis_title="", yaxis_title="Hodnota (Kč)", legend=dict(orientation="h", y=1.1), font_family="Roboto Mono", paper_bgcolor="rgba(0,0,0,0)")
                                 fig_dca = make_plotly_cyberpunk(fig_dca)
                                 st.plotly_chart(fig_dca, use_container_width=True)
@@ -3368,6 +3360,7 @@ def main():
         render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky)
 
 
+    # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
     elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
         
@@ -3384,7 +3377,7 @@ def main():
                     st.error("API: OFFLINE")
             
             with c_stat2:
-                # Master Switch
+                # Master Switch - Používáme toggle, který je bezpečnější než button
                 is_on = st.toggle("Povolit AI funkce", value=st.session_state.get('ai_enabled', False))
                 if is_on != st.session_state.get('ai_enabled', False):
                     st.session_state['ai_enabled'] = is_on
@@ -3458,6 +3451,9 @@ def main():
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
 
+    # --- OPRAVA 3: CHAT S POJISTKOU PROTI CHYBĚ 429 ---
+    # Tento blok nahrazuje původní chat sekci na konci souboru
+    
     with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
         st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
 
@@ -3467,39 +3463,49 @@ def main():
                 st.session_state["chat_messages"] = [{"role": "assistant", "content": "Paměť vymazána. O čem se chceš bavit teď? 🧠"}]
                 st.rerun()
 
-        if "chat_messages" not in st.session_state: st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
-        for msg in st.session_state["chat_messages"]: st.chat_message(msg["role"]).write(msg["content"])
+        if "chat_messages" not in st.session_state: 
+            st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
+        
+        # Vykreslení historie
+        for msg in st.session_state["chat_messages"]: 
+            st.chat_message(msg["role"]).write(msg["content"])
+            
+        # Vstup uživatele
         if prompt := st.chat_input("Zeptej se..."):
             if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
                 st.error("AI je neaktivní nebo chybí API klíč. Zkontroluj Nastavení.")
-            else: st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
-
-        if st.session_state["chat_messages"][-1]["role"] == "user":
-            with st.spinner("Přemýšlím..."):
-                last_user_msg = st.session_state["chat_messages"][-1]["content"]
-
-                # --- Příprava kontextu pro AI (zjednodušeno) ---
-                portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
-                if viz_data_list: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
-
-                # Fear & Greed
-                fg_score, fg_rating = ziskej_fear_greed()
-                if fg_score:
-                    portfolio_context += f"\nTržní nálada: {fg_score} ({fg_rating})."
-
-                # Sentiment zpráv
-                ai_news = st.session_state.get('ai_news_analysis', {})
-                if ai_news:
-                    avg_s = sum([v['score'] for v in ai_news.values()]) / len(ai_news) if len(ai_news) > 0 else 50
-                    portfolio_context += f"\nSentiment zpráv: {avg_s:.0f}/100."
-
-                # --- VOLÁNÍ MOZKU (ai_brain.py) ---
-                ai_reply = get_chat_response(model, last_user_msg, portfolio_context)
-
-                # Uložení a refresh
-                st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
+            else: 
+                st.session_state["chat_messages"].append({"role": "user", "content": prompt})
                 st.rerun()
+
+        # --- LOGIKA ODPOVĚDI (S POJISTKOU PROTI SMYČCE) ---
+        if st.session_state["chat_messages"][-1]["role"] == "user":
+            if not st.session_state.get('ai_enabled', False):
+                # Pokud je AI vypnutá, netrápíme se a končíme
+                st.info("AI je momentálně vypnutá.")
+            else:
+                with st.spinner("Přemýšlím..."):
+                    last_user_msg = st.session_state["chat_messages"][-1]["content"]
+                    
+                    # Příprava kontextu (zkrácená verze)
+                    portfolio_context = f"Jmění: {celk_hod_czk:,.0f} CZK. "
+                    if viz_data_list: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
+                    
+                    ai_reply = ""
+                    try:
+                        # Pokusíme se získat odpověď
+                        ai_reply = get_chat_response(model, last_user_msg, portfolio_context)
+                    except Exception as e:
+                        # KDYŽ TO SELŽE (např. 429), zachytíme to zde!
+                        error_msg = str(e)
+                        if "429" in error_msg:
+                            ai_reply = "🛑 **Došla mi energie (Quota Exceeded).** Google API limit byl vyčerpán. Zkus to prosím za chvíli."
+                        else:
+                            ai_reply = f"⚠️ Chyba komunikace: {error_msg}"
+                    
+                    # DŮLEŽITÉ: Vždy zapíšeme odpověď (i když je to chyba), aby se smyčka přerušila!
+                    st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
-
