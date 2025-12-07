@@ -2704,13 +2704,6 @@ def main():
                 st.plotly_chart(fig_crash, use_container_width=True)
 
 
-            if propad > 40:
-                st.error("⚠️ Tohle je brutální scénář. Historie ukazuje, že trhy se nakonec vždy vrátily, ale trvalo to roky.")
-            elif propad > 20:
-                st.warning("⚠️ Typický medvědí trh. Dobrá příležitost k nákupu, pokud máš hotovost.")
-            else:
-                st.info("ℹ️ Běžná korekce. Nic, co by tě mělo rozhodit.")
-
         with tab5:
             st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500) & SHARPE RATIO")
             if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
@@ -3094,6 +3087,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
