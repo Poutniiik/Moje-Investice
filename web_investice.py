@@ -585,7 +585,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         else:
             st.info("Portfolio je prázdné.")
 
-"""def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
+"def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
    Vykreslí stránku '🏠 Přehled' (Dashboard)."""
     
     st.title(f"🏠 PŘEHLED: {USER.upper()}")
@@ -973,7 +973,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                 use_container_width=True,
                 hide_index=True
             )
-        else: st.info("Portfolio je prázdné.")"""
+        else: st.info("Portfolio je prázdné.")"
 
     if st.session_state['show_cash_history']:
         st.divider()
@@ -3729,5 +3729,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
