@@ -89,6 +89,31 @@ def load_lottieurl(url: str):
     if r.status_code != 200: return None
     return r.json()
 
+# --- TURBO CACHE WRAPPERS (ZRYCHLENÍ APLIKACE) ---
+# Tyto funkce obalují původní funkce do cache, aby se nevolaly zbytečně často.
+
+@st.cache_data(ttl=3600) # 1 hodina cache pro detaily (fundamenty se mění pomalu)
+def cached_detail_akcie(ticker):
+    return ziskej_detail_akcie(ticker)
+
+@st.cache_data(ttl=1800) # 30 minut cache pro Fear & Greed
+def cached_fear_greed():
+    return ziskej_fear_greed()
+
+@st.cache_data(ttl=3600) # 1 hodina pro zprávy
+def cached_zpravy():
+    return ziskej_zpravy()
+
+@st.cache_data(ttl=300) # 5 minut cache pro hromadné ceny (Live data)
+def cached_ceny_hromadne(tickers_list):
+    return ziskej_ceny_hromadne(tickers_list)
+
+@st.cache_data(ttl=3600) # 1 hodina cache pro kurzy
+def cached_kurzy():
+    return ziskej_kurzy()
+
+# -----------------------------------------------------
+
 # --- NÁSTROJ PRO ŘÍZENÍ STAVU: ZNEHODNOCENÍ DAT ---
 def invalidate_data_core():
     """Vynutí opětovný přepočet datového jádra při příštím zobrazení stránky."""
@@ -590,7 +615,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
     st.write("")
 
     # --- FEAR & GREED INDEX (TACHOMETR) ---
-    score, rating = ziskej_fear_greed()
+    score, rating = cached_fear_greed() # Použití cache
     if score is not None:
         st.subheader(f"😨🤑 TRŽNÍ NÁLADA: {rating} ({score})")
         fig_gauge = go.Figure(go.Indicator(
@@ -1912,18 +1937,22 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     
-    # Stáhneme živá data a kurzy
-    LIVE_DATA = ziskej_ceny_hromadne(list(set(all_tickers)))
-    if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
-    if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
-    st.session_state['LIVE_DATA'] = LIVE_DATA # Uložíme pro fallback v proved_prodej
+    # Stáhneme živá data a kurzy (POUŽITÍ CACHE WRAPPERU)
+    LIVE_DATA = cached_ceny_hromadne(list(set(all_tickers)))
     
-    # Krok 2: Fundamentální data pro portfolio
+    # Poznámka: LIVE_DATA může být None, pokud se nepovedlo stažení, ale ziskej_ceny_hromadne obvykle vrací {}
+    if LIVE_DATA:
+        if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
+        if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
+    
+    st.session_state['LIVE_DATA'] = LIVE_DATA if LIVE_DATA else {} # Uložíme pro fallback v proved_prodej
+    
+    # Krok 2: Fundamentální data pro portfolio (POUŽITÍ CACHE WRAPPERU)
     fundament_data = {}
     if not df.empty:
         tickers_in_portfolio = df['Ticker'].unique().tolist()
         for tkr in tickers_in_portfolio:
-            info, _ = ziskej_detail_akcie(tkr)
+            info, _ = cached_detail_akcie(tkr) # Použití cache místo přímého volání
             fundament_data[tkr] = info
 
     # Krok 3: Výpočet portfolia
@@ -2189,7 +2218,7 @@ def main():
                     if not fund_info:
                         try:
                             # POZNÁMKA: V reálném kódu by se zde mělo zvážit, zda nechat uživatele čekat na externí API volání
-                            t_info, _ = ziskej_detail_akcie(target_ticker) 
+                            t_info, _ = cached_detail_akcie(target_ticker) 
                             if t_info:
                                 fund_info = t_info
                                 core['fundament_data'][target_ticker] = t_info # Aktualizujeme cache
@@ -2362,7 +2391,7 @@ def main():
     df_div = st.session_state['df_div']
     df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER)
-    kurzy = ziskej_kurzy() # Inicializace, hodnoty se upřesní v jádru
+    kurzy = cached_kurzy() # Inicializace, hodnoty se upřesní v jádru
 
     # --- 6. VÝPOČTY (CENTRALIZOVANÝ DAT CORE) ---
     # Zkontrolujeme cache (např. platnost 5 minut)
@@ -2627,7 +2656,7 @@ def main():
 
                         comp_list = []
                         for t in tickers_to_compare[:2]:
-                            i, h = ziskej_detail_akcie(t)
+                            i, h = cached_detail_akcie(t) # Použití cache
                             if i:
                                 mc = i.get('marketCap', 0)
                                 pe = i.get('trailingPE', 0)
@@ -3255,7 +3284,7 @@ def main():
             from wordcloud import WordCloud
             import matplotlib.pyplot as plt
 
-            raw_news_cloud = ziskej_zpravy()
+            raw_news_cloud = cached_zpravy() # Použití cache
             if raw_news_cloud:
                 text_data = " ".join([n['title'] for n in raw_news_cloud]).upper()
 
@@ -3297,7 +3326,7 @@ def main():
 
             if st.button("🧠 SPUSTIT AI SENTIMENT 2.0", type="primary"):
                 with st.spinner("AI analyzuje trh..."):
-                    raw_news = ziskej_zpravy()
+                    raw_news = cached_zpravy() # Použití cache
                     titles = [n['title'] for n in raw_news[:8]]
                     titles_str = "\n".join([f"{i+1}. {t}" for i, t in enumerate(titles)])
                     prompt = f"""Jsi finanční analytik. Analyzuj tyto novinové titulky a urči jejich sentiment.\nTITULKY:\n{titles_str}\nPro každý titulek vrať přesně tento formát na jeden řádek (bez odrážek):\nINDEX|SKÓRE(0-100)|VYSVĚTLENÍ (česky, max 1 věta)"""
@@ -3316,7 +3345,7 @@ def main():
                         st.success("Analýza dokončena!")
                     except Exception as e: st.error(f"Chyba AI: {e}")
 
-        news = ziskej_zpravy()
+        news = cached_zpravy() # Použití cache
         ai_results = st.session_state.get('ai_news_analysis', {})
         if news:
             c1, c2 = st.columns(2)
