@@ -817,7 +817,7 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
 
     with st.expander("➕ Přidat novou akcii", expanded=False):
         with st.form("add_w", clear_on_submit=True):
-            t = st.text_input("Ticker (např. AAPL)").upper()
+            t = st.text_input("Symbol (např. AAPL)").upper()
             c_buy, c_sell = st.columns(2)
             with c_buy: target_buy = st.number_input("Cílová NÁKUPNÍ cena ($)", min_value=0.0, key="tg_buy")
             with c_sell: target_sell = st.number_input("Cílová PRODEJNÍ cena ($)", min_value=0.0, key="tg_sell")
@@ -1826,7 +1826,7 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                         add_download_button(fig_candle, f"rentgen_{vybrana_akcie}")
 
                         # --- NOVÁ FUNKCE: AI TECHNICKÁ ANALÝZA ---
-                        if AI_AVAILABLE:
+                        if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
                             st.divider()
                         if st.button(f"🤖 SPUSTIT AI TECHNICKOU ANALÝZU PRO {vybrana_akcie}", type="primary"):
                             with st.spinner(f"AI analyzuje indikátory pro {vybrana_akcie}..."):
