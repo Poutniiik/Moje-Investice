@@ -444,19 +444,17 @@ RPG_TASKS = [
 
 
 def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
-    """Vykreslí stránku '🏠 Přehled' (Dashboard) - VERZE 2.0 (Bento Grid)"""
+    """Vykreslí stránku '🏠 Přehled' (Dashboard) - VERZE 2.1 (Vylepšené sektory)"""
     
-    # ### --- FIX: BEZPEČNÁ INICIALIZACE PROMĚNNÝCH ---
+    # --- BEZPEČNÁ INICIALIZACE ---
     if 'show_cash_history' not in st.session_state:
-        st.session_state['show_cash_history'] = True  # Výchozí stav: Zapnuto
+        st.session_state['show_cash_history'] = False 
     if 'show_portfolio_live' not in st.session_state: 
         st.session_state['show_portfolio_live'] = True
-    # --------------------------------------------------
     
-    # 1. HLAVIČKA A HLAVNÍ METRIKY (To nejdůležitější nahoře)
+    # 1. HLAVIČKA A HLAVNÍ METRIKY
     st.title(f"🏠 PŘEHLED: {USER.upper()}")
     
-    # Kontejner pro hlavní čísla - aby to vypadalo jako "Banner"
     with st.container(border=True):
         k1, k2, k3, k4 = st.columns(4)
         kurz_czk = kurzy.get('CZK', 20.85)
@@ -466,19 +464,17 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         k3.metric("📈 ZMĚNA 24H", f"${zmena_24h:+,.0f}", f"{pct_24h:+.2f}%")
         k4.metric("💳 HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné prostředky")
 
-    st.write("") # Mezera
+    st.write("") 
 
-    # 2. ŘÁDEK: TRŽNÍ NÁLADA + SKOKANI + KOMPAS (Seskupeno)
+    # 2. ŘÁDEK: TRŽNÍ NÁLADA + KOMPAS
     c_left, c_right = st.columns([1, 2])
     
     with c_left:
-        # Karta: Tržní nálada & Skokani
         with st.container(border=True):
             st.caption("🧠 PSYCHOLOGIE TRHU")
             score, rating = cached_fear_greed()
             if score:
                 st.metric("Fear & Greed Index", f"{score}/100", rating)
-                # Mini Gauge (zmenšený)
                 fig_gauge = go.Figure(go.Indicator(
                     mode = "gauge+number", value = score,
                     domain = {'x': [0, 1], 'y': [0, 1]},
@@ -492,7 +488,6 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                 st.plotly_chart(fig_gauge, use_container_width=True)
             
             st.divider()
-            # Skokan a Propadák (Textová verze pro úsporu místa)
             viz_data_list = vdf.to_dict('records') if isinstance(vdf, pd.DataFrame) else vdf
             if viz_data_list:
                 sorted_data = sorted(viz_data_list, key=lambda x: x.get('Dnes', 0) if x.get('Dnes') is not None else 0, reverse=True)
@@ -501,14 +496,12 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                 st.write(f"💀 **{worst['Ticker']}**: {worst['Dnes']*100:+.2f}%")
 
     with c_right:
-        # Karta: Globální Kompas (Sparklines)
         with st.container(border=True):
-            st.caption("🧭 GLOBÁLNÍ KOMPAS (Trhy dnes)")
+            st.caption("🧭 GLOBÁLNÍ KOMPAS")
             try:
                 makro_tickers = {"🇺🇸 S&P 500": "^GSPC", "🥇 Zlato": "GC=F", "₿ Bitcoin": "BTC-USD", "🏦 Úroky 10Y": "^TNX"}
                 makro_data = yf.download(list(makro_tickers.values()), period="5d", progress=False)['Close']
                 
-                # Grid 2x2 pro lepší využití místa
                 mc1, mc2, mc3, mc4 = st.columns(4)
                 cols_list = [mc1, mc2, mc3, mc4]
                 
@@ -524,14 +517,12 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                             delta = ((last - prev) / prev) * 100
                             st.metric(name, f"{last:,.0f}", f"{delta:+.2f}%")
                             
-                            # Sparkline
                             line_color = '#238636' if delta >= 0 else '#da3633'
                             fig_spark = go.Figure(go.Scatter(y=series.values, mode='lines', line=dict(color=line_color, width=2), fill='tozeroy', fillcolor=f"rgba({'35, 134, 54' if delta >= 0 else '218, 54, 51'}, 0.1)"))
                             fig_spark.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=35, xaxis=dict(visible=False), yaxis=dict(visible=False), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                             st.plotly_chart(fig_spark, use_container_width=True, config={'displayModeBar': False})
             except Exception: st.error("Chyba kompasu")
         
-        # AI Bodyguard (Vložíme sem, pokud je aktivní)
         if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
              with st.container(border=True):
                 if st.button("🛡️ SPUSTIT RANNÍ AI BRIEFING", use_container_width=True):
@@ -541,7 +532,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                          res = ask_ai_guard(model, pct_24h, cash_usd, top_mover, flop_mover)
                          st.info(f"🤖 **AI:** {res}")
 
-    # 3. ŘÁDEK: GRAFY (Wealth & Sectors)
+    # 3. ŘÁDEK: GRAFY
     col_graf1, col_graf2 = st.columns([2, 1])
 
     with col_graf1:
@@ -550,31 +541,74 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
             if not hist_vyvoje.empty:
                 chart_data = hist_vyvoje.copy()
                 chart_data['TotalCZK'] = chart_data['TotalUSD'] * kurzy.get("CZK", 20.85)
-                # Vylepšení grafu: Odebrání gridu a přidání přechodu
                 fig_area = px.area(chart_data, x='Date', y='TotalCZK', template="plotly_dark")
                 fig_area.update_traces(line_color='#00CC96', fillcolor='rgba(0, 204, 150, 0.2)')
                 fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=320, margin=dict(l=0, r=0, t=10, b=0), showlegend=False)
-                fig_area.update_xaxes(showgrid=False) # Čistší vzhled
+                fig_area.update_xaxes(showgrid=False)
                 fig_area.update_yaxes(showgrid=True, gridcolor='#30363D', tickprefix="Kč ")
                 st.plotly_chart(fig_area, use_container_width=True)
 
+    # --- ZMĚNA: VYLEPŠENÁ SEKCE SEKTORŮ (CLEAN DESIGN) ---
     with col_graf2:
         with st.container(border=True):
-            st.subheader("🍰 SEKTORY")
+            st.subheader("🍰 ROZLOŽENÍ")
             if not vdf.empty:
-                fig_pie = px.pie(vdf, values='HodnotaUSD', names='Sektor', hole=0.6, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Bold)
-                fig_pie.update_traces(textposition='outside', textinfo='percent') # Popisky venku pro čitelnost
-                fig_pie.update_layout(showlegend=False, margin=dict(l=10, r=10, t=30, b=10), height=300, paper_bgcolor="rgba(0,0,0,0)", font=dict(size=14))
+                # 1. Agregace dat podle sektorů
+                df_sector = vdf.groupby('Sektor')['HodnotaUSD'].sum().reset_index()
+                # Výpočet procent
+                total_val = df_sector['HodnotaUSD'].sum()
+                df_sector['Podíl'] = (df_sector['HodnotaUSD'] / total_val) * 100
+                
+                # 2. Čistý prstencový graf (Donut)
+                fig_pie = px.pie(
+                    df_sector, 
+                    values='HodnotaUSD', 
+                    names='Sektor', 
+                    hole=0.7, # Tenčí prstenec
+                    template="plotly_dark", 
+                    color_discrete_sequence=px.colors.qualitative.Bold
+                )
+                
+                # Schováme popisky v grafu, aby to nebylo přeplácané
+                fig_pie.update_traces(textinfo='none', hoverinfo='label+percent+value') 
+                
+                # Legenda dolů, aby nezabírala místo po stranách
+                fig_pie.update_layout(
+                    showlegend=False, # Legendu schováme úplně, nahradíme ji tabulkou
+                    margin=dict(l=0, r=0, t=10, b=10), 
+                    height=150, # Menší výška grafu
+                    paper_bgcolor="rgba(0,0,0,0)"
+                )
+                
+                # Zobrazení grafu
                 st.plotly_chart(fig_pie, use_container_width=True)
+                
+                # 3. Přehledná tabulka pod grafem
+                st.dataframe(
+                    df_sector.sort_values('Podíl', ascending=False),
+                    column_config={
+                        "Sektor": st.column_config.TextColumn("Sektor"),
+                        "Podíl": st.column_config.ProgressColumn(
+                            "%", 
+                            format="%.1f%%", 
+                            min_value=0, 
+                            max_value=100
+                        ),
+                        "HodnotaUSD": st.column_config.NumberColumn("$ Hodnota", format="$%.0f")
+                    },
+                    column_order=["Sektor", "Podíl", "HodnotaUSD"],
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("Žádná data")
+    # --------------------------------------------------------
 
-    # 4. ŘÁDEK: SANKEY (Tok kapitálu) - Opravená vizualizace
+    # 4. ŘÁDEK: SANKEY
     st.write("")
     with st.container(border=True):
         st.subheader("🌊 TOK KAPITÁLU (Sankey)")
-        # ... ZDE JE KÓD PRO PŘÍPRAVU DAT (Stejný jako minule, zkráceno pro přehlednost) ...
-        # (Použijeme existující logiku pro přípravu dat, jen upravíme vizualizaci)
         
-        # --- KÓD PRO PŘÍPRAVU DAT (Zkopírováno a vyčištěno z původního souboru) ---
         total_vklady_czk = 0
         df_cash_temp = st.session_state.get('df_cash', pd.DataFrame())
         if not df_cash_temp.empty:
@@ -594,8 +628,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                 elif r['Mena'] == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
                 else: total_divi_czk += amt
         
-        total_realized_czk = 0 # (Zjednodušeno - nula pokud nemáš historii prodeje)
-        
+        total_realized_czk = 0 
         unrealized_profit_czk = (celk_hod_czk - celk_inv_usd * kurzy.get("CZK", 20.85))
         total_market_profit_czk = total_divi_czk + total_realized_czk + unrealized_profit_czk
         cash_total_czk = cash_usd * kurzy.get("CZK", 20.85)
@@ -605,11 +638,10 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         if not vdf.empty:
             vdf_sorted = vdf.sort_values('HodnotaUSD', ascending=False).head(5)
             for _, row in vdf_sorted.iterrows():
-                stock_label = f"{row['Ticker']}" # Jen ticker, ať je to kratší
+                stock_label = f"{row['Ticker']}"
                 label.append(stock_label)
                 top_stocks.append({'label': stock_label, 'value_czk': row['HodnotaUSD'] * kurzy.get("CZK", 20.85)})
         
-        # Dopočet ostatních
         stock_total_czk = celk_hod_czk
         other_stocks_val_czk = stock_total_czk - sum([s['value_czk'] for s in top_stocks])
         if other_stocks_val_czk > 100: label.append("Ostatní")
@@ -617,7 +649,6 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         IDX_VKLADY = 0; IDX_ZISK = 1; IDX_KAPITAL = 2; IDX_CASH = 3; IDX_FIRST_STOCK = 4
         source = []; target = []; value = []
         
-        # Linky
         if total_vklady_czk > 0: source.append(IDX_VKLADY); target.append(IDX_KAPITAL); value.append(total_vklady_czk)
         if total_market_profit_czk > 0: source.append(IDX_ZISK); target.append(IDX_KAPITAL); value.append(total_market_profit_czk)
         if cash_total_czk > 100: source.append(IDX_KAPITAL); target.append(IDX_CASH); value.append(cash_total_czk)
@@ -629,21 +660,19 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         if other_stocks_val_czk > 100:
              source.append(IDX_KAPITAL); target.append(curr_idx); value.append(other_stocks_val_czk)
 
-        # VIZUALIZACE SANKEY (Vylepšená)
         fig_sankey = go.Figure(data=[go.Sankey(
             node = dict(
                 pad = 20, thickness = 20,
                 line = dict(color = "black", width = 0.5),
                 label = label,
-                color = "rgba(0, 204, 150, 0.8)", # Výraznější barva
+                color = "rgba(0, 204, 150, 0.8)",
             ),
             link = dict(
                 source = source, target = target, value = value,
-                color = "rgba(100, 100, 100, 0.2)" # Průhlednější linky
+                color = "rgba(100, 100, 100, 0.2)"
             ),
-            textfont = dict(size=14, color="white", family="Roboto Mono") # Větší písmo
+            textfont = dict(size=14, color="white", family="Roboto Mono")
         )])
-        # Zvýšíme výšku, aby se to nedeformovalo
         fig_sankey.update_layout(height=500, margin=dict(l=10, r=10, t=30, b=30), paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
         st.plotly_chart(fig_sankey, use_container_width=True)
 
@@ -652,16 +681,13 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
     with st.container(border=True):
         c_head, c_check = st.columns([4, 1])
         c_head.subheader("📋 PORTFOLIO LIVE")
-        # Ovládání viditelnosti tabulky
         st.session_state['show_portfolio_live'] = c_check.checkbox("Zobrazit", value=st.session_state['show_portfolio_live'])
         
         if st.session_state['show_portfolio_live'] and not vdf.empty:
-             # Příprava Sparklines (z původního kódu, zkráceno)
             tickers_list = vdf['Ticker'].tolist()
             spark_data = {}
             if tickers_list:
                 try:
-                    # Rychlé stažení dat pro minigrafy
                     batch = yf.download(tickers_list, period="1mo", interval="1d", group_by='ticker', progress=False)
                     for t in tickers_list:
                          if len(tickers_list) > 1 and t in batch.columns.levels[0]: spark_data[t] = batch[t]['Close'].dropna().tolist()
@@ -671,7 +697,6 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
             
             vdf['Trend 30d'] = vdf['Ticker'].map(spark_data)
             
-            # --- ZJEDNODUŠENÝ POHLED (MOBILE FRIENDLY) ---
             st.dataframe(
                 vdf,
                 column_config={
@@ -681,48 +706,37 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                     "Dnes": st.column_config.NumberColumn("24h %", format="%.2f%%"),
                     "Zisk": st.column_config.NumberColumn("Zisk ($)", format="%.0f"),
                 },
-                column_order=["Ticker", "Trend 30d", "HodnotaUSD", "Dnes", "Zisk"], # Odebrali jsme méně důležité sloupce pro mobil
+                column_order=["Ticker", "Trend 30d", "HodnotaUSD", "Dnes", "Zisk"],
                 use_container_width=True, hide_index=True
             )
-            # ---------------------------------------
             
-            # Detailní pohled necháme v expanderu, aby nezabíral místo na mobilu
-            with st.expander("🔍 Zobrazit detailní tabulku (Desktop)"):
-                st.caption("Legenda daní: 🟢 > 3 roky (Osvobozeno) | 🔴 < 3 roky (Zdanit) | 🟠 Mix nákupů")
+            with st.expander("🔍 Zobrazit detailní tabulku"):
                 st.dataframe(
                     vdf,
                     column_config={
-                        "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
-                        "Sektor": st.column_config.TextColumn("Sektor", help="Odvětví"),
+                        "Ticker": st.column_config.TextColumn("Symbol"),
+                        "Sektor": st.column_config.TextColumn("Sektor"),
                         "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
                         "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f"),
                         "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
                         "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
-                        "P/E": st.column_config.NumberColumn("P/E Ratio", format="%.2f", help="Poměr ceny k ziskům. Nízká hodnota může značit podhodnocení."),
-                        "Kapitalizace": st.column_config.NumberColumn("Kapitalizace", format="$%.1fB", help="Tržní kapitalizace ve formátu miliard USD."),
-                        "Dan": st.column_config.TextColumn("Daně", help="🟢 > 3 roky (Osvobozeno)\n🔴 < 3 roky (Zdanit)\n🟠 Mix nákupů"),
-                        "Země": "Země",
+                        "P/E": st.column_config.NumberColumn("P/E Ratio", format="%.2f"),
                         "Trend 30d": st.column_config.LineChartColumn("Trend", width="medium")
                     },
-                    column_order=["Ticker", "Trend 30d", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"],
+                    column_order=["Ticker", "Trend 30d", "Sektor", "Měna", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E"],
                     use_container_width=True,
                     hide_index=True
                 )
         elif vdf.empty:
              st.info("Portfolio je prázdné.")
 
-    # ### --- FIX: SEKCE HISTORIE HOTOVOSTI ---
-    # Přidali jsme checkbox, aby se chyba 'KeyError' už neopakovala a uživatel si to mohl zapnout
-    
+    # 6. HISTORIE HOTOVOSTI
     st.write("")
-    # Checkbox pro zobrazení historie
-    st.session_state['show_cash_history'] = st.checkbox("📜 Zobrazit historii hotovostních transakcí", value=st.session_state.get('show_cash_history', False))
+    st.session_state['show_cash_history'] = st.checkbox("📜 Zobrazit historii hotovosti", value=st.session_state['show_cash_history'])
 
     if st.session_state['show_cash_history']:
         st.divider()
         st.subheader("🏦 HISTORIE HOTOVOSTI")
-        # Musíme načíst data z session state (jsou tam, protože jsme v 'render_prehled_page')
-        # Poznámka: df_cash tu není jako argument funkce, musíme ho vytáhnout bezpečně
         df_cash_local = st.session_state.get('df_cash', pd.DataFrame())
         
         if not df_cash_local.empty:
@@ -3478,4 +3492,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
