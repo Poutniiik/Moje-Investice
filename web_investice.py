@@ -43,7 +43,6 @@ from ai_brain import (
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
 
-
 # --- KONFIGURACE ---
 st.set_page_config(
     page_title="Terminal Pro",
@@ -428,14 +427,26 @@ def render_obchod_page(USER, df, zustatky, kurzy):
                     else: st.error(msg)
                 else: st.error("Nedostatek prostředků")
 
-def render_zpravy_page():
+def render_zpravy_page(AI_AVAILABLE, model):
     st.title("📰 ZPRÁVY Z TRHU")
+    if st.button("🔄 Obnovit zprávy"): st.cache_data.clear(); st.rerun()
+    
     news = cached_zpravy()
+    
     if news:
-        for n in news[:10]:
+        if AI_AVAILABLE:
+            with st.expander("🤖 AI Analýza Sentimentu (Beta)", expanded=True):
+                if 'sentiment_cache' not in st.session_state:
+                    st.session_state['sentiment_cache'] = analyze_headlines_sentiment(news, model)
+                st.write(st.session_state['sentiment_cache'])
+        
+        for n in news[:15]:
             with st.container(border=True):
-                st.markdown(f"**[{n['title']}]({n['link']})**")
-                st.caption(f"{n['source']} • {n['published']}")
+                c1, c2 = st.columns([1, 4])
+                with c1: st.caption(n['published'])
+                with c2:
+                    st.markdown(f"**[{n['title']}]({n['link']})**")
+                    st.caption(f"Zdroj: {n['source']}")
     else: st.info("Žádné nové zprávy.")
 
 def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
@@ -459,18 +470,42 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
     if not df_div.empty:
         st.dataframe(df_div.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
 
-def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, df, df_watch, zustatky, vdf):
+def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, df, df_watch, zustatky, vdf, model, AI_AVAILABLE):
     st.title("🎮 ARÉNA")
-    st.subheader(f"Level: {level_name}")
-    st.progress(level_progress)
     
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        st.subheader(f"Level: {level_name}")
+        st.progress(level_progress)
+        lottie_url = "https://assets5.lottiefiles.com/packages/lf20_bkjkaw6u.json"
+        lottie_json = load_lottieurl(lottie_url)
+        if lottie_json: st_lottie(lottie_json, height=150)
+    
+    with c2:
+        st.subheader("📜 Tvůj příběh")
+        if AI_AVAILABLE:
+            if 'rpg_story' not in st.session_state:
+                with st.spinner("Dungeon Master píše osud..."):
+                    st.session_state['rpg_story'] = generate_rpg_story(level_name, celk_hod_czk, model)
+            st.info(st.session_state['rpg_story'])
+            if st.button("🎲 Přepsat osud"):
+                del st.session_state['rpg_story']; st.rerun()
+        else:
+            st.warning("AI Modul nedostupný pro RPG příběh.")
+
     st.divider(); st.subheader("Výzvy")
     for i, t in enumerate(RPG_TASKS):
         done = t['check_fn'](df, df_watch, zustatky, vdf)
         curr, targ, txt = get_task_progress(i, df, df_watch, zustatky, vdf)
-        st.write(f"{'✅' if done else '⚪'} **{t['title']}**")
-        st.caption(t['desc'])
-        if not done and targ>0: st.progress(min(curr/targ, 1.0))
+        with st.container(border=True):
+            tc1, tc2 = st.columns([1, 5])
+            with tc1: st.write("✅" if done else "🔒")
+            with tc2:
+                st.write(f"**{t['title']}**")
+                st.caption(t['desc'])
+                if not done and targ > 0:
+                    st.progress(min(curr/targ, 1.0))
+                    st.caption(f"{txt}")
 
 def render_nastaveni_page(USER):
     st.title("⚙️ NASTAVENÍ")
@@ -479,37 +514,82 @@ def render_nastaveni_page(USER):
     with st.expander("Vývojářské nástroje"):
         st.json(st.session_state)
 
-# --- ANALÝZA (RENTGEN + CRASH TEST DOKONČENÍ) ---
+# --- ANALÝZA (RENTGEN + CRASH TEST KOMPLETNÍ) ---
 def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
-    # ... (Rentgen kód z předchozí verze, zkráceno pro přehlednost) ...
     st.subheader("🔍 RENTGEN AKCIE")
-    sel = st.selectbox("Vyber:", df['Ticker'].unique() if not df.empty else [])
+    
+    col_sel, col_btn = st.columns([3, 1])
+    with col_sel:
+        search_ticker = st.text_input("Hledat Ticker (např. TSLA, AAPL)", "").upper()
+    
+    # Priorita vyhledávání: Input -> Selectbox
+    if search_ticker:
+        sel = search_ticker
+    else:
+        sel = st.selectbox("Vyber z portfolia:", df['Ticker'].unique() if not df.empty else [])
+
     if sel:
         info, hist = ziskej_detail_akcie(sel)
+        
         if info:
-            st.write(info.get('longBusinessSummary', ''))
-            st.metric("Cena", info.get('currentPrice'))
-            if hist is not None and not hist.empty:
-                st.line_chart(hist['Close'])
+            st.title(f"{info.get('shortName', sel)} ({sel})")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Cena", f"{info.get('currentPrice', 'N/A')} {info.get('currency', 'USD')}")
+            c2.metric("Target (Analytici)", f"{info.get('targetMeanPrice', 'N/A')}")
+            c3.metric("P/E Ratio", f"{info.get('trailingPE', 'N/A')}")
+            c4.metric("52 Week High", f"{info.get('fiftyTwoWeekHigh', 'N/A')}")
+
+            tab1, tab2, tab3 = st.tabs(["📊 Graf", "📑 Fundamenty", "🤖 AI Názor"])
+            
+            with tab1:
+                if hist is not None and not hist.empty:
+                    fig = make_subplots(specs=[[{"secondary_y": True}]])
+                    fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'], name="Cena"), secondary_y=False)
+                    fig.add_trace(go.Bar(x=hist.index, y=hist['Volume'], name="Objem", opacity=0.3), secondary_y=True)
+                    fig.update_layout(height=400, template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)")
+                    st.plotly_chart(fig, use_container_width=True)
+                    add_download_button(fig, f"graf_{sel}")
+
+            with tab2:
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    st.write("**Popis:**")
+                    st.caption(info.get('longBusinessSummary', 'N/A'))
+                with col_f2:
+                    st.write("**Klíčová data:**")
+                    st.write(f"Sektor: {info.get('sector', 'N/A')}")
+                    st.write(f"Beta: {info.get('beta', 'N/A')}")
+                    st.write(f"Dividend Yield: {info.get('dividendYield', 0)*100:.2f}%")
+            
+            with tab3:
+                if AI_AVAILABLE:
+                    st.write("💬 **Zeptej se AI na tuto akcii:**")
+                    user_q = st.text_input("Tvůj dotaz:", f"Jaký je výhled pro {sel}?")
+                    if st.button("Odeslat dotaz"):
+                        with st.spinner("AI analyzuje..."):
+                            resp = ask_ai_guard(user_q, model)
+                            st.markdown(resp)
+                else:
+                    st.warning("AI není připojena.")
 
 def render_analýza_crash_test(celk_hod_czk):
-    # --- TOTO BYLO USEKNUTÉ V MINULÉ VERZI ---
     st.subheader("💥 CRASH TEST")
+    st.markdown("Simulace dopadu historických krizí na tvé portfolio.")
     
     scenarios = {
-        "COVID-19 (2020)": {"drop": 34, "icon": "🦠"},
-        "Finanční krize (2008)": {"drop": 57, "icon": "📉"},
-        "Dot-com (2000)": {"drop": 49, "icon": "💻"},
-        "Black Monday (1987)": {"drop": 22, "icon": "⚡"}
+        "COVID-19 (2020)": {"drop": 34, "icon": "🦠", "desc": "Pandemie zastavila světovou ekonomiku."},
+        "Finanční krize (2008)": {"drop": 57, "icon": "📉", "desc": "Kolaps trhu s bydlením v USA."},
+        "Dot-com (2000)": {"drop": 49, "icon": "💻", "desc": "Splasknutí technologické bubliny."},
+        "Black Monday (1987)": {"drop": 22, "icon": "⚡", "desc": "Největší jednodenní propad v historii."}
     }
     
-    cols = st.columns(4)
     if 'crash_sim_drop' not in st.session_state: st.session_state['crash_sim_drop'] = 20
     if 'crash_sim_name' not in st.session_state: st.session_state['crash_sim_name'] = "Vlastní"
 
+    cols = st.columns(4)
     for i, (name, data) in enumerate(scenarios.items()):
         with cols[i]:
-            if st.button(f"{data['icon']} {name}", key=f"btn_crash_{i}"):
+            if st.button(f"{data['icon']} {name}", key=f"btn_crash_{i}", use_container_width=True):
                 st.session_state['crash_sim_drop'] = data['drop']
                 st.session_state['crash_sim_name'] = name
 
@@ -524,6 +604,7 @@ def render_analýza_crash_test(celk_hod_czk):
     c1, c2 = st.columns(2)
     with c1:
         st.metric(f"Scénář: {name_sim}", f"-{drop_pct} %")
+        st.progress(drop_pct/100)
     with c2:
         st.metric("Zůstatek po pádu", f"{after_crash:,.0f} Kč", f"-{loss:,.0f} Kč", delta_color="inverse")
     
@@ -660,7 +741,7 @@ def main():
     elif page == "💸 Obchod":
         render_obchod_page(USER, df, zustatky, kurzy)
     elif page == "📰 Zprávy":
-        render_zpravy_page()
+        render_zpravy_page(AI_AVAILABLE, model)
     elif page == "📈 Analýza":
         t1, t2 = st.tabs(["Rentgen", "Crash Test"])
         with t1: render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE)
@@ -671,7 +752,7 @@ def main():
         # Level logic simplified
         lvl = "Novic" if celk_hod_czk < 10000 else "Profi"
         prog = min(celk_hod_czk/10000, 1.0)
-        render_gamifikace_page(USER, lvl, prog, celk_hod_czk, df, df_watch, zustatky, vdf)
+        render_gamifikace_page(USER, lvl, prog, celk_hod_czk, df, df_watch, zustatky, vdf, model, AI_AVAILABLE)
     elif page == "⚙️ Nastavení":
         render_nastaveni_page(USER)
 
