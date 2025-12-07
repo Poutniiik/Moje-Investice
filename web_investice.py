@@ -493,7 +493,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
 
     # --- AI BODYGUARD (Novinka) ---
-    if AI_AVAILABLE:
+    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
         st.write("") # Mezera
         if st.button("🛡️ VYŽÁDAT RANNÍ HLÁŠENÍ (AI)", use_container_width=True, type="secondary"):
             with st.spinner("Strážce skenuje perimetr..."):
@@ -553,7 +553,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
     # -----------------------------------
 
     # --- AI PORTFOLIO AUDITOR ---
-    if AI_AVAILABLE:
+    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
         if viz_data_list:
             with st.expander("🧠 AI AUDIT PORTFOLIA (Strategie)", expanded=False):
                 st.info("AI zanalyzuje tvé rozložení aktiv, rizikovost a navrhne vylepšení.")
@@ -817,7 +817,7 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
 
     with st.expander("➕ Přidat novou akcii", expanded=False):
         with st.form("add_w", clear_on_submit=True):
-            t = st.text_input("Symbol (např. AAPL)").upper()
+            t = st.text_input("Ticker (např. AAPL)").upper()
             c_buy, c_sell = st.columns(2)
             with c_buy: target_buy = st.number_input("Cílová NÁKUPNÍ cena ($)", min_value=0.0, key="tg_buy")
             with c_sell: target_sell = st.number_input("Cílová PRODEJNÍ cena ($)", min_value=0.0, key="tg_sell")
@@ -1210,7 +1210,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             
     
     # --- PŮVODNÍ AI LOGBOOK S VYLEPŠENÍM ---
-    if AI_AVAILABLE:
+    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
         st.divider()
         st.subheader("🎲 DENNÍ LOGBOOK (AI Narrator)")
 
@@ -2039,7 +2039,7 @@ def main():
                     rk = st.text_input("Záchranný kód")
                     rnp = st.text_input("Nové heslo", type="password")
                     if st.form_submit_button("OBNOVIT"):
-                        df_u = nacti_uzivatele(); row = df_u[df_u['username'] == ru]
+                        df_u = nacti_uzivatele(); row = df_u[df_u['username'] == u]
                         if not row.empty and row.iloc[0]['password'] == zasifruj(old):
                             if new == conf and len(new) > 0:
                                 df_u.at[row.index[0], 'password'] = zasifruj(new); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Hotovo!")
@@ -2109,8 +2109,8 @@ def main():
 
             elif cmd == "/ai_audit":
                 # Krok 1: Kontrola AI a Data Core (vždy provést před extenzivní logikou)
-                if not AI_AVAILABLE:
-                    msg_text = "❌ AI není dostupná (Chybí API klíč)."
+                if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
+                    msg_text = "❌ AI je neaktivní (Zkontroluj Nastavení nebo API klíč)."
                     msg_icon = "⚠️"
                     st.session_state['cli_msg'] = (msg_text, msg_icon)
                     return # Konec
@@ -3421,7 +3421,8 @@ def main():
         if "chat_messages" not in st.session_state: st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
         for msg in st.session_state["chat_messages"]: st.chat_message(msg["role"]).write(msg["content"])
         if prompt := st.chat_input("Zeptej se..."):
-            if not AI_AVAILABLE: st.error("Chybí API klíč.")
+            if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
+                st.error("AI je neaktivní nebo chybí API klíč. Zkontroluj Nastavení.")
             else: st.session_state["chat_messages"].append({"role": "user", "content": prompt}); st.rerun()
 
         if st.session_state["chat_messages"][-1]["role"] == "user":
