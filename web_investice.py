@@ -1503,7 +1503,7 @@ def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
 
 
 def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
-    """Vykreslí kartu Rentgen (Tab 1 Analýzy) - TEST VERZE"""
+    """Vykreslí kartu Rentgen (Tab 1 Analýzy) - FINAL VERZE"""
     st.write("")
     
     # Výběr akcie
@@ -1556,11 +1556,10 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             else: st.metric("P/E Ratio", "---")
 
                     with c_d2:
-                        # ZDE JE TEN TESTOVACÍ NÁPIS (UPDATE 2.1)
-                        st.subheader(f"{long_name} (UPDATE 2.1)")
+                        # ČISTÝ NADPIS (BEZ UPDATE)
+                        st.subheader(f"{long_name}")
                         st.caption(f"Cena: {current_price:,.2f} {currency}")
                         
-                        # ZABALENÍ POPISU (Pokud je to správně, uvidíš tu šipku pro rozbalení)
                         if len(summary) > 200:
                             with st.expander("📝 Popis společnosti (Rozbalit)", expanded=False):
                                 st.info(summary)
@@ -1593,7 +1592,6 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             "Podíl": [institutions, insiders, public]
                         })
                         
-                        # GRAF S LEGENDOU DOLE
                         fig_own = px.pie(own_df, values='Podíl', names='Kdo', hole=0.6,
                                          color='Kdo',
                                          color_discrete_map={"Instituce 🏦": "#58A6FF", "Insideři 👔": "#238636", "Veřejnost 👥": "#8B949E"},
@@ -1604,17 +1602,15 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             margin=dict(l=0, r=0, t=10, b=10), 
                             paper_bgcolor="rgba(0,0,0,0)", 
                             showlegend=True, 
-                            legend=dict(orientation="h", y=-0.1, x=0.5, xanchor="center"), # Tady je ten trik
+                            legend=dict(orientation="h", y=-0.1, x=0.5, xanchor="center"),
                             font=dict(size=14)
                         )
                         fig_own.update_traces(textinfo='percent', textposition='outside')
                         st.plotly_chart(fig_own, use_container_width=True)
 
-                    # --- Zbytek grafů (aby funkce byla kompletní) ---
                     st.divider()
                     st.subheader(f"📈 PROFESIONÁLNÍ CHART")
                     if hist_data is not None and not hist_data.empty:
-                        # Zjednodušený graf pro rychlost (kdyžtak vrátíme ten složitý)
                         fig_candle = go.Figure(data=[go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'])])
                         fig_candle.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, paper_bgcolor="rgba(0,0,0,0)")
                         st.plotly_chart(fig_candle, use_container_width=True)
@@ -3286,6 +3282,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
