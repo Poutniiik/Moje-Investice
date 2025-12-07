@@ -442,254 +442,404 @@ RPG_TASKS = [
      "check_fn": lambda df, df_w, zustatky, vdf: zustatky.get('CZK', 0) >= 5000},
 ]
 
-# --- STARÁ FUNKCE (ZÁLOHA - HISTORY) ---
-"""
+
 def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
-    # ... PŮVODNÍ KÓD (ZKRÁCENO PRO PŘEHLEDNOST, ALE ZACHOVÁNO JAKO ZAKOMENTOVANÝ BLOK) ...
-    # Zde byl původní kód funkce render_prehled_page, který zobrazoval vše pod sebou.
-    # Uživatel si ho může kdykoliv obnovit smazáním trojitých uvozovek.
-    pass
-"""
-
-# --- DASHBOARD 2.1 (NEW CLEAN UI) ---
-def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
-    """Vykreslí stránku '🏠 Přehled' (Dashboard) - VERZE 2.1 (Clean UI & Tabs)"""
+    """Vykreslí stránku '🏠 Přehled' (Dashboard)."""
     
-    # 1. HLAVIČKA: Jméno a hlavní čísla (To nejdůležitější)
-    st.title(f"🚀 {USER}: Řídící panel")
+    st.title(f"🏠 PŘEHLED: {USER.upper()}")
     
-    # Hlavní metriky - dáváme je HNED NAHORU
-    # Využijeme 4 sloupce pro čistý vzhled
-    with st.container(border=True):
-        col_main1, col_main2, col_main3, col_main4 = st.columns(4)
-        
-        # Barva pro změnu (zelená/červená)
-        delta_color = "normal" if pct_24h >= 0 else "inverse"
-        all_time_profit = (celk_hod_usd - celk_inv_usd) * kurzy.get('CZK', 20.85)
+    # --- MAKRO KOMPAS (Globální trhy) ---
+    st.caption("🧭 GLOBÁLNÍ KOMPAS")
+    try:
+        # Definice tickerů: S&P500, Zlato, Ropa, Bitcoin, Úrokové sazby
+        makro_tickers = {
+            "🇺🇸 S&P 500": "^GSPC",
+            "🥇 Zlato": "GC=F",
+            "🛢️ Ropa": "CL=F",
+            "₿ Bitcoin": "BTC-USD",
+            "🏦 Úroky 10Y": "^TNX"
+        }
 
-        col_main1.metric("💰 Celkové jmění (CZK)", f"{celk_hod_czk:,.0f} Kč", f"{all_time_profit:+,.0f} Kč (All-time)")
-        col_main2.metric("💵 Jmění (USD)", f"$ {celk_hod_usd:,.0f}", f"Investováno: ${celk_inv_usd:,.0f}")
-        col_main3.metric("📈 Dnešní změna", f"${zmena_24h:+,.0f}", f"{pct_24h:+.2f}%", delta_color=delta_color)
-        col_main4.metric("🏦 Volná hotovost", f"${cash_usd:,.0f}", "Ready to invest")
+        # Stáhneme data hromadně (rychlé)
+        makro_data = yf.download(list(makro_tickers.values()), period="5d", progress=False)['Close']
 
-    # 2. SEKUNDÁRNÍ DATA: Globální kontext (Schovaný v liště)
-    # Tohle zabíralo moc místa, teď je to volitelné
-    st.write("")
-    with st.expander("🌍 Globální trhy & Kompas (Klikni pro zobrazení)", expanded=False):
-        try:
-            # Zde je zjednodušená logika pro makro data (aby se neopakovala stahování)
-            makro_tickers = {"🇺🇸 S&P 500": "^GSPC", "🥇 Zlato": "GC=F", "🛢️ Ropa": "CL=F", "₿ Bitcoin": "BTC-USD"}
-            # Rychlé stažení jen pro tento widget
-            makro_data = yf.download(list(makro_tickers.values()), period="5d", progress=False)['Close']
-            
-            c_makro = st.columns(len(makro_tickers))
-            for i, (name, ticker) in enumerate(makro_tickers.items()):
-                with c_makro[i]:
-                    # Ošetření multiindexu (pandas update)
-                    if isinstance(makro_data.columns, pd.MultiIndex):
-                         if ticker in makro_data.columns.levels[0]: series = makro_data[ticker].dropna()
-                         else: series = pd.Series()
+        # Vytvoříme sloupce (5 vedle sebe)
+        mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+        cols_list = [mc1, mc2, mc3, mc4, mc5]
+
+        for i, (name, ticker) in enumerate(makro_tickers.items()):
+            with cols_list[i]:
+                if isinstance(makro_data.columns, pd.MultiIndex):
+                    if ticker in makro_data.columns.levels[0]:
+                        series = makro_data[ticker].dropna()
                     else:
-                        series = makro_data[ticker].dropna() if ticker in makro_data.columns else pd.Series()
+                        series = pd.Series()
+                else:
+                    series = makro_data[ticker].dropna() if ticker in makro_data.columns else pd.Series()
 
-                    if not series.empty:
-                        last = series.iloc[-1]
-                        prev = series.iloc[-2] if len(series) > 1 else last
-                        delta = ((last - prev) / prev) * 100
-                        st.metric(name, f"{last:,.2f}", f"{delta:+.2f}%")
-                    else:
-                        st.metric(name, "N/A")
-        except Exception:
-            st.caption("Makro data momentálně nedostupná.")
+                if not series.empty:
+                    last = series.iloc[-1]
+                    prev = series.iloc[-2] if len(series) > 1 else last
+                    delta = ((last - prev) / prev) * 100
 
-    # 3. AI STRÁŽCE (Zjednodušený bar)
-    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
-         if st.button("🛡️ Vyžádat ranní hlášení (AI Audit)", type="secondary", use_container_width=True):
-            with st.spinner("Strážce skenuje perimetr..."):
-                # ... Původní logika AI strážce ...
-                viz_data_list = vdf.to_dict('records') if isinstance(vdf, pd.DataFrame) else vdf
-                best = None; worst = None
-                if viz_data_list:
-                    sorted_data = sorted(viz_data_list, key=lambda x: x.get('Dnes', 0), reverse=True)
-                    best = sorted_data[0]; worst = sorted_data[-1]
-                else: best = {"Ticker": "N/A"}; worst = {"Ticker": "N/A"}
-                
-                try:
-                    res = ask_ai_guard(model, pct_24h, cash_usd, best.get('Ticker', 'N/A'), worst.get('Ticker', 'N/A'))
-                    if pct_24h >= 0: st.success(f"👮 **HLÁŠENÍ:** {res}")
-                    else: st.warning(f"👮 **HLÁŠENÍ:** {res}")
-                except Exception as e: st.error(f"Strážce neodpovídá. ({e})")
+                    # Barva grafu podle změny
+                    line_color = '#238636' if delta >= 0 else '#da3633'
+
+                    # Sparkline graf (zjednodušený)
+                    fig_spark = go.Figure(go.Scatter(
+                        y=series.values,
+                        mode='lines',
+                        line=dict(color=line_color, width=2),
+                        fill='tozeroy',
+                        fillcolor=f"rgba({'35, 134, 54' if delta >= 0 else '218, 54, 51'}, 0.2)"
+                    ))
+                    fig_spark.update_layout(
+                        margin=dict(l=0, r=0, t=0, b=0),
+                        height=30,
+                        showlegend=False,
+                        xaxis=dict(visible=False),
+                        yaxis=dict(visible=False),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
+
+                    st.metric(name, f"{last:,.2f}", f"{delta:+.2f}%")
+                    fig_spark = make_plotly_cyberpunk(fig_spark)
+                    st.plotly_chart(fig_spark, use_container_width=True, config={'displayModeBar': False})
+                else:
+                    st.metric(name, "N/A")
+
+    except Exception as e:
+        st.error(f"Kompas rozbitý: {e}")
 
     st.divider()
 
-    # --- 4. HLAVNÍ VIZUALIZACE (TABS SYSTEM) ---
-    # Tady řešíme ten problém s místem. Každý graf dostane vlastní "pokojíček".
-    
-    tab_vyvoj, tab_struktura, tab_sankey, tab_risk = st.tabs([
-        "🌊 Vývoj majetku", 
-        "🍰 Struktura & Sektory", 
-        "🔀 Tok peněz (Sankey)", 
-        "⚖️ Riziko & Nálada"
-    ])
+    # HLAVNÍ METRIKY
+    with st.container(border=True):
+        k1, k2, k3, k4 = st.columns(4)
+        kurz_czk = kurzy.get('CZK', 20.85)
+        k1.metric("JMĚNÍ (USD)", f"$ {celk_hod_usd:,.0f}", f"{celk_hod_usd-celk_inv_usd:+,.0f} Zisk")
+        k2.metric("JMĚNÍ (CZK)", f"{celk_hod_czk:,.0f} Kč", f"{(celk_hod_usd-celk_inv_usd)*kurz_czk:+,.0f} Kč")
+        k3.metric("ZMĚNA 24H", f"${zmena_24h:+,.0f}", f"{pct_24h:+.2f}%")
+        k4.metric("HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné")
 
-    # --- TAB 1: VÝVOJ ---
-    with tab_vyvoj:
+    # --- AI BODYGUARD (Novinka) ---
+    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
+        st.write("") # Mezera
+        if st.button("🛡️ VYŽÁDAT RANNÍ HLÁŠENÍ (AI)", use_container_width=True, type="secondary"):
+            with st.spinner("Strážce skenuje perimetr..."):
+                
+                # Nalezení Skokana/Propadáku
+                best = None
+                worst = None
+                if vdf is not None and not vdf.empty:
+                    # Předpokládáme, že vdf je dataframe, ne list dictů (tady je nutné ošetření)
+                    if isinstance(vdf, pd.DataFrame):
+                        if 'Dnes' in vdf.columns and not vdf.empty:
+                            vdf_sorted = vdf.sort_values('Dnes', ascending=False)
+                            best = vdf_sorted.iloc[0].to_dict()
+                            worst = vdf_sorted.iloc[-1].to_dict()
+                        else:
+                            # Pro případ, že vdf je prázdné nebo nemá Dnes
+                            best = {"Ticker": "N/A"}; worst = {"Ticker": "N/A"}
+                    else: # Původní viz_data byl list dictů, pro jistotu
+                        sorted_data = sorted(vdf, key=lambda x: x.get('Dnes', 0), reverse=True)
+                        best = sorted_data[0] if sorted_data else {"Ticker": "N/A"}
+                        worst = sorted_data[-1] if sorted_data else {"Ticker": "N/A"}
+
+
+                top_mover = best.get('Ticker', "N/A") if best else "N/A"
+                flop_mover = worst.get('Ticker', "N/A") if worst else "N/A"
+
+                try:
+                    # Voláme novou funkci z ai_brain.py
+                    guard_res_text = ask_ai_guard(model, pct_24h, cash_usd, top_mover, flop_mover)
+
+                    # 2. Rozhodneme o barvě hlášení podle toho, jestli jsme v plusu
+                    if pct_24h >= 0:
+                        st.success(f"👮 **HLÁŠENÍ:** {guard_res_text}")
+                    else:
+                        st.warning(f"👮 **HLÁŠENÍ:** {guard_res_text}")
+
+                except Exception as e:
+                    st.error(f"Strážce neodpovídá. ({e})")
+
+    # --- NOVÉ: SKOKAN A PROPADÁK DNE ---
+    # Potřebujeme zajistit, že vdf je list dictů, pokud bylo původně takto definováno
+    viz_data_list = vdf.to_dict('records') if isinstance(vdf, pd.DataFrame) else vdf
+
+    if viz_data_list:
+        sorted_data = sorted(viz_data_list, key=lambda x: x.get('Dnes', 0) if x.get('Dnes') is not None else 0, reverse=True)
+        best = sorted_data[0]
+        worst = sorted_data[-1]
+
+        st.write("")
+        c_m1, c_m2 = st.columns(2)
+        with c_m1:
+            st.success(f"🚀 SKOKAN DNE: **{best['Ticker']}**")
+            st.metric("Změna", f"{best['Dnes']*100:+.2f} %", f"Cena: {best['Cena']:.2f} {best['Měna']}")
+        with c_m2:
+            st.error(f"💀 PROPADÁK DNE: **{worst['Ticker']}**")
+            st.metric("Změna", f"{worst['Dnes']*100:+.2f} %", f"Cena: {worst['Cena']:.2f} {worst['Měna']}")
+    # -----------------------------------
+
+    # --- AI PORTFOLIO AUDITOR ---
+    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
+        if viz_data_list:
+            with st.expander("🧠 AI AUDIT PORTFOLIA (Strategie)", expanded=False):
+                st.info("AI zanalyzuje tvé rozložení aktiv, rizikovost a navrhne vylepšení.")
+
+                if st.button("🕵️ SPUSTIT HLOUBKOVÝ AUDIT"):
+                    with st.spinner("AI počítá rizikové modely..."):
+                        port_summary = "\n".join([f"- {i['Ticker']} ({i['Sektor']}): {i['HodnotaUSD']:.0f} USD ({i['Zisk']:.0f} USD zisk)" for i in viz_data_list])
+
+                        # 2. Volání MOZKU (ai_brain.py)
+                        audit_res_text = audit_portfolio(model, celk_hod_usd, cash_usd, port_summary)
+
+                        # 3. Zobrazení výsledku
+                        st.markdown("### 📝 VÝSLEDEK AUDITU")
+                        st.markdown(audit_res_text)
+    
+    # --- PŘEHLED Z CLI AUDITU ---
+    if st.session_state.get('cli_msg') and st.session_state['cli_msg'][1] in ["🔬", "👮"]:
+        st.markdown(
+            f"""
+            <div style="background-color: #161B22; border-left: 4px solid #58A6FF; padding: 15px; border-radius: 5px; margin-top: 15px;">
+                <p style="margin:0; font-family: 'Roboto Mono'; font-weight: bold;">{st.session_state['cli_msg'][0].replace('\n', '<br>')}</p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+
+
+    st.write("")
+
+    # --- FEAR & GREED INDEX (TACHOMETR) ---
+    score, rating = cached_fear_greed() # Použití cache
+    if score is not None:
+        st.subheader(f"😨🤑 TRŽNÍ NÁLADA: {rating} ({score})")
+        fig_gauge = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = score,
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            gauge = {
+                'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "white"},
+                'bar': {'color': "white"},
+                'bgcolor': "black",
+                'borderwidth': 2,
+                'bordercolor': "gray",
+                'steps': [
+                    {'range': [0, 25], 'color': '#FF4136'},
+                    {'range': [25, 45], 'color': '#FF851B'},
+                    {'range': [45, 55], 'color': '#AAAAAA'},
+                    {'range': [55, 75], 'color': '#7FDBFF'},
+                    {'range': [75, 100], 'color': '#2ECC40'}
+                ],
+            }
+        ))
+        fig_gauge.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white", 'family': "Roboto Mono"}, height=250, margin=dict(l=20, r=20, t=30, b=20))
+        fig_gauge = make_plotly_cyberpunk(fig_gauge)
+        st.plotly_chart(fig_gauge, use_container_width=True)
+
+    st.divider()
+
+    col_graf1, col_graf2 = st.columns([2, 1])
+
+    with col_graf1:
         if not hist_vyvoje.empty:
+            st.subheader("🌊 VÝVOJ MAJETKU (CZK)")
             chart_data = hist_vyvoje.copy()
             chart_data['Date'] = pd.to_datetime(chart_data['Date'])
             chart_data['TotalCZK'] = chart_data['TotalUSD'] * kurzy.get("CZK", 20.85)
-            
             fig_area = px.area(chart_data, x='Date', y='TotalCZK', template="plotly_dark", color_discrete_sequence=['#00CC96'])
-            # Tady nastavíme pevnou výšku, aby to vypadalo dobře
-            fig_area.update_layout(height=450, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=0,r=0,t=20,b=0))
+            fig_area.update_traces(line_color='#00CC96', fillcolor='rgba(0, 204, 150, 0.3)')
+            fig_area.update_layout(xaxis_title="", yaxis_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=300, margin=dict(l=0, r=0, t=0, b=0), showlegend=False, font_family="Roboto Mono")
+            fig_area.update_xaxes(showgrid=False)
+            fig_area.update_yaxes(showgrid=True, gridcolor='#30363D')
             fig_area = make_plotly_cyberpunk(fig_area)
-            st.plotly_chart(fig_area, use_container_width=True)
-        else:
-            st.info("Zatím nemám dost dat pro graf vývoje.")
+            st.plotly_chart(fig_area, use_container_width=True, key="fig_vyvoj_maj")
+            add_download_button(fig_area, "vyvoj_majetku")
 
-    # --- TAB 2: STRUKTURA ---
-    with tab_struktura:
-        c_pie1, c_pie2 = st.columns([2, 1])
-        with c_pie1:
-             if not vdf.empty:
-                st.subheader("Sektorové rozložení")
-                fig_pie = px.pie(vdf, values='HodnotaUSD', names='Sektor', hole=0.4, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-                fig_pie.update_layout(height=400, margin=dict(t=0, b=0, l=0, r=0), paper_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig_pie, use_container_width=True)
-             else:
-                st.info("Portfolio je prázdné.")
-        
-        with c_pie2:
-             st.subheader("🏆 Top Pozice")
-             if not vdf.empty:
-                 # Seřadíme a ukážeme top 5
-                 top_5 = vdf.sort_values('HodnotaUSD', ascending=False).head(5)
-                 for _, r in top_5.iterrows():
-                     # Progress bar jako vizualizace velikosti pozice
-                     ratio = r['HodnotaUSD'] / vdf['HodnotaUSD'].sum()
-                     st.caption(f"{r['Ticker']} ({r['HodnotaUSD']:.0f} USD)")
-                     st.progress(min(ratio, 1.0))
-
-    # --- TAB 3: SANKEY (FIXED) ---
-    with tab_sankey:
-        st.subheader("Tok kapitálu")
-        st.caption("Odkud peníze přišly a kde jsou teď.")
-        
-        # LOGIKA VÝPOČTU (Zkopírována z původní funkce)
-        total_vklady_czk = 0
-        df_cash_temp = st.session_state.get('df_cash', pd.DataFrame())
-        if not df_cash_temp.empty:
-            for _, row in df_cash_temp.iterrows():
-                cst = row['Castka']; men = row['Mena']; val_czk = cst
-                if men == "USD": val_czk = cst * kurzy.get("CZK", 20.85)
-                elif men == "EUR": val_czk = cst * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
-                if row['Typ'] in ['Vklad', 'Deposit']: total_vklady_czk += val_czk
-                elif row['Typ'] in ['Výběr', 'Withdrawal']: total_vklady_czk -= val_czk
-
-        total_divi_czk = 0
-        df_div_temp = st.session_state.get('df_div', pd.DataFrame())
-        if not df_div_temp.empty:
-            for _, r in df_div_temp.iterrows():
-                amt = r['Castka']; currency = r['Mena']
-                if currency == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
-                elif currency == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
-                else: total_divi_czk += amt
-
-        total_realized_czk = 0
-        df_hist_temp = st.session_state.get('df_hist', pd.DataFrame())
-        if not df_hist_temp.empty:
-            for _, r in df_hist_temp.iterrows():
-                zsk = r['Zisk']; men = r['Mena']
-                if men == "USD": total_realized_czk += zsk * kurzy.get("CZK", 20.85)
-                elif men == "EUR": total_realized_czk += zsk * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
-                else: total_realized_czk += zsk
-
-        unrealized_profit_czk = (celk_hod_czk - celk_inv_usd * kurzy.get("CZK", 20.85))
-        total_market_profit_czk = total_divi_czk + total_realized_czk + unrealized_profit_czk
-        cash_total_czk = cash_usd * kurzy.get("CZK", 20.85)
-        stock_total_czk = celk_hod_czk
-        
-        label = ["Vklady (Netto)", "Tržní Zisk & Divi", "MŮJ KAPITÁL", "Hotovost"]
-        top_stocks = []
+    with col_graf2:
         if not vdf.empty:
-            vdf_sorted = vdf.sort_values('HodnotaUSD', ascending=False).head(5)
-            for _, row in vdf_sorted.iterrows():
-                stock_label = f"Akcie {row['Ticker']}"
-                label.append(stock_label)
-                top_stocks.append({'label': stock_label, 'value_czk': row['HodnotaUSD'] * kurzy.get("CZK", 20.85)})
+            st.subheader("🍰 SEKTORY")
+            fig_pie = px.pie(vdf, values='HodnotaUSD', names='Sektor', hole=0.4, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+            fig_pie.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0), height=300, paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+            fig_pie = make_plotly_cyberpunk(fig_pie)
+            st.plotly_chart(fig_pie, use_container_width=True, key="fig_sektory")
+            add_download_button(fig_pie, "sektorova_analyza")
 
-        other_stocks_val_czk = stock_total_czk - sum([s['value_czk'] for s in top_stocks])
-        if other_stocks_val_czk > 100:
-            label.append("Ostatní Akcie")
+    # --- NOVINKA: SANKEY DIAGRAM (TOK PENĚZ) ---
+    st.divider()
+    st.subheader("🌊 TOK KAPITÁLU (Sankey)")
 
-        IDX_VKLADY = 0; IDX_ZISK = 1; IDX_KAPITAL = 2; IDX_CASH = 3; IDX_FIRST_STOCK = 4
-        source = []; target = []; value = []
+    # 1. Příprava dat pro Sankey
+    # Tento blok je ZACHOVÁN, ale musí se spoléhat na proměnné předané do funkce
+    # Zjednodušeno pro účely rekonstrukce (původní kód byl dlouhý, zde jen hlavní logika)
+    
+    # Tato sekce vyžaduje proměnné z main() (zustatky, df_cash, df_div, df_hist)
+    # Zdroje
+    total_vklady_czk = 0
+    df_cash_temp = st.session_state.get('df_cash', pd.DataFrame())
+    if not df_cash_temp.empty:
+        for _, row in df_cash_temp.iterrows():
+            cst = row['Castka']; men = row['Mena']; val_czk = cst
+            if men == "USD": val_czk = cst * kurzy.get("CZK", 20.85)
+            elif men == "EUR": val_czk = cst * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+            if row['Typ'] in ['Vklad', 'Deposit']: total_vklady_czk += val_czk
+            elif row['Typ'] in ['Výběr', 'Withdrawal']: total_vklady_czk -= val_czk
 
-        if total_vklady_czk > 0: source.append(IDX_VKLADY); target.append(IDX_KAPITAL); value.append(total_vklady_czk)
-        if total_market_profit_czk > 0: source.append(IDX_ZISK); target.append(IDX_KAPITAL); value.append(total_market_profit_czk)
-        if cash_total_czk > 100: source.append(IDX_KAPITAL); target.append(IDX_CASH); value.append(cash_total_czk)
+    total_divi_czk = 0
+    df_div_temp = st.session_state.get('df_div', pd.DataFrame())
+    if not df_div_temp.empty:
+        for _, r in df_div_temp.iterrows():
+            amt = r['Castka']; currency = r['Mena']
+            if currency == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
+            elif currency == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+            else: total_divi_czk += amt
 
-        current_stock_idx = IDX_FIRST_STOCK
-        for s in top_stocks:
-            source.append(IDX_KAPITAL); target.append(current_stock_idx); value.append(s['value_czk'])
-            current_stock_idx += 1
+    total_realized_czk = 0
+    df_hist_temp = st.session_state.get('df_hist', pd.DataFrame())
+    if not df_hist_temp.empty:
+        for _, r in df_hist_temp.iterrows():
+            zsk = r['Zisk']; men = r['Mena']
+            if men == "USD": total_realized_czk += zsk * kurzy.get("CZK", 20.85)
+            elif men == "EUR": total_realized_czk += zsk * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+            else: total_realized_czk += zsk
 
-        if other_stocks_val_czk > 100:
-            source.append(IDX_KAPITAL); target.append(current_stock_idx); value.append(other_stocks_val_czk)
+    unrealized_profit_czk = (celk_hod_czk - celk_inv_usd * kurzy.get("CZK", 20.85))
+    total_market_profit_czk = total_divi_czk + total_realized_czk + unrealized_profit_czk
+    cash_total_czk = cash_usd * kurzy.get("CZK", 20.85)
+    stock_total_czk = celk_hod_czk
+    
+    label = ["Vklady (Netto)", "Tržní Zisk & Divi", "MŮJ KAPITÁL", "Hotovost"]
+    top_stocks = []
+    if not vdf.empty:
+        vdf_sorted = vdf.sort_values('HodnotaUSD', ascending=False).head(5)
+        for _, row in vdf_sorted.iterrows():
+            stock_label = f"Akcie {row['Ticker']}"
+            label.append(stock_label)
+            top_stocks.append({'label': stock_label, 'value_czk': row['HodnotaUSD'] * kurzy.get("CZK", 20.85)})
 
-        fig_sankey = go.Figure(data=[go.Sankey(
-            node = dict(pad = 15, thickness = 20, line = dict(color = "black", width = 0.5), label = label, color = "rgba(0, 204, 150, 0.6)"),
-            link = dict(source = source, target = target, value = value, color = "rgba(100, 100, 100, 0.3)")
-        )])
-        
-        # ZDE JE OPRAVA VÝŠKY:
-        fig_sankey.update_layout(title_text="Tok peněz v portfoliu (CZK)", font_size=12, height=600, paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
-        fig_sankey = make_plotly_cyberpunk(fig_sankey)
-        st.plotly_chart(fig_sankey, use_container_width=True)
+    other_stocks_val_czk = stock_total_czk - sum([s['value_czk'] for s in top_stocks])
+    if other_stocks_val_czk > 100:
+        label.append("Ostatní Akcie")
 
-    # --- TAB 4: RIZIKO ---
-    with tab_risk:
-        c_risk1, c_risk2 = st.columns([1, 2])
-        with c_risk1:
-             st.subheader("Nálada trhu")
-             score, rating = cached_fear_greed()
-             st.metric("Fear & Greed", f"{score}/100", rating)
-             
-        with c_risk2:
-             if score is not None:
-                fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number", value = score,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    gauge = {'axis': {'range': [0, 100]}, 'bar': {'color': "white"}, 
-                             'steps': [{'range': [0, 25], 'color': '#FF4136'}, {'range': [75, 100], 'color': '#2ECC40'}]}
-                ))
-                # Zmenšená výška pro tachometr
-                fig_gauge.update_layout(height=300, margin=dict(l=20,r=20,t=20,b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "white"})
-                st.plotly_chart(fig_gauge, use_container_width=True)
+    IDX_VKLADY = 0; IDX_ZISK = 1; IDX_KAPITAL = 2; IDX_CASH = 3; IDX_FIRST_STOCK = 4
+    source = []; target = []; value = []
+
+    if total_vklady_czk > 0: source.append(IDX_VKLADY); target.append(IDX_KAPITAL); value.append(total_vklady_czk)
+    if total_market_profit_czk > 0: source.append(IDX_ZISK); target.append(IDX_KAPITAL); value.append(total_market_profit_czk)
+    if cash_total_czk > 100: source.append(IDX_KAPITAL); target.append(IDX_CASH); value.append(cash_total_czk)
+
+    current_stock_idx = IDX_FIRST_STOCK
+    for s in top_stocks:
+        source.append(IDX_KAPITAL); target.append(current_stock_idx); value.append(s['value_czk'])
+        current_stock_idx += 1
+
+    if other_stocks_val_czk > 100:
+        source.append(IDX_KAPITAL); target.append(current_stock_idx); value.append(other_stocks_val_czk)
+
+    fig_sankey = go.Figure(data=[go.Sankey(
+        node = dict(pad = 15, thickness = 20, line = dict(color = "black", width = 0.5), label = label, color = "rgba(0, 204, 150, 0.6)"),
+        link = dict(source = source, target = target, value = value, color = "rgba(100, 100, 100, 0.3)")
+      )])
+
+    fig_sankey.update_layout(title_text="Tok peněz v portfoliu (CZK)", font_size=12, height=400, paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
+    fig_sankey = make_plotly_cyberpunk(fig_sankey)
+    st.plotly_chart(fig_sankey, use_container_width=True)
+    # ----------------------------------------
+
+    st.subheader("💰 INVESTOVÁNO DLE MĚN")
+    inv_usd, inv_czk, inv_eur = 0, 0, 0
+    if viz_data_list:
+        for item in viz_data_list:
+            if item['Měna'] == 'USD': inv_usd += item['Investice']
+            elif item['Měna'] == 'CZK': inv_czk += item['Investice']
+            elif item['Měna'] == 'EUR': inv_eur += item['Investice']
+
+    ic1, ic2, ic3 = st.columns(3)
+    ic1.metric("Investováno (USD)", f"${inv_usd:,.0f}")
+    ic2.metric("Investováno (CZK)", f"{inv_czk:,.0f} Kč")
+    ic3.metric("Investováno (EUR)", f"{inv_eur:,.0f} €")
 
     st.divider()
 
-    # --- 5. PORTFOLIO TABULKA (Dole, široká a přehledná) ---
-    st.subheader("📋 Detailní přehled aktiv")
+    if 'show_portfolio_live' not in st.session_state:
+        st.session_state['show_portfolio_live'] = True
+    if 'show_cash_history' not in st.session_state:
+        st.session_state['show_cash_history'] = False
+
+    col_view1, col_view2, _ = st.columns([1, 1, 3])
+    with col_view1:
+        st.session_state['show_portfolio_live'] = st.checkbox("Zobrazit Portfolio Tabulku", value=st.session_state['show_portfolio_live'], key="chk_portfolio")
+    with col_view2:
+        st.session_state['show_cash_history'] = st.checkbox("Zobrazit Historii Hotovosti", value=st.session_state['show_cash_history'], key="chk_cash")
+    st.write("")
     
-    with st.expander("Zobrazit/Skrýt tabulku portfolia", expanded=True):
+    # Omlouvám se, že tato část byla dříve vynechána!
+    if st.session_state['show_portfolio_live']:
+        st.subheader("📋 PORTFOLIO LIVE")
         if not vdf.empty:
-             st.dataframe(
+            # --- PŘÍPRAVA SPARKLINES (MINIGRAFY) ---
+            tickers_list = vdf['Ticker'].tolist()
+            spark_data = {}
+
+            if tickers_list:
+                with st.spinner("Stahuji data pro sparklines..."):
+                    try:
+                        batch_history = yf.download(tickers_list, period="1mo", interval="1d", group_by='ticker', progress=False)
+
+                        for t in tickers_list:
+                            if len(tickers_list) > 1:
+                                if t in batch_history.columns.levels[0]:
+                                    closes = batch_history[t]['Close'].dropna().tolist()
+                                    spark_data[t] = closes
+                                else:
+                                    spark_data[t] = []
+                            else:
+                                closes = batch_history['Close'].dropna().tolist()
+                                spark_data[t] = closes
+                    except Exception:
+                        pass
+
+            vdf['Trend 30d'] = vdf['Ticker'].map(spark_data)
+            # ---------------------------------------
+
+            st.caption("Legenda daní: 🟢 > 3 roky (Osvobozeno) | 🔴 < 3 roky (Zdanit) | 🟠 Mix nákupů")
+            st.dataframe(
                 vdf,
                 column_config={
-                    "Ticker": st.column_config.TextColumn("Symbol", help="Ticker akcie"),
-                    "HodnotaUSD": st.column_config.ProgressColumn("Velikost pozice", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
+                    "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
+                    "Sektor": st.column_config.TextColumn("Sektor", help="Odvětví"),
+                    "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
+                    "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f"),
                     "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
-                    "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f USD"),
-                    "Dan": st.column_config.TextColumn("Daňový test")
+                    "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
+                    "P/E": st.column_config.NumberColumn("P/E Ratio", format="%.2f", help="Poměr ceny k ziskům. Nízká hodnota může značit podhodnocení."),
+                    "Kapitalizace": st.column_config.NumberColumn("Kapitalizace", format="$%.1fB", help="Tržní kapitalizace ve formátu miliard USD."),
+                    "Dan": st.column_config.TextColumn("Daně", help="🟢 > 3 roky (Osvobozeno)\n🔴 < 3 roky (Zdanit)\n🟠 Mix nákupů"),
+                    "Země": "Země",
+                    "Trend 30d": st.column_config.LineChartColumn(
+                        "Trend (30 dní)",
+                        width="medium",
+                        help="Vývoj ceny za poslední měsíc"
+                    )
                 },
-                column_order=["Ticker", "Sektor", "Kusy", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Dan"],
+                column_order=["Ticker", "Trend 30d", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"],
                 use_container_width=True,
                 hide_index=True
             )
+        else: st.info("Portfolio je prázdné.")
+
+    if st.session_state['show_cash_history']:
+        st.divider()
+        st.subheader("🏦 HISTORIE HOTOVOSTI")
+        if not st.session_state['df_cash'].empty:
+            st.dataframe(st.session_state['df_cash'].sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
         else:
-            st.info("Tvé portfolio je zatím prázdné.")
+            st.info("Historie hotovosti je prázdná.")
 
 
 def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST):
@@ -2320,6 +2470,24 @@ def main():
         st.divider()
         st.header(f"👤 {USER.upper()}")
 
+        # --- NOVÉ: SVĚTOVÉ TRHY (HODINY) ---
+        with st.expander("🌍 SVĚTOVÉ TRHY", expanded=True):
+            ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16) # NYSE: 9:30 - 16:00 (zjednodušeno na hodiny)
+            ln_time, ln_open = zjisti_stav_trhu("Europe/London", 8, 16) # LSE
+            jp_time, jp_open = zjisti_stav_trhu("Asia/Tokyo", 9, 15) # TSE
+
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇺🇸 New York"); c_m2.markdown(f"**{ny_time}** {'🟢' if ny_open else '🔴'}")
+
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇬🇧 Londýn"); c_m2.markdown(f"**{ln_time}** {'🟢' if ln_open else '🔴'}")
+
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇯🇵 Tokio"); c_m2.markdown(f"**{jp_time}** {'🟢' if jp_open else '🔴'}")
+
+        st.divider()
+        # -----------------------------------
+
         # --- GAME LEVELING SYSTEM ---
         level_name = "Novic"
         level_progress = 0.0
@@ -2343,32 +2511,13 @@ def main():
         st.caption(f"Úroveň: **{level_name}**")
         st.progress(level_progress)
 
-        # --- NOVÉ MÍSTO PRO NAVIGACI (Hned nahoře v sidebaru) ---
-        st.divider(); st.subheader("NAVIGACE")
-        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
-        
-        # --- WALLET IN SIDEBAR (KOMPAKTNÍ VERZE) ---
+        # --- WALLET IN SIDEBAR ---
         st.write("")
         st.caption("Stav peněženky:")
-        cw1, cw2, cw3 = st.columns(3)
-        cw1.metric("USD", f"${zustatky.get('USD', 0):,.0f}")
-        cw2.metric("CZK", f"{zustatky.get('CZK', 0):,.0f}")
-        cw3.metric("EUR", f"€{zustatky.get('EUR', 0):,.0f}")
-
-        # --- NOVÉ: SVĚTOVÉ TRHY (HODINY) ---
-        with st.expander("🌍 SVĚTOVÉ TRHY", expanded=False):
-            ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16) # NYSE: 9:30 - 16:00 (zjednodušeno na hodiny)
-            ln_time, ln_open = zjisti_stav_trhu("Europe/London", 8, 16) # LSE
-            jp_time, jp_open = zjisti_stav_trhu("Asia/Tokyo", 9, 15) # TSE
-
-            c_m1, c_m2 = st.columns([3, 1])
-            c_m1.caption("🇺🇸 New York"); c_m2.markdown(f"**{ny_time}** {'🟢' if ny_open else '🔴'}")
-
-            c_m1, c_m2 = st.columns([3, 1])
-            c_m1.caption("🇬🇧 Londýn"); c_m2.markdown(f"**{ln_time}** {'🟢' if ln_open else '🔴'}")
-
-            c_m1, c_m2 = st.columns([3, 1])
-            c_m1.caption("🇯🇵 Tokio"); c_m2.markdown(f"**{jp_time}** {'🟢' if jp_open else '🔴'}")
+        for mena in ["USD", "CZK", "EUR"]:
+            castka = zustatky.get(mena, 0.0)
+            sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
+            st.info(f"**{castka:,.2f} {sym}**", icon="💰")
 
         # --- SIDEBAR ALERTS ---
         if alerts:
@@ -2407,6 +2556,9 @@ def main():
         # Input s callbackem - klíčová změna!
         st.text_input(">", key="cli_cmd", placeholder="/help pro nápovědu", on_change=process_cli_command)
         # ---------------------------------------
+
+        st.divider(); st.subheader("NAVIGACE")
+        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
 
         st.divider()
         if st.button("📧 ODESLAT RANNÍ REPORT", use_container_width=True):
