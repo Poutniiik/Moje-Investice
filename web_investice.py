@@ -2705,7 +2705,9 @@ def main():
 
 
         with tab5:
-            st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500) & SHARPE RATIO")
+            st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500)")
+            st.caption("Porážíš trh, nebo trh poráží tebe?")
+            
             if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
                 user_df = hist_vyvoje.copy()
                 user_df['Date'] = pd.to_datetime(user_df['Date']); user_df = user_df.sort_values('Date').set_index('Date')
@@ -2724,38 +2726,38 @@ def main():
                         else: close_col = sp500['Close']
                         sp500_start = close_col.iloc[0]
                         sp500_norm = ((close_col / sp500_start) - 1) * 100
-
                         sp500_returns = close_col.pct_change().dropna()
                         sp500_sharpe = calculate_sharpe_ratio(sp500_returns)
 
+                        # --- GRAF (S legendou dole pro mobil) ---
                         fig_bench = go.Figure()
                         fig_bench.add_trace(go.Scatter(x=user_df.index, y=user_df['MyReturn'], mode='lines', name='Moje Portfolio', line=dict(color='#00CC96', width=3)))
                         fig_bench.add_trace(go.Scatter(x=sp500_norm.index, y=sp500_norm, mode='lines', name='S&P 500', line=dict(color='#808080', width=2, dash='dot')))
-                        fig_bench.update_layout(title="Výkonnost v % od začátku měření", xaxis_title="", yaxis_title="Změna (%)", template="plotly_dark", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01), font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+                        fig_bench.update_layout(
+                            xaxis_title="", yaxis_title="Změna (%)", template="plotly_dark", 
+                            font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                            height=400,
+                            legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center") # Legenda dole
+                        )
                         fig_bench.update_xaxes(showgrid=False)
                         fig_bench.update_yaxes(showgrid=True, gridcolor='#30363D')
-                        fig_bench = make_plotly_cyberpunk(fig_bench)
                         st.plotly_chart(fig_bench, use_container_width=True, key="fig_benchmark")
-                        add_download_button(fig_bench, "benchmark_analyza")
 
+                        # --- METRIKY (GRID 2x2 pro úsporu místa) ---
                         my_last = user_df['MyReturn'].iloc[-1]; sp_last = sp500_norm.iloc[-1]; diff = my_last - sp_last
-                        c_b1, c_b2, c_b3, c_b4 = st.columns(4)
+                        
+                        col_vy1, col_vy2 = st.columns(2)
+                        with col_vy1: st.metric("Můj výnos", f"{my_last:+.2f} %")
+                        with col_vy2: st.metric("S&P 500 výnos", f"{sp500_last:+.2f} %" if 'sp500_last' in locals() else f"{sp_last:+.2f} %", delta=f"{diff:+.2f} %")
 
-                        c_b1.metric("Můj výnos", f"{my_last:+.2f} %")
-                        c_b2.metric("S&P 500 výnos", f"{sp_last:+.2f} %")
-                        c_b3.metric("Můj Sharpe", f"{my_sharpe:+.2f}", help="Měří výnos na jednotku rizika.")
-                        c_b4.metric("S&P 500 Sharpe", f"{sp500_sharpe:+.2f}", help="Měří výnos na jednotku rizika indexu.")
+                        st.write("") # Mezera
+                        
+                        col_sh1, col_sh2 = st.columns(2)
+                        with col_sh1: st.metric("Můj Sharpe", f"{my_sharpe:+.2f}", help="Riziko/Výnos")
+                        with col_sh2: st.metric("S&P 500 Sharpe", f"{sp500_sharpe:+.2f}")
 
-                        if diff > 0: st.success("🎉 Gratuluji! Porážíš trh na výnosu.")
-                        else: st.warning("📉 Trh zatím vede na výnosu. Zvaž indexové ETF.")
-
-                        st.divider()
-                        if my_sharpe > sp500_sharpe and my_sharpe > 0:
-                            st.markdown("✅ **Analýza rizika (Sharpe):** Tvé portfolio dosahuje lepších výnosů v poměru k podstoupenému riziku než S&P 500. Skvělá práce s rizikem!")
-                        elif my_sharpe < sp500_sharpe and my_sharpe > 0:
-                            st.markdown("⚠️ **Analýza rizika (Sharpe):** S&P 500 dosahuje vyššího výnosu na jednotku rizika. Zkus zvážit diverzifikaci pro snížení volatility.")
-                        else:
-                            st.markdown("ℹ️ **Analýza rizika (Sharpe):** Pro smysluplné Sharpe Ratio potřebujeme více dat nebo kladné výnosy.")
+                        if diff > 0: st.success("🎉 Gratuluji! Porážíš trh.")
+                        else: st.warning("📉 Trh zatím vede.")
 
                     else: st.warning("Nepodařilo se stáhnout data S&P 500.")
                 except Exception as e: st.error(f"Chyba benchmarku: {e}")
@@ -3087,6 +3089,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
