@@ -2704,7 +2704,7 @@ def main():
                 st.plotly_chart(fig_crash, use_container_width=True)
 
 
-               with tab5:
+        with tab5:
             st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500)")
             st.caption("Porážíš trh, nebo trh poráží tebe?")
             
@@ -3098,6 +3098,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
