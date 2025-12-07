@@ -446,6 +446,13 @@ RPG_TASKS = [
 def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
     """Vykreslí stránku '🏠 Přehled' (Dashboard) - VERZE 2.0 (Bento Grid)"""
     
+    # ### --- FIX: BEZPEČNÁ INICIALIZACE PROMĚNNÝCH ---
+    if 'show_cash_history' not in st.session_state:
+        st.session_state['show_cash_history'] = True  # Výchozí stav: Zapnuto
+    if 'show_portfolio_live' not in st.session_state: 
+        st.session_state['show_portfolio_live'] = True
+    # --------------------------------------------------
+    
     # 1. HLAVIČKA A HLAVNÍ METRIKY (To nejdůležitější nahoře)
     st.title(f"🏠 PŘEHLED: {USER.upper()}")
     
@@ -641,12 +648,11 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         st.plotly_chart(fig_sankey, use_container_width=True)
 
     # 5. ŘÁDEK: PORTFOLIO LIVE
-    if 'show_portfolio_live' not in st.session_state: st.session_state['show_portfolio_live'] = True
-    
     st.write("")
     with st.container(border=True):
         c_head, c_check = st.columns([4, 1])
         c_head.subheader("📋 PORTFOLIO LIVE")
+        # Ovládání viditelnosti tabulky
         st.session_state['show_portfolio_live'] = c_check.checkbox("Zobrazit", value=st.session_state['show_portfolio_live'])
         
         if st.session_state['show_portfolio_live'] and not vdf.empty:
@@ -665,6 +671,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
             
             vdf['Trend 30d'] = vdf['Ticker'].map(spark_data)
             
+            # --- ZJEDNODUŠENÝ POHLED (MOBILE FRIENDLY) ---
             st.dataframe(
                 vdf,
                 column_config={
@@ -673,46 +680,56 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                     "HodnotaUSD": st.column_config.ProgressColumn("Velikost pozice", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
                     "Dnes": st.column_config.NumberColumn("24h %", format="%.2f%%"),
                     "Zisk": st.column_config.NumberColumn("Zisk ($)", format="%.0f"),
-                    "Dan": st.column_config.TextColumn("Daně", width="small"),
                 },
-                column_order=["Ticker", "Trend 30d", "HodnotaUSD", "Dnes", "Zisk", "Dan"], # Zjednodušený pohled
+                column_order=["Ticker", "Trend 30d", "HodnotaUSD", "Dnes", "Zisk"], # Odebrali jsme méně důležité sloupce pro mobil
                 use_container_width=True, hide_index=True
             )
             # ---------------------------------------
+            
+            # Detailní pohled necháme v expanderu, aby nezabíral místo na mobilu
+            with st.expander("🔍 Zobrazit detailní tabulku (Desktop)"):
+                st.caption("Legenda daní: 🟢 > 3 roky (Osvobozeno) | 🔴 < 3 roky (Zdanit) | 🟠 Mix nákupů")
+                st.dataframe(
+                    vdf,
+                    column_config={
+                        "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
+                        "Sektor": st.column_config.TextColumn("Sektor", help="Odvětví"),
+                        "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
+                        "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f"),
+                        "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
+                        "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
+                        "P/E": st.column_config.NumberColumn("P/E Ratio", format="%.2f", help="Poměr ceny k ziskům. Nízká hodnota může značit podhodnocení."),
+                        "Kapitalizace": st.column_config.NumberColumn("Kapitalizace", format="$%.1fB", help="Tržní kapitalizace ve formátu miliard USD."),
+                        "Dan": st.column_config.TextColumn("Daně", help="🟢 > 3 roky (Osvobozeno)\n🔴 < 3 roky (Zdanit)\n🟠 Mix nákupů"),
+                        "Země": "Země",
+                        "Trend 30d": st.column_config.LineChartColumn("Trend", width="medium")
+                    },
+                    column_order=["Ticker", "Trend 30d", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"],
+                    use_container_width=True,
+                    hide_index=True
+                )
+        elif vdf.empty:
+             st.info("Portfolio je prázdné.")
 
-            st.caption("Legenda daní: 🟢 > 3 roky (Osvobozeno) | 🔴 < 3 roky (Zdanit) | 🟠 Mix nákupů")
-            st.dataframe(
-                vdf,
-                column_config={
-                    "Ticker": st.column_config.TextColumn("Symbol", help="Zkratka akcie"),
-                    "Sektor": st.column_config.TextColumn("Sektor", help="Odvětví"),
-                    "HodnotaUSD": st.column_config.ProgressColumn("Velikost", format="$%.0f", min_value=0, max_value=max(vdf["HodnotaUSD"])),
-                    "Zisk": st.column_config.NumberColumn("Zisk/Ztráta", format="%.2f"),
-                    "Dnes": st.column_config.NumberColumn("Dnes %", format="%.2f%%"),
-                    "Divi": st.column_config.NumberColumn("Yield", format="%.2f%%"),
-                    "P/E": st.column_config.NumberColumn("P/E Ratio", format="%.2f", help="Poměr ceny k ziskům. Nízká hodnota může značit podhodnocení."),
-                    "Kapitalizace": st.column_config.NumberColumn("Kapitalizace", format="$%.1fB", help="Tržní kapitalizace ve formátu miliard USD."),
-                    "Dan": st.column_config.TextColumn("Daně", help="🟢 > 3 roky (Osvobozeno)\n🔴 < 3 roky (Zdanit)\n🟠 Mix nákupů"),
-                    "Země": "Země",
-                    "Trend 30d": st.column_config.LineChartColumn(
-                        "Trend (30 dní)",
-                        width="medium",
-                        help="Vývoj ceny za poslední měsíc"
-                    )
-                },
-                column_order=["Ticker", "Trend 30d", "Sektor", "Měna", "Země", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E", "Kapitalizace", "Dan"],
-                use_container_width=True,
-                hide_index=True
-            )
-        else: st.info("Portfolio je prázdné.")
+    # ### --- FIX: SEKCE HISTORIE HOTOVOSTI ---
+    # Přidali jsme checkbox, aby se chyba 'KeyError' už neopakovala a uživatel si to mohl zapnout
+    
+    st.write("")
+    # Checkbox pro zobrazení historie
+    st.session_state['show_cash_history'] = st.checkbox("📜 Zobrazit historii hotovostních transakcí", value=st.session_state.get('show_cash_history', False))
 
     if st.session_state['show_cash_history']:
         st.divider()
         st.subheader("🏦 HISTORIE HOTOVOSTI")
-        if not st.session_state['df_cash'].empty:
-            st.dataframe(st.session_state['df_cash'].sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
+        # Musíme načíst data z session state (jsou tam, protože jsme v 'render_prehled_page')
+        # Poznámka: df_cash tu není jako argument funkce, musíme ho vytáhnout bezpečně
+        df_cash_local = st.session_state.get('df_cash', pd.DataFrame())
+        
+        if not df_cash_local.empty:
+            st.dataframe(df_cash_local.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
         else:
             st.info("Historie hotovosti je prázdná.")
+
 
 
 def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST):
@@ -3461,3 +3478,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
