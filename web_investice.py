@@ -1061,9 +1061,9 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
     if not df_div.empty:
         for _, r in df_div.iterrows():
             amt = r['Castka']; currency = r['Mena']
-            if currency == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
-            elif currency == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85)) # approx
-            else: total_divi_czk += amt
+            if currency == "USD": total_div_czk += amt * kurzy.get("CZK", 20.85)
+            elif currency == "EUR": total_div_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85)) # approx
+            else: total_div_czk += amt
 
     st.metric("CELKEM VYPLACENO (CZK)", f"{total_div_czk:,.0f} Kč")
 
