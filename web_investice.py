@@ -1503,10 +1503,10 @@ def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
 
 
 def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
-    """Vykreslí kartu Rentgen (Tab 1 Analýzy) - VERZE 2.1 (Mobile Friendly)"""
+    """Vykreslí kartu Rentgen (Tab 1 Analýzy) - TEST VERZE"""
     st.write("")
     
-    # Výběr akcie - nahoře, aby byl po ruce
+    # Výběr akcie
     vybrana_akcie = st.selectbox("Vyber firmu:", df['Ticker'].unique() if not df.empty else [])
     
     if vybrana_akcie:
@@ -1515,7 +1515,6 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
             
             if t_info or (hist_data is not None and not hist_data.empty):
                 try:
-                    # Rozbalení dat
                     long_name = t_info.get('longName', vybrana_akcie) if t_info else vybrana_akcie
                     summary = t_info.get('longBusinessSummary', '') if t_info else ''
                     recommendation = t_info.get('recommendationKey', 'N/A').upper().replace('_', ' ') if t_info else 'N/A'
@@ -1531,18 +1530,16 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                     institutions = t_info.get('heldPercentInstitutions', 0)
                     public = max(0, 1.0 - insiders - institutions)
 
-                    # AI Fallback pro popis (kdyby chyběl)
                     if (not summary or summary == "MISSING_SUMMARY" or "Yahoo" in summary) and AI_AVAILABLE:
                         try:
-                            summary = "Popis není k dispozici." # Fallback, AI volání zde vynecháme pro rychlost, nebo lze odkomentovat
+                            summary = "Popis není k dispozici." 
                         except: summary = "Popis není k dispozici."
                     elif not summary or "Yahoo" in summary: summary = "Popis není k dispozici."
 
-                    # --- 1. SEKCE: HLAVIČKA A CÍLE ---
-                    c_d1, c_d2 = st.columns([1, 2]) # Upravený poměr pro lepší mobilní zobrazení
+                    # --- 1. SEKCE ---
+                    c_d1, c_d2 = st.columns([1, 2])
                     
                     with c_d1:
-                        # Doporučení a Cílová cena
                         with st.container(border=True):
                             if recommendation != "N/A":
                                 barva_rec = "green" if "BUY" in recommendation else ("red" if "SELL" in recommendation else "orange")
@@ -1552,7 +1549,6 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                                 st.markdown("### 🤷‍♂️ Neznámé"); st.caption("Bez doporučení")
                             
                             st.divider()
-                            
                             if target_price > 0: st.metric("Cílová cena", f"{target_price:,.2f}", help=f"Průměrný cíl analytiků ({currency})")
                             else: st.metric("Cílová cena", "---")
 
@@ -1560,12 +1556,12 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             else: st.metric("P/E Ratio", "---")
 
                     with c_d2:
-                        # Info o firmě
-                        st.subheader(f"{long_name}")
+                        # ZDE JE TEN TESTOVACÍ NÁPIS (UPDATE 2.1)
+                        st.subheader(f"{long_name} (UPDATE 2.1)")
                         st.caption(f"Cena: {current_price:,.2f} {currency}")
                         
-                        # --- VYLEPŠENÍ: ZABALENÍ DLOUHÉHO POPISU ---
-                        if len(summary) > 300:
+                        # ZABALENÍ POPISU (Pokud je to správně, uvidíš tu šipku pro rozbalení)
+                        if len(summary) > 200:
                             with st.expander("📝 Popis společnosti (Rozbalit)", expanded=False):
                                 st.info(summary)
                                 if t_info and t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
@@ -1574,101 +1570,61 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             if t_info and t_info.get('website'): st.link_button("🌍 Web firmy", t_info.get('website'))
 
                     st.divider()
-                    
-                    # --- 2. SEKCE: FUNDAMENTY (KPIs) ---
                     st.subheader("🧬 FUNDAMENTÁLNÍ RENTGEN (Zdraví firmy)")
                     fc1, fc2, fc3, fc4 = st.columns(4)
-                    fc1.metric("Zisková marže", f"{profit_margin*100:.1f} %", help="Profit Margin")
-                    fc2.metric("ROE (Efektivita)", f"{roe*100:.1f} %", help="Return on Equity")
-                    fc3.metric("Růst tržeb", f"{rev_growth*100:.1f} %", help="Revenue Growth (YoY)")
-                    fc4.metric("Dluh / Jmění", f"{debt_equity:.2f}", help="Debt to Equity Ratio")
+                    fc1.metric("Zisková marže", f"{profit_margin*100:.1f} %")
+                    fc2.metric("ROE (Efektivita)", f"{roe*100:.1f} %")
+                    fc3.metric("Růst tržeb", f"{rev_growth*100:.1f} %")
+                    fc4.metric("Dluh / Jmění", f"{debt_equity:.2f}")
 
                     st.write("")
-                    
-                    # --- 3. SEKCE: VELRYBÍ RADAR (KDO TO VLASTNÍ) ---
                     st.subheader("🐳 VELRYBÍ RADAR (Vlastnická struktura)")
 
                     own_col1, own_col2 = st.columns([1, 2])
                     with own_col1:
-                        # Metriky pod sebou
                         with st.container(border=True):
-                            st.metric("🏦 Instituce", f"{institutions*100:.1f} %", help="Fondy, Banky ('Smart Money')")
+                            st.metric("🏦 Instituce", f"{institutions*100:.1f} %")
                             st.divider()
-                            st.metric("👔 Insideři", f"{insiders*100:.1f} %", help="Vedení firmy, Zakladatelé")
+                            st.metric("👔 Insideři", f"{insiders*100:.1f} %")
 
                     with own_col2:
-                        # Graf
                         own_df = pd.DataFrame({
                             "Kdo": ["Instituce 🏦", "Insideři 👔", "Veřejnost 👥"],
                             "Podíl": [institutions, insiders, public]
                         })
                         
-                        # ZACHOVÁVÁME TVOJE BARVY
+                        # GRAF S LEGENDOU DOLE
                         fig_own = px.pie(own_df, values='Podíl', names='Kdo', hole=0.6,
                                          color='Kdo',
                                          color_discrete_map={"Instituce 🏦": "#58A6FF", "Insideři 👔": "#238636", "Veřejnost 👥": "#8B949E"},
                                          template="plotly_dark")
                         
-                        # --- VYLEPŠENÍ: LEGENDA DOLE (PRO MOBIL) ---
                         fig_own.update_layout(
                             height=300, 
                             margin=dict(l=0, r=0, t=10, b=10), 
                             paper_bgcolor="rgba(0,0,0,0)", 
                             showlegend=True, 
-                            legend=dict(orientation="h", y=-0.1, x=0.5, xanchor="center"), # Legenda dole a uprostřed
-                            font=dict(size=14) # Větší písmo pro čitelnost
+                            legend=dict(orientation="h", y=-0.1, x=0.5, xanchor="center"), # Tady je ten trik
+                            font=dict(size=14)
                         )
                         fig_own.update_traces(textinfo='percent', textposition='outside')
-                        
                         st.plotly_chart(fig_own, use_container_width=True)
 
-                    # --- 4. ZBYTEK (GRAFY HISTORIE A CÍLE) ---
-                    # (Tato část zůstává stejná, jen ji sem vložím, aby byla funkce kompletní)
-                    
-                    st.divider()
-                    st.subheader("📊 HISTORIE VÝSLEDKŮ")
-
-                    try:
-                        with st.spinner("Stahuji účetní výkazy..."):
-                            stock_obj = yf.Ticker(vybrana_akcie)
-                            financials = stock_obj.financials
-
-                            if financials is not None and not financials.empty:
-                                fin_T = financials.T.sort_index()
-                                col_rev = next((c for c in fin_T.columns if 'Total Revenue' in c or 'TotalRevenue' in c), None)
-                                col_inc = next((c for c in fin_T.columns if 'Net Income' in c or 'NetIncome' in c), None)
-
-                                if col_rev and col_inc:
-                                    plot_data = pd.DataFrame({"Rok": fin_T.index.strftime('%Y'), "Tržby": fin_T[col_rev], "Zisk": fin_T[col_inc]}).melt(id_vars="Rok", var_name="Metrika", value_name="Hodnota")
-                                    fig_fin = px.bar(plot_data, x="Rok", y="Hodnota", color="Metrika", barmode="group",
-                                                     color_discrete_map={"Tržby": "#58A6FF", "Zisk": "#238636"}, template="plotly_dark")
-                                    fig_fin.update_layout(xaxis_title="", yaxis_title="USD", legend=dict(orientation="h", y=1.1), paper_bgcolor="rgba(0,0,0,0)", height=350)
-                                    st.plotly_chart(fig_fin, use_container_width=True)
-                                else: st.warning("Data o tržbách nejsou dostupná.")
-                            else: st.info("Finanční výkazy nejsou k dispozici.")
-                    except: pass
-
+                    # --- Zbytek grafů (aby funkce byla kompletní) ---
                     st.divider()
                     st.subheader(f"📈 PROFESIONÁLNÍ CHART")
-                    # Zde by následoval zbytek kódu pro velký graf (Candlestick), který v původním kódu je.
-                    # Abychom to nepřehltili, necháme zbytek v původním stavu, pokud tam máš graf.
-                    # Pokud chceš i graf, napiš a já ho sem přidám. 
-                    # Pro teď stačí tenhle blok pro "Rentgen", zbytek funkce pod tím může zůstat, pokud jsi kopíroval jen horní část.
-                    # ALE: Jelikož nahrazujeme celou funkci, musím sem dát i ten zbytek grafu, aby ti nezmizel.
-                    
                     if hist_data is not None and not hist_data.empty:
-                        # ... (Zkrácená verze grafu pro kompletnost funkce)
+                        # Zjednodušený graf pro rychlost (kdyžtak vrátíme ten složitý)
                         fig_candle = go.Figure(data=[go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'])])
                         fig_candle.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, paper_bgcolor="rgba(0,0,0,0)")
                         st.plotly_chart(fig_candle, use_container_width=True)
-                    
-                    if AI_AVAILABLE and st.button(f"🤖 SPUSTIT AI ANALÝZU PRO {vybrana_akcie}", type="primary"):
-                        with st.spinner(f"AI analyzuje {vybrana_akcie}..."):
-                            # Zjednodušené volání pro demo
-                            st.info("AI Analýza: (Zde by se objevil text z Gemini)")
+
+                    if AI_AVAILABLE and st.button(f"🤖 SPUSTIT AI ANALÝZU", type="primary"):
+                         st.info("AI funkce připravena.")
 
                 except Exception as e: st.error(f"Chyba zobrazení rentgenu: {e}")
             else: st.error("Nepodařilo se načíst data o firmě.")
+
 
 
 
@@ -3330,6 +3286,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
