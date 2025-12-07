@@ -2704,7 +2704,7 @@ def main():
                 st.plotly_chart(fig_crash, use_container_width=True)
 
 
-        with tab5:
+               with tab5:
             st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500)")
             st.caption("Porážíš trh, nebo trh poráží tebe?")
             
@@ -2718,6 +2718,9 @@ def main():
 
                 my_returns = user_df['TotalUSD'].pct_change().dropna()
                 my_sharpe = calculate_sharpe_ratio(my_returns)
+                
+                # --- FIX: Ošetření NaN hodnot ---
+                if pd.isna(my_sharpe) or np.isinf(my_sharpe): my_sharpe = 0.0
 
                 try:
                     sp500 = yf.download("^GSPC", start=start_date, progress=False)
@@ -2728,8 +2731,11 @@ def main():
                         sp500_norm = ((close_col / sp500_start) - 1) * 100
                         sp500_returns = close_col.pct_change().dropna()
                         sp500_sharpe = calculate_sharpe_ratio(sp500_returns)
+                        
+                        # --- FIX: Ošetření NaN u S&P ---
+                        if pd.isna(sp500_sharpe) or np.isinf(sp500_sharpe): sp500_sharpe = 0.0
 
-                        # --- GRAF (S legendou dole pro mobil) ---
+                        # --- GRAF (Bez nadpisu, legenda dole) ---
                         fig_bench = go.Figure()
                         fig_bench.add_trace(go.Scatter(x=user_df.index, y=user_df['MyReturn'], mode='lines', name='Moje Portfolio', line=dict(color='#00CC96', width=3)))
                         fig_bench.add_trace(go.Scatter(x=sp500_norm.index, y=sp500_norm, mode='lines', name='S&P 500', line=dict(color='#808080', width=2, dash='dot')))
@@ -2737,23 +2743,25 @@ def main():
                             xaxis_title="", yaxis_title="Změna (%)", template="plotly_dark", 
                             font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                             height=400,
+                            margin=dict(t=10, l=0, r=0, b=0), # Menší okraje nahoře
                             legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center") # Legenda dole
                         )
                         fig_bench.update_xaxes(showgrid=False)
                         fig_bench.update_yaxes(showgrid=True, gridcolor='#30363D')
                         st.plotly_chart(fig_bench, use_container_width=True, key="fig_benchmark")
 
-                        # --- METRIKY (GRID 2x2 pro úsporu místa) ---
+                        # --- METRIKY (GRID 2x2 a bez NaN) ---
                         my_last = user_df['MyReturn'].iloc[-1]; sp_last = sp500_norm.iloc[-1]; diff = my_last - sp_last
                         
                         col_vy1, col_vy2 = st.columns(2)
                         with col_vy1: st.metric("Můj výnos", f"{my_last:+.2f} %")
-                        with col_vy2: st.metric("S&P 500 výnos", f"{sp500_last:+.2f} %" if 'sp500_last' in locals() else f"{sp_last:+.2f} %", delta=f"{diff:+.2f} %")
+                        with col_vy2: st.metric("S&P 500 výnos", f"{sp_last:+.2f} %", delta=f"{diff:+.2f} %")
 
-                        st.write("") # Mezera
+                        st.write("") 
                         
                         col_sh1, col_sh2 = st.columns(2)
-                        with col_sh1: st.metric("Můj Sharpe", f"{my_sharpe:+.2f}", help="Riziko/Výnos")
+                        # Tady už se NaN neobjeví, ošetřili jsme to nahoře
+                        with col_sh1: st.metric("Můj Sharpe", f"{my_sharpe:+.2f}", help="Riziko/Výnos (Vyšší je lepší)")
                         with col_sh2: st.metric("S&P 500 Sharpe", f"{sp500_sharpe:+.2f}")
 
                         if diff > 0: st.success("🎉 Gratuluji! Porážíš trh.")
@@ -2762,6 +2770,7 @@ def main():
                     else: st.warning("Nepodařilo se stáhnout data S&P 500.")
                 except Exception as e: st.error(f"Chyba benchmarku: {e}")
             else: st.info("Pro srovnání potřebuješ historii alespoň za 2 dny.")
+
 
         with tab6:
             # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
@@ -3089,6 +3098,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
