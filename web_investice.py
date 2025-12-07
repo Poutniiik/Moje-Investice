@@ -1091,146 +1091,46 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
 
 
 def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
-    """Vykreslí stránku '🎮 Gamifikace'."""
+    """Vykreslí stránku '🎮 Gamifikace' - VERZE 2.1 (Mobile Grid)"""
+
 
     st.title("🎮 INVESTIČNÍ ARÉNA")
-    st.subheader(f"Tvá úroveň: {level_name}")
-    st.progress(level_progress)
-    if celk_hod_czk < 500000:
-        st.caption("Do další úrovně ti chybí majetek.")
-    else:
-        st.success("Gratulace! Dosáhl jsi maximální úrovně Velryba 🐋")
-
-    # --- NOVINKA: DYNAMICKÉ VÝZVY ---
-    st.divider()
-    st.subheader("🔥 AKTIVNÍ VÝZVY (Quest Log)")
-    
-    if 'rpg_tasks' not in st.session_state:
-        st.session_state['rpg_tasks'] = []
-    
-    # Generátor úkolů - spustí se jen jednou, nebo pokud se pole vyčistí
-    if not st.session_state['rpg_tasks']:
-        # Načteme všechny globální úkoly a uložíme si jejich metadata
-        for i, task in enumerate(RPG_TASKS):
-            st.session_state['rpg_tasks'].append({
-                "id": i,
-                "title": task["title"],
-                "desc": task["desc"],
-                "completed": False,
-            })
-    
-    # 1. Kontrola stavu úkolů a zobrazení
-    all_tasks_completed = True
-    
-    for i, task_state in enumerate(st.session_state['rpg_tasks']):
-        # ZMĚNA: Přizpůsobení dat (vdf je buď DataFrame, nebo list dictů)
-        df_w = st.session_state['df_watch']
-        
-        if isinstance(vdf, pd.DataFrame):
-            viz_data_list = vdf.to_dict('records')
-        else:
-            viz_data_list = vdf
-
-        original_task = RPG_TASKS[task_state['id']]
-        
-        is_completed = False
-        current = 0
-        target = 1
-        progress_text = "Probíhá..."
-        
-        try:
-            # Spuštění kontrolní funkce pro splnění
-            is_completed = original_task['check_fn'](df, df_w, zustatky, viz_data_list)
-            
-            # NOVINKA: Získání progress informací
-            current, target, progress_text = get_task_progress(task_state['id'], df, df_w, zustatky, viz_data_list)
-            
-        except Exception as e:
-            # V případě chyby se úkol nezapočítá (non-destructive)
-            is_completed = False
-            progress_text = f"Chyba kontroly: {e}" 
-            
-        st.session_state['rpg_tasks'][i]['completed'] = is_completed
-
-        if not is_completed:
-            all_tasks_completed = False
-            
-        icon = "✅" if is_completed else "⚪️"
-        
-        with st.container(border=True):
-            st.markdown(f"**{icon} {task_state['title']}**")
-            st.caption(f"_{task_state['desc']}_")
-            
-            if is_completed:
-                st.success("HOTOVO!")
+   
+    # --- 1. LEVEL HRÁČE (STATUS BAR) ---
+    with st.container(border=True):
+        c_lev1, c_lev2 = st.columns([3, 1])
+        with c_lev1:
+            st.subheader(f"Úroveň: {level_name}")
+            # Vlastní progress bar s popiskem
+            st.progress(level_progress)
+           
+            # Výpočet do dalšího levelu
+            next_level_val = 0
+            if celk_hod_czk < 10000: next_level_val = 10000
+            elif celk_hod_czk < 50000: next_level_val = 50000
+            elif celk_hod_czk < 100000: next_level_val = 100000
+            elif celk_hod_czk < 500000: next_level_val = 500000
+           
+            if next_level_val > 0:
+                chybi = next_level_val - celk_hod_czk
+                st.caption(f"Do další úrovně chybí: **{chybi:,.0f} Kč**")
             else:
-                # NOVINKA: Vykreslení progress baru
-                if target > 0 and current <= target:
-                    progress_pct = current / target if target != 0 else 0
-                    
-                    # Logika pro barvu: žlutá (0-50%), oranžová (50-99%), zelená (100%)
-                    bar_color = "orange"
-                    if progress_pct >= 1.0: bar_color = "green"
-                    elif progress_pct < 0.5: bar_color = "yellow"
-
-                    # Custom HTML progress bar
-                    st.markdown(f"""
-                        <div style="width: 100%; background-color: #30363D; border-radius: 5px; margin-top: 10px; margin-bottom: 10px;">
-                            <div style="width: {progress_pct*100:.0f}%; background-color: {bar_color}; height: 15px; border-radius: 5px; text-align: center; color: black; font-weight: bold; font-size: 10px;">
-                                {progress_pct*100:.0f}%
-                            </div>
-                        </div>
-                        <p style='margin:0; font-size: 12px; color: #8B949E;'>{progress_text}</p>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.info(progress_text) # Zobrazí se jako info, pokud nekvantifikovatelné
-            
-    if all_tasks_completed and len(st.session_state['rpg_tasks']) > 0:
-        st.balloons()
-        st.success("Všechny denní/týdenní úkoly splněny! Klikni na tlačítko níže pro novou várku!")
-        if st.button("🔄 Generovat nové RPG úkoly", key="reset_rpg_tasks"):
-            st.session_state['rpg_tasks'] = []
-            st.rerun()
-            
-    
-    # --- PŮVODNÍ AI LOGBOOK S VYLEPŠENÍM ---
-    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
-        st.divider()
-        st.subheader("🎲 DENNÍ LOGBOOK (AI Narrator)")
-
-        # Původní výpočty
-        denni_zmena_czk = (celk_hod_czk - (hist_vyvoje.iloc[-2]['TotalUSD'] * kurzy.get("CZK", 21))) if len(hist_vyvoje) > 1 else 0
-        nalada_ikona = "💀" if denni_zmena_czk < 0 else "💰"
-
-        # Vylepšené uložení stavu
-        if 'rpg_story_cache' not in st.session_state:
-            st.session_state['rpg_story_cache'] = None
-            
-        if st.button("🎲 GENEROVAT PŘÍBĚH DNE", type="secondary"):
-            with st.spinner("Dungeon Master hází kostkou..."):
-                st.session_state['rpg_story_cache'] = None # Vymažeme starý
-                sc, _ = ziskej_fear_greed()
-                actual_score = sc if sc else 50
-                rpg_res_text = generate_rpg_story(model, level_name, denni_zmena_czk, celk_hod_czk, actual_score)
-                st.session_state['rpg_story_cache'] = rpg_res_text # Uložíme nový
-
-        # Vykreslení z cachované hodnoty
-        if st.session_state['rpg_story_cache']:
-            rpg_res_text = st.session_state['rpg_story_cache']
-            st.markdown(f"""
-            <div style="background-color: #161B22; border-left: 5px solid {'#da3633' if denni_zmena_czk < 0 else '#238636'}; padding: 15px; border-radius: 5px;">
-                <h4 style="margin:0">{nalada_ikona} DENNÍ ZÁPIS</h4>
-                <p style="font-style: italic; color: #8B949E; margin-top: 10px;">"{rpg_res_text}"</p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.info("Stisknutím tlačítka výše vygeneruješ svůj RPG deník!")
+                st.success("🎉 MAX LEVEL DOSAŽEN!")
+       
+        with c_lev2:
+            # Velký avatar nebo ikona levelu
+            icon_map = {"Novic": "🧒", "Učeň": "🧑‍🎓", "Trader": "💼", "Profi": "🎩", "Velryba": "🐋"}
+            # Získáme čisté jméno bez emoji pro klíč
+            clean_name = level_name.split()[0]
+            ikona = icon_map.get(clean_name, "👾")
+            st.markdown(f"<h1 style='text-align: center; font-size: 50px;'>{ikona}</h1>", unsafe_allow_html=True)
 
 
-    st.divider()
+    # --- 2. SÍŇ SLÁVY (ODZNAKY) - GRID 2x2 ---
+    st.write("")
     st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
-    # PŮVODNÍ KÓD ODZNAKŮ JE PŘESUNUT ZDE:
-    c1, c2, c3, c4 = st.columns(4)
+   
+    # Příprava podmínek
     has_first = not df.empty
     cnt = len(df['Ticker'].unique()) if not df.empty else 0
     divi_total = 0
@@ -1239,28 +1139,140 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             lambda r: r['Castka'] * (
                 kurzy.get('CZK', 20.85) if r['Mena'] == 'USD'
                 else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)
-            ),
-            axis=1
-        ).sum()
+            ), axis=1).sum()
 
-    def render_badge(col, title, desc, cond, icon, color):
+
+    # Pomocná funkce pro render karty
+    def render_badge_card(col, title, desc, cond, icon, color):
         with col:
-            with st.container(border=True):
-                if cond:
-                    st.markdown(f"<div style='text-align:center; color:{color}'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
-                    st.success("ZÍSKÁNO")
-                else:
-                    st.markdown(f"<div style='text-align:center; color:gray; opacity:0.3'><h1>{icon}</h1><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
-                    st.caption("UZAMČENO")
+            # Vzhled karty - když je splněno, svítí. Když ne, je šedá.
+            opacity = "1.0" if cond else "0.4"
+            border_color = color if cond else "#30363D"
+            bg_color = "rgba(255,255,255,0.05)" if cond else "transparent"
+           
+            st.markdown(f"""
+            <div style="
+                border: 1px solid {border_color};
+                border-radius: 10px;
+                padding: 15px;
+                text-align: center;
+                background-color: {bg_color};
+                opacity: {opacity};
+                margin-bottom: 10px;">
+                <div style="font-size: 40px; margin-bottom: 10px;">{icon}</div>
+                <div style="font-weight: bold; color: {color}; margin-bottom: 5px;">{title}</div>
+                <div style="font-size: 12px; color: #8B949E;">{desc}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    render_badge(c1, "Začátečník", "Kup první akcii", has_first, "🥉", "#CD7F32")
-    render_badge(c2, "Stratég", "Drž 3 různé firmy", cnt >= 3, "🥈", "#C0C0C0")
-    render_badge(c3, "Boháč", "Portfolio > 100k", celk_hod_czk > 100000, "🥇", "#FFD700")
-    render_badge(c4, "Rentiér", "Dividendy > 500 Kč", divi_total > 500, "💎", "#00BFFF")
+
+    # Řádek 1 (2 sloupce)
+    c1, c2 = st.columns(2)
+    render_badge_card(c1, "Začátečník", "Kup první akcii", has_first, "🥉", "#CD7F32") # Bronz
+    render_badge_card(c2, "Stratég", "Drž 3 různé firmy", cnt >= 3, "🥈", "#C0C0C0")   # Stříbro
+   
+    # Řádek 2 (2 sloupce)
+    c3, c4 = st.columns(2)
+    render_badge_card(c3, "Boháč", "Portfolio > 100k", celk_hod_czk > 100000, "🥇", "#FFD700") # Zlato
+    render_badge_card(c4, "Rentiér", "Dividendy > 500 Kč", divi_total > 500, "💎", "#00BFFF") # Diamant
+
+
+    # --- 3. DYNAMICKÉ VÝZVY (QUEST LOG) ---
     st.divider()
-    st.subheader("💡 Moudro dne")
+    st.subheader("📜 QUEST LOG (Aktivní výzvy)")
+   
+    if 'rpg_tasks' not in st.session_state:
+        st.session_state['rpg_tasks'] = []
+   
+    if not st.session_state['rpg_tasks']:
+        # Načtení úkolů (z global proměnné RPG_TASKS definované jinde)
+        # Zde předpokládáme, že RPG_TASKS existuje v souboru web_investice.py
+        # Pokud ne, musíme ji definovat, ale v tvém kódu byla.
+        try:
+            for i, task in enumerate(RPG_TASKS):
+                st.session_state['rpg_tasks'].append({"id": i, "title": task["title"], "desc": task["desc"], "completed": False})
+        except: pass # Kdyby náhodou RPG_TASKS nebyly definované
+   
+    all_tasks_completed = True
+   
+    # Zobrazení úkolů
+    for i, task_state in enumerate(st.session_state['rpg_tasks']):
+        # Získání dat pro kontrolu
+        df_w = st.session_state.get('df_watch', pd.DataFrame())
+        viz_data_list = vdf.to_dict('records') if isinstance(vdf, pd.DataFrame) else vdf
+       
+        # Odkaz na globální RPG_TASKS
+        try:
+            original_task = RPG_TASKS[task_state['id']]
+            # Kontrola
+            is_completed = original_task['check_fn'](df, df_w, zustatky, viz_data_list)
+            # Progress text
+            current, target, progress_text = get_task_progress(task_state['id'], df, df_w, zustatky, viz_data_list)
+        except:
+            is_completed = False
+            current, target, progress_text = 0, 1, "Neznámý stav"
+
+
+        st.session_state['rpg_tasks'][i]['completed'] = is_completed
+        if not is_completed: all_tasks_completed = False
+           
+        # Vykreslení Questu (Kompaktní karta)
+        with st.container(border=True):
+            col_q1, col_q2 = st.columns([1, 5])
+            with col_q1:
+                st.markdown(f"<div style='font-size: 25px; text-align: center;'>{'✅' if is_completed else '📜'}</div>", unsafe_allow_html=True)
+            with col_q2:
+                st.markdown(f"**{task_state['title']}**")
+               
+                # Progress Bar
+                if target > 0:
+                    pct = min(current / target, 1.0)
+                    st.progress(pct)
+                    st.caption(f"{progress_text} ({int(pct*100)}%)")
+                else:
+                    st.info(progress_text)
+
+
+    if all_tasks_completed and len(st.session_state['rpg_tasks']) > 0:
+        st.balloons()
+        st.success("VŠECHNY QUESTY SPLNĚNY! ⚔️")
+        if st.button("🔄 Generovat nové RPG úkoly"):
+            st.session_state['rpg_tasks'] = []
+            st.rerun()
+
+
+    # --- 4. AI DENNÍ LOGBOOK ---
+    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
+        st.divider()
+        st.subheader("🎲 DENNÍ ZÁPIS (AI Narrator)")
+       
+        # Logika pro příběh
+        denni_zmena_czk = (celk_hod_czk - (hist_vyvoje.iloc[-2]['TotalUSD'] * kurzy.get("CZK", 21))) if len(hist_vyvoje) > 1 else 0
+       
+        if 'rpg_story_cache' not in st.session_state:
+            st.session_state['rpg_story_cache'] = None
+           
+        if st.button("🎲 GENEROVAT PŘÍBĚH DNE", type="secondary", use_container_width=True):
+            with st.spinner("Dungeon Master hází kostkou..."):
+                sc, _ = ziskej_fear_greed()
+                actual_score = sc if sc else 50
+                rpg_res_text = generate_rpg_story(model, level_name, denni_zmena_czk, celk_hod_czk, actual_score)
+                st.session_state['rpg_story_cache'] = rpg_res_text
+
+
+        if st.session_state['rpg_story_cache']:
+            st.markdown(f"""
+            <div style="background-color: #0D1117; border-left: 4px solid #AB63FA; padding: 15px; border-radius: 5px;">
+                <p style="font-style: italic; color: #E6E6E6; margin: 0;">"{st.session_state['rpg_story_cache']}"</p>
+            </div>
+            """, unsafe_allow_html=True)
+           
+    # --- 5. MOUDRO DNE ---
+    st.divider()
     if 'quote' not in st.session_state: st.session_state['quote'] = random.choice(CITATY)
+    st.caption("💡 Moudro dne")
     st.info(f"*{st.session_state['quote']}*")
+
 
 
 # --- NOVÉ FUNKCE PRO ANALÝZU (Tabulky 6, 7, 8, 9) ---
@@ -3193,6 +3205,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
