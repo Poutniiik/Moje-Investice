@@ -240,7 +240,7 @@ def proved_nakup(ticker, kusy, cena, user):
             invalidate_data_core()
             return True, f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
         except Exception as e:
-            # Selhal zápis, stav v Session State zůstává starý, nic není poškozeno
+            # Selhal zápis, stav v Session State zůstává starý, nic není poškozen
             return False, f"❌ Chyba zápisu transakce (NÁKUP): {e}"
     else:
         return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
@@ -2920,6 +2920,7 @@ def main():
                             st.plotly_chart(fig_ef, use_container_width=True, key="fig_ef_frontier")
                             add_download_button(fig_ef, "efektivni_hranice")
 
+                            c_ef1, c_ef2 = st.columns(2)
                             with c_ef1:
                                 st.success("🟢 OPTIMÁLNÍ SHARPE RATIO PORTFOLIO (Max. výnos k riziku)")
                                 st.metric("Sharpe Ratio", f"{max_sharpe_portfolio['Sharpe']:.2f}")
