@@ -2889,7 +2889,7 @@ def main():
                                 analyze_news_with_ai(n['title'], n['link'])
         else: st.info("Žádné nové zprávy.")
 
-       elif page == "💸 Obchod":
+    elif page == "💸 Obchod":
         st.title("💸 OBCHODNÍ PULT")
         
         # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
@@ -3184,6 +3184,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
