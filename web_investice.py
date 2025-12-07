@@ -1817,7 +1817,9 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 
                         # --- MACD ---
                         if show_macd:
-                            hist_colors = ['#238636' if h >= 0 else '#da3633' for c, o in zip(hist_data['Close'], hist_data['Open'])]
+                            # --- OPRAVA: Původní kód používal nedefinované 'h' ---
+                            hist_colors = ['#238636' if val >= 0 else '#da3633' for val in hist_data['MACD_Hist']]
+                            
                             fig_candle.add_trace(go.Bar(x=hist_data.index, y=hist_data['MACD_Hist'], name='MACD Hist', marker_color=hist_colors), row=next_plot_row, col=1)
                             fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['MACD'], mode='lines', name='MACD', line=dict(color='#58A6FF', width=1.5)), row=next_plot_row, col=1)
                             fig_candle.add_trace(go.Scatter(x=hist_data.index, y=hist_data['Signal'], mode='lines', name='Signal', line=dict(color='orange', width=1.5)), row=next_plot_row, col=1)
@@ -2676,7 +2678,8 @@ def main():
                         )
 
                         try:
-                            treemap_fig = make_plotly_cyberpunk(fig_map)
+                            # OPRAVA 2: Zde byla chyba - volalo se to na fig_map (zeměkouli) místo na treemap_fig
+                            treemap_fig = make_plotly_cyberpunk(treemap_fig) 
                         except Exception:
                             pass
 
