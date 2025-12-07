@@ -2789,7 +2789,7 @@ def main():
             # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
             render_analýza_kalendář_page(df, df_watch, LIVE_DATA)
 
-       elif page == "📰 Zprávy":
+    elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         
         # --- 1. MRAK SLOV (Wordcloud) ---
@@ -3193,6 +3193,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
