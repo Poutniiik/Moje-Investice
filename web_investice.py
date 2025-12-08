@@ -444,7 +444,7 @@ RPG_TASKS = [
 
 
 def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
-    """Vykreslí stránku '🏠 Přehled' (Dashboard) - VERZE 2.1 (Vylepšené sektory)"""
+    """Vykreslí stránku '🏠 Přehled' (Dashboard) - VERZE 2.2 (Sektory + Měny Tabs)"""
     
     # --- BEZPEČNÁ INICIALIZACE ---
     if 'show_cash_history' not in st.session_state:
@@ -532,7 +532,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                          res = ask_ai_guard(model, pct_24h, cash_usd, top_mover, flop_mover)
                          st.info(f"🤖 **AI:** {res}")
 
-    # 3. ŘÁDEK: GRAFY
+    # 3. ŘÁDEK: GRAFY (VÝVOJ + NOVÝ TABBED BOX)
     col_graf1, col_graf2 = st.columns([2, 1])
 
     with col_graf1:
@@ -548,60 +548,61 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                 fig_area.update_yaxes(showgrid=True, gridcolor='#30363D', tickprefix="Kč ")
                 st.plotly_chart(fig_area, use_container_width=True)
 
-    # --- ZMĚNA: VYLEPŠENÁ SEKCE SEKTORŮ (CLEAN DESIGN) ---
+    # --- ZDE JE TA NOVÁ VYCHYTÁVKA (TABS) ---
     with col_graf2:
         with st.container(border=True):
-            st.subheader("🍰 ROZLOŽENÍ")
-            if not vdf.empty:
-                # 1. Agregace dat podle sektorů
-                df_sector = vdf.groupby('Sektor')['HodnotaUSD'].sum().reset_index()
-                # Výpočet procent
-                total_val = df_sector['HodnotaUSD'].sum()
-                df_sector['Podíl'] = (df_sector['HodnotaUSD'] / total_val) * 100
-                
-                # 2. Čistý prstencový graf (Donut)
-                fig_pie = px.pie(
-                    df_sector, 
-                    values='HodnotaUSD', 
-                    names='Sektor', 
-                    hole=0.7, # Tenčí prstenec
-                    template="plotly_dark", 
-                    color_discrete_sequence=px.colors.qualitative.Bold
-                )
-                
-                # Schováme popisky v grafu, aby to nebylo přeplácané
-                fig_pie.update_traces(textinfo='none', hoverinfo='label+percent+value') 
-                
-                # Legenda dolů, aby nezabírala místo po stranách
-                fig_pie.update_layout(
-                    showlegend=False, # Legendu schováme úplně, nahradíme ji tabulkou
-                    margin=dict(l=0, r=0, t=10, b=10), 
-                    height=150, # Menší výška grafu
-                    paper_bgcolor="rgba(0,0,0,0)"
-                )
-                
-                # Zobrazení grafu
-                st.plotly_chart(fig_pie, use_container_width=True)
-                
-                # 3. Přehledná tabulka pod grafem
-                st.dataframe(
-                    df_sector.sort_values('Podíl', ascending=False),
-                    column_config={
-                        "Sektor": st.column_config.TextColumn("Sektor"),
-                        "Podíl": st.column_config.ProgressColumn(
-                            "%", 
-                            format="%.1f%%", 
-                            min_value=0, 
-                            max_value=100
-                        ),
-                        "HodnotaUSD": st.column_config.NumberColumn("$ Hodnota", format="$%.0f")
-                    },
-                    column_order=["Sektor", "Podíl", "HodnotaUSD"],
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("Žádná data")
+            # Přepínání mezi Sektory a Měnami
+            tab_sec, tab_cur = st.tabs(["🏭 SEKTORY", "💱 MĚNY"])
+            
+            # --- ZÁLOŽKA 1: SEKTORY ---
+            with tab_sec:
+                if not vdf.empty:
+                    df_sector = vdf.groupby('Sektor')['HodnotaUSD'].sum().reset_index()
+                    total_val = df_sector['HodnotaUSD'].sum()
+                    df_sector['Podíl'] = (df_sector['HodnotaUSD'] / total_val) * 100
+                    
+                    fig_pie = px.pie(df_sector, values='HodnotaUSD', names='Sektor', hole=0.7, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Bold)
+                    fig_pie.update_traces(textinfo='none', hoverinfo='label+percent+value') 
+                    fig_pie.update_layout(showlegend=False, margin=dict(l=0, r=0, t=10, b=10), height=150, paper_bgcolor="rgba(0,0,0,0)")
+                    
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                    
+                    st.dataframe(
+                        df_sector.sort_values('Podíl', ascending=False),
+                        column_config={
+                            "Sektor": st.column_config.TextColumn("Sektor"),
+                            "Podíl": st.column_config.ProgressColumn("%", format="%.1f%%", min_value=0, max_value=100),
+                            "HodnotaUSD": st.column_config.NumberColumn("$ USD", format="$%.0f")
+                        },
+                        column_order=["Sektor", "Podíl", "HodnotaUSD"], use_container_width=True, hide_index=True
+                    )
+                else: st.info("Žádná data")
+
+            # --- ZÁLOŽKA 2: MĚNY (NOVÉ!) ---
+            with tab_cur:
+                if not vdf.empty:
+                    # Agregace podle měny
+                    df_curr = vdf.groupby('Měna')['HodnotaUSD'].sum().reset_index()
+                    total_val_c = df_curr['HodnotaUSD'].sum()
+                    df_curr['Podíl'] = (df_curr['HodnotaUSD'] / total_val_c) * 100
+                    
+                    # Graf měn (jiná paleta barev - pastelová)
+                    fig_cur = px.pie(df_curr, values='HodnotaUSD', names='Měna', hole=0.7, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
+                    fig_cur.update_traces(textinfo='none', hoverinfo='label+percent+value')
+                    fig_cur.update_layout(showlegend=False, margin=dict(l=0, r=0, t=10, b=10), height=150, paper_bgcolor="rgba(0,0,0,0)")
+                    
+                    st.plotly_chart(fig_cur, use_container_width=True)
+                    
+                    st.dataframe(
+                        df_curr.sort_values('Podíl', ascending=False),
+                        column_config={
+                            "Měna": st.column_config.TextColumn("Měna"),
+                            "Podíl": st.column_config.ProgressColumn("%", format="%.1f%%", min_value=0, max_value=100),
+                            "HodnotaUSD": st.column_config.NumberColumn("Hodnota (v USD)", format="$%.0f")
+                        },
+                        column_order=["Měna", "Podíl", "HodnotaUSD"], use_container_width=True, hide_index=True
+                    )
+                else: st.info("Žádná data")
     # --------------------------------------------------------
 
     # 4. ŘÁDEK: SANKEY
@@ -743,6 +744,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
             st.dataframe(df_cash_local.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
         else:
             st.info("Historie hotovosti je prázdná.")
+
 
 
 
@@ -3205,6 +3207,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
