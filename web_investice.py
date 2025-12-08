@@ -1639,6 +1639,48 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
             else: st.error("Nepodařilo se načíst data o firmě.")
 
 
+def calculate_tech_indicators(ticker): 
+    """
+    Stáhne historická data a vypočítá klíčové technické indikátory.
+    Vrací Series s posledním řádkem indikátorů.
+    """
+    try:
+        # Stáhnout data za posledních 6 měsíců
+        df = yf.download(ticker, period="6mo", interval="1d", progress=False)['Close'].to_frame()
+        if df.empty:
+            return None
+
+        # 1. RSI (Relative Strength Index)
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['RSI'] = 100 - (100 / (1 + rs))
+
+        # 2. SMA (Simple Moving Average)
+        df['SMA20'] = df['Close'].rolling(window=20).mean()
+        df['SMA50'] = df['Close'].rolling(window=50).mean()
+
+        # 3. Bollinger Bands (BB - 20 period, 2 standardní odchylky)
+        df['BB_Mid'] = df['SMA20']
+        std_dev = df['Close'].rolling(window=20).std()
+        df['BB_Upper'] = df['BB_Mid'] + (std_dev * 2)
+        df['BB_Lower'] = df['BB_Mid'] - (std_dev * 2)
+
+        # 4. MACD (Moving Average Convergence Divergence)
+        exp1 = df['Close'].ewm(span=12, adjust=False).mean()
+        exp2 = df['Close'].ewm(span=26, adjust=False).mean()
+        df['MACD'] = exp1 - exp2
+        df['Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+        df['Histogram'] = df['MACD'] - df['Signal']
+
+        # Vrátíme pouze poslední řádek (ne-NaN hodnoty)
+        return df.dropna().iloc[-1]
+        
+    except Exception as e:
+        print(f"Chyba výpočtu indikátorů pro {ticker}: {e}")
+        return None
+
 def send_daily_telegram_report(USER, data_core, alerts, kurzy):
     """
     Sestaví ucelený denní report a odešle jej na Telegram.
@@ -2015,29 +2057,78 @@ def main():
 
         try:
             if cmd == "/help":
-                msg_text = "Příkazy:\n/price [TICKER]\n/buy [TICKER] [KUSY]\n/sell [TICKER] [KUSY]\n/cash\n/ai_audit [TICKER]\n/ai_tech [TICKER]"
+                # Upravený /help se všemi příkazy
+                msg_text = "Příkazy:\n/price [TICKER]\n/buy [TICKER] [KUSY]\n/sell [TICKER] [KUSY]\n/cash\n/ai_audit [TICKER] (Fundamenty)\n/ai_tech [TICKER] (Technika)"
                 msg_icon = "ℹ️"
-                
 
-            elif cmd == "/ai_audit":
-                # Krok 1: Kontrola AI a Data Core (vždy provést před extenzivní logikou)
+            # --- NOVÝ BLOK: TECHNICKÁ ANALÝZA ---
+            elif cmd == "/ai_tech" and len(cmd_parts) > 1:
                 if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
                     msg_text = "❌ AI je neaktivní (Zkontroluj Nastavení nebo API klíč)."
                     msg_icon = "⚠️"
                     st.session_state['cli_msg'] = (msg_text, msg_icon)
-                    return # Konec
+                    return
+
+                target_ticker = cmd_parts[1].upper()
+                
+                with st.spinner(f"Kalkuluji indikátory a spouštím AI pro {target_ticker}..."):
+                    # Krok 1: Výpočet indikátorů (vyžaduje funkci calculate_tech_indicators, kterou jsme vložili v Kroku 1)
+                    last_row_indicators = calculate_tech_indicators(target_ticker)
+
+                    if last_row_indicators is None or last_row_indicators.empty:
+                        msg_text = f"❌ Nepodařilo se stáhnout historická data pro {target_ticker} nebo nelze vypočítat indikátory."
+                        msg_icon = "⚠️"
+                        st.session_state['cli_msg'] = (msg_text, msg_icon)
+                        return
+
+                    # Krok 2: Volání AI
+                    indicators_dict = last_row_indicators.to_dict()
+                    
+                    try:
+                        ai_response = get_tech_analysis(model, target_ticker, indicators_dict)
+                    except Exception as e:
+                        if "429" in str(e):
+                            msg_text = f"❌ Chyba kvóty (429): Překročena frekvence volání AI. Zkus to prosím za pár minut."
+                        else:
+                            msg_text = f"❌ Chyba AI ({target_ticker}): Technická analýza se nezdařila ({e})."
+                        msg_icon = "⚠️"
+                        st.session_state['cli_msg'] = (msg_text, msg_icon)
+                        return
+
+                    # Krok 3: Zobrazení výsledku
+                    last_price = indicators_dict.get('Close', 'N/A')
+                    
+                    summary_text = (
+                        f"## ⚙️ Technická Analýza: {target_ticker}\n"
+                        f"- Cena: {last_price:,.2f}\n"
+                        f"- RSI (14): {indicators_dict.get('RSI', 'N/A'):.2f}\n"
+                        f"- SMA 50: {indicators_dict.get('SMA50', 'N/A'):,.2f}\n"
+                        "---"
+                    )
+                    
+                    msg_text = f"🔭 **HLÁŠENÍ PRO {target_ticker}:**\n{summary_text}\n🤖 **AI Verdikt:** {ai_response}"
+                    msg_icon = "🔬"
+            
+            # --- PŮVODNÍ BLOK: FUNDAMENTÁLNÍ ANALÝZA (/ai_audit) ---
+            elif cmd == "/ai_audit":
+                # Krok 1: Kontrola AI a Data Core (zůstává)
+                if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
+                    msg_text = "❌ AI je neaktivní (Zkontroluj Nastavení nebo API klíč)."
+                    msg_icon = "⚠️"
+                    st.session_state['cli_msg'] = (msg_text, msg_icon)
+                    return 
                 
                 if 'data_core' not in st.session_state:
                     msg_text = "❌ Datové jádro není inicializováno. Zkus obnovit stránku."
                     msg_icon = "⚠️"
                     st.session_state['cli_msg'] = (msg_text, msg_icon)
-                    return # Konec
+                    return 
                     
                 core = st.session_state['data_core']
-                LIVE_DATA = st.session_state.get('LIVE_DATA', {}) # Bezpečný přístup k Live datům
+                LIVE_DATA = st.session_state.get('LIVE_DATA', {})
 
                 if len(cmd_parts) > 1:
-                    # --- CÍLENÝ AUDIT AKCIE ---
+                    # --- CÍLENÝ AUDIT AKCIE --- (Fundamenty)
                     target_ticker = cmd_parts[1].upper()
                     
                     # 1. Najdi fundamentální data z cache Data Core
@@ -2046,12 +2137,10 @@ def main():
                     # NOVINKA: Pokud fundamenty chybí, zkusíme je stáhnout a přidat do cache
                     if not fund_info:
                         try:
-                            # POZNÁMKA: V reálném kódu by se zde mělo zvážit, zda nechat uživatele čekat na externí API volání
                             t_info, _ = cached_detail_akcie(target_ticker) 
                             if t_info:
                                 fund_info = t_info
-                                core['fundament_data'][target_ticker] = t_info # Aktualizujeme cache
-                                # Také zkusíme aktualizovat LIVE data, pokud je potřeba
+                                core['fundament_data'][target_ticker] = t_info
                                 if target_ticker not in LIVE_DATA:
                                     LIVE_DATA[target_ticker] = {"price": fund_info.get('currentPrice', 'N/A'), "curr": fund_info.get('currency', 'USD')}
                             else:
@@ -2059,7 +2148,6 @@ def main():
                                 msg_icon = "⚠️"
                                 st.session_state['cli_msg'] = (msg_text, msg_icon)
                                 return
-
                         except Exception as e:
                             msg_text = f"❌ Chyba při získávání dat pro {target_ticker}: {e}"
                             msg_icon = "⚠️"
@@ -2070,21 +2158,17 @@ def main():
                     current_price = LIVE_DATA.get(target_ticker, {}).get('price', 'N/A')
                     pe_ratio = fund_info.get('trailingPE', 'N/A')
                     
-                    # Získání Divi Yield pro AI: Hledáme v Data Core (vdf) nebo v fundamentálních datech
+                    # Získání Divi Yield pro AI
                     divi_yield_raw = fund_info.get('dividendYield', 'N/A')
                     
-                    # Zkusíme i z portfolia, pokud je akcie držená a má Divi
                     vdf = core['vdf']
                     if not vdf.empty and target_ticker in vdf['Ticker'].values:
                         portfolio_row = vdf[vdf['Ticker'] == target_ticker].iloc[0]
                         if pd.notna(portfolio_row.get('Divi')):
                             divi_yield_raw = portfolio_row['Divi']
                     
-                    # Formátujeme yield pro AI prompt (z 0.005 na 0.5%)
                     if isinstance(divi_yield_raw, (float, int)) and pd.notna(divi_yield_raw):
-                        # Pro AI pošleme hodnotu, aby ji mohla použít v logice
                         divi_yield_for_ai = divi_yield_raw
-                        # Pro zobrazení pošleme formátované %
                         divi_yield_display = f"{divi_yield_raw * 100:.2f}%" 
                     else:
                         divi_yield_for_ai = 'N/A'
@@ -2102,16 +2186,15 @@ def main():
                         with st.spinner(f"AI provádí analýzu pro {target_ticker}..."):
                             ai_response = model.generate_content(ai_prompt).text
                     except Exception as e:
-                        # Chyba AI volání (včetně 429 quota, síťové chyby, timeout)
                         if "429" in str(e):
                             msg_text = f"❌ Chyba kvóty (429): Překročena frekvence volání AI. Zkus to prosím za pár minut."
                         else:
                             msg_text = f"❌ Chyba AI ({target_ticker}): Analýza se nezdařila ({e})."
                         msg_icon = "⚠️"
                         st.session_state['cli_msg'] = (msg_text, msg_icon)
-                        return # Konec
+                        return 
 
-                    # Zobrazení výsledku (OPRAVENO FORMÁTOVÁNÍ PRO ČITELNOST)
+                    # Zobrazení výsledku 
                     summary_text = (
                         f"## 🕵️ Analýza: {target_ticker}\n"
                         f"- Cena: {current_price}\n"
@@ -2146,11 +2229,13 @@ def main():
                             msg_text = f"❌ Chyba AI: Globální audit se nezdařil ({e})."
                         msg_icon = "⚠️"
                         st.session_state['cli_msg'] = (msg_text, msg_icon)
-                        return # Konec
+                        return 
 
                     msg_text = f"🛡️ **HLÁŠENÍ STRÁŽCE:**\n{guard_res_text}"
                     msg_icon = "👮"
-
+                    
+            # --- ZDE POKRAČUJÍ PŮVODNÍ PŘÍKAZY (/price, /cash, /buy, /sell) ---
+            # ... (Tady musí být ty zbylé elif bloky z tvého původního kódu, např.:)
             elif cmd == "/price" and len(cmd_parts) > 1:
                 t_cli = cmd_parts[1].upper()
                 p_cli, m_cli, z_cli = ziskej_info(t_cli)
@@ -2184,13 +2269,13 @@ def main():
                 k_cli = float(cmd_parts[2])
                 p_cli, m_cli, _ = ziskej_info(t_cli)
                 if p_cli:
-                    # OPRAVA: Původně bylo 'm', nahrazeno za správné 'm_cli'
                     ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m_cli)
                     msg_text = msg
                     msg_icon = "✅" if ok else "❌"
                 else:
                     msg_text = "❌ Chyba ceny"
                     msg_icon = "⚠️"
+            
             else:
                 msg_text = "❌ Neznámý příkaz nebo formát"
                 msg_icon = "❓"
@@ -3415,6 +3500,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
