@@ -2427,8 +2427,8 @@ with st.sidebar:
                 st.rerun()
 
 
-    # BĚŽÍCÍ PÁS
-    if page not in ["🎮 Gamifikace", "⚙️ Nastavení"]:
+# BĚŽÍCÍ PÁS
+if page not in ["🎮 Gamifikace", "⚙️ Nastavení"]:
         render_ticker_tape(LIVE_DATA)
 
     # --- 10. STRÁNKY (Refaktorovaný router) ---
@@ -3436,6 +3436,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
