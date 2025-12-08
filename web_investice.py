@@ -3149,6 +3149,48 @@ def main():
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
 
+         --- DOČASNÝ TEST BANKY (PLAID) ---
+        st.write("")
+        st.subheader("🏦 BANKOVNÍ LABORATOŘ (TEST)")
+        with st.expander("🔌 Otestovat připojení k PLAID", expanded=True):
+            st.info("Zde vlož klíče ze Sandboxu, abychom ověřili spojení.")
+            
+            # 1. Vstupy pro klíče (Typ password, aby nebyly vidět na streamu)
+            test_client_id = st.text_input("Client ID", type="password") 6936237b139fbf00216fb766
+            test_secret = st.text_input("Secret (Sandbox)", type="password") 05377cff894a1c4d86e5d3ea1caea2
+            
+            if st.button("🚀 ODESLAT SIGNÁL DO USA"):
+                if test_client_id and test_secret:
+                    with st.spinner("Volám do San Francisca..."):
+                        try:
+                            # 2. Logika volání (stejná jako ve skriptu, ale pro Streamlit)
+                            url = "https://sandbox.plaid.com/institutions/get"
+                            payload = {
+                                "client_id": test_client_id,
+                                "secret": test_secret,
+                                "count": 5,
+                                "offset": 0,
+                                "country_codes": ["US", "GB", "ES", "FR"]
+                            }
+                            
+                            r = requests.post(url, json=payload)
+                            
+                            if r.status_code == 200:
+                                st.success("✅ SPOJENÍ NAVÁZÁNO! Server odpověděl.")
+                                data = r.json()
+                                st.write("🎉 Nalezené banky:")
+                                for bank in data['institutions']:
+                                    st.code(f"{bank['name']} (ID: {bank['institution_id']})")
+                            else:
+                                st.error(f"❌ Chyba {r.status_code}")
+                                st.json(r.json()) # Ukáže detail chyby
+                                
+                        except Exception as e:
+                            st.error(f"Chyba připojení: {e}")
+                else:
+                    st.warning("Vyplň oba klíče!")
+        
+
     # --- OPRAVA 3: CHAT S POJISTKOU PROTI CHYBĚ 429 ---
     # Tento blok nahrazuje původní chat sekci na konci souboru
     
@@ -3207,23 +3249,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
