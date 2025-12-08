@@ -2266,7 +2266,7 @@ def main():
         st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
         
         # Voláme funkci pro odeslání reportu
-        ok, msg = notify.send_daily_telegram_report(USER, data_core, alerts, kurzy)
+        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
         
         if ok:
             st.session_state['last_telegram_report'] = today_date
@@ -3412,6 +3412,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
