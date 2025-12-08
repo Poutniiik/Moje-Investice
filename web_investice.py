@@ -2612,7 +2612,7 @@ def main():
             st.error("Chyba mapy (Treemap a Sektory).")
     
     # Konec velkého bloku if not vdf.empty
-    else:
+        else:
         st.info("Portfolio je prázdné.")
 
         with tab4:
@@ -3410,6 +3410,7 @@ def render_bank_lab_page():
 if __name__ == "__main__":
     main()
 # ===================================================
+
 
 
 
