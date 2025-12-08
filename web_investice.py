@@ -2422,7 +2422,7 @@ def main():
             st.text_input(">", key="cli_cmd", placeholder="/help", on_change=process_cli_command)
 
         # --- AKCE (Tlačítka dole) ---
-        st.divider()
+    st.divider()
         c_act1, c_act2 = st.columns(2)
         with c_act2:
             pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
@@ -3464,6 +3464,7 @@ def render_bank_lab_page():
             
 if __name__ == "__main__":
     main()
+
 
 
 
