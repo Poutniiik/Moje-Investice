@@ -1,46 +1,56 @@
-# notification_engine.py
 import streamlit as st
 import requests
 
-# ZAJISTÍME, ŽE SE TOTO NENAČÍTÁ PŘI IMPORTU (to zpusobuje chyby)
-
-def _get_telegram_config():
-    """Načte konfiguraci ze Streamlit Secrets."""
+def init_telegram():
+    """Načte klíče pro Telegram ze secrets.toml."""
     try:
-        token = st.secrets["telegram"]["TOKEN"]
-        chat_id = st.secrets["telegram"]["CHAT_ID"]
+        if "telegram" not in st.secrets:
+            return None, None
+        
+        token = st.secrets["telegram"]["bot_token"]
+        chat_id = st.secrets["telegram"]["chat_id"]
         return token, chat_id
-    except KeyError:
+    except Exception:
         return None, None
 
-def poslat_zpravu(text_zpravy):
-    """Odešle zprávu na Telegram."""
-    TOKEN, CHAT_ID = _get_telegram_config()
-    if not TOKEN or not CHAT_ID:
-        return False, "❌ Chybí konfigurace Telegram (TOKEN nebo CHAT_ID v secrets)."
-
-    # Použijeme HTML mód pro pěkné formátování (jako v tvém reportu)
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+def poslat_zpravu(text):
+    """
+    Odešle zprávu přes Telegram Bota pomocí obyčejného HTTP požadavku.
+    Používá HTML formátování.
+    """
+    token, chat_id = init_telegram()
+    
+    if not token or not chat_id:
+        return False, "❌ Chybí konfigurace Telegramu v secrets.toml"
+        
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    
+    # Payload pro odeslání zprávy
     payload = {
-        'chat_id': CHAT_ID,
-        'text': text_zpravy,
-        'parse_mode': 'HTML' # Aby fungovalo <b> a <i>
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML" 
     }
-
+    
     try:
-        response = requests.post(url, data=payload, timeout=5)
-        response.raise_for_status() # Vyvolá HTTPError pro špatné stavy (4xx, 5xx)
-        if response.json().get("ok"):
-            return True, "✅ Zpráva úspěšně odeslána."
+        response = requests.post(url, json=payload, timeout=5)
+        
+        if response.status_code == 200:
+            return True, "✅ Zpráva odeslána na Telegram!"
         else:
-            return False, f"❌ Chyba Telegram API: {response.json().get('description', 'Neznámá chyba')}"
+            return False, f"❌ Chyba Telegramu: {response.text}"
+    except Exception as e:
+        return False, f"❌ Chyba spojení: {str(e)}"
 
-    except requests.exceptions.RequestException as e:
-        return False, f"❌ Chyba připojení: {e}"
-
+# Ponecháme starou funkci jen pro snadné testování v Nastavení
 def otestovat_tlacitko():
-    # Funkce pro stránku Nastavení
-    if st.button("📲 ODESLAT TESTOVACÍ ZPRÁVU", use_container_width=True):
-        ok, msg = poslat_zpravu("🤖 **TEST:** Spojení s Terminal Pro je aktivní!")
-        if ok: st.success(msg)
-        else: st.error(msg)
+    """Tlačítko pro otestování spojení v Nastavení."""
+    if st.button("📲 Odeslat testovací notifikaci"):
+        with st.spinner("Odesílám..."):
+            zprava = "🚀 <b>Terminal Pro:</b> Zkouška spojení.\nVše funguje! 😎"
+            ok, msg = poslat_zpravu(zprava)
+            
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
