@@ -3462,9 +3462,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
