@@ -1,7 +1,3 @@
-# ===================================================
-# Soubor: web_investice.py (KOMPLETNÍ OPRAVENÁ VERZE)
-# ===================================================
-
 import notification_engine as notify
 import bank_engine as bank
 import bank_engine
@@ -404,14 +400,14 @@ def get_task_progress(task_id, df, df_w, zustatky, vdf):
         viz_data_list_safe = vdf.to_dict('records') if isinstance(vdf, pd.DataFrame) else vdf
         current = len([i for i in viz_data_list_safe if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01])
         return current, target, f"Dividendových akcií: {current}/{target}"
-    
+      
     elif task_id == 4: # Cílovací expert: Nastav cílovou nákupní cenu u jedné akcie A cílovou prodejní cenu u jiné.
         target = 2
         has_buy = (df_w['TargetBuy'] > 0).any()
         has_sell = (df_w['TargetSell'] > 0).any()
         current = (1 if has_buy else 0) + (1 if has_sell else 0)
         return current, target, f"Nastavené cíle (Buy + Sell): {current}/{target}"
-    
+      
     elif task_id == 5: # Pohotovostní fond: Drž alespoň 5 000 Kč v hotovosti.
         target = 5000
         current = zustatky.get('CZK', 0)
@@ -532,12 +528,12 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         
         if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
              with st.container(border=True):
-                 if st.button("🛡️ SPUSTIT RANNÍ AI BRIEFING", use_container_width=True):
-                     with st.spinner("Analyzuji rizika..."):
-                          top_mover = best.get('Ticker', "N/A") if 'best' in locals() else "N/A"
-                          flop_mover = worst.get('Ticker', "N/A") if 'worst' in locals() else "N/A"
-                          res = ask_ai_guard(model, pct_24h, cash_usd, top_mover, flop_mover)
-                          st.info(f"🤖 **AI:** {res}")
+                if st.button("🛡️ SPUSTIT RANNÍ AI BRIEFING", use_container_width=True):
+                    with st.spinner("Analyzuji rizika..."):
+                         top_mover = best.get('Ticker', "N/A") if 'best' in locals() else "N/A"
+                         flop_mover = worst.get('Ticker', "N/A") if 'worst' in locals() else "N/A"
+                         res = ask_ai_guard(model, pct_24h, cash_usd, top_mover, flop_mover)
+                         st.info(f"🤖 **AI:** {res}")
 
     # 3. ŘÁDEK: GRAFY (VÝVOJ + NOVÝ TABBED BOX)
     col_graf1, col_graf2 = st.columns([2, 1])
@@ -631,10 +627,10 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         df_div_temp = st.session_state.get('df_div', pd.DataFrame())
         if not df_div_temp.empty:
              for _, r in df_div_temp.iterrows():
-                 amt = r['Castka']
-                 if r['Mena'] == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
-                 elif r['Mena'] == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
-                 else: total_divi_czk += amt
+                amt = r['Castka']
+                if r['Mena'] == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
+                elif r['Mena'] == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+                else: total_divi_czk += amt
         
         total_realized_czk = 0 
         unrealized_profit_czk = (celk_hod_czk - celk_inv_usd * kurzy.get("CZK", 20.85))
@@ -874,8 +870,8 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                 "Měna": cur,
                 "RSI (14)": rsi_val,
                 "52T Range": range_pos,
-                "Cíl": active_target,      # Sloupec je nyní univerzální "Cíl"
-                "Akce": action_icon,       # Nový sloupec s ikonkou
+                "Cíl": active_target,     # Sloupec je nyní univerzální "Cíl"
+                "Akce": action_icon,      # Nový sloupec s ikonkou
                 "Zaměřovač": proximity_score,
                 "Status": status_text
             })
@@ -1022,9 +1018,9 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
             plot_df_grouped = plot_df_grouped.sort_values('Datum_Den')
 
             fig_div = px.bar(plot_df_grouped, x='Datum_Den', y='Castka', color='Ticker',
-                              title="Historie výplat (po dnech)",
-                              labels={'Datum_Den': 'Datum', 'Castka': 'Částka'},
-                              template="plotly_dark")
+                             title="Historie výplat (po dnech)",
+                             labels={'Datum_Den': 'Datum', 'Castka': 'Částka'},
+                             template="plotly_dark")
 
             # Vynutíme, aby osa X byla kategorie (text), ne časová osa -> tlusté sloupce
             fig_div.update_xaxes(type='category')
@@ -1104,7 +1100,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
 
 
     st.title("🎮 INVESTIČNÍ ARÉNA")
-    
+   
     # --- 1. LEVEL HRÁČE (STATUS BAR) ---
     with st.container(border=True):
         c_lev1, c_lev2 = st.columns([3, 1])
@@ -1112,20 +1108,20 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             st.subheader(f"Úroveň: {level_name}")
             # Vlastní progress bar s popiskem
             st.progress(level_progress)
-            
+           
             # Výpočet do dalšího levelu
             next_level_val = 0
             if celk_hod_czk < 10000: next_level_val = 10000
             elif celk_hod_czk < 50000: next_level_val = 50000
             elif celk_hod_czk < 100000: next_level_val = 100000
             elif celk_hod_czk < 500000: next_level_val = 500000
-            
+           
             if next_level_val > 0:
                 chybi = next_level_val - celk_hod_czk
                 st.caption(f"Do další úrovně chybí: **{chybi:,.0f} Kč**")
             else:
                 st.success("🎉 MAX LEVEL DOSAŽEN!")
-        
+       
         with c_lev2:
             # Velký avatar nebo ikona levelu
             icon_map = {"Novic": "🧒", "Učeň": "🧑‍🎓", "Trader": "💼", "Profi": "🎩", "Velryba": "🐋"}
@@ -1138,7 +1134,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
     # --- 2. SÍŇ SLÁVY (ODZNAKY) - GRID 2x2 ---
     st.write("")
     st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
-    
+   
     # Příprava podmínek
     has_first = not df.empty
     cnt = len(df['Ticker'].unique()) if not df.empty else 0
@@ -1158,7 +1154,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             opacity = "1.0" if cond else "0.4"
             border_color = color if cond else "#30363D"
             bg_color = "rgba(255,255,255,0.05)" if cond else "transparent"
-            
+           
             st.markdown(f"""
             <div style="
                 border: 1px solid {border_color};
@@ -1178,8 +1174,8 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
     # Řádek 1 (2 sloupce)
     c1, c2 = st.columns(2)
     render_badge_card(c1, "Začátečník", "Kup první akcii", has_first, "🥉", "#CD7F32") # Bronz
-    render_badge_card(c2, "Stratég", "Drž 3 různé firmy", cnt >= 3, "🥈", "#C0C0C0")  # Stříbro
-    
+    render_badge_card(c2, "Stratég", "Drž 3 různé firmy", cnt >= 3, "🥈", "#C0C0C0")   # Stříbro
+   
     # Řádek 2 (2 sloupce)
     c3, c4 = st.columns(2)
     render_badge_card(c3, "Boháč", "Portfolio > 100k", celk_hod_czk > 100000, "🥇", "#FFD700") # Zlato
@@ -1189,10 +1185,10 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
     # --- 3. DYNAMICKÉ VÝZVY (QUEST LOG) ---
     st.divider()
     st.subheader("📜 QUEST LOG (Aktivní výzvy)")
-    
+   
     if 'rpg_tasks' not in st.session_state:
         st.session_state['rpg_tasks'] = []
-    
+   
     if not st.session_state['rpg_tasks']:
         # Načtení úkolů (z global proměnné RPG_TASKS definované jinde)
         # Zde předpokládáme, že RPG_TASKS existuje v souboru web_investice.py
@@ -1201,15 +1197,15 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             for i, task in enumerate(RPG_TASKS):
                 st.session_state['rpg_tasks'].append({"id": i, "title": task["title"], "desc": task["desc"], "completed": False})
         except: pass # Kdyby náhodou RPG_TASKS nebyly definované
-    
+   
     all_tasks_completed = True
-    
+   
     # Zobrazení úkolů
     for i, task_state in enumerate(st.session_state['rpg_tasks']):
         # Získání dat pro kontrolu
         df_w = st.session_state.get('df_watch', pd.DataFrame())
         viz_data_list = vdf.to_dict('records') if isinstance(vdf, pd.DataFrame) else vdf
-        
+       
         # Odkaz na globální RPG_TASKS
         try:
             original_task = RPG_TASKS[task_state['id']]
@@ -1224,7 +1220,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
 
         st.session_state['rpg_tasks'][i]['completed'] = is_completed
         if not is_completed: all_tasks_completed = False
-            
+           
         # Vykreslení Questu (Kompaktní karta)
         with st.container(border=True):
             col_q1, col_q2 = st.columns([1, 5])
@@ -1232,7 +1228,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
                 st.markdown(f"<div style='font-size: 25px; text-align: center;'>{'✅' if is_completed else '📜'}</div>", unsafe_allow_html=True)
             with col_q2:
                 st.markdown(f"**{task_state['title']}**")
-                
+               
                 # Progress Bar
                 if target > 0:
                     pct = min(current / target, 1.0)
@@ -1254,13 +1250,13 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
     if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
         st.divider()
         st.subheader("🎲 DENNÍ ZÁPIS (AI Narrator)")
-        
+       
         # Logika pro příběh
         denni_zmena_czk = (celk_hod_czk - (hist_vyvoje.iloc[-2]['TotalUSD'] * kurzy.get("CZK", 21))) if len(hist_vyvoje) > 1 else 0
-        
+       
         if 'rpg_story_cache' not in st.session_state:
             st.session_state['rpg_story_cache'] = None
-            
+           
         if st.button("🎲 GENEROVAT PŘÍBĚH DNE", type="secondary", use_container_width=True):
             with st.spinner("Dungeon Master hází kostkou..."):
                 sc, _ = ziskej_fear_greed()
@@ -1275,7 +1271,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
                 <p style="font-style: italic; color: #E6E6E6; margin: 0;">"{st.session_state['rpg_story_cache']}"</p>
             </div>
             """, unsafe_allow_html=True)
-            
+           
     # --- 5. MOUDRO DNE ---
     st.divider()
     if 'quote' not in st.session_state: st.session_state['quote'] = random.choice(CITATY)
@@ -1708,7 +1704,6 @@ def send_daily_telegram_report(USER, data_core, alerts, kurzy):
         return notify.poslat_zpravu(summary_text)
 
     except Exception as e:
-        # Zaznamenáme chybu při generování, aby nepadla celá aplikace
         return False, f"❌ Chyba generování reportu: {e}"
 
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
@@ -2257,9 +2252,7 @@ def main():
             st.session_state['last_telegram_report'] = today_date
             st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
         else:
-            # Report se neodeslal, ale neaktualizujeme stav, aby se zkusil poslat zítra znovu (nebo po manuálním reloadu)
             st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
-
 
     # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
@@ -2365,10 +2358,6 @@ def main():
 
         # --- AKCE (Tlačítka dole) ---
         st.divider()
-        
-        # OPRAVA CHYBY: C_ACT2 NEBYLO DEFINOVÁNO V SIDEBARU!
-        c_act1, c_act2 = st.columns(2) # <--- TENTO ŘÁDEK CHYBĚL
-
         with c_act2:
             pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
             st.download_button(label="📄 PDF", data=pdf_data, file_name=f"report.pdf", mime="application/pdf", use_container_width=True)
@@ -2397,7 +2386,7 @@ def main():
     # --- 10. STRÁNKY (Refaktorovaný router) ---
     if page == "🏠 Přehled":
         render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, 
-                             zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA)
+                            zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA)
 
     elif page == "👀 Sledování":
         render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST)
@@ -2454,7 +2443,7 @@ def main():
                             legend=dict(
                                 orientation="h",  # Horizontální legenda
                                 yanchor="bottom", 
-                                y=-0.2,          # Posunutá pod graf
+                                y=-0.2,           # Posunutá pod graf
                                 xanchor="center", 
                                 x=0.5
                             )
@@ -2510,110 +2499,100 @@ def main():
 
 
 
-    with tab3:
-        if not vdf.empty:
-        # --- 1. GLOBÁLNÍ MAPA IMPÉRIA ---
-            st.subheader("🌍 MAPA IMPÉRIA")
-        try:
-            df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
-            fig_map = px.scatter_geo(
-                df_map,
-                locations="Země",
-                locationmode="country names",
-                hover_name="Země",
-                size="HodnotaUSD",
-                projection="orthographic",
-                color="Země",
-                template="plotly_dark"
-            )
-            fig_map.update_geos(
-                bgcolor="#161B22",
-                showcountries=True,
-                countrycolor="#30363D",
-                showocean=True,
-                oceancolor="#0E1117",
-                showland=True,
-                landcolor="#1c2128"
-            )
-            fig_map.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                font={"color": "white", "family": "Roboto Mono"},
-                height=500,
-                margin={"r": 0, "t": 0, "l": 0, "b": 0}
-            )
+        with tab3:
+            if not vdf.empty:
+                st.subheader("🌍 MAPA IMPÉRIA")
+                try:
+                    df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
+                    fig_map = px.scatter_geo(
+                        df_map,
+                        locations="Země",
+                        locationmode="country names",
+                        hover_name="Země",
+                        size="HodnotaUSD",
+                        projection="orthographic",
+                        color="Země",
+                        template="plotly_dark"
+                    )
+                    fig_map.update_geos(
+                        bgcolor="#161B22",
+                        showcountries=True,
+                        countrycolor="#30363D",
+                        showocean=True,
+                        oceancolor="#0E1117",
+                        showland=True,
+                        landcolor="#1c2128"
+                    )
+                    fig_map.update_layout(
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font={"color": "white", "family": "Roboto Mono"},
+                        height=500,
+                        margin={"r": 0, "t": 0, "l": 0, "b": 0}
+                    )
 
-            try:
-                fig_map = make_plotly_cyberpunk(fig_map)
-            except Exception:
-                pass
+                    try:
+                        fig_map = make_plotly_cyberpunk(fig_map)
+                    except Exception:
+                        pass
 
-            st.plotly_chart(fig_map, use_container_width=True, key="fig_mapa_imperia")
-            add_download_button(fig_map, "mapa_imperia")
-        
-        # První try-except se uzavírá zde (pro globální mapu)
-        except Exception as e:
-            st.error(f"Chyba mapy (Scatter Geo): {e}")
+                    st.plotly_chart(fig_map, use_container_width=True, key="fig_mapa_imperia")
+                    add_download_button(fig_map, "mapa_imperia")
+                except Exception as e:
+                    st.error(f"Chyba mapy: {e}")
 
-        st.divider()
-        st.caption("MAPA TRHU (Sektory)")
-
-        # --- 2. TREEMAP A LINE CHART ---
-        try:
-            if vdf.empty:
-                st.info("Portfolio je prázdné.")
-            else:
-                # Treemap (Rozložení sektorů)
-                treemap_fig = px.treemap(
-                    vdf,
-                    path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'],
-                    values='HodnotaUSD',
-                    color='Zisk',
-                    color_continuous_scale=['red', '#161B22', 'green'],
-                    color_continuous_midpoint=0
-                )
-                treemap_fig.update_layout(
-                    font_family="Roboto Mono",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(t=30, l=10, r=10, b=10),
-                    title="Treemap: rozložení podle sektorů"
-                )
+                st.divider()
+                st.caption("MAPA TRHU (Sektory)")
 
                 try:
-                    treemap_fig = make_plotly_cyberpunk(treemap_fig)
-                except Exception:
-                    pass
-
-                st.plotly_chart(treemap_fig, use_container_width=True, key="fig_sektor_map")
-                add_download_button(treemap_fig, "mapa_sektoru")
-
-                # Line Chart (Vývoj ceny)
-                if 'Datum' in df.columns and 'Cena' in df.columns and not df.empty:
-                    try:
-                        line_fig = px.line(df.sort_values('Datum'), x='Datum', y='Cena', title='Vývoj ceny', markers=True)
-                        line_fig.update_layout(
-                            paper_bgcolor="rgba(0,0,0,0)",
-                            font_family="Roboto Mono",
-                            margin=dict(t=30, l=10, r=10, b=10)
+                    if vdf.empty:
+                        st.info("Portfolio je prázdné.")
+                    else:
+                        treemap_fig = px.treemap(
+                            vdf,
+                            path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'],
+                            values='HodnotaUSD',
+                            color='Zisk',
+                            color_continuous_scale=['red', '#161B22', 'green'],
+                            color_continuous_midpoint=0
                         )
+                        treemap_fig.update_layout(
+                            font_family="Roboto Mono",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            margin=dict(t=30, l=10, r=10, b=10),
+                            title="Treemap: rozložení podle sektorů"
+                        )
+
                         try:
-                            line_fig = make_plotly_cyberpunk(line_fig)
+                            # OPRAVA 2: Zde byla chyba - volalo se to na fig_map (zeměkouli) místo na treemap_fig
+                            treemap_fig = make_plotly_cyberpunk(treemap_fig) 
                         except Exception:
                             pass
 
-                        st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
-                        add_download_button(fig_map, "vyvoj_ceny")
-                        
-                    # Uzavření try-except pro Line Chart
-                    except Exception:
-                        st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
-        
-        # Uzavření try-except pro Treemap a Všeobecné chyby sekce Sektory
-        except Exception:
-            st.error("Chyba mapy (Treemap a Sektory).")
-    
-    # Konec velkého bloku if not vdf.empty
-        else:
-            st.info("Portfolio je prázdné.")
+                        st.plotly_chart(treemap_fig, use_container_width=True, key="fig_sektor_map")
+                        add_download_button(treemap_fig, "mapa_sektoru")
+
+                        if 'Datum' in df.columns and 'Cena' in df.columns and not df.empty:
+                            try:
+                                # Toto je zbytečný řádek, pokud už máš treemap výše, ale ponecháno pro zachování původního kódu
+                                line_fig = px.line(df.sort_values('Datum'), x='Datum', y='Cena', title='Vývoj ceny', markers=True)
+                                line_fig.update_layout(
+                                    paper_bgcolor="rgba(0,0,0,0)",
+                                    font_family="Roboto Mono",
+                                    margin=dict(t=30, l=10, r=10, b=10)
+                                )
+                                try:
+                                    line_fig = make_plotly_cyberpunk(line_fig)
+                                except Exception:
+                                    pass
+
+                                st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
+                                add_download_button(fig_map, "vyvoj_ceny")
+                            except Exception:
+                                st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
+                except Exception:
+                    st.error("Chyba mapy.")
+            else:
+                st.info("Portfolio je prázdné.")
 
         with tab4:
             st.subheader("🔮 FINANČNÍ STROJ ČASU")
@@ -2824,93 +2803,93 @@ def main():
                 st.plotly_chart(fig_crash, use_container_width=True)
 
 
-            with tab5:
-                st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500)")
-                st.caption("Porážíš trh, nebo trh poráží tebe?")
-                
-                if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
-                    user_df = hist_vyvoje.copy()
-                    user_df['Date'] = pd.to_datetime(user_df['Date']); user_df = user_df.sort_values('Date').set_index('Date')
-                    start_val = user_df['TotalUSD'].iloc[0]
-                    if start_val > 0: user_df['MyReturn'] = ((user_df['TotalUSD'] / start_val) - 1) * 100
-                    else: user_df['MyReturn'] = 0
-                    start_date = user_df.index[0].strftime('%Y-%m-%d')
-
-                    my_returns = user_df['TotalUSD'].pct_change().dropna()
-                    my_sharpe = calculate_sharpe_ratio(my_returns)
-                    
-                    # --- FIX: Ošetření NaN hodnot ---
-                    if pd.isna(my_sharpe) or np.isinf(my_sharpe): my_sharpe = 0.0
-
-                    try:
-                        sp500 = yf.download("^GSPC", start=start_date, progress=False)
-                        if not sp500.empty:
-                            if isinstance(sp500.columns, pd.MultiIndex): close_col = sp500['Close'].iloc[:, 0]
-                            else: close_col = sp500['Close']
-                            sp500_start = close_col.iloc[0]
-                            sp500_norm = ((close_col / sp500_start) - 1) * 100
-                            sp500_returns = close_col.pct_change().dropna()
-                            sp500_sharpe = calculate_sharpe_ratio(sp500_returns)
-                            
-                            # --- FIX: Ošetření NaN u S&P ---
-                            if pd.isna(sp500_sharpe) or np.isinf(sp500_sharpe): sp500_sharpe = 0.0
-
-                            # --- GRAF (Bez nadpisu, legenda dole) ---
-                            fig_bench = go.Figure()
-                            fig_bench.add_trace(go.Scatter(x=user_df.index, y=user_df['MyReturn'], mode='lines', name='Moje Portfolio', line=dict(color='#00CC96', width=3)))
-                            fig_bench.add_trace(go.Scatter(x=sp500_norm.index, y=sp500_norm, mode='lines', name='S&P 500', line=dict(color='#808080', width=2, dash='dot')))
-                            fig_bench.update_layout(
-                                xaxis_title="", yaxis_title="Změna (%)", template="plotly_dark", 
-                                font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                                height=400,
-                                margin=dict(t=10, l=0, r=0, b=0), # Menší okraje nahoře
-                                legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center") # Legenda dole
-                            )
-                            fig_bench.update_xaxes(showgrid=False)
-                            fig_bench.update_yaxes(showgrid=True, gridcolor='#30363D')
-                            st.plotly_chart(fig_bench, use_container_width=True, key="fig_benchmark")
-
-                            # --- METRIKY (GRID 2x2 a bez NaN) ---
-                            my_last = user_df['MyReturn'].iloc[-1]; sp_last = sp500_norm.iloc[-1]; diff = my_last - sp_last
-                            
-                            col_vy1, col_vy2 = st.columns(2)
-                            with col_vy1: st.metric("Můj výnos", f"{my_last:+.2f} %")
-                            with col_vy2: st.metric("S&P 500 výnos", f"{sp_last:+.2f} %", delta=f"{diff:+.2f} %")
-
-                            st.write("") 
-                            
-                            col_sh1, col_sh2 = st.columns(2)
-                            # Tady už se NaN neobjeví, ošetřili jsme to nahoře
-                            with col_sh1: st.metric("Můj Sharpe", f"{my_sharpe:+.2f}", help="Riziko/Výnos (Vyšší je lepší)")
-                            with col_sh2: st.metric("S&P 500 Sharpe", f"{sp500_sharpe:+.2f}")
-
-                            if diff > 0: st.success("🎉 Gratuluji! Porážíš trh.")
-                            else: st.warning("📉 Trh zatím vede.")
-
-                        else: st.warning("Nepodařilo se stáhnout data S&P 500.")
-                    except Exception as e: st.error(f"Chyba benchmarku: {e}")
-                else: st.info("Pro srovnání potřebuješ historii alespoň za 2 dny.")
-
-
-            with tab6:
-                # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
-                render_analýza_měny_page(vdf, viz_data_list, kurzy, celk_hod_usd)
-
-            with tab7:
-                # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
-                render_analýza_rebalancing_page(df, vdf, kurzy)
-
-            with tab8:
-                # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
-                render_analýza_korelace_page(df, kurzy)
-
-
-            with tab9:
-                # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
-                render_analýza_kalendář_page(df, df_watch, LIVE_DATA)
+        with tab5:
+            st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500)")
+            st.caption("Porážíš trh, nebo trh poráží tebe?")
             
-                elif page == "📰 Zprávy":
-                    st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
+            if not hist_vyvoje.empty and len(hist_vyvoje) > 1:
+                user_df = hist_vyvoje.copy()
+                user_df['Date'] = pd.to_datetime(user_df['Date']); user_df = user_df.sort_values('Date').set_index('Date')
+                start_val = user_df['TotalUSD'].iloc[0]
+                if start_val > 0: user_df['MyReturn'] = ((user_df['TotalUSD'] / start_val) - 1) * 100
+                else: user_df['MyReturn'] = 0
+                start_date = user_df.index[0].strftime('%Y-%m-%d')
+
+                my_returns = user_df['TotalUSD'].pct_change().dropna()
+                my_sharpe = calculate_sharpe_ratio(my_returns)
+                
+                # --- FIX: Ošetření NaN hodnot ---
+                if pd.isna(my_sharpe) or np.isinf(my_sharpe): my_sharpe = 0.0
+
+                try:
+                    sp500 = yf.download("^GSPC", start=start_date, progress=False)
+                    if not sp500.empty:
+                        if isinstance(sp500.columns, pd.MultiIndex): close_col = sp500['Close'].iloc[:, 0]
+                        else: close_col = sp500['Close']
+                        sp500_start = close_col.iloc[0]
+                        sp500_norm = ((close_col / sp500_start) - 1) * 100
+                        sp500_returns = close_col.pct_change().dropna()
+                        sp500_sharpe = calculate_sharpe_ratio(sp500_returns)
+                        
+                        # --- FIX: Ošetření NaN u S&P ---
+                        if pd.isna(sp500_sharpe) or np.isinf(sp500_sharpe): sp500_sharpe = 0.0
+
+                        # --- GRAF (Bez nadpisu, legenda dole) ---
+                        fig_bench = go.Figure()
+                        fig_bench.add_trace(go.Scatter(x=user_df.index, y=user_df['MyReturn'], mode='lines', name='Moje Portfolio', line=dict(color='#00CC96', width=3)))
+                        fig_bench.add_trace(go.Scatter(x=sp500_norm.index, y=sp500_norm, mode='lines', name='S&P 500', line=dict(color='#808080', width=2, dash='dot')))
+                        fig_bench.update_layout(
+                            xaxis_title="", yaxis_title="Změna (%)", template="plotly_dark", 
+                            font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                            height=400,
+                            margin=dict(t=10, l=0, r=0, b=0), # Menší okraje nahoře
+                            legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center") # Legenda dole
+                        )
+                        fig_bench.update_xaxes(showgrid=False)
+                        fig_bench.update_yaxes(showgrid=True, gridcolor='#30363D')
+                        st.plotly_chart(fig_bench, use_container_width=True, key="fig_benchmark")
+
+                        # --- METRIKY (GRID 2x2 a bez NaN) ---
+                        my_last = user_df['MyReturn'].iloc[-1]; sp_last = sp500_norm.iloc[-1]; diff = my_last - sp_last
+                        
+                        col_vy1, col_vy2 = st.columns(2)
+                        with col_vy1: st.metric("Můj výnos", f"{my_last:+.2f} %")
+                        with col_vy2: st.metric("S&P 500 výnos", f"{sp_last:+.2f} %", delta=f"{diff:+.2f} %")
+
+                        st.write("") 
+                        
+                        col_sh1, col_sh2 = st.columns(2)
+                        # Tady už se NaN neobjeví, ošetřili jsme to nahoře
+                        with col_sh1: st.metric("Můj Sharpe", f"{my_sharpe:+.2f}", help="Riziko/Výnos (Vyšší je lepší)")
+                        with col_sh2: st.metric("S&P 500 Sharpe", f"{sp500_sharpe:+.2f}")
+
+                        if diff > 0: st.success("🎉 Gratuluji! Porážíš trh.")
+                        else: st.warning("📉 Trh zatím vede.")
+
+                    else: st.warning("Nepodařilo se stáhnout data S&P 500.")
+                except Exception as e: st.error(f"Chyba benchmarku: {e}")
+            else: st.info("Pro srovnání potřebuješ historii alespoň za 2 dny.")
+
+
+        with tab6:
+            # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
+            render_analýza_měny_page(vdf, viz_data_list, kurzy, celk_hod_usd)
+
+        with tab7:
+            # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
+            render_analýza_rebalancing_page(df, vdf, kurzy)
+
+        with tab8:
+            # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
+            render_analýza_korelace_page(df, kurzy)
+
+
+        with tab9:
+            # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
+            render_analýza_kalendář_page(df, df_watch, LIVE_DATA)
+
+    elif page == "📰 Zprávy":
+        st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         
         # --- 1. MRAK SLOV (Wordcloud) ---
         # Na mobilu je lepší, když je to přes celou šířku
@@ -3251,7 +3230,7 @@ def main():
         st.subheader("📲 NOTIFIKACE(Telegram)")
         st.caption("Otestuj spojení s tvým mobilem.")
 
-        # TADY JE TA MAGIE (VOLÁNÍ OTESTOVACÍ FUNKCE Z ENGINE)
+        #TADY JE TA MAGIE
         notify.otestovat_tlacitko()
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
@@ -3409,26 +3388,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-# ===================================================
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
