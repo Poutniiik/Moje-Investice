@@ -30,7 +30,7 @@ import pytz
 from styles import get_css
 
 # ==============================================================================
-# ⚠️ POZNÁMKA K DATA MANAGERU (PRO TVŮJ DATA_MANAGER.PY)
+# ⚠️ POZNÁMKA K DATA MANAGERU (PRO TVOJ DATA_MANAGER.PY)
 # Nezapomeň na cachování funkcí nacti_csv a nacti_uzivatele v tvém modulu data_manager.py
 # Příklad: @st.cache_data(ttl=60*60*4)
 # ==============================================================================
@@ -2284,18 +2284,14 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
+    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (Definice proměnných pro Sidebar) ---
+    today_date = datetime.now().strftime("%Y-%m-%d")
     
-        # --- NOVÁ LOGIKA ČASU S ČASOVÝM PÁSMEM ---
-        # Získáme aktuální čas v pásmu Praha (CET/CEST)
-        PRAGUE_TZ = pytz.timezone('Europe/Prague')
-        now_prague = datetime.now(PRAGUE_TZ)
-
-        # Vypočteme aktuální čas jako integer (např. 1737 pro 17:37)
-        current_time_int = now_prague.hour * 100 + now_prague.minute
-
-#        Plánovaný čas pro spuštění reportu (18:00)
-        report_time_int = 1800 
-# ----------------------------------------------------
+    # --- KOREKCE ČASOVÉHO PÁSMA (OPRAVA CHYBY NAMERROR A TIMEZONE) ---
+    PRAGUE_TZ = pytz.timezone('Europe/Prague')
+    now_prague = datetime.now(PRAGUE_TZ)
+    current_time_int = now_prague.hour * 100 + now_prague.minute
+    report_time_int = 1800 
 
 
     # --- 9. SIDEBAR ---
@@ -2395,7 +2391,7 @@ def main():
         if st.session_state['last_telegram_report'] == today_date:
             st.success("✅ **Report ODESLÁN!** (Dnes v 18:00)", icon="📅")
         elif current_time_int < report_time_int:
-            st.info(f"⏳ **Plánováno na 18:00!** (Aktuální čas: {datetime.now().strftime('%H:%M')})", icon="⏳")
+            st.info(f"⏳ **Plánováno na 18:00!** (Aktuální čas: {now_prague.strftime('%H:%M')})", icon="⏳")
         elif st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
             
             # --- TATO ČÁST SE ZOBRAZÍ, JEN POKUD SE MÁ REPORT ZROVNA ODESLAT ---
@@ -3117,6 +3113,3 @@ def render_bank_lab_page():
             
 if __name__ == "__main__":
     main()
-
-
-
