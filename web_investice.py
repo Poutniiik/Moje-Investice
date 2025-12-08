@@ -1643,7 +1643,7 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 # ... (zde končí kód funkcí pro renderování stránek a pod ním začíná) ...
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 
- calculate_tech_indicators(ticker):
+calculate_tech_indicators(df_hist):
 
 # --- NOVÁ FUNKCE: SESTAVENÍ A ODESLÁNÍ TELEGRAM REPORTU ---
 def send_daily_telegram_report(USER, data_core, alerts, kurzy):
@@ -3423,4 +3423,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
