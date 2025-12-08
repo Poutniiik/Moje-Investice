@@ -1842,12 +1842,12 @@ def main():
         st.text_input(">", key="cli_cmd", placeholder="/help pro nápovědu", on_change=process_cli_command)
         
         st.divider(); st.subheader("NAVIGACE")
-        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
+        # --- ZDE PŘIDÁVÁME ZPĚT BANKU DO MENU ---
+        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení", "🏦 Banka"], label_visibility="collapsed")
 
         st.divider()
         
         # --- AUTOMATICKÝ REPORT INFO (Místo starého email tlačítka) ---
-        # report_time_int je definován nahoře
         st.info(f"🤖 Automatický report se odesílá kolem {report_time_int//100}:{(report_time_int%100):02d}.")
         
         # Ponecháme jen PDF tlačítko
@@ -2611,6 +2611,98 @@ def main():
         st.caption("Otestuj spojení s tvým mobilem.")
 
         notify.otestovat_tlacitko()
+        
+    elif page == "🏦 Banka": # NOVÁ STRÁNKA PRO BANKU
+        st.title("🏦 BANKOVNÍ CENTRÁLA")
+        st.caption("Připojení k Plaid API pro stažení transakcí a zůstatků.")
+
+        if 'bank_token' not in st.session_state:
+            st.info("Zatím není připojena žádná banka.")
+            
+            if st.button("🔌 PŘIPOJIT BANKU (Sandbox)", type="primary"):
+                with st.spinner("Volám bankovní motor..."):
+                    token = bank.simulace_pripojeni()
+                    
+                    if "Chyba" in str(token) or "⚠️" in str(token):
+                        st.error(token)
+                    else:
+                        st.session_state['bank_token'] = token
+                        st.balloons()
+                        st.success("✅ Banka úspěšně připojena! Token uložen.")
+                        time.sleep(1)
+                        st.rerun()
+        
+        else:
+            c1, c2 = st.columns([3, 1])
+            with c1: st.success("🟢 Spojení aktivní: Sandbox Bank")
+            with c2:
+                if st.button("Odpojit"):
+                    del st.session_state['bank_token']
+                    st.rerun()
+
+            st.divider()
+            
+            col_btn1, col_btn2 = st.columns(2)
+            
+            # --- ZŮSTATKY ---
+            with col_btn1:
+                if st.button("💰 ZOBRAZIT ZŮSTATKY", use_container_width=True):
+                    with st.spinner("Ptám se banky na stav konta..."):
+                        df_bal = bank.stahni_zustatky(st.session_state['bank_token'])
+                        if df_bal is not None:
+                            st.session_state['bank_balance'] = df_bal
+                        else:
+                            st.error("Chyba při stahování zůstatků.")
+
+            # --- TRANSAKCE ---
+            with col_btn2:
+                if st.button("📥 STÁHNOUT TRANSAKCE", use_container_width=True):
+                    with st.spinner("Stahuji výpis..."):
+                        df_trans = bank.stahni_data(st.session_state['bank_token'])
+                        if df_trans is not None:
+                            st.session_state['bank_data'] = df_trans
+                        else:
+                            st.error("Chyba při stahování transakcí.")
+
+            # --- VÝPIS ZŮSTATKŮ ---
+            if 'bank_balance' in st.session_state:
+                st.write("")
+                st.subheader("💳 Aktuální stav účtů")
+                df_b = st.session_state['bank_balance']
+                
+                cols = st.columns(len(df_b))
+                for index, row in df_b.iterrows():
+                    col_idx = index % len(cols)
+                    with cols[col_idx]:
+                        st.metric(
+                            label=row['Název účtu'], 
+                            value=f"{row['Zůstatek']:,.2f} {row['Měna']}", 
+                            delta="Aktuální"
+                        )
+                st.divider()
+
+            # --- VÝPIS TRANSAKCÍ ---
+            if 'bank_data' in st.session_state:
+                df_t = st.session_state['bank_data']
+                st.subheader("📜 Historie transakcí (Posledních 90 dní)")
+                
+                total_spend = df_t[df_t['Částka'] < 0]['Částka'].sum()
+                total_income = df_t[df_t['Částka'] > 0]['Částka'].sum()
+                
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Příjmy", f"{total_income:,.0f}")
+                m2.metric("Výdaje", f"{total_spend:,.0f}")
+                m3.metric("Cashflow", f"{total_income + total_spend:,.0f}")
+                
+                st.dataframe(
+                    df_t, 
+                    column_config={
+                        "Částka": st.column_config.NumberColumn("Částka", format="%.2f"),
+                        "Kategorie": st.column_config.TextColumn("Druh"),
+                    },
+                    use_container_width=True
+                )
+                
         
     # --- AI CHATBOT (Vždy dole) ---
     with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
