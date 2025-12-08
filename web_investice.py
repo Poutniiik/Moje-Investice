@@ -2159,7 +2159,13 @@ def main():
     # -----------------------------------------------------------
 
 
-    # --- 5. NAČTENÍ ZÁKLADNÍCH DAT A JÁDRA (Jednorázová inicializace) ---
+   # Kolem řádku 2100 (Uvnitř funkce main()):
+
+# ...
+#     # -----------------------------------------------------------
+#
+#     # --- 5. NAČTENÍ ZÁKLADNÍCH DAT A JÁDRA ---
+#
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
             st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
@@ -2170,8 +2176,9 @@ def main():
             # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
     
-    # ZAJIŠTĚNÍ DOSTUPNOSTI DAT (POUZE ODKAZY NA SESSION STATE)
-    # Tyto proměnné MUSÍ být vždy definovány (proto nejsou uvnitř bloku 'if not in')
+    # -----------------------------------------------------------
+    # Všechny proměnné MUSÍ BÝT definovány v HLAVNÍM rozsahu main()
+    # -----------------------------------------------------------
     df = st.session_state['df']
     df_cash = st.session_state['df_cash']
     df_div = st.session_state['df_div']
@@ -2180,10 +2187,7 @@ def main():
     kurzy = cached_kurzy() # Inicializace, hodnoty se upřesní v jádru
 
     # --- 6. VÝPOČTY (CENTRALIZOVANÝ DAT CORE) ---
-    # Zkontrolujeme cache (např. platnost 5 minut)
     cache_timeout = timedelta(minutes=5)
-    
-    # UJIŠTĚNÍ, ŽE cache_timeout a timedelta JEDOU Z HLAVNÍHO IMPORTU (odstraněno zbytečné importování)
     
     if ('data_core' not in st.session_state or 
         (datetime.now() - st.session_state['data_core']['timestamp']) > cache_timeout):
@@ -2195,7 +2199,6 @@ def main():
         data_core = st.session_state['data_core']
 
     # --- 7. EXTRACT DATA CORE ---
-    # Tyto proměnné MUSÍ být vždy definovány (jsou uvnitř if/else bloku)
     vdf = data_core['vdf']
     viz_data_list = data_core['viz_data_list']
     celk_hod_usd = data_core['celk_hod_usd']
@@ -2207,15 +2210,36 @@ def main():
     fundament_data = data_core['fundament_data']
     LIVE_DATA = st.session_state['LIVE_DATA'] # Předpokládám, že LIVE_DATA je definováno
 
-    # OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
     kurzy = data_core['kurzy']
 
     kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
 
-    # --- VOLÁNÍ AUTOMATICKÉHO REPORTU (SPRÁVNÉ MÍSTO) ---
-    check_and_send_telegram_report(USER, data_core, alerts, kurzy)
+    # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
+    alerts = [] # <--- Tady je ta oprava pro UnboundLocalError
+    if not df_watch.empty:
+        for _, r in df_watch.iterrows():
+            tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
+
+            if buy_trg > 0 or sell_trg > 0:
+                inf = LIVE_DATA.get(tk, {})
+                price = inf.get('price')
+                if not price:
+                    price, _, _ = ziskej_info(tk)
+
+                if price:
+                    if buy_trg > 0 and price <= buy_trg:
+                        alerts.append(f"{tk}: KUPNÍ ALERT! Cena {price:.2f} <= {buy_trg:.2f}")
+                        st.toast(f"🔔 {tk} je ve slevě! ({price:.2f})", icon="🔥")
+
+                    if sell_trg > 0 and price >= sell_trg:
+                        alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
+                        st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
+
+    # --- VOLÁNÍ AUTOMATICKÉHO REPORTU ---
+    # Nyní je alerts definované před použitím!
+    check_and_send_telegram_report(USER, data_core, alerts, kurzy) 
 
     # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
     alerts = []
@@ -3413,6 +3437,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
