@@ -3164,11 +3164,11 @@ def main():
                     st.rerun()
 
 # ==========================================
-# 👇 FINÁLNÍ BANKOVNÍ CENTRÁLA (VERZE 3.0) 👇
+# 👇 FINÁLNÍ BANKOVNÍ CENTRÁLA (VERZE 3.1 - I SE ZŮSTATKY) 👇
 # ==========================================
 def render_bank_lab_page():
-    st.title("🏦 BANKOVNÍ CENTRÁLA (Verze 3.0)")
-    st.caption("Automatické propojení s bankovním účtem (Powered by Bank Engine).")
+    st.title("🏦 BANKOVNÍ CENTRÁLA (Verze 3.1)")
+    st.caption("Automatické propojení s bankovním účtem (Transakce + Zůstatky).")
 
     # 1. PŘIPOJENÍ (Pokud nemáme token)
     if 'bank_token' not in st.session_state:
@@ -3176,8 +3176,6 @@ def render_bank_lab_page():
         
         if st.button("🔌 PŘIPOJIT BANKU (Sandbox)", type="primary"):
             with st.spinner("Volám bankovní motor..."):
-                # Voláme funkci z externího souboru bank_engine.py
-                # Ten už má klíče v sobě, takže je sem nemusíme psát!
                 token = bank_engine.simulace_pripojeni()
                 
                 if "Chyba" in str(token):
@@ -3197,35 +3195,61 @@ def render_bank_lab_page():
             if st.button("Odpojit"):
                 del st.session_state['bank_token']
                 if 'bank_data' in st.session_state: del st.session_state['bank_data']
+                if 'bank_balance' in st.session_state: del st.session_state['bank_balance']
                 st.rerun()
 
         st.divider()
         
-        col_btn, col_info = st.columns([1, 2])
-        with col_btn:
-            if st.button("📥 STÁHNOUT VÝPIS", use_container_width=True):
-                with st.spinner("Stahuji a analyzuji transakce..."):
-                    # Stáhneme data přes motor
+        # --- OVLÁDACÍ PANEL ---
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            if st.button("💰 ZOBRAZIT ZŮSTATKY", use_container_width=True):
+                with st.spinner("Ptám se banky na stav konta..."):
+                    df_bal = bank_engine.stahni_zustatky(st.session_state['bank_token'])
+                    if df_bal is not None:
+                        st.session_state['bank_balance'] = df_bal
+                    else:
+                        st.error("Chyba při stahování zůstatků.")
+
+        with col_btn2:
+            if st.button("📥 STÁHNOUT TRANSAKCE", use_container_width=True):
+                with st.spinner("Stahuji výpis..."):
                     df_trans = bank_engine.stahni_data(st.session_state['bank_token'])
-                    
-                    if df_trans is not None and not df_trans.empty:
+                    if df_trans is not None:
                         st.session_state['bank_data'] = df_trans
                     else:
-                        st.error("Nepodařilo se stáhnout data.")
+                        st.error("Chyba při stahování transakcí.")
 
-        # Zobrazení dat (pokud jsou stažená)
+        # --- SEKCE 1: ZŮSTATKY (Nové!) ---
+        if 'bank_balance' in st.session_state:
+            st.write("")
+            st.subheader("💳 Aktuální stav účtů")
+            df_b = st.session_state['bank_balance']
+            
+            # Vykreslíme jako kartičky vedle sebe
+            cols = st.columns(len(df_b))
+            for index, row in df_b.iterrows():
+                with cols[index % len(cols)]: # Aby to nepadalo u více účtů
+                    st.metric(
+                        label=row['Název účtu'], 
+                        value=f"{row['Zůstatek']:,.2f} {row['Měna']}", 
+                        delta="Aktuální"
+                    )
+            st.divider()
+
+        # --- SEKCE 2: TRANSAKCE ---
         if 'bank_data' in st.session_state:
             df_t = st.session_state['bank_data']
             
-            # Rychlá metrika útraty
-            # Filtrujeme výdaje (záporná čísla) a příjmy
+            # Cashflow (Příjmy vs Výdaje za stažené období)
             total_spend = df_t[df_t['Částka'] < 0]['Částka'].sum()
             total_income = df_t[df_t['Částka'] > 0]['Částka'].sum()
             
             m1, m2, m3 = st.columns(3)
             m1.metric("Příjmy (90 dní)", f"{total_income:,.0f}")
             m2.metric("Výdaje (90 dní)", f"{total_spend:,.0f}")
-            m3.metric("Bilance", f"{total_income + total_spend:,.0f}")
+            m3.metric("Cashflow", f"{total_income + total_spend:,.0f}")
             
             st.subheader("📜 Historie transakcí")
             st.dataframe(
@@ -3240,7 +3264,7 @@ def render_bank_lab_page():
             # Graf výdajů
             st.subheader("📊 Analýza výdajů")
             expenses = df_t[df_t['Částka'] < 0].copy()
-            expenses['Částka'] = expenses['Částka'].abs() # Pro graf chceme kladná čísla
+            expenses['Částka'] = expenses['Částka'].abs()
             
             if not expenses.empty:
                 fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
@@ -3251,4 +3275,3 @@ def render_bank_lab_page():
 # ==========================================
 if __name__ == "__main__":
     main()
-
