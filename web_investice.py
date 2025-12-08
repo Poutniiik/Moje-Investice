@@ -30,7 +30,7 @@ import pytz
 from styles import get_css
 
 # ==============================================================================
-# ⚠️ POZNÁMKA K DATA MANAGERU (PRO TVOJ DATA_MANAGER.PY)
+# ⚠️ POZNÁMKA K DATA MANAGERU (PRO TVŮJ DATA_MANAGER.PY)
 # Nezapomeň na cachování funkcí nacti_csv a nacti_uzivatele v tvém modulu data_manager.py
 # Příklad: @st.cache_data(ttl=60*60*4)
 # ==============================================================================
@@ -1886,6 +1886,279 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     return data_core
 
 
+# ==================================================================================
+# 🔄 NOVÉ FUNKCE PRO VYKRESLENÍ STRÁNEK (Refaktorováno z main())
+# ==================================================================================
+
+def render_zpravy_page(USER, celk_hod_czk, viz_data_list, AI_AVAILABLE, model, kurzy):
+    """Vykreslí stránku '📰 Zprávy' (News Feed) - PŘESUNUTO Z MAIN()"""
+    st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
+    
+    # --- 1. MRAK SLOV (Wordcloud) ---
+    try:
+        from wordcloud import WordCloud
+        import matplotlib.pyplot as plt
+
+        raw_news_cloud = cached_zpravy() 
+        if raw_news_cloud:
+            with st.expander("☁️ TÉMATA DNE (Co hýbe trhem)", expanded=True):
+                text_data = " ".join([n['title'] for n in raw_news_cloud]).upper()
+                stop_words = ["A", "I", "O", "U", "V", "S", "K", "Z", "SE", "SI", "NA", "DO", "JE", "TO", "ŽE", "ALE", "PRO", "JAK", "TAK", "OD", "PO", "NEBO", "BUDE", "BYL", "MÁ", "JSOU", "KTERÝ", "KTERÁ", "ONLINE", "AKTUÁNĚ", "CENA", "BURZA", "TRH", "AKCIE", "INVESTICE", "ČESKÉ", "NOVINY", "IDNES", "SEZNAM"]
+
+                wc = WordCloud(
+                    width=800, height=300, # Trochu vyšší pro mobil
+                    background_color=None,
+                    mode="RGBA",
+                    stopwords=stop_words,
+                    min_font_size=12,
+                    colormap="GnBu" 
+                ).generate(text_data)
+
+                fig_cloud, ax = plt.subplots(figsize=(10, 4))
+                ax.imshow(wc, interpolation="bilinear")
+                ax.axis("off")
+                fig_cloud.patch.set_alpha(0)
+                ax.patch.set_alpha(0)
+                make_matplotlib_cyberpunk(fig_cloud, ax)
+                st.pyplot(fig_cloud, use_container_width=True)
+    except: pass
+
+    st.divider()
+
+    # --- 2. HLAVNÍ OVLÁDACÍ PANEL ---
+    # Tlačítko pro AI analýzu všech zpráv (Sentiment 2.0)
+    if AI_AVAILABLE:
+        if st.button("🧠 SPUSTIT AI SENTIMENT TRHU (Všechny zprávy)", type="primary", use_container_width=True):
+            with st.spinner("AI čte noviny a analyzuje náladu..."):
+                raw_news = cached_zpravy()
+                # Vezmeme jen top 10 zpráv, ať to netrvá věčnost
+                titles = [n['title'] for n in raw_news[:10]]
+                titles_str = "\n".join([f"{i+1}. {t}" for i, t in enumerate(titles)])
+                prompt = f"""Jsi finanční analytik. Analyzuj tyto novinové titulky a urči jejich sentiment.\nTITULKY:\n{titles_str}\nPro každý titulek vrať přesně tento formát na jeden řádek (bez odrážek):\nINDEX|SKÓRE(0-100)|VYSVĚTLENÍ (česky, max 1 věta)"""
+                try:
+                    response = model.generate_content(prompt)
+                    analysis_map = {}
+                    for line in response.text.strip().split('\n'):
+                        parts = line.split('|')
+                        if len(parts) == 3:
+                            try:
+                                idx = int(parts[0].replace('.', '').strip()) - 1; score = int(parts[1].strip()); reason = parts[2].strip()
+                                analysis_map[idx] = {'score': score, 'reason': reason}
+                            except: pass
+                    st.session_state['ai_news_analysis'] = analysis_map
+                    st.success("Analýza dokončena!")
+                except Exception as e: st.error(f"Chyba AI: {e}")
+
+    # --- 3. NEWS FEED (KARTY POD SEBOU) ---
+    def analyze_news_with_ai(title, link):
+        kurz_czk = kurzy.get('CZK', 20.85)
+        portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
+        if viz_data_list: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
+        prompt_to_send = f"Analyzuj tuto zprávu V KONTEXTU MÉHO PORTFOLIA. Zpráva: {title}. Jaký má dopad? (Odkaz: {link})"
+        st.session_state["chat_messages"].append({"role": "user", "content": prompt_to_send})
+        st.session_state['chat_expanded'] = True
+        st.rerun()
+
+    news = cached_zpravy()
+    ai_results = st.session_state.get('ai_news_analysis', {})
+    
+    if news:
+        st.write("")
+        st.subheader(f"🔥 Nejnovější zprávy ({len(news)})")
+        
+        for i, n in enumerate(news):
+            with st.container(border=True):
+                # AI Výsledek (pokud existuje)
+                if i in ai_results:
+                    res = ai_results[i]; score = res['score']; reason = res['reason']
+                    if score >= 60: color = "green"; emoji = "🟢 BÝČÍ"
+                    elif score <= 40: color = "red"; emoji = "🔴 MEDVĚDÍ"
+                    else: color = "orange"; emoji = "🟡 NEUTRÁL"
+                    
+                    c_score, c_text = st.columns([1, 4])
+                    with c_score: 
+                        st.markdown(f"**{emoji}**")
+                        st.markdown(f"**{score}/100**")
+                    with c_text:
+                        st.info(f"🤖 {reason}")
+                    st.divider()
+                    
+                # Titulek a Datum
+                st.markdown(f"### {n['title']}")
+                st.caption(f"📅 {n['published']} | Zdroj: RSS")
+                
+                # Akce
+                c_btn1, c_btn2 = st.columns([1, 1])
+                with c_btn1:
+                    st.link_button("Číst článek ↗️", n['link'], use_container_width=True)
+                with c_btn2:
+                    if AI_AVAILABLE:
+                        if st.button(f"🤖 Dopad na portfolio", key=f"analyze_ai_{i}", use_container_width=True):
+                            analyze_news_with_ai(n['title'], n['link'])
+    else:
+        st.info("Žádné nové zprávy.")
+
+
+def render_obchod_page(USER, df, df_cash, df_div, zustatky, kurzy, LIVE_DATA, SOUBOR_CASH):
+    """Vykreslí stránku '💸 Obchod' (Trade Terminal) - PŘESUNUTO Z MAIN()"""
+    st.title("💸 OBCHODNÍ PULT")
+    
+    # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
+    with st.container(border=True):
+        # Přepínač režimu
+        mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
+        
+        st.divider()
+        
+        # Vstupy pro Ticker a Live Cenu
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            # Ticker selector logic
+            if mode == "🔴 PRODEJ" and not df.empty:
+                ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
+            else:
+                ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
+        
+        # Live Data Fetch
+        current_price, menu, denni_zmena = 0, "USD", 0
+        if ticker_input:
+            info = LIVE_DATA.get(ticker_input)
+            if info:
+                current_price = info.get('price', 0)
+                menu = info.get('curr', 'USD')
+            else:
+                p, m, z = ziskej_info(ticker_input)
+                if p: current_price, menu, denni_zmena = p, m, z
+
+            if current_price > 0:
+                with c2:
+                    color_price = "green" if denni_zmena >= 0 else "red"
+                    st.markdown(f"**Cena:** :{color_price}[{current_price:,.2f} {menu}]")
+                    st.caption(f"Změna: {denni_zmena*100:+.2f}%")
+            else:
+                with c2: st.warning("Cena nedostupná")
+
+        # Množství a Limitní Cena
+        st.write("")
+        col_qty, col_price = st.columns(2)
+        with col_qty:
+            qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f")
+        with col_price:
+            limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1)
+
+        # Kalkulace celkem
+        total_est = qty * limit_price
+        zustatek = zustatky.get(menu, 0)
+        
+        st.write("") 
+        
+        # --- LOGIKA TLAČÍTKA A VALIDACE ---
+        if mode == "🟢 NÁKUP":
+            if total_est > 0:
+                c_info1, c_info2 = st.columns(2)
+                c_info1.info(f"Celkem: **{total_est:,.2f} {menu}**")
+                
+                if zustatek >= total_est:
+                    c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
+                    if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
+                        ok, msg = proved_nakup(ticker_input, qty, limit_price, USER)
+                        if ok: st.balloons(); st.success(msg); time.sleep(2); st.rerun()
+                        else: st.error(msg)
+                else:
+                    c_info2.error(f"Chybí: {total_est - zustatek:,.2f} {menu}")
+                    st.button("🚫 Nedostatek prostředků", disabled=True, use_container_width=True)
+            else:
+                st.button("Zadej množství", disabled=True, use_container_width=True)
+
+        else: # PRODEJ
+            if total_est > 0:
+                curr_qty = df[df['Ticker'] == ticker_input]['Pocet'].sum() if not df.empty else 0
+                
+                c_info1, c_info2 = st.columns(2)
+                c_info1.info(f"Příjem: **{total_est:,.2f} {menu}**")
+                
+                if curr_qty >= qty:
+                    c_info2.success(f"Máš: {curr_qty} ks")
+                    if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True):
+                        ok, msg = proved_prodej(ticker_input, qty, limit_price, USER, menu)
+                        if ok: st.success(msg); time.sleep(2); st.rerun()
+                        else: st.error(msg)
+                else:
+                    c_info2.error(f"Máš jen: {curr_qty} ks")
+                    st.button("🚫 Nedostatek akcií", disabled=True, use_container_width=True)
+            else:
+                st.button("Zadej množství", disabled=True, use_container_width=True)
+
+    # --- 2. SEKCE PRO SPRÁVU PENĚZ ---
+    st.write("")
+    c_ex1, c_ex2 = st.columns(2)
+    
+    # LEVÝ SLOUPEC: SMĚNÁRNA (Beze změny)
+    with c_ex1:
+        with st.expander("💱 SMĚNÁRNA", expanded=False):
+            am = st.number_input("Částka", 0.0, step=100.0)
+            fr = st.selectbox("Z", ["CZK", "USD", "EUR"], key="s_z")
+            to = st.selectbox("Do", ["USD", "CZK", "EUR"], key="s_do")
+            
+            if st.button("💱 Směnit", use_container_width=True):
+                if zustatky.get(fr, 0) >= am:
+                    proved_smenu(am, fr, to, USER)
+                    st.success("Hotovo"); time.sleep(1); st.rerun()
+                else:
+                    st.error("Chybí prostředky")
+
+    # PRAVÝ SLOUPEC: BANKA + MANUÁLNÍ VKLAD (Upraveno)
+    with c_ex2:
+        with st.expander("🏧 BANKA & BANKOMAT", expanded=False):
+            
+            # A) BANKOVNÍ PROPOJENÍ
+            st.caption("🌐 Moje Banka (Plaid API)")
+            if st.button("🔄 Synchronizovat zůstatky", key="sync_bank", use_container_width=True):
+                with st.spinner("Šifrované spojení..."):
+                    # OPRAVENO: Používáme správný alias 'bank'
+                    t_msg = bank.simulace_pripojeni()
+                    if "Chyba" in t_msg: st.error(t_msg)
+                    else:
+                        df_b = bank.stahni_zustatky(t_msg)
+                        if df_b is not None:
+                            st.session_state['bank_data'] = df_b
+                            st.toast("Data z banky stažena!", icon="✅")
+                        else: st.warning("Žádná data.")
+            
+            # Zobrazení dat z banky, pokud jsou načtena
+            if 'bank_data' in st.session_state and not st.session_state['bank_data'].empty:
+                st.dataframe(st.session_state['bank_data'], use_container_width=True, hide_index=True)
+                # Malý součet pro efekt
+                celkem_banka = st.session_state['bank_data']['Zůstatek'].sum() if 'Zůstatek' in st.session_state['bank_data'].columns else 0
+                mena_banka = st.session_state['bank_data'].iloc[0]['Měna'] if 'Měna' in st.session_state['bank_data'].columns and not st.session_state['bank_data'].empty else 'N/A'
+                st.caption(f"Disponibilní v bance: **{celkem_banka:,.2f} {mena_banka}**")
+
+            st.divider()
+
+            # B) MANUÁLNÍ VKLAD/VÝBĚR (Tvé původní ovládání)
+            st.caption("📝 Manuální operace")
+            op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
+            v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
+            v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
+            
+            if st.button(f"Provést {op}", use_container_width=True):
+                sign = 1 if op == "Vklad" else -1
+                if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
+                    st.error("Nedostatek prostředků")
+                else:
+                    df_cash_new = pohyb_penez(v_a * sign, v_m, op, "Manual", USER, st.session_state['df_cash'])
+                    uloz_data_uzivatele(df_cash_new, USER, SOUBOR_CASH)
+                    st.session_state['df_cash'] = df_cash_new
+                    invalidate_data_core()
+                    st.success("Hotovo"); time.sleep(1); st.rerun()
+
+    # Historie transakcí
+    if not df_cash.empty:
+        st.divider()
+        st.caption("Poslední pohyby na účtu")
+        st.dataframe(df_cash.sort_values('Datum', ascending=False).head(3), use_container_width=True, hide_index=True)
+
+
 # --- HLAVNÍ FUNKCE (Router) ---
 def main():
     # --- 1. BEZPEČNÁ INICIALIZACE AI (Fix 1: Použití cache wrapperu) ---
@@ -2391,6 +2664,7 @@ def main():
         if st.session_state['last_telegram_report'] == today_date:
             st.success("✅ **Report ODESLÁN!** (Dnes v 18:00)", icon="📅")
         elif current_time_int < report_time_int:
+            # Použití opravené proměnné pro zobrazení času
             st.info(f"⏳ **Plánováno na 18:00!** (Aktuální čas: {now_prague.strftime('%H:%M')})", icon="⏳")
         elif st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
             
@@ -2459,12 +2733,12 @@ def main():
         render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST)
         
     elif page == "📈 Analýza":
+        # Obsah Analýzy zůstává nezměněn (v rámci hlavního routeru)
         st.title("📈 HLOUBKOVÁ ANALÝZA")
         
         tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE", "📅 KALENDÁŘ"])
 
         with tab1:
-            # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
             render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE)
 
         with tab2:
@@ -2911,7 +3185,7 @@ def main():
                 }
 
             prompts_df = pd.DataFrame(list(st.session_state['ai_prompts'].items()), columns=["Funkce", "Instrukce (Prompt)"])
-            edited_prompts = st.data_editor(prompts_df, use_container_width=True, num_rows="dynamic", key="prompt_editor")
+            edited_prompts = st.data_editor(prompts_df, num_rows="dynamic", use_container_width=True, key="prompt_editor")
 
             if st.button("💾 Uložit nastavení AI"):
                 new_prompts = dict(zip(edited_prompts["Funkce"], edited_prompts["Instrukce (Prompt)"]))
