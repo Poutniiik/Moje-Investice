@@ -2302,8 +2302,8 @@ if not df_watch.empty:
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
 
-    # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
-    with st.sidebar:
+# --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
+with st.sidebar:
         # Lottie Animace
         lottie_url = "https://lottie.host/02092823-3932-4467-9d7e-976934440263/3q5XJg2Z2W.json"
         lottie_json = load_lottieurl(lottie_url)
@@ -3436,6 +3436,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
