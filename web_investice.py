@@ -1642,6 +1642,8 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 # ... (zde končí kód funkcí pro renderování stránek a pod ním začíná) ...
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 
+
+
 # --- NOVÁ FUNKCE: SESTAVENÍ A ODESLÁNÍ TELEGRAM REPORTU ---
 def send_daily_telegram_report(USER, data_core, alerts, kurzy):
     """
@@ -2228,31 +2230,45 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
-    today_date = datetime.now().strftime("%Y-%m-%d")
+   # Nově implementovaná kontrola času a spuštění reportu
+def check_and_send_telegram_report(USER, data_core, alerts, kurzy):
+    """
+    Kontroluje, zda je po 16:00 SEČ a zda report nebyl dnes odeslán.
+    Pokud ano, zavolá centrální reportovací funkci.
+    """
+    tz = pytz.timezone("Europe/Prague")
+    now = datetime.now(tz)
     
-    if 'last_telegram_report' not in st.session_state:
-        st.session_state['last_telegram_report'] = "2000-01-01"
+    # 1. Časová kontrola: Je po 16:00?
+    target_time = time(16, 0)
+    if now.time() < target_time:
+        return # Ještě není 16:00
 
-    # Čas, kdy se report posílá (1800 = 18:00)
-    current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 1800 
+    # 2. Kontrola Idempotence (Dnes už odesláno?)
+    today_key = f"sent_report_{now.strftime('%Y%m%d')}"
+    if st.session_state.get(today_key, False):
+        return # Report už byl dnes odeslán
 
-    # Pravidlo pro odeslání: 
-    # 1. Dnes se ještě neodeslalo 
-    # 2. Aktuální čas je po 18:00
-    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
-        
-        st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
-        
-        # Voláme novou funkci
-        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
-        
-        if ok:
-            st.session_state['last_telegram_report'] = today_date
-            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
-        else:
-            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
+    # 3. Kontrola dat
+    if data_core['vdf'].empty:
+        # Volitelné: Můžeme poslat zprávu, že portfolio je prázdné
+        # notify.poslat_zpravu(f"⚠️ Portfolio pro uživatele {USER} je prázdné.", token=...)
+        return 
+
+    # --- SPUŠTĚNÍ REPORTU (Voláme tvoji robustní funkci níže v kódu) ---
+    st.toast("⏳ Odesílám denní report na Telegram...", icon="📨")
+    ok, msg = check_and_send_telegram_report(USER, data_core, alerts, kurzy)
+    
+    if ok:
+        st.session_state[today_key] = True # Označíme jako odesláno
+        st.toast("✅ Automatický Telegram report odeslán!", icon="✅")
+    else:
+        # POZOR: V Streamlitu by st.error mohlo způsobit zacyklení,
+        # proto použijeme raději print a toast.
+        print(f"Chyba Telegramu: {msg}")
+        st.toast(f"❌ Chyba odeslání Telegramu: {msg}", icon="❌")
+
+# Tuto funkci musíme přidat, a zároveň MAŽEME celou původní funkci auto_report_telegram!
 
     # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
@@ -3389,4 +3405,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
