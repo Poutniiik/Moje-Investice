@@ -3286,7 +3286,7 @@ elif page == "🧪 Banka":
         render_bank_lab_page()
 
     # --- AI CHATBOT (Vždy dole) ---
-    with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
+with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
         st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
         c_clear, _ = st.columns([1, 2])
         with c_clear:
@@ -3436,6 +3436,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
