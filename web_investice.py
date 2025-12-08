@@ -1639,8 +1639,11 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
             else: st.error("Nepodařilo se načíst data o firmě.")
 
 
+
 # ... (zde končí kód funkcí pro renderování stránek a pod ním začíná) ...
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
+
+def calculate_tech_indicators(ticker):
 
 # --- NOVÁ FUNKCE: SESTAVENÍ A ODESLÁNÍ TELEGRAM REPORTU ---
 def send_daily_telegram_report(USER, data_core, alerts, kurzy):
@@ -2019,8 +2022,10 @@ def main():
 
         try:
             if cmd == "/help":
-                msg_text = "Příkazy:\n/price [TICKER]\n/buy [TICKER] [KUSY]\n/sell [TICKER] [KUSY]\n/cash\n/ai_audit [TICKER]"
+                msg_text = "Příkazy:\n/price [TICKER]\n/buy [TICKER] [KUSY]\n/sell [TICKER] [KUSY]\n/cash\n/ai_audit [TICKER]\n/ai_tech [TICKER]"
                 msg_icon = "ℹ️"
+
+            elif cmd == "/ai_tech":
 
             elif cmd == "/ai_audit":
                 # Krok 1: Kontrola AI a Data Core (vždy provést před extenzivní logikou)
@@ -3418,6 +3423,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
