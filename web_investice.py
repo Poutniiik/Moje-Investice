@@ -2284,10 +2284,8 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
-    today_date = datetime.now().strftime("%Y-%m-%d")
     
-# --- NOVÁ LOGIKA ČASU S ČASOVÝM PÁSMEM ---
+    # --- NOVÁ LOGIKA ČASU S ČASOVÝM PÁSMEM ---
 # Získáme aktuální čas v pásmu Praha (CET/CEST)
 PRAGUE_TZ = pytz.timezone('Europe/Prague')
 now_prague = datetime.now(PRAGUE_TZ)
@@ -3119,4 +3117,5 @@ def render_bank_lab_page():
             
 if __name__ == "__main__":
     main()
+
 
