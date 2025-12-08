@@ -1,3 +1,4 @@
+import bank_engine as bank
 import bank_engine
 import streamlit as st
 import pandas as pd
@@ -2918,8 +2919,7 @@ def main():
         
         # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
         with st.container(border=True):
-            # Přepínač režimu (Vypadá jako záložky, ale je to rádio)
-            # Na mobilu se to zobrazí vedle sebe, což šetří místo
+            # Přepínač režimu
             mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
             
             st.divider()
@@ -2927,23 +2927,20 @@ def main():
             # Vstupy pro Ticker a Live Cenu
             c1, c2 = st.columns([1, 1])
             with c1:
-                # Ticker
-                # Pokud prodáváš, nabídne ti to jen to, co máš
+                # Ticker selector logic
                 if mode == "🔴 PRODEJ" and not df.empty:
                     ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
                 else:
                     ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
             
-            # Live Data Fetch (Automatické nacenění)
+            # Live Data Fetch
             current_price, menu, denni_zmena = 0, "USD", 0
             if ticker_input:
-                # Zkusíme najít cenu v LIVE datech nebo ji stáhnout
                 info = LIVE_DATA.get(ticker_input)
                 if info:
                     current_price = info.get('price', 0)
                     menu = info.get('curr', 'USD')
                 else:
-                    # Fallback
                     p, m, z = ziskej_info(ticker_input)
                     if p: current_price, menu, denni_zmena = p, m, z
 
@@ -2961,14 +2958,13 @@ def main():
             with col_qty:
                 qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f")
             with col_price:
-                # Předvyplníme aktuální cenu, aby to bylo rychlé
                 limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1)
 
-            # Kalkulace celkem (Okamžitá zpětná vazba)
+            # Kalkulace celkem
             total_est = qty * limit_price
             zustatek = zustatky.get(menu, 0)
             
-            st.write("") # Mezera
+            st.write("") 
             
             # --- LOGIKA TLAČÍTKA A VALIDACE ---
             if mode == "🟢 NÁKUP":
@@ -3007,10 +3003,11 @@ def main():
                 else:
                     st.button("Zadej množství", disabled=True, use_container_width=True)
 
-        # --- 2. SEKCE PRO SPRÁVU PENĚZ (Sbalená) ---
+        # --- 2. SEKCE PRO SPRÁVU PENĚZ ---
         st.write("")
         c_ex1, c_ex2 = st.columns(2)
         
+        # LEVÝ SLOUPEC: SMĚNÁRNA (Beze změny)
         with c_ex1:
             with st.expander("💱 SMĚNÁRNA", expanded=False):
                 am = st.number_input("Částka", 0.0, step=100.0)
@@ -3024,8 +3021,35 @@ def main():
                     else:
                         st.error("Chybí prostředky")
 
+        # PRAVÝ SLOUPEC: BANKA + MANUÁLNÍ VKLAD (Upraveno)
         with c_ex2:
-            with st.expander("🏧 BANKOMAT", expanded=False):
+            with st.expander("🏧 BANKA & BANKOMAT", expanded=False):
+                
+                # A) BANKOVNÍ PROPOJENÍ
+                st.caption("🌐 Moje Banka (Plaid API)")
+                if st.button("🔄 Synchronizovat zůstatky", key="sync_bank", use_container_width=True):
+                    with st.spinner("Šifrované spojení..."):
+                        t_msg = bank.simulace_pripojeni()
+                        if "Chyba" in t_msg: st.error(t_msg)
+                        else:
+                            df_b = bank.stahni_zustatky(t_msg)
+                            if df_b is not None:
+                                st.session_state['bank_data'] = df_b
+                                st.toast("Data z banky stažena!", icon="✅")
+                            else: st.warning("Žádná data.")
+                
+                # Zobrazení dat z banky, pokud jsou načtena
+                if 'bank_data' in st.session_state:
+                    st.dataframe(st.session_state['bank_data'], use_container_width=True, hide_index=True)
+                    # Malý součet pro efekt
+                    celkem_banka = st.session_state['bank_data']['Zůstatek'].sum()
+                    mena_banka = st.session_state['bank_data'].iloc[0]['Měna']
+                    st.caption(f"Disponibilní v bance: **{celkem_banka:,.2f} {mena_banka}**")
+
+                st.divider()
+
+                # B) MANUÁLNÍ VKLAD/VÝBĚR (Tvé původní ovládání)
+                st.caption("📝 Manuální operace")
                 op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
                 v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
                 v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
@@ -3035,14 +3059,13 @@ def main():
                     if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
                         st.error("Nedostatek prostředků")
                     else:
-                        # Tady musíme ručně zavolat uložení, protože pro Cash nemáme globální wrapper
                         df_cash_new = pohyb_penez(v_a * sign, v_m, op, "Manual", USER, st.session_state['df_cash'])
                         uloz_data_uzivatele(df_cash_new, USER, SOUBOR_CASH)
                         st.session_state['df_cash'] = df_cash_new
                         invalidate_data_core()
                         st.success("Hotovo"); time.sleep(1); st.rerun()
 
-        # Historie transakcí (Jen rychlý náhled)
+        # Historie transakcí
         if not df_cash.empty:
             st.divider()
             st.caption("Poslední pohyby na účtu")
@@ -3276,4 +3299,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
