@@ -1707,9 +1707,11 @@ def send_daily_telegram_report(USER, data_core, alerts, kurzy):
         return False, f"❌ Chyba generování reportu: {e}"
 
 
+# Soubor: web_investice (15).py
+# --- NOVÁ FUNKCE: KONTROLA ČASU A DENNÍ ODESLÁNÍ REPORTU ---
 def check_and_send_daily_report(USER, data_core, alerts, kurzy, target_hour=20, target_minute=0):
     """
-    Kontroluje časové pásmo a odešle report JEDNOU denně v cílový čas.
+    Kontroluje časové pásmo a odešle report JEDNOU denně v cílový čas (CET).
     """
     # 1. Nastavení časového pásma (Praha/CET)
     praha_tz = pytz.timezone('Europe/Prague')
@@ -1720,33 +1722,40 @@ def check_and_send_daily_report(USER, data_core, alerts, kurzy, target_hour=20, 
     if 'last_telegram_report' not in st.session_state:
         st.session_state['last_telegram_report'] = "2000-01-01"
 
-    # 3. Vytvoření cílového času
-    target_time = praha_tz.localize(datetime(now_praha.year, now_praha.month, now_praha.day, target_hour, target_minute, 0))
+    # 3. Vytvoření cílového času pro dnešek
+    # Poznámka: Ošetření NonExistentTimeError je již uvnitř try/except bloku
+    target_time = praha_tz.localize(datetime(now_praha.year, now_praha.month, now_praha.day, target_hour, target_minute, 0), is_dst=None)
+
 
     # 4. Kontrola podmínek
-    # a) Dnes se ještě neodeslalo (kontrola jen data)
     already_sent_today = st.session_state['last_telegram_report'] == today_date
-    
-    # b) Aktuální čas v Praze je PO cílovém čase
     is_time_to_send = now_praha >= target_time
 
     if not already_sent_today and is_time_to_send:
-        # Zabráníme odeslání, pokud jsme už přes 24:00 (malá ochrana)
-        if now_praha.hour < target_hour + 1: # Spustíme jen během jedné hodiny po cílovém čase
-            st.sidebar.warning(f"🤖 Spouštím denní automatický report na Telegram ({now_praha.strftime('%H:%M')} CET)...")
+        
+        # <<< KLÍČOVÁ ZMĚNA: OKAMŽITÝ ZÁPIS DATA >>>
+        # Tímto okamžitě zablokujeme další odesílání, i kdyby uživatel refreshoval.
+        st.session_state['last_telegram_report'] = today_date
+        # >>> KONEC ZMĚNY <<<
+        
+        # Spustíme odesílání
+        st.sidebar.warning(f"🤖 Spouštím denní automatický report na Telegram ({now_praha.strftime('%H:%M')} CET)...")
 
-            # Volání původní funkce
-            ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+        # Volání původní funkce
+        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
 
-            if ok:
-                st.session_state['last_telegram_report'] = today_date
-                st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
-            else:
-                st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
-            
-            return True, ok, msg # Vrátíme info o spuštění
-
-    return False, None, None # Nebylo spuštěno
+        if ok:
+            # Datum už máme uložené, stačí potvrdit
+            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
+        else:
+            # Pokud se odeslání nepovedlo, můžeme zkusit resetovat datum (volitelné)
+            # Necháme datum uložené, ať se to nezkouší pořád.
+            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}. Další pokus zítra.")
+        
+        return True
+    
+    return False
+# --- KONEC UPRAVENÉ FUNKCE ---
 
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
@@ -3409,5 +3418,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
