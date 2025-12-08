@@ -2359,6 +2359,7 @@ def main():
         # --- AKCE (Tlačítka dole) ---
         st.divider()
         with c_act2:
+        c_act1, c_act2 = st.columns(2)
             pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
             st.download_button(label="📄 PDF", data=pdf_data, file_name=f"report.pdf", mime="application/pdf", use_container_width=True)
 
@@ -3388,3 +3389,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
