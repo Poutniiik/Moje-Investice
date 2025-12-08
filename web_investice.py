@@ -3149,7 +3149,7 @@ def main():
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
 
-DOČASNÝ TEST BANKY (PLAID) ---
+# --- DOČASNÝ TEST BANKY (PLAID) ---
         st.write("")
         st.subheader("🏦 BANKOVNÍ LABORATOŘ (TEST)")
         with st.expander("🔌 Otestovat připojení k PLAID", expanded=True):
@@ -3189,6 +3189,7 @@ DOČASNÝ TEST BANKY (PLAID) ---
                             st.error(f"Chyba připojení: {e}")
                 else:
                     st.warning("Vyplň oba klíče!")
+
         
 
     # --- OPRAVA 3: CHAT S POJISTKOU PROTI CHYBĚ 429 ---
@@ -3249,4 +3250,5 @@ DOČASNÝ TEST BANKY (PLAID) ---
 
 if __name__ == "__main__":
     main()
+
 
