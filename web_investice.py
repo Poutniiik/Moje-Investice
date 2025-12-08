@@ -2359,33 +2359,33 @@ elif current_time_int >= 1800:
     st.warning("Denní report ČEKÁ na první interakci (po 18:00).", icon="⚠️")
 
         # --- 3. INFORMACE (ZABALENO DO EXPANDERŮ PRO ÚSPORU MÍSTA) ---
-        
-        # A. Světové trhy
-        with st.expander("🌍 SVĚTOVÉ TRHY", expanded=False):
-            ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16)
-            ln_time, ln_open = zjisti_stav_trhu("Europe/London", 8, 16)
-            jp_time, jp_open = zjisti_stav_trhu("Asia/Tokyo", 9, 15)
 
-            c_m1, c_m2 = st.columns([3, 1])
-            c_m1.caption("🇺🇸 New York"); c_m2.markdown(f"**{ny_time}** {'🟢' if ny_open else '🔴'}")
+# A. Světové trhy
+with st.expander("🌍 SVĚTOVÉ TRHY", expanded=False):
+    ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16)
+    ln_time, ln_open = zjisti_stav_trhu("Europe/London", 8, 16)
+    jp_time, jp_open = zjisti_stav_trhu("Asia/Tokyo", 9, 15)
 
-            c_m1, c_m2 = st.columns([3, 1])
-            c_m1.caption("🇬🇧 Londýn"); c_m2.markdown(f"**{ln_time}** {'🟢' if ln_open else '🔴'}")
+    c_m1, c_m2 = st.columns([3, 1])
+    c_m1.caption("🇺🇸 New York"); c_m2.markdown(f"**{ny_time}** {'🟢' if ny_open else '🔴'}")
 
-            c_m1, c_m2 = st.columns([3, 1])
-            c_m1.caption("🇯🇵 Tokio"); c_m2.markdown(f"**{jp_time}** {'🟢' if jp_open else '🔴'}")
+    c_m1, c_m2 = st.columns([3, 1])
+    c_m1.caption("🇬🇧 Londýn"); c_m2.markdown(f"**{ln_time}** {'🟢' if ln_open else '🔴'}")
 
-        # B. Peněženka (Tohle zabíralo moc místa, teď je to schované)
-        with st.expander("💰 STAV PENĚŽENKY", expanded=False):
-            for mena in ["USD", "CZK", "EUR"]:
-                castka = zustatky.get(mena, 0.0)
-                sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
-                # Použijeme menší formát než st.info pro úsporu místa
-                st.markdown(f"""
-                <div style="background-color: #0D1117; padding: 10px; border-radius: 5px; margin-bottom: 5px; border: 1px solid #30363D;">
-                    <span style="color: #8B949E;">{mena}:</span> <span style="color: #00FF99; font-weight: bold; float: right;">{castka:,.2f} {sym}</span>
-                </div>
-                """, unsafe_allow_html=True)
+    c_m1, c_m2 = st.columns([3, 1])
+    c_m1.caption("🇯🇵 Tokio"); c_m2.markdown(f"**{jp_time}** {'🟢' if jp_open else '🔴'}")
+
+# B. Peněženka (Tohle zabíralo moc místa, teď je to schované)
+with st.expander("💰 STAV PENĚŽENKY", expanded=False):
+    for mena in ["USD", "CZK", "EUR"]:
+        castka = zustatky.get(mena, 0.0)
+        sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
+        # Použijeme menší formát než st.info pro úsporu místa
+        st.markdown(f"""
+        <div style="background-color: #0D1117; padding: 10px; border-radius: 5px; margin-bottom: 5px; border: 1px solid #30363D;">
+            <span style="color: #8B949E;">{mena}:</span> <span style="color: #00FF99; font-weight: bold; float: right;">{castka:,.2f} {sym}</span>
+        </div>
+        """, unsafe_allow_html=True)
 
         # --- SIDEBAR ALERTS ---
         if alerts:
@@ -3441,6 +3441,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
