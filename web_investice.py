@@ -2600,10 +2600,10 @@ def main():
                                 add_download_button(fig_map, "vyvoj_ceny")
                             except Exception:
                                 st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
-                        except Exception:
+                            except Exception:
                             st.error("Chyba mapy.")
                     else:
-                    st.info("Portfolio je prázdné.")
+                st.info("Portfolio je prázdné.")
 
         with tab4:
             st.subheader("🔮 FINANČNÍ STROJ ČASU")
@@ -3400,4 +3400,5 @@ def render_bank_lab_page():
 if __name__ == "__main__":
     main()
 # ===================================================
+
 
