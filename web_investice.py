@@ -2908,7 +2908,6 @@ def main():
             with tab9:
                 # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
                 render_analýza_kalendář_page(df, df_watch, LIVE_DATA)
-
 elif page == "📰 Zprávy":
     st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         
@@ -3410,6 +3409,7 @@ def render_bank_lab_page():
 if __name__ == "__main__":
     main()
 # ===================================================
+
 
 
 
