@@ -1133,7 +1133,21 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             ikona = icon_map.get(clean_name, "👾")
             st.markdown(f"<h1 style='text-align: center; font-size: 50px;'>{ikona}</h1>", unsafe_allow_html=True)
 
-            st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram_report', 'N/A')}**")
+            # web_investice (14).py - Sekce Sidebaru (kolem řádku 1100)
+
+# ... (pod sekci s Level/Progress)
+
+# Zobrazení stavu reportu
+st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram_report', 'N/A')}**")
+
+# 👇 TOTO JE KÓD, KTERÝ PŘIDÁVÁŠ PRO STAV DNES 👇
+
+# Kontrola, zda byl report pro dnešek už proveden
+if st.session_state.get('last_telegram_report') == today_date:
+    st.info("Report pro dnešek ODESLÁN.", icon="✅")
+elif current_time_int >= 1800:
+    st.warning("Denní report ČEKÁ na první interakci.", icon="⚠️")
+    
     # --- 2. SÍŇ SLÁVY (ODZNAKY) - GRID 2x2 ---
     st.write("")
     st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
@@ -2244,37 +2258,42 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (VYLEPŠENÝ) ---
+    # --- AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (FINÁLNÍ VERZE) ---
     today_date = datetime.now().strftime("%Y-%m-%d")
 
     # Čas, kdy se report posílá (1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
     report_time_int = 1800 
 
-    # === DŮLEŽITÁ POJISTKA PROTI OKAMŽITÉMU ODESLÁNÍ ===
-    # Vypočítáme, jak dlouho aplikace běží
+    # Bezpečnostní pojistka proti okamžitému odeslání při spuštění/přihlášení
     time_since_start = (datetime.now() - st.session_state['app_start_time']).total_seconds()
     
-    # Pravidlo pro odeslání: 
-    # 1. Dnes se ještě neodeslalo 
-    # 2. Aktuální čas je po 18:00
-    # 3. APLIKACE BĚŽÍ DÉLE NEŽ 5 SEKUND (Zabraňuje spuštění při BOOTU/PŘIHLÁŠENÍ)
+    # Podmínka pro ODESLÁNÍ REPORTU:
     if (st.session_state['last_telegram_report'] != today_date and 
         current_time_int >= report_time_int and
         time_since_start > 5): 
         
-        st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
+        # 1. Spustí se logická zpráva (Toast)
+        st.toast("🤖 Spouštím denní automatický report na Telegram...", icon="⏳")
         
-        # Voláme funkci pro odeslání reportu
+        # 2. Voláme funkci
         ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
         
         if ok:
             st.session_state['last_telegram_report'] = today_date
-            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
-        else:
-            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
+            st.toast("✅ Report ODESLÁN (Telegram).", icon="✅")
             
+            # 3. KLÍČOVÉ: Vynutíme okamžité obnovení (reload), 
+            # čímž se uloží st.session_state['last_telegram_report'] na dnešní datum.
+            # Bez tohoto by se to při F6 odeslalo znovu, protože stav není uložen.
+            time.sleep(1)
+            st.rerun() 
+        else:
+            # Ponecháme error hlášení, pokud nastala chyba
+            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
+
     # --- KONEC AUTOMATICKÉHO REPORTU ---
+            
             
 
     # --- 9. SIDEBAR ---
@@ -3412,6 +3431,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
