@@ -46,78 +46,6 @@ from ai_brain import (
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
 
-
-
-# --- KONFIGURACE ---
-# Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
-    st.set_page_config(
-    page_title="Terminal Pro",
-    layout="wide",
-    page_icon="💹",
-    initial_sidebar_state="expanded"
-)
-
-# --- CITÁTY ---
-CITATY = [
-    "„Cena je to, co zaplatíš. Hodnota je to, co dostaneš.“ — Warren Buffett",
-    "„Riziko pochází z toho, že nevíte, co děláte.“ — Warren Buffett",
-    "„Trh je nástroj k přesunu peněz od netrpělivých k trpělivým.“ — Warren Buffett",
-    "„Investování bez výzkumu je jako hrát poker a nedívat se na karty.“ — Peter Lynch",
-    "„V krátkodobém horizontu je trh hlasovací stroj, v dlouhodobém váha.“ — Benjamin Graham",
-    "„Neutrácejte to, co zbude po utrácení. Utrácejte to, co zbude po spoření.“ — Warren Buffett",
-    "„Znáte ten pocit, když trh padá? To je výprodej. Nakupujte.“ — Neznámý",
-    "„Bohatství není o tom mít hodně peněz, ale o tom mít hodně možností.“ — Chris Rock"
-]
-
-# --- ANALÝZA SENTIMENTU ---
-KW_POSITIVNI = ["RŮST", "ZISK", "REKORD", "DIVIDEND", "POKLES INFLACE", "BÝČÍ", "UP", "PROFIT", "HIGHS", "SKOK", "VYDĚLAL"]
-KW_NEGATIVNI = ["PÁD", "ZTRÁTA", "KRIZE", "MEDVĚDÍ", "DOWN", "LOSS", "CRASH", "PRODĚLAL", "VÁLKA", "BANKROT", "INFLACE", "POKLES"]
-
-
-# --- APLIKACE STYLU (Tohle se musí stát hned) ---
-# Defaultně nastavíme Cyberpunk, ale uživatel si to může změnit v Sidebaru
-if 'ui_theme' not in st.session_state:
-    st.session_state['ui_theme'] = "🕹️ Cyberpunk (Retro)"
-
-# Aplikujeme styl
-st.markdown(f"<style>{get_css(st.session_state['ui_theme'])}</style>", unsafe_allow_html=True)
-
-# --- COOKIE MANAGER ---
-def get_manager():
-    return stx.CookieManager(key="cookie_manager_inst")
-
-# --- LOTTIE LOADER ---
-@st.cache_data
-def load_lottieurl(url: str):
-    r = requests.get(url)
-    if r.status_code != 200: return None
-    return r.json()
-
-# --- TURBO CACHE WRAPPERS (ZRYCHLENÍ APLIKACE) ---
-# Tyto funkce obalují původní funkce do cache, aby se nevolaly zbytečně často.
-
-@st.cache_data(ttl=3600) # 1 hodina cache pro detaily (fundamenty se mění pomalu)
-def cached_detail_akcie(ticker):
-    return ziskej_detail_akcie(ticker)
-
-@st.cache_data(ttl=1800) # 30 minut cache pro Fear & Greed
-def cached_fear_greed():
-    return ziskej_fear_greed()
-
-@st.cache_data(ttl=3600) # 1 hodina pro zprávy
-def cached_zpravy():
-    return ziskej_zpravy()
-
-@st.cache_data(ttl=300) # 5 minut cache pro hromadné ceny (Live data)
-def cached_ceny_hromadne(tickers_list):
-    return ziskej_ceny_hromadne(tickers_list)
-
-@st.cache_data(ttl=3600) # 1 hodina cache pro kurzy
-def cached_kurzy():
-    return ziskej_kurzy()
-
-# -----------------------------------------------------
-
 # --- AUTO TELEGRAM REPORT (16:00 každý den) ---
 def auto_report_telegram(vdf, celk_hod_czk, kurzy):
     """
@@ -190,6 +118,75 @@ def auto_report_telegram(vdf, celk_hod_czk, kurzy):
         st.toast("📨 Automatický Telegram report odeslán!")
     else:
         st.error(msg)
+
+# --- KONFIGURACE ---
+# Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
+    st.set_page_config(
+    page_title="Terminal Pro",
+    layout="wide",
+    page_icon="💹",
+    initial_sidebar_state="expanded"
+)
+
+# --- CITÁTY ---
+CITATY = [
+    "„Cena je to, co zaplatíš. Hodnota je to, co dostaneš.“ — Warren Buffett",
+    "„Riziko pochází z toho, že nevíte, co děláte.“ — Warren Buffett",
+    "„Trh je nástroj k přesunu peněz od netrpělivých k trpělivým.“ — Warren Buffett",
+    "„Investování bez výzkumu je jako hrát poker a nedívat se na karty.“ — Peter Lynch",
+    "„V krátkodobém horizontu je trh hlasovací stroj, v dlouhodobém váha.“ — Benjamin Graham",
+    "„Neutrácejte to, co zbude po utrácení. Utrácejte to, co zbude po spoření.“ — Warren Buffett",
+    "„Znáte ten pocit, když trh padá? To je výprodej. Nakupujte.“ — Neznámý",
+    "„Bohatství není o tom mít hodně peněz, ale o tom mít hodně možností.“ — Chris Rock"
+]
+
+# --- ANALÝZA SENTIMENTU ---
+KW_POSITIVNI = ["RŮST", "ZISK", "REKORD", "DIVIDEND", "POKLES INFLACE", "BÝČÍ", "UP", "PROFIT", "HIGHS", "SKOK", "VYDĚLAL"]
+KW_NEGATIVNI = ["PÁD", "ZTRÁTA", "KRIZE", "MEDVĚDÍ", "DOWN", "LOSS", "CRASH", "PRODĚLAL", "VÁLKA", "BANKROT", "INFLACE", "POKLES"]
+
+
+# --- APLIKACE STYLU (Tohle se musí stát hned) ---
+# Defaultně nastavíme Cyberpunk, ale uživatel si to může změnit v Sidebaru
+if 'ui_theme' not in st.session_state:
+    st.session_state['ui_theme'] = "🕹️ Cyberpunk (Retro)"
+
+# Aplikujeme styl
+st.markdown(f"<style>{get_css(st.session_state['ui_theme'])}</style>", unsafe_allow_html=True)
+
+# --- COOKIE MANAGER ---
+def get_manager():
+    return stx.CookieManager(key="cookie_manager_inst")
+
+# --- LOTTIE LOADER ---
+@st.cache_data
+def load_lottieurl(url: str):
+    r = requests.get(url)
+    if r.status_code != 200: return None
+    return r.json()
+
+# --- TURBO CACHE WRAPPERS (ZRYCHLENÍ APLIKACE) ---
+# Tyto funkce obalují původní funkce do cache, aby se nevolaly zbytečně často.
+
+@st.cache_data(ttl=3600) # 1 hodina cache pro detaily (fundamenty se mění pomalu)
+def cached_detail_akcie(ticker):
+    return ziskej_detail_akcie(ticker)
+
+@st.cache_data(ttl=1800) # 30 minut cache pro Fear & Greed
+def cached_fear_greed():
+    return ziskej_fear_greed()
+
+@st.cache_data(ttl=3600) # 1 hodina pro zprávy
+def cached_zpravy():
+    return ziskej_zpravy()
+
+@st.cache_data(ttl=300) # 5 minut cache pro hromadné ceny (Live data)
+def cached_ceny_hromadne(tickers_list):
+    return ziskej_ceny_hromadne(tickers_list)
+
+@st.cache_data(ttl=3600) # 1 hodina cache pro kurzy
+def cached_kurzy():
+    return ziskej_kurzy()
+
 
 # --- NÁSTROJ PRO ŘÍZENÍ STAVU: ZNEHODNOCENÍ DAT ---
 def invalidate_data_core():
@@ -2261,26 +2258,27 @@ def main():
         # Použijeme data z cache
         data_core = st.session_state['data_core']
 
-    # --- 7. EXTRACT DATA CORE ---
-    vdf = data_core['vdf']
-    viz_data_list = data_core['viz_data_list']
-    celk_hod_usd = data_core['celk_hod_usd']
-    celk_inv_usd = data_core['celk_inv_usd']
-    hist_vyvoje = data_core['hist_vyvoje']
-    zmena_24h = data_core['zmena_24h']
-    pct_24h = data_core['pct_24h']
-    cash_usd = data_core['cash_usd']
-    fundament_data = data_core['fundament_data']
-    auto_report_telegram(vdf, celk_hod_czk, kurzy)
-    LIVE_DATA = st.session_state['LIVE_DATA'] # Vždy musíme vytáhnout z SS, protože ho cachuje calculate_all_data
-    
-    # OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
-    kurzy = data_core['kurzy'] 
+   # --- 7. EXTRACT DATA CORE ---
+vdf = data_core['vdf']
+viz_data_list = data_core['viz_data_list']
+celk_hod_usd = data_core['celk_hod_usd']
+celk_inv_usd = data_core['celk_inv_usd']
+hist_vyvoje = data_core['hist_vyvoje']
+zmena_24h = data_core['zmena_24h']
+pct_24h = data_core['pct_24h']
+cash_usd = data_core['cash_usd']
+fundament_data = data_core['fundament_data']
+LIVE_DATA = st.session_state['LIVE_DATA']
 
-    kurz_czk = kurzy.get("CZK", 20.85)
-    celk_hod_czk = celk_hod_usd * kurz_czk
-    celk_inv_czk = celk_inv_usd * kurz_czk
+# OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
+kurzy = data_core['kurzy']
 
+kurz_czk = kurzy.get("CZK", 20.85)
+celk_hod_czk = celk_hod_usd * kurz_czk
+celk_inv_czk = celk_inv_usd * kurz_czk
+
+# --- VOLÁNÍ AUTOMATICKÉHO REPORTU (SPRÁVNÉ MÍSTO) ---
+auto_report_telegram(vdf, celk_hod_czk, kurzy)
 
     # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
     alerts = []
@@ -3464,4 +3462,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
