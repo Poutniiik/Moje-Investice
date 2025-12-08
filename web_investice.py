@@ -2158,7 +2158,8 @@ def main():
 
     # -----------------------------------------------------------
 
-    # --- 5. NAČTENÍ ZÁKLADNÍCH DAT A JÁDRA ---
+
+    # --- 5. NAČTENÍ ZÁKLADNÍCH DAT A JÁDRA (Jednorázová inicializace) ---
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
             st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
@@ -2169,6 +2170,8 @@ def main():
             # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
     
+    # ZAJIŠTĚNÍ DOSTUPNOSTI DAT (POUZE ODKAZY NA SESSION STATE)
+    # Tyto proměnné MUSÍ být vždy definovány (proto nejsou uvnitř bloku 'if not in')
     df = st.session_state['df']
     df_cash = st.session_state['df_cash']
     df_div = st.session_state['df_div']
@@ -2180,6 +2183,8 @@ def main():
     # Zkontrolujeme cache (např. platnost 5 minut)
     cache_timeout = timedelta(minutes=5)
     
+    # UJIŠTĚNÍ, ŽE cache_timeout a timedelta JEDOU Z HLAVNÍHO IMPORTU (odstraněno zbytečné importování)
+    
     if ('data_core' not in st.session_state or 
         (datetime.now() - st.session_state['data_core']['timestamp']) > cache_timeout):
         
@@ -2190,6 +2195,7 @@ def main():
         data_core = st.session_state['data_core']
 
     # --- 7. EXTRACT DATA CORE ---
+    # Tyto proměnné MUSÍ být vždy definovány (jsou uvnitř if/else bloku)
     vdf = data_core['vdf']
     viz_data_list = data_core['viz_data_list']
     celk_hod_usd = data_core['celk_hod_usd']
@@ -2199,15 +2205,17 @@ def main():
     pct_24h = data_core['pct_24h']
     cash_usd = data_core['cash_usd']
     fundament_data = data_core['fundament_data']
-    LIVE_DATA = st.session_state['LIVE_DATA'] # Vždy musíme vytáhnout z SS, protože ho cachuje calculate_all_data
-    
+    LIVE_DATA = st.session_state['LIVE_DATA'] # Předpokládám, že LIVE_DATA je definováno
+
     # OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
-    kurzy = data_core['kurzy'] 
+    kurzy = data_core['kurzy']
 
     kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
 
+    # --- VOLÁNÍ AUTOMATICKÉHO REPORTU (SPRÁVNÉ MÍSTO) ---
+    check_and_send_telegram_report(USER, data_core, alerts, kurzy)
 
     # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
     alerts = []
@@ -3405,5 +3413,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
