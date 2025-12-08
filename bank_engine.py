@@ -20,7 +20,7 @@ def simulace_pripojeni():
         payload_pt = {
             "client_id": PLAID_CLIENT_ID,
             "secret": PLAID_SECRET,
-            "institution_id": "ins_1", # Testovací banka
+            "institution_id": "ins_109508", # First Platypus Bank (Sandbox)
             "initial_products": ["transactions"]
         }
         
