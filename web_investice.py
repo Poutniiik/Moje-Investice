@@ -3200,12 +3200,14 @@ def render_bank_lab_page():
 
         st.divider()
         
-        # --- OVLÁDACÍ PANEL ---
+        # --- OVLÁDACÍ PANEL (Dvě tlačítka vedle sebe) ---
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
+            # TOTO JE TO NOVÉ TLAČÍTKO PRO ZŮSTATKY 👇
             if st.button("💰 ZOBRAZIT ZŮSTATKY", use_container_width=True):
                 with st.spinner("Ptám se banky na stav konta..."):
+                    # Voláme novou funkci z motoru
                     df_bal = bank_engine.stahni_zustatky(st.session_state['bank_token'])
                     if df_bal is not None:
                         st.session_state['bank_balance'] = df_bal
@@ -3230,7 +3232,9 @@ def render_bank_lab_page():
             # Vykreslíme jako kartičky vedle sebe
             cols = st.columns(len(df_b))
             for index, row in df_b.iterrows():
-                with cols[index % len(cols)]: # Aby to nepadalo u více účtů
+                # Aby to nepadalo u více účtů, použijeme modulo
+                col_idx = index % len(cols)
+                with cols[col_idx]:
                     st.metric(
                         label=row['Název účtu'], 
                         value=f"{row['Zůstatek']:,.2f} {row['Měna']}", 
@@ -3264,14 +3268,12 @@ def render_bank_lab_page():
             # Graf výdajů
             st.subheader("📊 Analýza výdajů")
             expenses = df_t[df_t['Částka'] < 0].copy()
-            expenses['Částka'] = expenses['Částka'].abs()
+            expenses['Částka'] = expenses['Částka'].abs() # Pro koláčový graf chceme kladná čísla
             
             if not expenses.empty:
                 fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
                 st.plotly_chart(fig_exp, use_container_width=True)
-
-# ==========================================
-# 👇 TOTO MUSÍ BÝT ÚPLNĚ POSLEDNÍ VĚC V SOUBORU 👇
-# ==========================================
+                
 if __name__ == "__main__":
     main()
+
