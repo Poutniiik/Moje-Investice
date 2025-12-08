@@ -1140,7 +1140,9 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
 
 # ... (pod sekci s Level/Progress)
 
-# Zobrazení stavu reportu
+today_date = datetime.now().strftime("%Y-%m-%d")
+current_time_int = datetime.now().hour * 100 + datetime.now().minute
+
 st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram_report', 'N/A')}**")
 
 # 👇 TOTO JE KÓD S OPRAVOU DEFINICE today_date (Pro zobrazení stavu DNES) 👇
@@ -3440,6 +3442,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
