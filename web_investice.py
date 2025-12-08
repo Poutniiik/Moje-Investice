@@ -2513,7 +2513,7 @@ def main():
         with tab3:
             if not vdf.empty:
         # --- 1. GLOBÁLNÍ MAPA IMPÉRIA ---
-        st.subheader("🌍 MAPA IMPÉRIA")
+            st.subheader("🌍 MAPA IMPÉRIA")
         try:
             df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
             fig_map = px.scatter_geo(
@@ -3410,6 +3410,7 @@ def render_bank_lab_page():
 if __name__ == "__main__":
     main()
 # ===================================================
+
 
 
 
