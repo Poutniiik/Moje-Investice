@@ -121,7 +121,7 @@ def auto_report_telegram(vdf, celk_hod_czk, kurzy):
 
 # --- KONFIGURACE ---
 # Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
-st.set_page_config(
+    st.set_page_config(
     auto_report_telegram()
     page_title="Terminal Pro",
     layout="wide",
@@ -3463,6 +3463,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
