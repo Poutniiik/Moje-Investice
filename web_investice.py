@@ -3144,9 +3144,9 @@ def main():
             for n, d in [(SOUBOR_DATA, 'df'), (SOUBOR_HISTORIE, 'df_hist'), (SOUBOR_CASH, 'df_cash'), (SOUBOR_DIVIDENDY, 'df_div'), (SOUBOR_WATCHLIST, 'df_watch')]:
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
-                st.divider()
-                st.subheader("📲 NOTIFIKACE(Telegram)")
-                st.caption("Otestuj spojení s tvým mobilem.")
+        st.divider()
+        st.subheader("📲 NOTIFIKACE(Telegram)")
+        st.caption("Otestuj spojení s tvým mobilem.")
 
                 #TADY JE TA MAGIE
                 notify.otestovat_tlacitko
@@ -3306,6 +3306,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
