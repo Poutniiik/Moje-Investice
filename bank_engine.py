@@ -1,26 +1,39 @@
 import requests
 import pandas as pd
+import streamlit as st  # Přidán import pro přístup k trezoru
 from datetime import datetime, timedelta
 
 # ==========================================
-# 👇 ZDE VLOŽ SVÉ KLÍČE (Uvnitř uvozovek!) 👇
-# ==========================================
-PLAID_CLIENT_ID = "6936237b139fbf00216fb766"
-PLAID_SECRET = "05377cff894a1c4d86e5d3ea1caea2"
+# 👇 BEZPEČNÉ NAČTENÍ KLÍČŮ Z TREZORU 👇
+# Už žádné klíče natvrdo v kódu!
 # ==========================================
 
-# Používáme čisté API volání (bez instalace knihoven)
+try:
+    PLAID_CLIENT_ID = st.secrets["plaid"]["client_id"]
+    PLAID_SECRET = st.secrets["plaid"]["secret"]
+except Exception:
+    # Fallback pro případ, že klíče v trezoru chybí (aby aplikace nespadla hned)
+    PLAID_CLIENT_ID = ""
+    PLAID_SECRET = ""
+
+# ==========================================
+
+# Používáme čisté API volání
 BASE_URL = "https://sandbox.plaid.com"
 
 def simulace_pripojeni():
     """Vytvoří fiktivní připojení k bance v Sandboxu (přes Requests)."""
+    
+    if not PLAID_CLIENT_ID or not PLAID_SECRET:
+        return "Chyba: Chybí API klíče v nastavení (Secrets)."
+
     try:
         # 1. Vytvoření veřejného tokenu (Simulace loginu)
         url_pt = f"{BASE_URL}/sandbox/public_token/create"
         payload_pt = {
             "client_id": PLAID_CLIENT_ID,
             "secret": PLAID_SECRET,
-            "institution_id": "ins_109508", # First Platypus Bank (Sandbox)
+            "institution_id": "ins_109508", # Platypus Bank
             "initial_products": ["transactions"]
         }
         
@@ -47,6 +60,9 @@ def simulace_pripojeni():
 
 def stahni_data(access_token):
     """Stáhne transakce za posledních 90 dní (přes Requests)."""
+    if not PLAID_CLIENT_ID or not PLAID_SECRET:
+        return None
+
     try:
         start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
         end_date = datetime.now().strftime('%Y-%m-%d')
