@@ -2287,9 +2287,17 @@ def main():
     # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
     today_date = datetime.now().strftime("%Y-%m-%d")
     
-    # Čas, kdy se report posílá (1800 = 18:00)
-    current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 1800 
+# --- NOVÁ LOGIKA ČASU S ČASOVÝM PÁSMEM ---
+# Získáme aktuální čas v pásmu Praha (CET/CEST)
+PRAGUE_TZ = pytz.timezone('Europe/Prague')
+now_prague = datetime.now(PRAGUE_TZ)
+
+# Vypočteme aktuální čas jako integer (např. 1713 pro 17:13)
+current_time_int = now_prague.hour * 100 + now_prague.minute
+
+# Plánovaný čas pro spuštění reportu (18:00)
+report_time_int = 1800 
+# ----------------------------------------------------
 
 
     # --- 9. SIDEBAR ---
@@ -3111,3 +3119,4 @@ def render_bank_lab_page():
             
 if __name__ == "__main__":
     main()
+
