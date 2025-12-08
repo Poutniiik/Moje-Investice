@@ -10,7 +10,7 @@ import pandas as pd
 
 # --- 1. KONFIGURACE (Tvoje klíče) ---
 PLAID_CLIENT_ID = "6936237b139fbf00216fb766"
-PLAID_SECRET = “05377cff894a1c4d86e5d3ea1caea2"
+PLAID_SECRET = "05377cff894a1c4d86e5d3ea1caea2"
 PLAID_ENV = plaid.Environment.Sandbox # Jsme na pískovišti
 
 # --- 2. PŘIPOJENÍ K PLAIDU ---
