@@ -2270,6 +2270,7 @@ def main():
     pct_24h = data_core['pct_24h']
     cash_usd = data_core['cash_usd']
     fundament_data = data_core['fundament_data']
+    auto_report_telegram(vdf, celk_hod_czk, kurzy)
     LIVE_DATA = st.session_state['LIVE_DATA'] # Vždy musíme vytáhnout z SS, protože ho cachuje calculate_all_data
     
     # OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
@@ -3462,5 +3463,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
