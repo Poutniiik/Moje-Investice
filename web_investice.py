@@ -3164,46 +3164,46 @@ def main():
                     st.rerun()
 
 # --- EXTERNÍ FUNKCE PRO BANKU (Na konci souboru) ---
-def render_bank_page():
-    st.title("🏦 BANKOVNÍ CENTRÁLA (Verze 3.0)")
-    st.info("Zde probíhá vývoj automatického stahování dat.")
+# ==========================================
+# 👇 TATO FUNKCE MUSÍ BÝT TADY (PŘED SPUŠTĚNÍM) 👇
+# ==========================================
+def render_bank_lab_page():
+    st.title("🏦 BANKOVNÍ LABORATOŘ")
+    st.info("Testovací stránka pro Plaid API.")
 
-    # 1. ZÍSKÁNÍ KLÍČE (Simulace)
-    if 'bank_token' not in st.session_state:
-        if st.button("🔌 PŘIPOJIT FIKTIVNÍ BANKU (Sandbox)"):
-            with st.spinner("Simuluji přihlášení do banky..."):
-                token = bank_engine.simulace_pripojeni_banky()
-                if "Chyba" in str(token):
-                    st.error(token)
-                else:
-                    st.session_state['bank_token'] = token
-                    st.success("Banka připojena! Token uložen v paměti.")
-                    st.rerun()
-    
-    # 2. STAŽENÍ DAT
-    else:
-        st.success("🟢 Banka je online")
-        if st.button("📥 STÁHNOUT TRANSAKCE"):
-            with st.spinner("Stahuji výpis z účtu..."):
-                df_trans = bank_engine.stahni_transakce(st.session_state['bank_token'])
-                
-                if df_trans is not None and not df_trans.empty:
-                    st.subheader("📜 Výpis z účtu")
-                    st.dataframe(df_trans, use_container_width=True)
-                    
-                    # Rychlá analýza
-                    utrata = df_trans[df_trans['Částka'] > 0]['Částka'].sum()
-                    st.metric("Celková útrata (90 dní)", f"{utrata:,.2f}")
-                else:
-                    st.warning("Žádné transakce nenalezeny nebo chyba.")
-        
-        if st.button("Odpojit"):
-            del st.session_state['bank_token']
-            st.rerun()
+    c1, c2 = st.columns(2)
+    client_id = c1.text_input("Client ID", type="password", key="plaid_id")
+    secret = c2.text_input("Secret (Sandbox)", type="password", key="plaid_sec")
 
+    if st.button("🚀 ODESLAT SIGNÁL"):
+        if client_id and secret:
+            with st.spinner("Volám do San Francisca..."):
+                try:
+                    # Tady používáme čisté requests, protože importy zlobily
+                    url = "https://sandbox.plaid.com/institutions/get"
+                    payload = {
+                        "client_id": client_id,
+                        "secret": secret,
+                        "count": 5,
+                        "offset": 0,
+                        "country_codes": ["US", "GB", "ES", "FR"]
+                    }
+                    r = requests.post(url, json=payload)
+                    if r.status_code == 200:
+                        st.success("✅ SPOJENÍ NAVÁZÁNO!")
+                        data = r.json()
+                        st.write("Nalezené banky:")
+                        for bank in data['institutions']:
+                            st.code(f"{bank['name']} (ID: {bank['institution_id']})")
+                    else:
+                        st.error(f"Chyba {r.status_code}: {r.text}")
+                except Exception as e:
+                    st.error(str(e))
+        else:
+            st.warning("Vyplň oba klíče!")
 
+# ==========================================
+# 👇 TOTO MUSÍ BÝT ÚPLNĚ POSLEDNÍ VĚC V SOUBORU 👇
+# ==========================================
 if __name__ == "__main__":
     main()
-
-
-
