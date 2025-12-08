@@ -1706,6 +1706,48 @@ def send_daily_telegram_report(USER, data_core, alerts, kurzy):
     except Exception as e:
         return False, f"❌ Chyba generování reportu: {e}"
 
+
+def check_and_send_daily_report(USER, data_core, alerts, kurzy, target_hour=20, target_minute=0):
+    """
+    Kontroluje časové pásmo a odešle report JEDNOU denně v cílový čas.
+    """
+    # 1. Nastavení časového pásma (Praha/CET)
+    praha_tz = pytz.timezone('Europe/Prague')
+    now_praha = datetime.now(praha_tz)
+    today_date = now_praha.strftime("%Y-%m-%d")
+
+    # 2. Načtení posledního odeslání z Session State
+    if 'last_telegram_report' not in st.session_state:
+        st.session_state['last_telegram_report'] = "2000-01-01"
+
+    # 3. Vytvoření cílového času
+    target_time = praha_tz.localize(datetime(now_praha.year, now_praha.month, now_praha.day, target_hour, target_minute, 0))
+
+    # 4. Kontrola podmínek
+    # a) Dnes se ještě neodeslalo (kontrola jen data)
+    already_sent_today = st.session_state['last_telegram_report'] == today_date
+    
+    # b) Aktuální čas v Praze je PO cílovém čase
+    is_time_to_send = now_praha >= target_time
+
+    if not already_sent_today and is_time_to_send:
+        # Zabráníme odeslání, pokud jsme už přes 24:00 (malá ochrana)
+        if now_praha.hour < target_hour + 1: # Spustíme jen během jedné hodiny po cílovém čase
+            st.sidebar.warning(f"🤖 Spouštím denní automatický report na Telegram ({now_praha.strftime('%H:%M')} CET)...")
+
+            # Volání původní funkce
+            ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+
+            if ok:
+                st.session_state['last_telegram_report'] = today_date
+                st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
+            else:
+                st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
+            
+            return True, ok, msg # Vrátíme info o spuštění
+
+    return False, None, None # Nebylo spuštěno
+
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     """
@@ -2228,31 +2270,10 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
-    today_date = datetime.now().strftime("%Y-%m-%d")
-    
-    if 'last_telegram_report' not in st.session_state:
-        st.session_state['last_telegram_report'] = "2000-01-01"
-
-    # Čas, kdy se report posílá (1800 = 18:00)
-    current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 1800 
-
-    # Pravidlo pro odeslání: 
-    # 1. Dnes se ještě neodeslalo 
-    # 2. Aktuální čas je po 18:00
-    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
-        
-        st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
-        
-        # Voláme novou funkci
-        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
-        
-        if ok:
-            st.session_state['last_telegram_report'] = today_date
-            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
-        else:
-            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
+    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (Volání nové funkce) ---
+# Pravidlo pro odeslání: JEDNOU denně v 20:00 CET
+# Čas 20:00 CET je ideální, když už jsou zavřené trhy v USA.
+check_and_send_daily_report(USER, data_core, alerts, kurzy, target_hour=20, target_minute=0)
 
     # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
@@ -3389,3 +3410,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
