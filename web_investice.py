@@ -3156,8 +3156,8 @@ def main():
             st.info("Zde vlož klíče ze Sandboxu, abychom ověřili spojení.")
             
             # 1. Vstupy pro klíče (Typ password, aby nebyly vidět na streamu)
-            test_client_id = st.text_input("Client ID", type="password")6936237b139fbf00216fb766
-            test_secret = st.text_input("Secret (Sandbox)", type="password")05377cff894a1c4d86e5d3ea1caea2
+        test_client_id = st.text_input("Client ID", type="password")6936237b139fbf00216fb766
+        test_secret = st.text_input("Secret (Sandbox)", type="password")05377cff894a1c4d86e5d3ea1caea2
             
             if st.button("🚀 ODESLAT SIGNÁL DO USA"):
                 if test_client_id and test_secret:
@@ -3250,6 +3250,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
