@@ -2247,7 +2247,6 @@ def main():
 
     # --- 6. VÝPOČTY (CENTRALIZOVANÝ DAT CORE) ---
     # Zkontrolujeme cache (např. platnost 5 minut)
-    from datetime import datetime, timedelta # TUTO LINII BYCH DOPORUČIL DÁT NA ZAČÁTEK SOUBORU
     cache_timeout = timedelta(minutes=5)
     
     if ('data_core' not in st.session_state or 
@@ -3438,17 +3437,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
