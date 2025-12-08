@@ -1135,16 +1135,25 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
 
             # web_investice (14).py - Sekce Sidebaru (kolem řádku 1100)
 
+
+# web_investice (14).py - Sekce Sidebaru (kolem řádku 1100, pod Level/Progress)
+
 # ... (pod sekci s Level/Progress)
 
 # Zobrazení stavu reportu
 st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram_report', 'N/A')}**")
 
-# 👇 TOTO JE KÓD, KTERÝ PŘIDÁVÁŠ PRO STAV DNES 👇
+# 👇 TOTO JE KÓD S OPRAVOU DEFINICE today_date (Pro zobrazení stavu DNES) 👇
+
+# Pokud ještě není dnešní datum definováno (pro jistotu)
+if 'today_date' not in locals():
+    # Použijeme datum z session_state nebo ho vytvoříme
+    today_date = datetime.now().strftime("%Y-%m-%d")
 
 # Kontrola, zda byl report pro dnešek už proveden
 if st.session_state.get('last_telegram_report') == today_date:
     st.info("Report pro dnešek ODESLÁN.", icon="✅")
+# Kontrola, zda je po 18:00 a čekáme na interakci
 elif current_time_int >= 1800:
     st.warning("Denní report ČEKÁ na první interakci.", icon="⚠️")
     
@@ -3431,6 +3440,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
