@@ -46,10 +46,83 @@ from ai_brain import (
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
 
+# --- AUTO TELEGRAM REPORT (16:00 každý den) ---
+def auto_report_telegram(vdf, celk_hod_czk, kurzy):
+    """
+    Automaticky odesílá denní report každý den v 16:00.
+    """
+    tz = pytz.timezone("Europe/Prague")
+    now = datetime.now(tz)
+    target_time = dt_time(16, 0)
+
+    # Klíč v session state – aby to neposílalo report 50× denně
+    today_key = f"sent_report_{now.strftime('%Y%m%d')}"
+
+    # Dnes už bylo odesláno → konec
+    if st.session_state.get(today_key, False):
+        return
+
+    # Je teprve dopoledne? → ještě NEPOSÍLAT
+    if now.time() < target_time:
+        return
+
+    # Máme portfolio data?
+    if vdf is None or vdf.empty:
+        return
+
+    # --- 1) spočítáme parametry reportu ---
+    # Celkové jmění v CZK (už ho dostáváme jako parametr)
+    majetek = f"{celk_hod_czk:,.0f} Kč"
+
+    # Největší růst a propad
+    vdf_valid = vdf[vdf["Dnes"].notna()]
+
+    try:
+        top = vdf_valid.sort_values("Dnes", ascending=False).iloc[0]
+        flop = vdf_valid.sort_values("Dnes").iloc[0]
+
+        top_line = f"🚀 {top['Ticker']}: {top['Dnes']*100:+.2f}%"
+        flop_line = f"💀 {flop['Ticker']}: {flop['Dnes']*100:+.2f}%"
+    except:
+        top_line = "🚀 Žádná data"
+        flop_line = "💀 Žádná data"
+
+    # Speciální highlight pro AAPL, pokud existuje
+    if "AAPL" in vdf["Ticker"].values:
+        aapl = vdf[vdf["Ticker"] == "AAPL"].iloc[0]
+        aapl_line = f"🍎 AAPL: {aapl['Dnes']*100:+.2f}% (Dnes)"
+    else:
+        aapl_line = "🍎 AAPL v portfoliu nemáš."
+
+    # --- 2) SESTAVENÍ REPORTU ---
+    text = f"""
+<b>📊 Denní Investiční Report (16:00)</b>
+
+💰 <b>Aktuální jmění:</b> {majetek}
+
+<b>TOP / FLOP (24h):</b>
+{top_line}
+{flop_line}
+
+<b>Speciální highlight:</b>
+{aapl_line}
+
+⏰ Automatický denní report (vygenerováno {now.strftime('%H:%M')})
+"""
+
+    # --- 3) ODESLÁNÍ ---
+    ok, msg = poslat_zpravu(text)
+
+    if ok:
+        st.session_state[today_key] = True
+        st.toast("📨 Automatický Telegram report odeslán!")
+    else:
+        st.error(msg)
 
 # --- KONFIGURACE ---
 # Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
 st.set_page_config(
+    auto_report_telegram()
     page_title="Terminal Pro",
     layout="wide",
     page_icon="💹",
@@ -3389,4 +3462,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
