@@ -46,82 +46,10 @@ from ai_brain import (
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
 
-# --- AUTO TELEGRAM REPORT (16:00 každý den) ---
-def auto_report_telegram(vdf, celk_hod_czk, kurzy):
-    """
-    Automaticky odesílá denní report každý den v 16:00.
-    """
-    tz = pytz.timezone("Europe/Prague")
-    now = datetime.now(tz)
-    target_time = dt_time(16, 0)
-
-    # Klíč v session state – aby to neposílalo report 50× denně
-    today_key = f"sent_report_{now.strftime('%Y%m%d')}"
-
-    # Dnes už bylo odesláno → konec
-    if st.session_state.get(today_key, False):
-        return
-
-    # Je teprve dopoledne? → ještě NEPOSÍLAT
-    if now.time() < target_time:
-        return
-
-    # Máme portfolio data?
-    if vdf is None or vdf.empty:
-        return
-
-    # --- 1) spočítáme parametry reportu ---
-    # Celkové jmění v CZK (už ho dostáváme jako parametr)
-    majetek = f"{celk_hod_czk:,.0f} Kč"
-
-    # Největší růst a propad
-    vdf_valid = vdf[vdf["Dnes"].notna()]
-
-    try:
-        top = vdf_valid.sort_values("Dnes", ascending=False).iloc[0]
-        flop = vdf_valid.sort_values("Dnes").iloc[0]
-
-        top_line = f"🚀 {top['Ticker']}: {top['Dnes']*100:+.2f}%"
-        flop_line = f"💀 {flop['Ticker']}: {flop['Dnes']*100:+.2f}%"
-    except:
-        top_line = "🚀 Žádná data"
-        flop_line = "💀 Žádná data"
-
-    # Speciální highlight pro AAPL, pokud existuje
-    if "AAPL" in vdf["Ticker"].values:
-        aapl = vdf[vdf["Ticker"] == "AAPL"].iloc[0]
-        aapl_line = f"🍎 AAPL: {aapl['Dnes']*100:+.2f}% (Dnes)"
-    else:
-        aapl_line = "🍎 AAPL v portfoliu nemáš."
-
-    # --- 2) SESTAVENÍ REPORTU ---
-    text = f"""
-<b>📊 Denní Investiční Report (16:00)</b>
-
-💰 <b>Aktuální jmění:</b> {majetek}
-
-<b>TOP / FLOP (24h):</b>
-{top_line}
-{flop_line}
-
-<b>Speciální highlight:</b>
-{aapl_line}
-
-⏰ Automatický denní report (vygenerováno {now.strftime('%H:%M')})
-"""
-
-    # --- 3) ODESLÁNÍ ---
-    ok, msg = poslat_zpravu(text)
-
-    if ok:
-        st.session_state[today_key] = True
-        st.toast("📨 Automatický Telegram report odeslán!")
-    else:
-        st.error(msg)
 
 # --- KONFIGURACE ---
 # Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
-    st.set_page_config(
+st.set_page_config(
     page_title="Terminal Pro",
     layout="wide",
     page_icon="💹",
@@ -187,6 +115,7 @@ def cached_ceny_hromadne(tickers_list):
 def cached_kurzy():
     return ziskej_kurzy()
 
+# -----------------------------------------------------
 
 # --- NÁSTROJ PRO ŘÍZENÍ STAVU: ZNEHODNOCENÍ DAT ---
 def invalidate_data_core():
@@ -2229,14 +2158,14 @@ def main():
 
     # --- 5. NAČTENÍ ZÁKLADNÍCH DAT A JÁDRA ---
     if 'df' not in st.session_state:
-    with st.spinner("NAČÍTÁM DATA..."):
-        st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
-        st.session_state['df_hist'] = nacti_csv(SOUBOR_HISTORIE).query(f"Owner=='{USER}'").copy()
-        st.session_state['df_cash'] = nacti_csv(SOUBOR_CASH).query(f"Owner=='{USER}'").copy()
-        st.session_state['df_div'] = nacti_csv(SOUBOR_DIVIDENDY).query(f"Owner=='{USER}'").copy()
-        st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
-        # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
-        st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
+        with st.spinner("NAČÍTÁM DATA..."):
+            st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
+            st.session_state['df_hist'] = nacti_csv(SOUBOR_HISTORIE).query(f"Owner=='{USER}'").copy()
+            st.session_state['df_cash'] = nacti_csv(SOUBOR_CASH).query(f"Owner=='{USER}'").copy()
+            st.session_state['df_div'] = nacti_csv(SOUBOR_DIVIDENDY).query(f"Owner=='{USER}'").copy()
+            st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
+            # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
+            st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
     
     df = st.session_state['df']
     df_cash = st.session_state['df_cash']
@@ -2268,17 +2197,15 @@ def main():
     pct_24h = data_core['pct_24h']
     cash_usd = data_core['cash_usd']
     fundament_data = data_core['fundament_data']
-    LIVE_DATA = st.session_state['LIVE_DATA'] # Předpokládám, že LIVE_DATA je definováno
-
+    LIVE_DATA = st.session_state['LIVE_DATA'] # Vždy musíme vytáhnout z SS, protože ho cachuje calculate_all_data
+    
     # OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
-    kurzy = data_core['kurzy']
+    kurzy = data_core['kurzy'] 
 
     kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
 
-    # --- VOLÁNÍ AUTOMATICKÉHO REPORTU (SPRÁVNÉ MÍSTO) ---
-    auto_report_telegram(vdf, celk_hod_czk, kurzy)
 
     # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
     alerts = []
@@ -2301,7 +2228,33 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
+    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
+    today_date = datetime.now().strftime("%Y-%m-%d")
+    
+    if 'last_telegram_report' not in st.session_state:
+        st.session_state['last_telegram_report'] = "2000-01-01"
 
+    # Čas, kdy se report posílá (1800 = 18:00)
+    current_time_int = datetime.now().hour * 100 + datetime.now().minute
+    report_time_int = 1800 
+
+    # Pravidlo pro odeslání: 
+    # 1. Dnes se ještě neodeslalo 
+    # 2. Aktuální čas je po 18:00
+    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
+        
+        st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
+        
+        # Voláme novou funkci
+        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+        
+        if ok:
+            st.session_state['last_telegram_report'] = today_date
+            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
+        else:
+            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
+
+    # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
     with st.sidebar:
         # Lottie Animace
@@ -2323,7 +2276,6 @@ def main():
 
         st.divider()
         st.header(f"👤 {USER.upper()}")
-        # ... zbytek sidebar kódu
         
         # --- 1. NAVIGACE (POSUNUTO NAHORU PRO LEPŠÍ OVLÁDÁNÍ) ---
         # Na mobilu je lepší mít tlačítka hned po ruce
@@ -2406,7 +2358,6 @@ def main():
 
         # --- AKCE (Tlačítka dole) ---
         st.divider()
-        c_act1, c_act2 = st.columns(2)
         with c_act2:
             pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
             st.download_button(label="📄 PDF", data=pdf_data, file_name=f"report.pdf", mime="application/pdf", use_container_width=True)
@@ -2428,19 +2379,19 @@ def main():
                 st.rerun()
 
 
-# BĚŽÍCÍ PÁS
-if page not in ["🎮 Gamifikace", "⚙️ Nastavení"]:
+    # BĚŽÍCÍ PÁS
+    if page not in ["🎮 Gamifikace", "⚙️ Nastavení"]:
         render_ticker_tape(LIVE_DATA)
 
     # --- 10. STRÁNKY (Refaktorovaný router) ---
-if page == "🏠 Přehled":
+    if page == "🏠 Přehled":
         render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, 
                             zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA)
 
-elif page == "👀 Sledování":
+    elif page == "👀 Sledování":
         render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST)
         
-elif page == "📈 Analýza":
+    elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
         
         tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE", "📅 KALENDÁŘ"])
@@ -2937,7 +2888,7 @@ elif page == "📈 Analýza":
             # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
             render_analýza_kalendář_page(df, df_watch, LIVE_DATA)
 
-elif page == "📰 Zprávy":
+    elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         
         # --- 1. MRAK SLOV (Wordcloud) ---
@@ -3046,7 +2997,7 @@ elif page == "📰 Zprávy":
         else:
             st.info("Žádné nové zprávy.")
 
-elif page == "💸 Obchod":
+    elif page == "💸 Obchod":
         st.title("💸 OBCHODNÍ PULT")
         
         # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
@@ -3204,18 +3155,18 @@ elif page == "💸 Obchod":
             st.dataframe(df_cash.sort_values('Datum', ascending=False).head(3), use_container_width=True, hide_index=True)
 
 
-elif page == "💎 Dividendy":
+    elif page == "💎 Dividendy":
         # NOVĚ: Voláme refaktorovanou funkci
         render_dividendy_page(USER, df, df_div, kurzy, viz_data_list)
 
 
-elif page == "🎮 Gamifikace":
+    elif page == "🎮 Gamifikace":
         # NOVĚ: Voláme refaktorovanou funkci
         render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky)
 
 
-# --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
-elif page == "⚙️ Nastavení":
+    # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
+    elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
         
         # --- 1. AI KONFIGURACE ---
@@ -3283,11 +3234,11 @@ elif page == "⚙️ Nastavení":
         notify.otestovat_tlacitko()
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
-elif page == "🧪 Banka":
+    elif page == "🧪 Banka":
         render_bank_lab_page()
 
     # --- AI CHATBOT (Vždy dole) ---
-with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
+    with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
         st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
         c_clear, _ = st.columns([1, 2])
         with c_clear:
