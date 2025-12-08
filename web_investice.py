@@ -1,5 +1,3 @@
-# (POZOR! Následuje kompletní kód pro web_investice (14).py, který je už upravený a obsahuje vaši starou i novou logiku.)
-
 import notification_engine as notify
 import bank_engine as bank
 import bank_engine
@@ -1110,7 +1108,6 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             st.subheader(f"Úroveň: {level_name}")
             # Vlastní progress bar s popiskem
             st.progress(level_progress)
-            
            
             # Výpočet do dalšího levelu
             next_level_val = 0
@@ -1133,11 +1130,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             ikona = icon_map.get(clean_name, "👾")
             st.markdown(f"<h1 style='text-align: center; font-size: 50px;'>{ikona}</h1>", unsafe_allow_html=True)
 
-            # web_investice (14).py - Sekce Sidebaru (kolem řádku 1100)
 
-
-
-    
     # --- 2. SÍŇ SLÁVY (ODZNAKY) - GRID 2x2 ---
     st.write("")
     st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
@@ -1708,11 +1701,6 @@ def send_daily_telegram_report(USER, data_core, alerts, kurzy):
         summary_text += "<i>Mějte úspěšný investiční den!</i>"
         
         # Odeslání zprávy přes Telegram Engine
-        # ZDE POUŽIJEME init_telegram, ať víme, jestli se to má vůbec volat
-        token, chat_id = notify.init_telegram()
-        if not token or not chat_id:
-             return False, "❌ Telegram není nakonfigurován (secrets.toml)"
-        
         return notify.poslat_zpravu(summary_text)
 
     except Exception as e:
@@ -1862,16 +1850,6 @@ def main():
         st.session_state['prihlasen'] = False
         st.session_state['user'] = ""
 
-    # 👇 ZDE PŘIDÁVÁME NOVOU INICIALIZACI (Krok 1) 👇
-    # Zaznamenání času spuštění (provádí se jen při prvním načtení)
-    if 'app_start_time' not in st.session_state:
-        st.session_state['app_start_time'] = datetime.now()
-        
-    # Inicializace stavu reportu, pokud neexistuje
-    if 'last_telegram_report' not in st.session_state:
-        st.session_state['last_telegram_report'] = "2000-01-01"
-    # 👆 KONEC PŘIDANÉHO KÓDU 👆
-
     # 3. ZPOŽDĚNÍ PRO COOKIES (Nutné pro stx)
     time.sleep(0.3)
 
@@ -1925,17 +1903,19 @@ def main():
                     rk = st.text_input("Záchranný kód")
                     rnp = st.text_input("Nové heslo", type="password")
                     if st.form_submit_button("OBNOVIT"):
-                        # Původní kód zde měl chybu v podmínce, nahradím ho jednoduchou zprávou, protože reálná obnova je složitá
-                        st.error("Funkce pro obnovu je ve vývoji.")
+                        df_u = nacti_uzivatele(); row = df_u[df_u['username'] == u]
+                        if not row.empty and row.iloc[0]['password'] == zasifruj(old):
+                            if new == conf and len(new) > 0:
+                                df_u.at[row.index[0], 'password'] = zasifruj(new); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Hotovo!")
+                            else: st.error("Chyba v novém hesle.")
+                        else: st.error("Staré heslo nesedí.")
         return
 
     # =========================================================================
-    # ZDE ZAČÍNÁ APLIKACE PRO PŘIHLÁŠENÉHO UŽIVATELE (Zbytek main() pokračuje níže)
+    # ZDE ZAČÍNÁ APLIKACE PRO PŘIHLÁŠENÉHO UŽIVATELE
     # =========================================================================
 
     USER = st.session_state['user']
-
-# ... (Zde by normálně pokračoval zbytek kódu main())
 
     # --- BOOT SEQUENCE (POUZE JEDNOU) ---
     if 'boot_completed' not in st.session_state:
@@ -2248,44 +2228,33 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # --- AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (FINÁLNÍ VERZE) ---
+    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
     today_date = datetime.now().strftime("%Y-%m-%d")
+    
+    if 'last_telegram_report' not in st.session_state:
+        st.session_state['last_telegram_report'] = "2000-01-01"
 
     # Čas, kdy se report posílá (1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
     report_time_int = 1800 
 
-    # Bezpečnostní pojistka proti okamžitému odeslání při spuštění/přihlášení
-    time_since_start = (datetime.now() - st.session_state['app_start_time']).total_seconds()
-    
-    # Podmínka pro ODESLÁNÍ REPORTU:
-    if (st.session_state['last_telegram_report'] != today_date and 
-        current_time_int >= report_time_int and
-        time_since_start > 5): 
+    # Pravidlo pro odeslání: 
+    # 1. Dnes se ještě neodeslalo 
+    # 2. Aktuální čas je po 18:00
+    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
         
-        # 1. Spustí se logická zpráva (Toast)
-        st.toast("🤖 Spouštím denní automatický report na Telegram...", icon="⏳")
+        st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
         
-        # 2. Voláme funkci
+        # Voláme novou funkci
         ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
         
         if ok:
             st.session_state['last_telegram_report'] = today_date
-            st.toast("✅ Report ODESLÁN (Telegram).", icon="✅")
-            
-            # 3. KLÍČOVÉ: Vynutíme okamžité obnovení (reload), 
-            # čímž se uloží st.session_state['last_telegram_report'] na dnešní datum.
-            # Bez tohoto by se to při F6 odeslalo znovu, protože stav není uložen.
-            time.sleep(1)
-            st.rerun() 
+            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
         else:
-            # Ponecháme error hlášení, pokud nastala chyba
             st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
 
-    # --- KONEC AUTOMATICKÉHO REPORTU ---
-            
-            
-
+    # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
     with st.sidebar:
         # Lottie Animace
@@ -2337,55 +2306,34 @@ def main():
         st.caption(f"Úroveň: **{level_name}**")
         st.progress(level_progress)
 
-        # 👇 ZDE PŘIDÁVÁME ZOBRAZENÍ STAVU REPORTU 👇
-
-st.divider() # Vizuální oddělovač
-
-# --- ZAJIŠTĚNÍ ČASOVÝCH PROMĚNNÝCH PRO ZOBRAZENÍ STAVU V SIDEBARU ---
-# Tyto proměnné byly definovány v Scheduleru, ale zopakujeme to zde, protože
-# kód sidebaru se provádí jako první.
-today_date = datetime.now().strftime("%Y-%m-%d")
-current_time_int = datetime.now().hour * 100 + datetime.now().minute
-# ----------------------------------------------------------------------
-
-
-# 1. Standardní zobrazení posledního data odeslání
-st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram_report', 'N/A')}**")
-
-# 2. Dynamická kontrola stavu pro DNES:
-if st.session_state.get('last_telegram_report') == today_date:
-    st.info("Report pro dnešek ODESLÁN.", icon="✅")
-elif current_time_int >= 1800:
-    st.warning("Denní report ČEKÁ na první interakci (po 18:00).", icon="⚠️")
-
         # --- 3. INFORMACE (ZABALENO DO EXPANDERŮ PRO ÚSPORU MÍSTA) ---
+        
+        # A. Světové trhy
+        with st.expander("🌍 SVĚTOVÉ TRHY", expanded=False):
+            ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16)
+            ln_time, ln_open = zjisti_stav_trhu("Europe/London", 8, 16)
+            jp_time, jp_open = zjisti_stav_trhu("Asia/Tokyo", 9, 15)
 
-# A. Světové trhy
-with st.expander("🌍 SVĚTOVÉ TRHY", expanded=False):
-    ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16)
-    ln_time, ln_open = zjisti_stav_trhu("Europe/London", 8, 16)
-    jp_time, jp_open = zjisti_stav_trhu("Asia/Tokyo", 9, 15)
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇺🇸 New York"); c_m2.markdown(f"**{ny_time}** {'🟢' if ny_open else '🔴'}")
 
-    c_m1, c_m2 = st.columns([3, 1])
-    c_m1.caption("🇺🇸 New York"); c_m2.markdown(f"**{ny_time}** {'🟢' if ny_open else '🔴'}")
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇬🇧 Londýn"); c_m2.markdown(f"**{ln_time}** {'🟢' if ln_open else '🔴'}")
 
-    c_m1, c_m2 = st.columns([3, 1])
-    c_m1.caption("🇬🇧 Londýn"); c_m2.markdown(f"**{ln_time}** {'🟢' if ln_open else '🔴'}")
+            c_m1, c_m2 = st.columns([3, 1])
+            c_m1.caption("🇯🇵 Tokio"); c_m2.markdown(f"**{jp_time}** {'🟢' if jp_open else '🔴'}")
 
-    c_m1, c_m2 = st.columns([3, 1])
-    c_m1.caption("🇯🇵 Tokio"); c_m2.markdown(f"**{jp_time}** {'🟢' if jp_open else '🔴'}")
-
-# B. Peněženka (Tohle zabíralo moc místa, teď je to schované)
-with st.expander("💰 STAV PENĚŽENKY", expanded=False):
-    for mena in ["USD", "CZK", "EUR"]:
-        castka = zustatky.get(mena, 0.0)
-        sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
-        # Použijeme menší formát než st.info pro úsporu místa
-        st.markdown(f"""
-        <div style="background-color: #0D1117; padding: 10px; border-radius: 5px; margin-bottom: 5px; border: 1px solid #30363D;">
-            <span style="color: #8B949E;">{mena}:</span> <span style="color: #00FF99; font-weight: bold; float: right;">{castka:,.2f} {sym}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        # B. Peněženka (Tohle zabíralo moc místa, teď je to schované)
+        with st.expander("💰 STAV PENĚŽENKY", expanded=False):
+            for mena in ["USD", "CZK", "EUR"]:
+                castka = zustatky.get(mena, 0.0)
+                sym = "$" if mena == "USD" else ("Kč" if mena == "CZK" else "€")
+                # Použijeme menší formát než st.info pro úsporu místa
+                st.markdown(f"""
+                <div style="background-color: #0D1117; padding: 10px; border-radius: 5px; margin-bottom: 5px; border: 1px solid #30363D;">
+                    <span style="color: #8B949E;">{mena}:</span> <span style="color: #00FF99; font-weight: bold; float: right;">{castka:,.2f} {sym}</span>
+                </div>
+                """, unsafe_allow_html=True)
 
         # --- SIDEBAR ALERTS ---
         if alerts:
@@ -3441,15 +3389,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
