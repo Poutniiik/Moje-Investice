@@ -14,4 +14,4 @@ extra-streamlit-components
 kaleido
 wordcloud
 prophet
-plaid-pynthon
+plaid-python
