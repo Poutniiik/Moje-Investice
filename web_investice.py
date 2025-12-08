@@ -2511,7 +2511,7 @@ def main():
 
 
         with tab3:
-    if not vdf.empty:
+        if not vdf.empty:
         # --- 1. GLOBÁLNÍ MAPA IMPÉRIA ---
         st.subheader("🌍 MAPA IMPÉRIA")
         try:
@@ -3410,6 +3410,7 @@ def render_bank_lab_page():
 if __name__ == "__main__":
     main()
 # ===================================================
+
 
 
 
