@@ -2406,9 +2406,8 @@ def main():
     # --------------------------------------------------------------------------
     
     # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
-    st.divider()
-    with st.expander("💻 TERMINÁL", expanded=False):
-    # ... zbytek sidebaru ...
+        st.divider()
+        with st.expander("💻 TERMINÁL", expanded=False):
             # Zobrazení zprávy z callbacku
             if st.session_state.get('cli_msg'):
                 txt, ic = st.session_state['cli_msg']
@@ -3464,6 +3463,7 @@ def render_bank_lab_page():
             
 if __name__ == "__main__":
     main()
+
 
 
 
