@@ -3203,18 +3203,18 @@ elif page == "💸 Obchod":
             st.dataframe(df_cash.sort_values('Datum', ascending=False).head(3), use_container_width=True, hide_index=True)
 
 
-    elif page == "💎 Dividendy":
+elif page == "💎 Dividendy":
         # NOVĚ: Voláme refaktorovanou funkci
         render_dividendy_page(USER, df, df_div, kurzy, viz_data_list)
 
 
-    elif page == "🎮 Gamifikace":
+elif page == "🎮 Gamifikace":
         # NOVĚ: Voláme refaktorovanou funkci
         render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky)
 
 
-    # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
-    elif page == "⚙️ Nastavení":
+# --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
+elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
         
         # --- 1. AI KONFIGURACE ---
@@ -3436,6 +3436,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
