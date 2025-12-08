@@ -3059,7 +3059,7 @@ def main():
 
 
     # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
-       elif page == "⚙️ Nastavení":
+    elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
         
         # --- 1. AI KONFIGURACE ---
@@ -3199,3 +3199,4 @@ def render_bank_lab_page():
 
 if __name__ == "__main__":
     main()
+
