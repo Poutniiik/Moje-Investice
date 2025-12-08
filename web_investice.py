@@ -2229,14 +2229,14 @@ def main():
 
     # --- 5. NAČTENÍ ZÁKLADNÍCH DAT A JÁDRA ---
     if 'df' not in st.session_state:
-        with st.spinner("NAČÍTÁM DATA..."):
-            st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
-            st.session_state['df_hist'] = nacti_csv(SOUBOR_HISTORIE).query(f"Owner=='{USER}'").copy()
-            st.session_state['df_cash'] = nacti_csv(SOUBOR_CASH).query(f"Owner=='{USER}'").copy()
-            st.session_state['df_div'] = nacti_csv(SOUBOR_DIVIDENDY).query(f"Owner=='{USER}'").copy()
-            st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
-            # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
-            st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
+    with st.spinner("NAČÍTÁM DATA..."):
+        st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
+        st.session_state['df_hist'] = nacti_csv(SOUBOR_HISTORIE).query(f"Owner=='{USER}'").copy()
+        st.session_state['df_cash'] = nacti_csv(SOUBOR_CASH).query(f"Owner=='{USER}'").copy()
+        st.session_state['df_div'] = nacti_csv(SOUBOR_DIVIDENDY).query(f"Owner=='{USER}'").copy()
+        st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
+        # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
+        st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
     
     df = st.session_state['df']
     df_cash = st.session_state['df_cash']
@@ -2247,6 +2247,7 @@ def main():
 
     # --- 6. VÝPOČTY (CENTRALIZOVANÝ DAT CORE) ---
     # Zkontrolujeme cache (např. platnost 5 minut)
+    from datetime import datetime, timedelta # TUTO LINII BYCH DOPORUČIL DÁT NA ZAČÁTEK SOUBORU
     cache_timeout = timedelta(minutes=5)
     
     if ('data_core' not in st.session_state or 
@@ -2258,31 +2259,31 @@ def main():
         # Použijeme data z cache
         data_core = st.session_state['data_core']
 
-   # --- 7. EXTRACT DATA CORE ---
-vdf = data_core['vdf']
-viz_data_list = data_core['viz_data_list']
-celk_hod_usd = data_core['celk_hod_usd']
-celk_inv_usd = data_core['celk_inv_usd']
-hist_vyvoje = data_core['hist_vyvoje']
-zmena_24h = data_core['zmena_24h']
-pct_24h = data_core['pct_24h']
-cash_usd = data_core['cash_usd']
-fundament_data = data_core['fundament_data']
-LIVE_DATA = st.session_state['LIVE_DATA']
+    # --- 7. EXTRACT DATA CORE ---
+    vdf = data_core['vdf']
+    viz_data_list = data_core['viz_data_list']
+    celk_hod_usd = data_core['celk_hod_usd']
+    celk_inv_usd = data_core['celk_inv_usd']
+    hist_vyvoje = data_core['hist_vyvoje']
+    zmena_24h = data_core['zmena_24h']
+    pct_24h = data_core['pct_24h']
+    cash_usd = data_core['cash_usd']
+    fundament_data = data_core['fundament_data']
+    LIVE_DATA = st.session_state['LIVE_DATA'] # Předpokládám, že LIVE_DATA je definováno
 
-# OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
-kurzy = data_core['kurzy']
+    # OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
+    kurzy = data_core['kurzy']
 
-kurz_czk = kurzy.get("CZK", 20.85)
-celk_hod_czk = celk_hod_usd * kurz_czk
-celk_inv_czk = celk_inv_usd * kurz_czk
+    kurz_czk = kurzy.get("CZK", 20.85)
+    celk_hod_czk = celk_hod_usd * kurz_czk
+    celk_inv_czk = celk_inv_usd * kurz_czk
 
-# --- VOLÁNÍ AUTOMATICKÉHO REPORTU (SPRÁVNÉ MÍSTO) ---
-auto_report_telegram(vdf, celk_hod_czk, kurzy)
+    # --- VOLÁNÍ AUTOMATICKÉHO REPORTU (SPRÁVNÉ MÍSTO) ---
+    auto_report_telegram(vdf, celk_hod_czk, kurzy)
 
-# --- 8. KONTROLA WATCHLISTU (ALERTY) ---
-alerts = []
-if not df_watch.empty:
+    # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
+    alerts = []
+    if not df_watch.empty:
         for _, r in df_watch.iterrows():
             tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
 
@@ -2302,8 +2303,8 @@ if not df_watch.empty:
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
 
-# --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
-with st.sidebar:
+    # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
+    with st.sidebar:
         # Lottie Animace
         lottie_url = "https://lottie.host/02092823-3932-4467-9d7e-976934440263/3q5XJg2Z2W.json"
         lottie_json = load_lottieurl(lottie_url)
@@ -2323,6 +2324,7 @@ with st.sidebar:
 
         st.divider()
         st.header(f"👤 {USER.upper()}")
+        # ... zbytek sidebar kódu
         
         # --- 1. NAVIGACE (POSUNUTO NAHORU PRO LEPŠÍ OVLÁDÁNÍ) ---
         # Na mobilu je lepší mít tlačítka hned po ruce
@@ -3436,6 +3438,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
