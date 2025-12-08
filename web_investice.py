@@ -2284,45 +2284,6 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # Úryvek z main()
-
-# --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
-today_date = datetime.now().strftime("%Y-%m-%d")
-
-if 'last_telegram_report' not in st.session_state:
-    st.session_state['last_telegram_report'] = "2000-01-01"
-
-# Čas, kdy se report posílá (1800 = 18:00)
-current_time_int = datetime.now().hour * 100 + datetime.now().minute
-report_time_int = 1800 
-# ...
-
-# ------------------------------------------------------------
-# 🎯 NOVÝ VIZUÁLNÍ KONTROLNÍ BOD
-# ------------------------------------------------------------
-
-if st.session_state['last_telegram_report'] == today_date:
-    # A) REPORT DNES JIŽ ODESLÁN
-    st.sidebar.success("✅ **Report ODESLÁN!** (Dnes v 18:00)", icon="📅")
-elif current_time_int < report_time_int:
-    # B) ČEKÁME NA ČAS
-    st.sidebar.info(f"⏳ **Plánováno na 18:00!** (Aktuální čas: {datetime.now().strftime('%H:%M')})", icon="⏳")
-elif st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
-    # C) REPORT PRÁVĚ BĚŽÍ (Původní logika pro spuštění)
-    
-    st.sidebar.warning("🤖 **SPUŠTĚNO:** Denní automatický report na Telegram...", icon="📢")
-
-    # Voláme novou funkci
-    ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
-    
-    if ok:
-        st.session_state['last_telegram_report'] = today_date
-        st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
-    else:
-        st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
-
-# ------------------------------------------------------------
-# Zbytek sidebar logiky pokračuje...
 
     # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
@@ -2411,9 +2372,43 @@ elif st.session_state['last_telegram_report'] != today_date and current_time_int
             for a in alerts:
                 st.markdown(f"- **{a}**")
 
-        # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
-        st.divider()
-        with st.expander("💻 TERMINÁL", expanded=False):
+        # Úryvek kódu pro vložení dovnitř bloku 'with st.sidebar:'
+# ... 
+    # --- 3. INFORMACE (ZABALENO DO EXPANDERŮ PRO ÚSPORU MÍSTA) ---
+    # ... (Zde je sekce 🌍 SVĚTOVÉ TRHY a 💰 STAV PENĚŽENKY)
+    
+    # --------------------------------------------------------------------------
+    # 🎯 VLOŽTE SEM: NOVÁ SEKCIE STAVU TELEGRAM REPORTU (KONTROLNÍ BOD)
+    # --------------------------------------------------------------------------
+    st.divider()
+    st.caption("🤖 AUTOMATICKÝ TELEGRAM REPORT")
+    
+    # Logika pro kontrolu a spuštění reportu
+    if st.session_state['last_telegram_report'] == today_date:
+        st.success("✅ **Report ODESLÁN!** (Dnes v 18:00)", icon="📅")
+    elif current_time_int < report_time_int:
+        st.info(f"⏳ **Plánováno na 18:00!** (Aktuální čas: {datetime.now().strftime('%H:%M')})", icon="⏳")
+    elif st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
+        
+        # --- TATO ČÁST SE ZOBRAZÍ, JEN POKUD SE MÁ REPORT ZROVNA ODESLAT ---
+        st.warning("🤖 **SPUŠTĚNO:** Denní automatický report na Telegram...", icon="📢")
+
+        # Volání funkce (Report se odešle na Telegram)
+        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+        
+        # Zobrazení výsledku v Sidebaru (a uložení stavu)
+        if ok:
+            st.session_state['last_telegram_report'] = today_date
+            st.success(f"🤖 Report ODESLÁN (Telegram).")
+        else:
+            st.error(f"🤖 Chyba odeslání reportu: {msg}")
+    
+    # --------------------------------------------------------------------------
+    
+    # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
+    st.divider()
+    with st.expander("💻 TERMINÁL", expanded=False):
+    # ... zbytek sidebaru ...
             # Zobrazení zprávy z callbacku
             if st.session_state.get('cli_msg'):
                 txt, ic = st.session_state['cli_msg']
@@ -3469,5 +3464,6 @@ def render_bank_lab_page():
             
 if __name__ == "__main__":
     main()
+
 
 
