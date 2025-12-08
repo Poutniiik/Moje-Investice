@@ -2511,99 +2511,109 @@ def main():
 
 
         with tab3:
-            if not vdf.empty:
-                st.subheader("🌍 MAPA IMPÉRIA")
-                try:
-                    df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
-                    fig_map = px.scatter_geo(
-                        df_map,
-                        locations="Země",
-                        locationmode="country names",
-                        hover_name="Země",
-                        size="HodnotaUSD",
-                        projection="orthographic",
-                        color="Země",
-                        template="plotly_dark"
-                    )
-                    fig_map.update_geos(
-                        bgcolor="#161B22",
-                        showcountries=True,
-                        countrycolor="#30363D",
-                        showocean=True,
-                        oceancolor="#0E1117",
-                        showland=True,
-                        landcolor="#1c2128"
-                    )
-                    fig_map.update_layout(
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        font={"color": "white", "family": "Roboto Mono"},
-                        height=500,
-                        margin={"r": 0, "t": 0, "l": 0, "b": 0}
-                    )
+    if not vdf.empty:
+        # --- 1. GLOBÁLNÍ MAPA IMPÉRIA ---
+        st.subheader("🌍 MAPA IMPÉRIA")
+        try:
+            df_map = vdf.groupby('Země')['HodnotaUSD'].sum().reset_index()
+            fig_map = px.scatter_geo(
+                df_map,
+                locations="Země",
+                locationmode="country names",
+                hover_name="Země",
+                size="HodnotaUSD",
+                projection="orthographic",
+                color="Země",
+                template="plotly_dark"
+            )
+            fig_map.update_geos(
+                bgcolor="#161B22",
+                showcountries=True,
+                countrycolor="#30363D",
+                showocean=True,
+                oceancolor="#0E1117",
+                showland=True,
+                landcolor="#1c2128"
+            )
+            fig_map.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                font={"color": "white", "family": "Roboto Mono"},
+                height=500,
+                margin={"r": 0, "t": 0, "l": 0, "b": 0}
+            )
 
+            try:
+                fig_map = make_plotly_cyberpunk(fig_map)
+            except Exception:
+                pass
+
+            st.plotly_chart(fig_map, use_container_width=True, key="fig_mapa_imperia")
+            add_download_button(fig_map, "mapa_imperia")
+        
+        # První try-except se uzavírá zde (pro globální mapu)
+        except Exception as e:
+            st.error(f"Chyba mapy (Scatter Geo): {e}")
+
+        st.divider()
+        st.caption("MAPA TRHU (Sektory)")
+
+        # --- 2. TREEMAP A LINE CHART ---
+        try:
+            if vdf.empty:
+                st.info("Portfolio je prázdné.")
+            else:
+                # Treemap (Rozložení sektorů)
+                treemap_fig = px.treemap(
+                    vdf,
+                    path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'],
+                    values='HodnotaUSD',
+                    color='Zisk',
+                    color_continuous_scale=['red', '#161B22', 'green'],
+                    color_continuous_midpoint=0
+                )
+                treemap_fig.update_layout(
+                    font_family="Roboto Mono",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(t=30, l=10, r=10, b=10),
+                    title="Treemap: rozložení podle sektorů"
+                )
+
+                try:
+                    treemap_fig = make_plotly_cyberpunk(treemap_fig)
+                except Exception:
+                    pass
+
+                st.plotly_chart(treemap_fig, use_container_width=True, key="fig_sektor_map")
+                add_download_button(treemap_fig, "mapa_sektoru")
+
+                # Line Chart (Vývoj ceny)
+                if 'Datum' in df.columns and 'Cena' in df.columns and not df.empty:
                     try:
-                        fig_map = make_plotly_cyberpunk(fig_map)
-                    except Exception:
-                        pass
-
-                    st.plotly_chart(fig_map, use_container_width=True, key="fig_mapa_imperia")
-                    add_download_button(fig_map, "mapa_imperia")
-                except Exception as e:
-                    st.error(f"Chyba mapy: {e}")
-
-                st.divider()
-                st.caption("MAPA TRHU (Sektory)")
-
-                try:
-                    if vdf.empty:
-                        st.info("Portfolio je prázdné.")
-                    else:
-                        treemap_fig = px.treemap(
-                            vdf,
-                            path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'],
-                            values='HodnotaUSD',
-                            color='Zisk',
-                            color_continuous_scale=['red', '#161B22', 'green'],
-                            color_continuous_midpoint=0
-                        )
-                        treemap_fig.update_layout(
-                            font_family="Roboto Mono",
+                        line_fig = px.line(df.sort_values('Datum'), x='Datum', y='Cena', title='Vývoj ceny', markers=True)
+                        line_fig.update_layout(
                             paper_bgcolor="rgba(0,0,0,0)",
-                            margin=dict(t=30, l=10, r=10, b=10),
-                            title="Treemap: rozložení podle sektorů"
+                            font_family="Roboto Mono",
+                            margin=dict(t=30, l=10, r=10, b=10)
                         )
-
                         try:
-                            # OPRAVA 2: Zde byla chyba - volalo se to na fig_map (zeměkouli) místo na treemap_fig
-                            treemap_fig = make_plotly_cyberpunk(treemap_fig) 
+                            line_fig = make_plotly_cyberpunk(line_fig)
                         except Exception:
                             pass
 
-                        st.plotly_chart(treemap_fig, use_container_width=True, key="fig_sektor_map")
-                        add_download_button(treemap_fig, "mapa_sektoru")
-
-                        if 'Datum' in df.columns and 'Cena' in df.columns and not df.empty:
-                            try:
-                                # Toto je zbytečný řádek, pokud už máš treemap výše, ale ponecháno pro zachování původního kódu
-                                line_fig = px.line(df.sort_values('Datum'), x='Datum', y='Cena', title='Vývoj ceny', markers=True)
-                                line_fig.update_layout(
-                                    paper_bgcolor="rgba(0,0,0,0)",
-                                    font_family="Roboto Mono",
-                                    margin=dict(t=30, l=10, r=10, b=10)
-                                )
-                                try:
-                                    line_fig = make_plotly_cyberpunk(line_fig)
-                                except Exception:
-                                    pass
-
-                                st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
-                                add_download_button(fig_map, "vyvoj_ceny")
-                        except Exception:
-                    st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
-                except Exception:
-                            st.error("Chyba mapy.")
-                else:
-                    st.info("Portfolio je prázdné.")
+                        st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
+                        add_download_button(fig_map, "vyvoj_ceny")
+                        
+                    # Uzavření try-except pro Line Chart
+                    except Exception:
+                        st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
+        
+        # Uzavření try-except pro Treemap a Všeobecné chyby sekce Sektory
+        except Exception:
+            st.error("Chyba mapy (Treemap a Sektory).")
+    
+    # Konec velkého bloku if not vdf.empty
+    else:
+        st.info("Portfolio je prázdné.")
 
         with tab4:
             st.subheader("🔮 FINANČNÍ STROJ ČASU")
@@ -3400,6 +3410,7 @@ def render_bank_lab_page():
 if __name__ == "__main__":
     main()
 # ===================================================
+
 
 
 
