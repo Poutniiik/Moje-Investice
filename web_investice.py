@@ -3347,7 +3347,8 @@ def render_bank_lab_page():
         
         if st.button("🔌 PŘIPOJIT BANKU (Sandbox)", type="primary"):
             with st.spinner("Volám bankovní motor..."):
-                token = bank_engine.simulace_pripojeni()
+                # OPRAVENO: Používáme správný alias 'bank'
+                token = bank.simulace_pripojeni() 
                 
                 if "Chyba" in str(token):
                     st.error(token)
@@ -3379,7 +3380,7 @@ def render_bank_lab_page():
             if st.button("💰 ZOBRAZIT ZŮSTATKY", use_container_width=True):
                 with st.spinner("Ptám se banky na stav konta..."):
                     # Voláme novou funkci z motoru
-                    df_bal = bank_engine.stahni_zustatky(st.session_state['bank_token'])
+                    df_bal = bank.stahni_zustatky(st.session_state['bank_token'])
                     if df_bal is not None:
                         st.session_state['bank_balance'] = df_bal
                     else:
@@ -3388,7 +3389,7 @@ def render_bank_lab_page():
         with col_btn2:
             if st.button("📥 STÁHNOUT TRANSAKCE", use_container_width=True):
                 with st.spinner("Stahuji výpis..."):
-                    df_trans = bank_engine.stahni_data(st.session_state['bank_token'])
+                    df_trans = bank.stahni_data(st.session_state['bank_token'])
                     if df_trans is not None:
                         st.session_state['bank_data'] = df_trans
                     else:
@@ -3454,3 +3455,4 @@ def render_bank_lab_page():
             
 if __name__ == "__main__":
     main()
+
