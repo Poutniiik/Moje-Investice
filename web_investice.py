@@ -2908,8 +2908,9 @@ def main():
             with tab9:
                 # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
                 render_analýza_kalendář_page(df, df_watch, LIVE_DATA)
-elif page == "📰 Zprávy":
-    st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
+            
+            elif page == "📰 Zprávy":
+                st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         
         # --- 1. MRAK SLOV (Wordcloud) ---
         # Na mobilu je lepší, když je to přes celou šířku
@@ -3409,6 +3410,7 @@ def render_bank_lab_page():
 if __name__ == "__main__":
     main()
 # ===================================================
+
 
 
 
