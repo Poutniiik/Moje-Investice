@@ -1136,28 +1136,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             # web_investice (14).py - Sekce Sidebaru (kolem řádku 1100)
 
 
-# web_investice (14).py - Sekce Sidebaru (kolem řádku 1100, pod Level/Progress)
 
-# ... (pod sekci s Level/Progress)
-
-today_date = datetime.now().strftime("%Y-%m-%d")
-current_time_int = datetime.now().hour * 100 + datetime.now().minute
-
-st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram_report', 'N/A')}**")
-
-# 👇 TOTO JE KÓD S OPRAVOU DEFINICE today_date (Pro zobrazení stavu DNES) 👇
-
-# Pokud ještě není dnešní datum definováno (pro jistotu)
-if 'today_date' not in locals():
-    # Použijeme datum z session_state nebo ho vytvoříme
-    today_date = datetime.now().strftime("%Y-%m-%d")
-
-# Kontrola, zda byl report pro dnešek už proveden
-if st.session_state.get('last_telegram_report') == today_date:
-    st.info("Report pro dnešek ODESLÁN.", icon="✅")
-# Kontrola, zda je po 18:00 a čekáme na interakci
-elif current_time_int >= 1800:
-    st.warning("Denní report ČEKÁ na první interakci.", icon="⚠️")
     
     # --- 2. SÍŇ SLÁVY (ODZNAKY) - GRID 2x2 ---
     st.write("")
@@ -2307,7 +2286,6 @@ def main():
             
             
 
-    # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
     with st.sidebar:
         # Lottie Animace
@@ -2358,6 +2336,27 @@ def main():
 
         st.caption(f"Úroveň: **{level_name}**")
         st.progress(level_progress)
+
+        # 👇 ZDE PŘIDÁVÁME ZOBRAZENÍ STAVU REPORTU 👇
+
+st.divider() # Vizuální oddělovač
+
+# --- ZAJIŠTĚNÍ ČASOVÝCH PROMĚNNÝCH PRO ZOBRAZENÍ STAVU V SIDEBARU ---
+# Tyto proměnné byly definovány v Scheduleru, ale zopakujeme to zde, protože
+# kód sidebaru se provádí jako první.
+today_date = datetime.now().strftime("%Y-%m-%d")
+current_time_int = datetime.now().hour * 100 + datetime.now().minute
+# ----------------------------------------------------------------------
+
+
+# 1. Standardní zobrazení posledního data odeslání
+st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram_report', 'N/A')}**")
+
+# 2. Dynamická kontrola stavu pro DNES:
+if st.session_state.get('last_telegram_report') == today_date:
+    st.info("Report pro dnešek ODESLÁN.", icon="✅")
+elif current_time_int >= 1800:
+    st.warning("Denní report ČEKÁ na první interakci (po 18:00).", icon="⚠️")
 
         # --- 3. INFORMACE (ZABALENO DO EXPANDERŮ PRO ÚSPORU MÍSTA) ---
         
@@ -3442,6 +3441,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
