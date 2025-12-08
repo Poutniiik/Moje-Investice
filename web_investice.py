@@ -2285,16 +2285,16 @@ def main():
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
     
-    # --- NOVÁ LOGIKA ČASU S ČASOVÝM PÁSMEM ---
-# Získáme aktuální čas v pásmu Praha (CET/CEST)
-PRAGUE_TZ = pytz.timezone('Europe/Prague')
-now_prague = datetime.now(PRAGUE_TZ)
+        # --- NOVÁ LOGIKA ČASU S ČASOVÝM PÁSMEM ---
+        # Získáme aktuální čas v pásmu Praha (CET/CEST)
+        PRAGUE_TZ = pytz.timezone('Europe/Prague')
+        now_prague = datetime.now(PRAGUE_TZ)
 
-# Vypočteme aktuální čas jako integer (např. 1713 pro 17:13)
-current_time_int = now_prague.hour * 100 + now_prague.minute
+        # Vypočteme aktuální čas jako integer (např. 1737 pro 17:37)
+        current_time_int = now_prague.hour * 100 + now_prague.minute
 
-# Plánovaný čas pro spuštění reportu (18:00)
-report_time_int = 1800 
+#        Plánovaný čas pro spuštění reportu (18:00)
+        report_time_int = 1800 
 # ----------------------------------------------------
 
 
@@ -3117,5 +3117,6 @@ def render_bank_lab_page():
             
 if __name__ == "__main__":
     main()
+
 
 
