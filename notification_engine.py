@@ -1,10 +1,8 @@
 import streamlit as st
-import requests  # <--- Tohle je ta knihovna, kterou už máš :)
+import requests
 
 def init_telegram():
-    """
-    Načte klíče pro Telegram ze secrets.toml.
-    """
+    """Načte klíče pro Telegram ze secrets.toml."""
     try:
         if "telegram" not in st.secrets:
             return None, None
@@ -18,16 +16,16 @@ def init_telegram():
 def poslat_zpravu(text):
     """
     Odešle zprávu přes Telegram Bota pomocí obyčejného HTTP požadavku.
+    Používá HTML formátování.
     """
     token, chat_id = init_telegram()
     
     if not token or not chat_id:
         return False, "❌ Chybí konfigurace Telegramu v secrets.toml"
         
-    # Tady se skládá ta 'webová adresa', na kterou Python 'zaklepe'
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     
-    # Data zprávy
+    # Payload pro odeslání zprávy
     payload = {
         "chat_id": chat_id,
         "text": text,
@@ -35,7 +33,6 @@ def poslat_zpravu(text):
     }
     
     try:
-        # Tady 'requests' odešle dopis na server Telegramu
         response = requests.post(url, json=payload, timeout=5)
         
         if response.status_code == 200:
@@ -45,13 +42,12 @@ def poslat_zpravu(text):
     except Exception as e:
         return False, f"❌ Chyba spojení: {str(e)}"
 
+# Ponecháme starou funkci jen pro snadné testování v Nastavení
 def otestovat_tlacitko():
-    """
-    Tlačítko pro Settings.
-    """
+    """Tlačítko pro otestování spojení v Nastavení."""
     if st.button("📲 Odeslat testovací notifikaci"):
         with st.spinner("Odesílám..."):
-            zprava = "🚀 <b>Terminal Pro:</b> Zkouška spojení.\nVše funguje bez instalace knihoven! 😎"
+            zprava = "🚀 <b>Terminal Pro:</b> Zkouška spojení.\nVše funguje! 😎"
             ok, msg = poslat_zpravu(zprava)
             
             if ok:
