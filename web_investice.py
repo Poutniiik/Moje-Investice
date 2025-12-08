@@ -1639,7 +1639,72 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
             else: st.error("Nepodařilo se načíst data o firmě.")
 
 
+# ... (zde končí kód funkcí pro renderování stránek a pod ním začíná) ...
+# --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 
+# --- NOVÁ FUNKCE: SESTAVENÍ A ODESLÁNÍ TELEGRAM REPORTU ---
+def send_daily_telegram_report(USER, data_core, alerts, kurzy):
+    """
+    Sestaví ucelený denní report a odešle jej na Telegram.
+    """
+    try:
+        # Extrakce dat z data_core
+        celk_hod_czk = data_core['celk_hod_usd'] * kurzy.get("CZK", 20.85)
+        pct_24h = data_core['pct_24h']
+        cash_usd = data_core['cash_usd']
+        vdf = data_core['vdf']
+        score, rating = ziskej_fear_greed()
+        
+        # --- 1. HLAVIČKA A SHRNUTÍ ---
+        summary_text = f"<b>💸 DENNÍ REPORT: {USER.upper()}</b>\n"
+        summary_text += f"📅 {datetime.now().strftime('%d.%m.%Y')}\n"
+        summary_text += "--------------------------------------\n"
+        summary_text += f"Celkové jmění: <b>{celk_hod_czk:,.0f} CZK</b>\n"
+        
+        # Změna 24h
+        zmena_emoji = '🟢' if pct_24h >= 0 else '🔴'
+        summary_text += f"24h Změna: {zmena_emoji} <b>{pct_24h:+.2f}%</b>\n"
+        
+        # Hotovost
+        summary_text += f"Volná hotovost: ${cash_usd:,.0f}\n"
+        summary_text += f"Nálada trhu: <b>{rating}</b> ({score}/100)\n"
+        summary_text += "--------------------------------------\n"
+        
+        # --- 2. TOP/FLOP MOVERS (3 nejlepší/nejhorší) ---
+        movers_text = "<b>📈 Největší pohyby (Dnes):</b>\n"
+        
+        if not vdf.empty and 'Dnes' in vdf.columns:
+            # Původně bylo vdf_sorted, teď vdf_sorted_all
+            vdf_sorted_all = vdf.sort_values('Dnes', ascending=False) 
+            
+            # Top Movers
+            movers_text += "\n🔝 Vítězové:\n"
+            # Bereme jen ty s kladným ziskem (ať to není matoucí)
+            for _, row in vdf_sorted_all[vdf_sorted_all['Dnes'] > 0.001].head(3).iterrows():
+                movers_text += f"  🚀 {row['Ticker']}: {row['Dnes']*100:+.2f}%\n"
+            
+            # Flop Movers
+            movers_text += "🔻 Poražení:\n"
+            # Bereme jen ty se záporným ziskem
+            for _, row in vdf_sorted_all[vdf_sorted_all['Dnes'] < -0.001].tail(3).iterrows():
+                movers_text += f"  💀 {row['Ticker']}: {row['Dnes']*100:+.2f}%\n"
+
+            summary_text += movers_text
+            summary_text += "--------------------------------------\n"
+
+        # --- 3. CENOVÉ ALERTY ---
+        if alerts:
+            summary_text += "<b>🚨 AKTIVNÍ ALERTY:</b>\n" + "\n".join(alerts) + "\n"
+            summary_text += "--------------------------------------\n"
+            
+        # --- 4. ZÁVĚR ---
+        summary_text += "<i>Mějte úspěšný investiční den!</i>"
+        
+        # Odeslání zprávy přes Telegram Engine
+        return notify.poslat_zpravu(summary_text)
+
+    except Exception as e:
+        return False, f"❌ Chyba generování reportu: {e}"
 
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
@@ -2160,8 +2225,34 @@ def main():
                         st.toast(f"🔔 {tk} je ve slevě! ({price:.2f})", icon="🔥")
 
                     if sell_trg > 0 and price >= sell_trg:
-                        alerts.append(f"{tk}: PRODEJNÍ ALERT! Cena {price:.2f} >= {sell_trg:.2f}")
+                        alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
+
+    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
+    today_date = datetime.now().strftime("%Y-%m-%d")
+    
+    if 'last_telegram_report' not in st.session_state:
+        st.session_state['last_telegram_report'] = "2000-01-01"
+
+    # Čas, kdy se report posílá (1800 = 18:00)
+    current_time_int = datetime.now().hour * 100 + datetime.now().minute
+    report_time_int = 1800 
+
+    # Pravidlo pro odeslání: 
+    # 1. Dnes se ještě neodeslalo 
+    # 2. Aktuální čas je po 18:00
+    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
+        
+        st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
+        
+        # Voláme novou funkci
+        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+        
+        if ok:
+            st.session_state['last_telegram_report'] = today_date
+            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
+        else:
+            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
 
     # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
@@ -2268,13 +2359,6 @@ def main():
         # --- AKCE (Tlačítka dole) ---
         st.divider()
         
-        # PDF a Email dáme vedle sebe, ať to nezabírá 2 řádky
-        c_act1, c_act2 = st.columns(2)
-        with c_act1:
-            if st.button("📧 REPORT", use_container_width=True):
-                msg = f"<h2>Report {USER}</h2><p>Jmění: {celk_hod_czk:,.0f} Kč</p>"
-                if odeslat_email(st.secrets["email"]["sender"], "Report", msg) == True: st.toast("Odesláno!", icon="✅")
-                else: st.toast("Chyba odeslání", icon="❌")
         
         with c_act2:
             pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
@@ -3306,6 +3390,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
