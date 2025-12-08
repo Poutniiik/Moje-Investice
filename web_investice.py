@@ -3059,39 +3059,26 @@ def main():
 
 
     # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
-    elif page == "⚙️ Nastavení":
+       elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
-
-    elif page == "🧪 Banka":
-        render_bank_lab_page()
-
-
         
-        # --- 1. AI KONFIGURACE A PROMPTY ---
+        # --- 1. AI KONFIGURACE ---
         with st.container(border=True):
             st.subheader("🤖 AI Jádro & Osobnost")
-            
-            # Indikátor stavu
             c_stat1, c_stat2 = st.columns([1, 3])
             with c_stat1:
-                if AI_AVAILABLE:
-                    st.success("API: ONLINE")
-                else:
-                    st.error("API: OFFLINE")
+                if AI_AVAILABLE: st.success("API: ONLINE")
+                else: st.error("API: OFFLINE")
             
             with c_stat2:
-                # Master Switch - Používáme toggle, který je bezpečnější než button
                 is_on = st.toggle("Povolit AI funkce", value=st.session_state.get('ai_enabled', False))
                 if is_on != st.session_state.get('ai_enabled', False):
                     st.session_state['ai_enabled'] = is_on
                     st.rerun()
 
             st.divider()
-
-            # --- NASTAVENÍ OSOBNOSTI (PROMPTY) ---
             st.caption("🎭 Nastavení chování (System Prompts)")
             
-            # Inicializace defaultních promptů v session state, pokud nejsou
             if 'ai_prompts' not in st.session_state:
                 st.session_state['ai_prompts'] = {
                     "Ranní report": "Jsi cynický burzovní makléř z Wall Street. Používej finanční slang.",
@@ -3099,34 +3086,17 @@ def main():
                     "Chatbot": "Jsi stručný a efektivní asistent Terminalu Pro."
                 }
 
-            # Editace promptů (Tabulka/Editor)
-            prompts_df = pd.DataFrame(
-                list(st.session_state['ai_prompts'].items()),
-                columns=["Funkce", "Instrukce (Prompt)"]
-            )
-            
-            edited_prompts = st.data_editor(
-                prompts_df,
-                use_container_width=True,
-                num_rows="dynamic",
-                column_config={
-                    "Funkce": st.column_config.TextColumn(disabled=True), # Názvy funkcí neměnit
-                    "Instrukce (Prompt)": st.column_config.TextColumn(width="large")
-                },
-                key="prompt_editor"
-            )
+            prompts_df = pd.DataFrame(list(st.session_state['ai_prompts'].items()), columns=["Funkce", "Instrukce (Prompt)"])
+            edited_prompts = st.data_editor(prompts_df, use_container_width=True, num_rows="dynamic", key="prompt_editor")
 
-            # Tlačítko pro uložení změn v promptech
             if st.button("💾 Uložit nastavení AI"):
-                # Převedení zpět do dictu a uložení
                 new_prompts = dict(zip(edited_prompts["Funkce"], edited_prompts["Instrukce (Prompt)"]))
                 st.session_state['ai_prompts'] = new_prompts
                 st.toast("Osobnost AI aktualizována!", icon="🧠")
 
-        # --- 2. DATA EDITORY (Původní kód) ---
+        # --- 2. DATA EDITORY ---
         st.write("")
         st.subheader("💾 DATA & SPRÁVA")
-        st.info("Zde můžeš editovat data natvrdo.")
         t1, t2 = st.tabs(["PORTFOLIO", "HISTORIE"])
         with t1:
             new_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
@@ -3134,18 +3104,14 @@ def main():
                 st.session_state['df'] = new_df
                 uloz_data_uzivatele(new_df, USER, SOUBOR_DATA)
                 invalidate_data_core()
-                st.success("Uloženo")
-                time.sleep(1) # Počkáme, aby si uživatel přečetl zprávu
-                st.rerun()
+                st.success("Uloženo"); time.sleep(1); st.rerun()
         with t2:
             new_h = st.data_editor(st.session_state['df_hist'], num_rows="dynamic", use_container_width=True)
             if st.button("Uložit Historii"): 
                 st.session_state['df_hist'] = new_h
                 uloz_data_uzivatele(new_h, USER, SOUBOR_HISTORIE)
                 invalidate_data_core()
-                st.success("Uloženo")
-                time.sleep(1)
-                st.rerun()
+                st.success("Uloženo"); time.sleep(1); st.rerun()
         
         st.divider(); st.subheader("📦 ZÁLOHA")
         buf = io.BytesIO()
@@ -3154,14 +3120,54 @@ def main():
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
 
+    # --- BANKOVNÍ TESTER (Stránka) ---
+    elif page == "🧪 Banka":
+        render_bank_lab_page()
 
-# --- BANKOVNI TESTER (Vlozit na uplny konec souboru) ---
+    # --- AI CHATBOT (Vždy dole) ---
+    with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
+        st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
+        c_clear, _ = st.columns([1, 2])
+        with c_clear:
+            if st.button("🧹 Nová konverzace", key="clear_chat"):
+                st.session_state["chat_messages"] = [{"role": "assistant", "content": "Paměť vymazána. O čem se chceš bavit teď? 🧠"}]
+                st.rerun()
+
+        if "chat_messages" not in st.session_state: 
+            st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
+        
+        for msg in st.session_state["chat_messages"]: 
+            st.chat_message(msg["role"]).write(msg["content"])
+            
+        if prompt := st.chat_input("Zeptej se..."):
+            if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
+                st.error("AI je neaktivní.")
+            else: 
+                st.session_state["chat_messages"].append({"role": "user", "content": prompt})
+                st.rerun()
+
+        if st.session_state["chat_messages"][-1]["role"] == "user":
+            if not st.session_state.get('ai_enabled', False): st.info("AI vypnuta.")
+            else:
+                with st.spinner("Přemýšlím..."):
+                    last_user_msg = st.session_state["chat_messages"][-1]["content"]
+                    portfolio_context = f"Jmění: {celk_hod_czk:,.0f} CZK. "
+                    if viz_data_list: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
+                    
+                    try:
+                        ai_reply = get_chat_response(model, last_user_msg, portfolio_context)
+                    except Exception as e:
+                        ai_reply = "🛑 Došla mi energie (Quota)." if "429" in str(e) else f"⚠️ Chyba: {e}"
+                    
+                    st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
+                    st.rerun()
+
+# --- EXTERNÍ FUNKCE PRO BANKU (Na konci souboru) ---
 def render_bank_lab_page():
     st.title("🏦 BANKOVNÍ LABORATOŘ")
     st.info("Testovací stránka pro Plaid API.")
 
     c1, c2 = st.columns(2)
-    # Pouzijeme unikatni klice (key=...), aby se to nehadalo s jinymi inputy
     client_id = c1.text_input("Client ID", type="password", key="plaid_id")
     secret = c2.text_input("Secret (Sandbox)", type="password", key="plaid_sec")
 
@@ -3190,71 +3196,6 @@ def render_bank_lab_page():
                     st.error(str(e))
         else:
             st.warning("Vyplň oba klíče!")
-        
-
-    # --- OPRAVA 3: CHAT S POJISTKOU PROTI CHYBĚ 429 ---
-    # Tento blok nahrazuje původní chat sekci na konci souboru
-    
-    with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
-        st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
-
-        c_clear, _ = st.columns([1, 2])
-        with c_clear:
-            if st.button("🧹 Nová konverzace", key="clear_chat"):
-                st.session_state["chat_messages"] = [{"role": "assistant", "content": "Paměť vymazána. O čem se chceš bavit teď? 🧠"}]
-                st.rerun()
-
-        if "chat_messages" not in st.session_state: 
-            st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
-        
-        # Vykreslení historie
-        for msg in st.session_state["chat_messages"]: 
-            st.chat_message(msg["role"]).write(msg["content"])
-            
-        # Vstup uživatele
-        if prompt := st.chat_input("Zeptej se..."):
-            if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
-                st.error("AI je neaktivní nebo chybí API klíč. Zkontroluj Nastavení.")
-            else: 
-                st.session_state["chat_messages"].append({"role": "user", "content": prompt})
-                st.rerun()
-
-        # --- LOGIKA ODPOVĚDI (S POJISTKOU PROTI SMYČCE) ---
-        if st.session_state["chat_messages"][-1]["role"] == "user":
-            if not st.session_state.get('ai_enabled', False):
-                # Pokud je AI vypnutá, netrápíme se a končíme
-                st.info("AI je momentálně vypnutá.")
-            else:
-                with st.spinner("Přemýšlím..."):
-                    last_user_msg = st.session_state["chat_messages"][-1]["content"]
-                    
-                    # Příprava kontextu (zkrácená verze)
-                    portfolio_context = f"Jmění: {celk_hod_czk:,.0f} CZK. "
-                    if viz_data_list: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
-                    
-                    ai_reply = ""
-                    try:
-                        # Pokusíme se získat odpověď
-                        ai_reply = get_chat_response(model, last_user_msg, portfolio_context)
-                    except Exception as e:
-                        # KDYŽ TO SELŽE (např. 429), zachytíme to zde!
-                        error_msg = str(e)
-                        if "429" in error_msg:
-                            ai_reply = "🛑 **Došla mi energie (Quota Exceeded).** Google API limit byl vyčerpán. Zkus to prosím za chvíli."
-                        else:
-                            ai_reply = f"⚠️ Chyba komunikace: {error_msg}"
-                    
-                    # DŮLEŽITÉ: Vždy zapíšeme odpověď (i když je to chyba), aby se smyčka přerušila!
-                    st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
-                    st.rerun()
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
