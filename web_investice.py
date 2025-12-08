@@ -2301,33 +2301,7 @@ auto_report_telegram(vdf, celk_hod_czk, kurzy)
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
-    today_date = datetime.now().strftime("%Y-%m-%d")
-    
-    if 'last_telegram_report' not in st.session_state:
-        st.session_state['last_telegram_report'] = "2000-01-01"
 
-    # Čas, kdy se report posílá (1800 = 18:00)
-    current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 1800 
-
-    # Pravidlo pro odeslání: 
-    # 1. Dnes se ještě neodeslalo 
-    # 2. Aktuální čas je po 18:00
-    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
-        
-        st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
-        
-        # Voláme novou funkci
-        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
-        
-        if ok:
-            st.session_state['last_telegram_report'] = today_date
-            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
-        else:
-            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
-
-    # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
     with st.sidebar:
         # Lottie Animace
@@ -3462,5 +3436,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
