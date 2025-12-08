@@ -1145,7 +1145,7 @@ st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram
 # Kontrola, zda byl report pro dnešek už proveden
 if st.session_state.get('last_telegram_report') == today_date:
     st.info("Report pro dnešek ODESLÁN.", icon="✅")
-    elif current_time_int >= 1800:
+elif current_time_int >= 1800:
     st.warning("Denní report ČEKÁ na první interakci.", icon="⚠️")
     
     # --- 2. SÍŇ SLÁVY (ODZNAKY) - GRID 2x2 ---
@@ -3431,6 +3431,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
