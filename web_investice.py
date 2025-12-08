@@ -3163,47 +3163,92 @@ def main():
                     st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
                     st.rerun()
 
-# --- EXTERNÍ FUNKCE PRO BANKU (Na konci souboru) ---
 # ==========================================
-# 👇 TATO FUNKCE MUSÍ BÝT TADY (PŘED SPUŠTĚNÍM) 👇
+# 👇 FINÁLNÍ BANKOVNÍ CENTRÁLA (VERZE 3.0) 👇
 # ==========================================
 def render_bank_lab_page():
-    st.title("🏦 BANKOVNÍ LABORATOŘ")
-    st.info("Testovací stránka pro Plaid API.")
+    st.title("🏦 BANKOVNÍ CENTRÁLA (Verze 3.0)")
+    st.caption("Automatické propojení s bankovním účtem (Powered by Bank Engine).")
 
-    c1, c2 = st.columns(2)
-    client_id = c1.text_input("Client ID", type="password", key="plaid_id")
-    secret = c2.text_input("Secret (Sandbox)", type="password", key="plaid_sec")
+    # 1. PŘIPOJENÍ (Pokud nemáme token)
+    if 'bank_token' not in st.session_state:
+        st.info("Zatím není připojena žádná banka.")
+        
+        if st.button("🔌 PŘIPOJIT BANKU (Sandbox)", type="primary"):
+            with st.spinner("Volám bankovní motor..."):
+                # Voláme funkci z externího souboru bank_engine.py
+                # Ten už má klíče v sobě, takže je sem nemusíme psát!
+                token = bank_engine.simulace_pripojeni()
+                
+                if "Chyba" in str(token):
+                    st.error(token)
+                else:
+                    st.session_state['bank_token'] = token
+                    st.balloons()
+                    st.success("✅ Banka úspěšně připojena! Token uložen.")
+                    time.sleep(1)
+                    st.rerun()
+    
+    # 2. PRÁCE S DATY (Když už jsme připojeni)
+    else:
+        c1, c2 = st.columns([3, 1])
+        with c1: st.success("🟢 Spojení aktivní: Test Bank (Sandbox)")
+        with c2: 
+            if st.button("Odpojit"):
+                del st.session_state['bank_token']
+                if 'bank_data' in st.session_state: del st.session_state['bank_data']
+                st.rerun()
 
-    if st.button("🚀 ODESLAT SIGNÁL"):
-        if client_id and secret:
-            with st.spinner("Volám do San Francisca..."):
-                try:
-                    # Tady používáme čisté requests, protože importy zlobily
-                    url = "https://sandbox.plaid.com/institutions/get"
-                    payload = {
-                        "client_id": client_id,
-                        "secret": secret,
-                        "count": 5,
-                        "offset": 0,
-                        "country_codes": ["US", "GB", "ES", "FR"]
-                    }
-                    r = requests.post(url, json=payload)
-                    if r.status_code == 200:
-                        st.success("✅ SPOJENÍ NAVÁZÁNO!")
-                        data = r.json()
-                        st.write("Nalezené banky:")
-                        for bank in data['institutions']:
-                            st.code(f"{bank['name']} (ID: {bank['institution_id']})")
+        st.divider()
+        
+        col_btn, col_info = st.columns([1, 2])
+        with col_btn:
+            if st.button("📥 STÁHNOUT VÝPIS", use_container_width=True):
+                with st.spinner("Stahuji a analyzuji transakce..."):
+                    # Stáhneme data přes motor
+                    df_trans = bank_engine.stahni_data(st.session_state['bank_token'])
+                    
+                    if df_trans is not None and not df_trans.empty:
+                        st.session_state['bank_data'] = df_trans
                     else:
-                        st.error(f"Chyba {r.status_code}: {r.text}")
-                except Exception as e:
-                    st.error(str(e))
-        else:
-            st.warning("Vyplň oba klíče!")
+                        st.error("Nepodařilo se stáhnout data.")
+
+        # Zobrazení dat (pokud jsou stažená)
+        if 'bank_data' in st.session_state:
+            df_t = st.session_state['bank_data']
+            
+            # Rychlá metrika útraty
+            # Filtrujeme výdaje (záporná čísla) a příjmy
+            total_spend = df_t[df_t['Částka'] < 0]['Částka'].sum()
+            total_income = df_t[df_t['Částka'] > 0]['Částka'].sum()
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Příjmy (90 dní)", f"{total_income:,.0f}")
+            m2.metric("Výdaje (90 dní)", f"{total_spend:,.0f}")
+            m3.metric("Bilance", f"{total_income + total_spend:,.0f}")
+            
+            st.subheader("📜 Historie transakcí")
+            st.dataframe(
+                df_t, 
+                column_config={
+                    "Částka": st.column_config.NumberColumn("Částka", format="%.2f"),
+                    "Kategorie": st.column_config.TextColumn("Druh"),
+                },
+                use_container_width=True
+            )
+            
+            # Graf výdajů
+            st.subheader("📊 Analýza výdajů")
+            expenses = df_t[df_t['Částka'] < 0].copy()
+            expenses['Částka'] = expenses['Částka'].abs() # Pro graf chceme kladná čísla
+            
+            if not expenses.empty:
+                fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
+                st.plotly_chart(fig_exp, use_container_width=True)
 
 # ==========================================
 # 👇 TOTO MUSÍ BÝT ÚPLNĚ POSLEDNÍ VĚC V SOUBORU 👇
 # ==========================================
 if __name__ == "__main__":
     main()
+
