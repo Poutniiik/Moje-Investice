@@ -2271,9 +2271,8 @@ def main():
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
     # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (Volání nové funkce) ---
-# Pravidlo pro odeslání: JEDNOU denně v 20:00 CET
-# Čas 20:00 CET je ideální, když už jsou zavřené trhy v USA.
-check_and_send_daily_report(USER, data_core, alerts, kurzy, target_hour=20, target_minute=0)
+
+    check_and_send_daily_report(USER, data_core, alerts, kurzy, target_hour=20, target_minute=0)
 
     # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
@@ -3410,4 +3409,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
