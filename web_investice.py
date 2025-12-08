@@ -3148,8 +3148,8 @@ def main():
         st.subheader("📲 NOTIFIKACE(Telegram)")
         st.caption("Otestuj spojení s tvým mobilem.")
 
-                #TADY JE TA MAGIE
-                notify.otestovat_tlacitko
+        #TADY JE TA MAGIE
+        notify.otestovat_tlacitko
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
     elif page == "🧪 Banka":
@@ -3306,6 +3306,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
