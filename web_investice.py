@@ -1858,6 +1858,16 @@ def main():
         st.session_state['prihlasen'] = False
         st.session_state['user'] = ""
 
+    # 👇 ZDE PŘIDÁVÁME NOVOU INICIALIZACI (Krok 1) 👇
+    # Zaznamenání času spuštění (provádí se jen při prvním načtení)
+    if 'app_start_time' not in st.session_state:
+        st.session_state['app_start_time'] = datetime.now()
+        
+    # Inicializace stavu reportu, pokud neexistuje
+    if 'last_telegram_report' not in st.session_state:
+        st.session_state['last_telegram_report'] = "2000-01-01"
+    # 👆 KONEC PŘIDANÉHO KÓDU 👆
+
     # 3. ZPOŽDĚNÍ PRO COOKIES (Nutné pro stx)
     time.sleep(0.3)
 
@@ -1912,14 +1922,16 @@ def main():
                     rnp = st.text_input("Nové heslo", type="password")
                     if st.form_submit_button("OBNOVIT"):
                         # Původní kód zde měl chybu v podmínce, nahradím ho jednoduchou zprávou, protože reálná obnova je složitá
-                        st.error("Funkce pro obnovu je ve vývoji.") 
+                        st.error("Funkce pro obnovu je ve vývoji.")
         return
 
     # =========================================================================
-    # ZDE ZAČÍNÁ APLIKACE PRO PŘIHLÁŠENÉHO UŽIVATELE
+    # ZDE ZAČÍNÁ APLIKACE PRO PŘIHLÁŠENÉHO UŽIVATELE (Zbytek main() pokračuje níže)
     # =========================================================================
 
     USER = st.session_state['user']
+
+# ... (Zde by normálně pokračoval zbytek kódu main())
 
     # --- BOOT SEQUENCE (POUZE JEDNOU) ---
     if 'boot_completed' not in st.session_state:
@@ -2232,31 +2244,38 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
+    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (VYLEPŠENÝ) ---
     today_date = datetime.now().strftime("%Y-%m-%d")
-    
-    if 'last_telegram_report' not in st.session_state:
-        st.session_state['last_telegram_report'] = "2000-01-01"
 
     # Čas, kdy se report posílá (1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
     report_time_int = 1800 
 
+    # === DŮLEŽITÁ POJISTKA PROTI OKAMŽITÉMU ODESLÁNÍ ===
+    # Vypočítáme, jak dlouho aplikace běží
+    time_since_start = (datetime.now() - st.session_state['app_start_time']).total_seconds()
+    
     # Pravidlo pro odeslání: 
     # 1. Dnes se ještě neodeslalo 
     # 2. Aktuální čas je po 18:00
-    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
+    # 3. APLIKACE BĚŽÍ DÉLE NEŽ 5 SEKUND (Zabraňuje spuštění při BOOTU/PŘIHLÁŠENÍ)
+    if (st.session_state['last_telegram_report'] != today_date and 
+        current_time_int >= report_time_int and
+        time_since_start > 5): 
         
         st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
         
-        # Voláme novou funkci
-        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+        # Voláme funkci pro odeslání reportu
+        ok, msg = notify.send_daily_telegram_report(USER, data_core, alerts, kurzy)
         
         if ok:
             st.session_state['last_telegram_report'] = today_date
             st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
         else:
             st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
+            
+    # --- KONEC AUTOMATICKÉHO REPORTU ---
+            
 
     # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
@@ -3393,5 +3412,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
