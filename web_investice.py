@@ -2599,9 +2599,9 @@ def main():
                                 st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
                                 add_download_button(fig_map, "vyvoj_ceny")
                             except Exception:
-                                st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
+                    st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
                         except Exception:
-                        st.error("Chyba mapy.")
+                            st.error("Chyba mapy.")
                 else:
                     st.info("Portfolio je prázdné.")
 
@@ -3400,4 +3400,5 @@ def render_bank_lab_page():
 if __name__ == "__main__":
     main()
 # ===================================================
+
 
