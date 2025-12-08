@@ -2280,9 +2280,9 @@ celk_inv_czk = celk_inv_usd * kurz_czk
 # --- VOLÁNÍ AUTOMATICKÉHO REPORTU (SPRÁVNÉ MÍSTO) ---
 auto_report_telegram(vdf, celk_hod_czk, kurzy)
 
-    # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
-    alerts = []
-    if not df_watch.empty:
+# --- 8. KONTROLA WATCHLISTU (ALERTY) ---
+alerts = []
+if not df_watch.empty:
         for _, r in df_watch.iterrows():
             tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
 
@@ -3436,6 +3436,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
