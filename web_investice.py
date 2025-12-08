@@ -1110,7 +1110,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             st.subheader(f"Úroveň: {level_name}")
             # Vlastní progress bar s popiskem
             st.progress(level_progress)
-            st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram_report', 'N/A')}**")
+            
            
             # Výpočet do dalšího levelu
             next_level_val = 0
@@ -1133,7 +1133,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             ikona = icon_map.get(clean_name, "👾")
             st.markdown(f"<h1 style='text-align: center; font-size: 50px;'>{ikona}</h1>", unsafe_allow_html=True)
 
-
+            st.caption(f"Poslední report (Telegram): **{st.session_state.get('last_telegram_report', 'N/A')}**")
     # --- 2. SÍŇ SLÁVY (ODZNAKY) - GRID 2x2 ---
     st.write("")
     st.subheader("🏆 SÍŇ SLÁVY (Odznaky)")
@@ -3393,4 +3393,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
