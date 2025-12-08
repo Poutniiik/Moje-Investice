@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 from utils import make_plotly_cyberpunk
 from github import Github
 from io import StringIO
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from utils import make_matplotlib_cyberpunk
 import matplotlib.pyplot as plt
 import hashlib
@@ -2272,7 +2272,7 @@ def check_and_send_telegram_report(USER, data_core, alerts, kurzy):
     now = datetime.now(tz)
     
     # 1. Časová kontrola: Je po 16:00?
-    target_time = time(16, 0)
+    target_time = datetime.time(hour=16, minute=0)
     if now.time() < target_time:
         return # Ještě není 16:00
 
@@ -3437,6 +3437,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
