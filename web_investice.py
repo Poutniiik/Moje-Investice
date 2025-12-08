@@ -2372,40 +2372,33 @@ def main():
             for a in alerts:
                 st.markdown(f"- **{a}**")
 
-        # Úryvek kódu pro vložení dovnitř bloku 'with st.sidebar:'
-# ... 
-    # --- 3. INFORMACE (ZABALENO DO EXPANDERŮ PRO ÚSPORU MÍSTA) ---
-    # ... (Zde je sekce 🌍 SVĚTOVÉ TRHY a 💰 STAV PENĚŽENKY)
-    
-    # --------------------------------------------------------------------------
-    # 🎯 VLOŽTE SEM: NOVÁ SEKCIE STAVU TELEGRAM REPORTU (KONTROLNÍ BOD)
-    # --------------------------------------------------------------------------
-    st.divider()
-    st.caption("🤖 AUTOMATICKÝ TELEGRAM REPORT")
-    
-    # Logika pro kontrolu a spuštění reportu
-    if st.session_state['last_telegram_report'] == today_date:
-        st.success("✅ **Report ODESLÁN!** (Dnes v 18:00)", icon="📅")
-    elif current_time_int < report_time_int:
-        st.info(f"⏳ **Plánováno na 18:00!** (Aktuální čas: {datetime.now().strftime('%H:%M')})", icon="⏳")
-    elif st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
+        # --------------------------------------------------------------------------
+        # 🎯 NOVÁ SEKCIE STAVU TELEGRAM REPORTU (OPRAVENÉ ODSZAZENÍ)
+        # --------------------------------------------------------------------------
+        st.divider()
+        st.caption("🤖 AUTOMATICKÝ TELEGRAM REPORT")
         
-        # --- TATO ČÁST SE ZOBRAZÍ, JEN POKUD SE MÁ REPORT ZROVNA ODESLAT ---
-        st.warning("🤖 **SPUŠTĚNO:** Denní automatický report na Telegram...", icon="📢")
+        # Logika pro kontrolu a spuštění reportu
+        if st.session_state['last_telegram_report'] == today_date:
+            st.success("✅ **Report ODESLÁN!** (Dnes v 18:00)", icon="📅")
+        elif current_time_int < report_time_int:
+            st.info(f"⏳ **Plánováno na 18:00!** (Aktuální čas: {datetime.now().strftime('%H:%M')})", icon="⏳")
+        elif st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
+            
+            # --- TATO ČÁST SE ZOBRAZÍ, JEN POKUD SE MÁ REPORT ZROVNA ODESLAT ---
+            st.warning("🤖 **SPUŠTĚNO:** Denní automatický report na Telegram...", icon="📢")
 
-        # Volání funkce (Report se odešle na Telegram)
-        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+            # Volání funkce (Report se odešle na Telegram)
+            ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+            
+            # Zobrazení výsledku v Sidebaru (a uložení stavu)
+            if ok:
+                st.session_state['last_telegram_report'] = today_date
+                st.success(f"🤖 Report ODESLÁN (Telegram).")
+            else:
+                st.error(f"🤖 Chyba odeslání reportu: {msg}")
         
-        # Zobrazení výsledku v Sidebaru (a uložení stavu)
-        if ok:
-            st.session_state['last_telegram_report'] = today_date
-            st.success(f"🤖 Report ODESLÁN (Telegram).")
-        else:
-            st.error(f"🤖 Chyba odeslání reportu: {msg}")
-    
-    # --------------------------------------------------------------------------
-    
-    # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
+        # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
         st.divider()
         with st.expander("💻 TERMINÁL", expanded=False):
             # Zobrazení zprávy z callbacku
@@ -2421,7 +2414,7 @@ def main():
             st.text_input(">", key="cli_cmd", placeholder="/help", on_change=process_cli_command)
 
         # --- AKCE (Tlačítka dole) ---
-    st.divider()
+        st.divider()
         c_act1, c_act2 = st.columns(2)
         with c_act2:
             pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
@@ -3463,6 +3456,7 @@ def render_bank_lab_page():
             
 if __name__ == "__main__":
     main()
+
 
 
 
