@@ -1,81 +1,86 @@
-import plaid
-from plaid.api import plaid_api
-from plaid.model.country_code import CountryCode
-from plaid.model.products import Products
-from plaid.model.transactions_get_request import TransactionsGetRequest
-from plaid.model.sandbox_public_token_create_request import SandboxPublicTokenCreateRequest
-from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
-from datetime import datetime, timedelta
+import requests
 import pandas as pd
+from datetime import datetime, timedelta
 
-# --- 1. KONFIGURACE (Tvoje klíče) ---
+# ==========================================
+# 👇 ZDE VLOŽ SVÉ KLÍČE (Uvnitř uvozovek!) 👇
+# ==========================================
 PLAID_CLIENT_ID = "6936237b139fbf00216fb766"
 PLAID_SECRET = "05377cff894a1c4d86e5d3ea1caea2"
-PLAID_ENV = plaid.Environment.Sandbox # Jsme na pískovišti
+# ==========================================
 
-# --- 2. PŘIPOJENÍ K PLAIDU ---
-configuration = plaid.Configuration(
-    host=PLAID_ENV,
-    api_key={
-        'clientId': PLAID_CLIENT_ID,
-        'secret': PLAID_SECRET,
-    }
-)
-api_client = plaid.ApiClient(configuration)
-client = plaid_api.PlaidApi(api_client)
+# Používáme čisté API volání (bez instalace knihoven)
+BASE_URL = "https://sandbox.plaid.com"
 
-def simulace_pripojeni_banky():
-    """
-    V Sandboxu vytvoříme fiktivní připojení k bance (bez loginu uživatele),
-    abychom získali ACCESS_TOKEN pro testování.
-    """
+def simulace_pripojeni():
+    """Vytvoří fiktivní připojení k bance v Sandboxu (přes Requests)."""
     try:
-        # A. Vytvoříme veřejný token (Jakože uživatel se přihlásil do 'Insomniac Bank')
-        pt_request = SandboxPublicTokenCreateRequest(
-            institution_id='ins_1', # ID testovací banky
-            initial_products=[Products('transactions')]
-        )
-        pt_response = client.sandbox_public_token_create(pt_request)
-        public_token = pt_response['public_token']
+        # 1. Vytvoření veřejného tokenu (Simulace loginu)
+        url_pt = f"{BASE_URL}/sandbox/public_token/create"
+        payload_pt = {
+            "client_id": PLAID_CLIENT_ID,
+            "secret": PLAID_SECRET,
+            "institution_id": "ins_1", # Testovací banka
+            "initial_products": ["transactions"]
+        }
         
-        # B. Vyměníme ho za ACCESS TOKEN (Klíč k datům)
-        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
-        exchange_response = client.item_public_token_exchange(exchange_request)
-        access_token = exchange_response['access_token']
+        r_pt = requests.post(url_pt, json=payload_pt)
+        if r_pt.status_code != 200: return f"Chyba Public Token: {r_pt.text}"
         
-        return access_token
+        public_token = r_pt.json()['public_token']
+        
+        # 2. Výměna za Access Token (Klíč k datům)
+        url_ex = f"{BASE_URL}/item/public_token/exchange"
+        payload_ex = {
+            "client_id": PLAID_CLIENT_ID,
+            "secret": PLAID_SECRET,
+            "public_token": public_token
+        }
+        
+        r_ex = requests.post(url_ex, json=payload_ex)
+        if r_ex.status_code != 200: return f"Chyba Access Token: {r_ex.text}"
+        
+        return r_ex.json()['access_token']
+
     except Exception as e:
-        return f"Chyba při simulaci: {e}"
+        return f"Kritická chyba: {str(e)}"
 
-def stahni_transakce(access_token):
-    """
-    Stáhne historii transakcí pomocí Access Tokenu.
-    """
+def stahni_data(access_token):
+    """Stáhne transakce za posledních 90 dní (přes Requests)."""
     try:
-        # Nastavíme okno (posledních 90 dní)
-        start_date = (datetime.now() - timedelta(days=90)).date()
-        end_date = datetime.now().date()
+        start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+        end_date = datetime.now().strftime('%Y-%m-%d')
         
-        request = TransactionsGetRequest(
-            access_token=access_token,
-            start_date=start_date,
-            end_date=end_date,
-        )
-        response = client.transactions_get(request)
-        transactions = response['transactions']
+        url_tr = f"{BASE_URL}/transactions/get"
+        payload_tr = {
+            "client_id": PLAID_CLIENT_ID,
+            "secret": PLAID_SECRET,
+            "access_token": access_token,
+            "start_date": start_date,
+            "end_date": end_date,
+            "options": {"count": 100}
+        }
         
-        # Převedeme na hezkou tabulku (Pandas DataFrame)
-        data = []
-        for t in transactions:
-            data.append({
+        r = requests.post(url_tr, json=payload_tr)
+        if r.status_code != 200: return None
+        
+        data_json = r.json()
+        
+        # Zpracování do tabulky
+        data_list = []
+        for t in data_json['transactions']:
+            amount = -t['amount'] 
+            cat = t['category'][0] if 'category' in t and t['category'] else "Ostatní"
+            
+            data_list.append({
                 "Datum": t['date'],
                 "Obchodník": t['name'],
-                "Částka": t['amount'], # Pozor: Plaid má kladná čísla jako výdaje!
+                "Částka": amount,
                 "Měna": t['iso_currency_code'],
-                "Kategorie": t['category'][0] if t['category'] else "Neznámé"
+                "Kategorie": cat,
+                "Druh": "Výdaj" if amount < 0 else "Příjem"
             })
             
-        return pd.DataFrame(data)
-    
+        return pd.DataFrame(data_list)
     except Exception as e:
         return None
