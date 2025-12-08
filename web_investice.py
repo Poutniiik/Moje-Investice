@@ -3282,7 +3282,7 @@ elif page == "⚙️ Nastavení":
         notify.otestovat_tlacitko()
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
-    elif page == "🧪 Banka":
+elif page == "🧪 Banka":
         render_bank_lab_page()
 
     # --- AI CHATBOT (Vždy dole) ---
@@ -3436,6 +3436,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
