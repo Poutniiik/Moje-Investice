@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 from utils import make_plotly_cyberpunk
 from github import Github
 from io import StringIO
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from utils import make_matplotlib_cyberpunk
 import matplotlib.pyplot as plt
 import hashlib
@@ -1642,8 +1642,6 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 # ... (zde končí kód funkcí pro renderování stránek a pod ním začíná) ...
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 
-
-
 # --- NOVÁ FUNKCE: SESTAVENÍ A ODESLÁNÍ TELEGRAM REPORTU ---
 def send_daily_telegram_report(USER, data_core, alerts, kurzy):
     """
@@ -2158,14 +2156,7 @@ def main():
 
     # -----------------------------------------------------------
 
-
-   # Kolem řádku 2100 (Uvnitř funkce main()):
-
-# ...
-#     # -----------------------------------------------------------
-#
-#     # --- 5. NAČTENÍ ZÁKLADNÍCH DAT A JÁDRA ---
-#
+    # --- 5. NAČTENÍ ZÁKLADNÍCH DAT A JÁDRA ---
     if 'df' not in st.session_state:
         with st.spinner("NAČÍTÁM DATA..."):
             st.session_state['df'] = nacti_csv(SOUBOR_DATA).query(f"Owner=='{USER}'").copy()
@@ -2176,9 +2167,6 @@ def main():
             # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
     
-    # -----------------------------------------------------------
-    # Všechny proměnné MUSÍ BÝT definovány v HLAVNÍM rozsahu main()
-    # -----------------------------------------------------------
     df = st.session_state['df']
     df_cash = st.session_state['df_cash']
     df_div = st.session_state['df_div']
@@ -2187,6 +2175,7 @@ def main():
     kurzy = cached_kurzy() # Inicializace, hodnoty se upřesní v jádru
 
     # --- 6. VÝPOČTY (CENTRALIZOVANÝ DAT CORE) ---
+    # Zkontrolujeme cache (např. platnost 5 minut)
     cache_timeout = timedelta(minutes=5)
     
     if ('data_core' not in st.session_state or 
@@ -2208,38 +2197,15 @@ def main():
     pct_24h = data_core['pct_24h']
     cash_usd = data_core['cash_usd']
     fundament_data = data_core['fundament_data']
-    LIVE_DATA = st.session_state['LIVE_DATA'] # Předpokládám, že LIVE_DATA je definováno
-
-    kurzy = data_core['kurzy']
+    LIVE_DATA = st.session_state['LIVE_DATA'] # Vždy musíme vytáhnout z SS, protože ho cachuje calculate_all_data
+    
+    # OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
+    kurzy = data_core['kurzy'] 
 
     kurz_czk = kurzy.get("CZK", 20.85)
     celk_hod_czk = celk_hod_usd * kurz_czk
     celk_inv_czk = celk_inv_usd * kurz_czk
 
-    # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
-    alerts = [] # <--- Tady je ta oprava pro UnboundLocalError
-    if not df_watch.empty:
-        for _, r in df_watch.iterrows():
-            tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
-
-            if buy_trg > 0 or sell_trg > 0:
-                inf = LIVE_DATA.get(tk, {})
-                price = inf.get('price')
-                if not price:
-                    price, _, _ = ziskej_info(tk)
-
-                if price:
-                    if buy_trg > 0 and price <= buy_trg:
-                        alerts.append(f"{tk}: KUPNÍ ALERT! Cena {price:.2f} <= {buy_trg:.2f}")
-                        st.toast(f"🔔 {tk} je ve slevě! ({price:.2f})", icon="🔥")
-
-                    if sell_trg > 0 and price >= sell_trg:
-                        alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
-                        st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
-
-    # --- VOLÁNÍ AUTOMATICKÉHO REPORTU ---
-    # Nyní je alerts definované před použitím!
-    check_and_send_telegram_report(USER, data_core, alerts, kurzy) 
 
     # --- 8. KONTROLA WATCHLISTU (ALERTY) ---
     alerts = []
@@ -2262,45 +2228,31 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-   # Nově implementovaná kontrola času a spuštění reportu
-def check_and_send_telegram_report(USER, data_core, alerts, kurzy):
-    """
-    Kontroluje, zda je po 16:00 SEČ a zda report nebyl dnes odeslán.
-    Pokud ano, zavolá centrální reportovací funkci.
-    """
-    tz = pytz.timezone("Europe/Prague")
-    now = datetime.now(tz)
+    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER ---
+    today_date = datetime.now().strftime("%Y-%m-%d")
     
-    # 1. Časová kontrola: Je po 16:00?
-    target_time = datetime.time(hour=16, minute=0)
-    if now.time() < target_time:
-        return # Ještě není 16:00
+    if 'last_telegram_report' not in st.session_state:
+        st.session_state['last_telegram_report'] = "2000-01-01"
 
-    # 2. Kontrola Idempotence (Dnes už odesláno?)
-    today_key = f"sent_report_{now.strftime('%Y%m%d')}"
-    if st.session_state.get(today_key, False):
-        return # Report už byl dnes odeslán
+    # Čas, kdy se report posílá (1800 = 18:00)
+    current_time_int = datetime.now().hour * 100 + datetime.now().minute
+    report_time_int = 1800 
 
-    # 3. Kontrola dat
-    if data_core['vdf'].empty:
-        # Volitelné: Můžeme poslat zprávu, že portfolio je prázdné
-        # notify.poslat_zpravu(f"⚠️ Portfolio pro uživatele {USER} je prázdné.", token=...)
-        return 
-
-    # --- SPUŠTĚNÍ REPORTU (Voláme tvoji robustní funkci níže v kódu) ---
-    st.toast("⏳ Odesílám denní report na Telegram...", icon="📨")
-    ok, msg = check_and_send_telegram_report(USER, data_core, alerts, kurzy)
-    
-    if ok:
-        st.session_state[today_key] = True # Označíme jako odesláno
-        st.toast("✅ Automatický Telegram report odeslán!", icon="✅")
-    else:
-        # POZOR: V Streamlitu by st.error mohlo způsobit zacyklení,
-        # proto použijeme raději print a toast.
-        print(f"Chyba Telegramu: {msg}")
-        st.toast(f"❌ Chyba odeslání Telegramu: {msg}", icon="❌")
-
-# Tuto funkci musíme přidat, a zároveň MAŽEME celou původní funkci auto_report_telegram!
+    # Pravidlo pro odeslání: 
+    # 1. Dnes se ještě neodeslalo 
+    # 2. Aktuální čas je po 18:00
+    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
+        
+        st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
+        
+        # Voláme novou funkci
+        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+        
+        if ok:
+            st.session_state['last_telegram_report'] = today_date
+            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
+        else:
+            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
 
     # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
@@ -2406,7 +2358,6 @@ def check_and_send_telegram_report(USER, data_core, alerts, kurzy):
 
         # --- AKCE (Tlačítka dole) ---
         st.divider()
-        c_act1, c_act2 = st.columns(2)
         with c_act2:
             pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
             st.download_button(label="📄 PDF", data=pdf_data, file_name=f"report.pdf", mime="application/pdf", use_container_width=True)
@@ -3437,8 +3388,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
