@@ -16,7 +16,7 @@ def init_telegram():
 def poslat_zpravu(text):
     """
     Odešle zprávu přes Telegram Bota pomocí obyčejného HTTP požadavku.
-    Používá HTML formátování.
+    Vrací tuple (True/False, Zpráva).
     """
     token, chat_id = init_telegram()
     
@@ -42,15 +42,13 @@ def poslat_zpravu(text):
     except Exception as e:
         return False, f"❌ Chyba spojení: {str(e)}"
 
-# Ponecháme starou funkci jen pro snadné testování v Nastavení
+# OPRAVENO: Tuto funkci zjednodušíme tak, aby jen vracela výsledek,
+# protože UI (tlačítko a zobrazení) se řeší v main aplikaci (web_investice.py).
 def otestovat_tlacitko():
-    """Tlačítko pro otestování spojení v Nastavení."""
-    if st.button("📲 Odeslat testovací notifikaci"):
-        with st.spinner("Odesílám..."):
-            zprava = "🚀 <b>Terminal Pro:</b> Zkouška spojení.\nVše funguje! 😎"
-            ok, msg = poslat_zpravu(zprava)
-            
-            if ok:
-                st.success(msg)
-            else:
-                st.error(msg)
+    """
+    REFRAKTOROVÁNO: Nyní pouze sestaví testovací zprávu a odešle ji.
+    Vrací tuple (True/False, Zpráva) stejně jako poslat_zpravu().
+    """
+    zprava = "🚀 <b>Terminal Pro:</b> Zkouška spojení.\nVše funguje! 😎"
+    # Používáme již existující funkci pro odeslání, která vrací očekávaný výstup.
+    return poslat_zpravu(zprava)
