@@ -979,7 +979,7 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
             if est_monthly_income_czk < val:
                 next_goal = name
                 next_val = val
-                progress = min(est_monthly_income_czk / val, 1.0)
+                progress = min(est_monthly_monthly_income_czk / val, 1.0)
                 break
             else:
                 pass
@@ -1143,7 +1143,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
         divi_total = df_div.apply(
             lambda r: r['Castka'] * (
                 kurzy.get('CZK', 20.85) if r['Mena'] == 'USD'
-                else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)
+                else (kurzy.get('CZK', 20.85) / kurzy.get("EUR", 1.16) if r['Mena'] == 'EUR' else 1)
             ), axis=1).sum()
 
 
@@ -1520,7 +1520,7 @@ def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
 
 
 def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
-    """Vykreslí kartu Rentgen (Tab 1 Analýzy) - FINAL VERZE"""
+    """Vykreslí kartu Rentgen (Tab 1 Analýzy)."""
     st.write("")
     
     # Výběr akcie
@@ -3238,32 +3238,29 @@ def main():
         
         def handle_telegram_test():
              # Musíme to zabalit do try/except, protože nevíme, co vrací notify.otestovat_tlacitko()
+             ok = False
+             msg = "NEZNÁMÁ CHYBA: Volání selhalo."
+             
              try:
-                 # Zkusíme očekávanou variantu (vrací ok, msg)
+                 # Krok 1: Zkusíme získat dvě hodnoty (očekávaný formát)
                  results = notify.otestovat_tlacitko()
                  
                  if isinstance(results, tuple) and len(results) == 2:
                      ok, msg = results
                  else:
-                     # Pokud to nevrátilo tuple (ok, msg), znamená to chybu ve funkci
-                     # Ponecháme msg jako raw výsledek a nastavíme ok=False pro signalizaci problému
-                     ok = False
-                     msg = "Chyba ve funkci 'notify.otestovat_tlacitko()': Nevrátila tuple (True/False, zpráva)."
-                     
-             except ValueError:
-                 # Odchytíme chybu, pokud funkce vrací jen jednu hodnotu nebo nic
-                 try:
-                     msg = notify.otestovat_tlacitko()
-                     ok = True # Pokud to nepadlo, předpokládáme, že to zprávu odeslalo
-                     if msg is None:
-                         msg = "Testovací zpráva ODESLÁNA, ale funkce nevrací status (pravděpodobně OK)."
+                     # Krok 2: Pokud nevrátilo tuple (ok, msg), zkusíme získat zprávu, pokud je k dispozici
+                     msg = str(results) # Může to být raw string nebo None
+                     if results is not None:
+                         # Zkusíme zjistit status z obsahu (pokud nepadlo, předpokládáme úspěch)
                          ok = True
+                         msg = f"Testovací zpráva ODESLÁNA. Funkce nevrací status, ale běh byl úspěšný: {msg}"
                      else:
-                         msg = str(msg)
-                         
-                 except Exception as e:
-                     ok = False
-                     msg = f"NEZNÁMÁ CHYBA: Volání 'notify.otestovat_tlacitko()' selhalo. ({e})"
+                         msg = "Chyba ve funkci 'notify.otestovat_tlacitko()': Nevrátila tuple (True/False, zpráva)."
+                     
+             except Exception as e:
+                 # Odchycena chyba, např. TypeError (při pokusu o získání 2 hodnot z 1 nebo None)
+                 ok = False
+                 msg = f"Volání 'notify.otestovat_tlacitko()' selhalo. ({type(e).__name__}: {e})"
 
              # Uložíme výsledek do Session State
              if ok:
