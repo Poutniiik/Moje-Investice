@@ -8,9 +8,10 @@ import os
 # --- KONFIGURACE ROBOTA ---
 # Jméno uživatele, pro kterého report generujeme (musí sedět s tvým loginem)
 TARGET_USER = "Beith"  # <--- ZDE SI ZMĚŇ SVÉ UŽIVATELSKÉ JMÉNO, POKUD JE JINÉ
+BOT_NAME = "Alex"      # <--- TADY JSME POJMENOVALI BOTA
 
 def run_bot():
-    print(f"🤖 ROBOT: Startuji denní report pro uživatele '{TARGET_USER}'...")
+    print(f"🤖 {BOT_NAME}: Startuji denní report pro uživatele '{TARGET_USER}'...")
 
     # 1. Načtení dat z GitHubu
     try:
@@ -96,8 +97,8 @@ def run_bot():
     best = movers[0] if movers else ("N/A", 0)
     worst = movers[-1] if movers else ("N/A", 0)
 
-    # 6. Sestavení zprávy
-    msg = f"<b>🤖 AUTOMATICKÝ REPORT</b>\n"
+    # 6. Sestavení zprávy (TADY SE PŘEDSTAVÍ ALEX)
+    msg = f"<b>🤖 {BOT_NAME} hlásí stav:</b>\n"
     msg += f"📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
     msg += "-----------------------------\n"
     msg += f"💰 Jmění: <b>{total_net_worth_czk:,.0f} Kč</b>\n"
@@ -117,10 +118,4 @@ def run_bot():
         print(f"❌ CHYBA ODESLÁNÍ: {err}")
 
 if __name__ == "__main__":
-    # Fallback pro manuální spuštění bez ENV
-    # if "TG_BOT_TOKEN" not in os.environ:
-    #     os.environ["TG_BOT_TOKEN"] = "TVUJ_TOKEN_ZDE"
-    #     os.environ["TG_CHAT_ID"] = "TVUJ_CHAT_ID_ZDE"
-    #     os.environ["GH_TOKEN"] = "TVUJ_GITHUB_TOKEN_ZDE"
-    
     run_bot()
