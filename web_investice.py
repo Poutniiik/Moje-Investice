@@ -631,7 +631,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                 amt = r['Castka']; currency = r['Mena']
                 if currency == "USD": total_div_czk += amt * kurzy.get("CZK", 20.85)
                 elif currency == "EUR": total_div_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
-                else: total_div_czk += amt
+                else: total_divi_czk += amt
         
         total_realized_czk = 0 
         unrealized_profit_czk = (celk_hod_czk - celk_inv_usd * kurzy.get("CZK", 20.85))
@@ -1899,7 +1899,6 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user")
                             st.toast("Účet vytvořen!", icon="✅")
             with t3:
-                st.caption("Zapomněl jsi heslo?")
                 with st.form("recovery"):
                     ru = st.text_input("Jméno")
                     rk = st.text_input("Záchranný kód")
@@ -2240,8 +2239,7 @@ def main():
 
     # Čas, kdy se report posílá (600 = 06:00, 1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    # ZMĚNA: Vracíme na 18:00 pro reálný provoz, po tvém testu
-    report_time_int = 1800 
+    report_time_int = 1800 # NASTAVENO NA 18:00 PRO REÁLNÝ PROVOZ
 
     # Pravidlo pro odeslání: 
     # 1. Dnes se ještě neodeslalo 
@@ -3062,7 +3060,7 @@ def main():
                     c_info1.info(f"Celkem: **{total_est:,.2f} {menu}**")
                     
                     if zustatek >= total_est:
-                        c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
+                        c_info2.success(f"Na účtu: {zustatky:,.2f} {menu}")
                         if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
                             ok, msg = proved_nakup(ticker_input, qty, limit_price, USER)
                             if ok: st.balloons(); st.success(msg); time.sleep(2); st.rerun()
@@ -3177,17 +3175,11 @@ def main():
         
         # === NOVÁ ČÁST: RESET AUTOMATIKY PRO TESTOVÁNÍ ===
         with st.expander("🛠️ Reset Automatického Reportu (Pro test)"):
-            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary", key="reset_button_final"):
-                # Tato logika se spustí jako callback!
+            # Nastavíme stav v Session State, NEVOLÁME st.rerun() uvnitř callbacku!
+            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary"):
                 st.session_state['last_telegram_report'] = "2000-01-01"
-                st.session_state['show_reset_msg'] = True
-                # POZNÁMKA: V callbacku je nebezpečné volat st.rerun, proto ho voláme AŽ dole po if bloku.
-            
-            # --- ŘEŠENÍ CHYBY ZPĚTNÉ VAZBY ---
-            if st.session_state.get('show_reset_msg', False):
-                st.success("Stav reportu resetován. Refreshni stránku (F5) pro okamžité spuštění automatiky.")
-                st.session_state['show_reset_msg'] = False # Zobrazíme zprávu jen jednou
-                
+                st.session_state['trigger_main_rerun'] = True # Nastaví trigger
+                st.info("Stav reportu resetován. Refreshni stránku (F5) pro okamžité spuštění automatiky.")
         # ==================================================
         
         # --- 1. AI KONFIGURACE ---
