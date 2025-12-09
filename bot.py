@@ -7,7 +7,6 @@ import math
 import os
 
 # --- KONFIGURACE ROBOTA ---
-# ⚠️ DŮLEŽITÉ: Tady musí být PŘESNĚ to jméno, které vidíš v aplikaci vlevo nahoře
 TARGET_USER = "Filip"  
 BOT_NAME = "Alex"
 
@@ -21,31 +20,23 @@ def safe_float(val, fallback=0.0):
         return fallback
 
 def run_bot():
-    print(f"🤖 {BOT_NAME}: Startuji diagnostiku pro uživatele '{TARGET_USER}'...")
+    print(f"🤖 {BOT_NAME}: Startuji CEO Report pro uživatele '{TARGET_USER}'...")
 
     # 1. Načtení dat
     try:
-        # Načteme celá data bez filtru, abychom viděli, kdo tam je
         raw_df = dm.nacti_csv(dm.SOUBOR_DATA)
         raw_cash = dm.nacti_csv(dm.SOUBOR_CASH)
         
-        print(f"📊 DEBUG: V databázi je celkem {len(raw_df)} akcií a {len(raw_cash)} pohybů peněz.")
-        print(f"👥 DEBUG: Nalezení uživatelé v DB: {raw_df['Owner'].unique()}")
-
-        # Teď filtrujeme
+        # Filtrace uživatele
         df = raw_df[raw_df['Owner'] == TARGET_USER].copy()
         df_cash = raw_cash[raw_cash['Owner'] == TARGET_USER].copy()
         
-        print(f"✅ Pro uživatele '{TARGET_USER}' nalezeno: {len(df)} akcií, {len(df_cash)} záznamů cash.")
-        
-    except Exception as e:
-        print(f"❌ KRITICKÁ CHYBA NAČÍTÁNÍ: {e}")
-        return
+        if df.empty and df_cash.empty:
+            print("⚠️ Žádná data.")
+            return
 
-    # Pokud nemáme data, nemá cenu pokračovat
-    if df.empty and df_cash.empty:
-        print("⚠️ VAROVÁNÍ: Žádná data pro tohoto uživatele! Kontroluji jméno...")
-        notify.poslat_zpravu(f"⚠️ <b>{BOT_NAME} hlásí chybu:</b>\nNenašel jsem žádná data pro uživatele <i>{TARGET_USER}</i>.\nZkontroluj, zda máš v 'bot.py' správné jméno.")
+    except Exception as e:
+        print(f"❌ Chyba načítání dat: {e}")
         return
 
     # 2. Kurzy (S ochranou proti NaN)
@@ -56,32 +47,38 @@ def run_bot():
         print("🌍 Stahuji kurzy měn...")
         forex = yf.download(["CZK=X", "EURUSD=X"], period="1d", progress=False)
         if not forex.empty:
-            # Zkusíme získat hodnotu a ošetřit NaN
             k_czk = forex["Close"]["CZK=X"].iloc[-1] if "CZK=X" in forex["Close"] else None
             k_eur = forex["Close"]["EURUSD=X"].iloc[-1] if "EURUSD=X" in forex["Close"] else None
             
             if k_czk and not math.isnan(k_czk): kurz_czk = float(k_czk)
             if k_eur and not math.isnan(k_eur): kurz_eur = float(k_eur)
             
-        print(f"💱 Použité kurzy: USD/CZK={kurz_czk:.2f}, EUR/USD={kurz_eur:.2f}")
     except Exception as e:
-        print(f"⚠️ Chyba kurzů ({e}), jedu na fallback (24.0 / 1.05).")
+        print(f"⚠️ Chyba kurzů, jedu na fallback: {e}")
 
-    # 3. Výpočet Hotovosti
+    # 3. Výpočet Hotovosti (Detailní rozpad)
     total_cash_usd = 0
+    cash_details = {} # Slovník pro výpis po měnách
+    
     try:
-        # Převedeme na čísla, kdyby tam byly stringy
         df_cash['Castka'] = pd.to_numeric(df_cash['Castka'], errors='coerce').fillna(0)
         zustatky = df_cash.groupby('Mena')['Castka'].sum().to_dict()
         
-        total_cash_usd += zustatky.get('USD', 0)
-        total_cash_usd += zustatky.get('CZK', 0) / kurz_czk
-        total_cash_usd += zustatky.get('EUR', 0) * kurz_eur
-    except Exception as e:
-        print(f"❌ Chyba při počítání cash: {e}")
+        for mena, castka in zustatky.items():
+            if castka > 1: # Ignorujeme drobné
+                cash_details[mena] = castka
+                
+                # Převod na USD pro celkový součet
+                if mena == 'USD': total_cash_usd += castka
+                elif mena == 'CZK': total_cash_usd += castka / kurz_czk
+                elif mena == 'EUR': total_cash_usd += castka * kurz_eur
 
-    # 4. Hodnota akcií
+    except Exception as e:
+        print(f"❌ Chyba cash: {e}")
+
+    # 4. Hodnota akcií a ZISK (Profit/Loss)
     portfolio_val_usd = 0
+    portfolio_cost_usd = 0 # Kolik nás to stálo
     movers = []
     tickers = df['Ticker'].unique().tolist()
 
@@ -92,72 +89,99 @@ def run_bot():
             
             for t in tickers:
                 try:
-                    # Logika pro získání ceny (single vs multi index)
-                    if len(tickers) > 1:
-                        data_slice = live_data[t]
-                    else:
-                        data_slice = live_data
+                    # Data slice logic
+                    if len(tickers) > 1: data_slice = live_data[t]
+                    else: data_slice = live_data
                     
-                    # Ošetření prázdných dat
-                    if data_slice.empty or pd.isna(data_slice['Close'].iloc[-1]):
-                        print(f"⚠️ {t}: Žádná data nebo NaN.")
-                        continue
+                    if data_slice.empty or pd.isna(data_slice['Close'].iloc[-1]): continue
 
                     price = float(data_slice['Close'].iloc[-1])
                     open_p = float(data_slice['Open'].iloc[-1])
                         
-                    # Měna akcie (zjednodušená detekce)
+                    # Měna a konverzní poměr
                     curr = "USD"
-                    if ".PR" in t: curr = "CZK"
-                    elif ".DE" in t: curr = "EUR"
+                    koef_to_usd = 1.0
                     
-                    kusy = df[df['Ticker'] == t]['Pocet'].sum()
-                    val = kusy * price
+                    if ".PR" in t: 
+                        curr = "CZK"
+                        koef_to_usd = 1.0 / kurz_czk
+                    elif ".DE" in t: 
+                        curr = "EUR"
+                        koef_to_usd = kurz_eur
                     
-                    # Konverze
-                    val_usd = val
-                    if curr == "CZK": val_usd = val / kurz_czk
-                    elif curr == "EUR": val_usd = val * kurz_eur
+                    # Data z portfolia
+                    row = df[df['Ticker'] == t]
+                    kusy = row['Pocet'].sum()
+                    avg_buy_price = row['Cena'].mean() # Průměrná nákupka z CSV
                     
+                    # 1. Aktuální hodnota
+                    val_usd = kusy * price * koef_to_usd
                     portfolio_val_usd += val_usd
                     
-                    # Změna
+                    # 2. Nákupní cena (Investice)
+                    cost_usd = kusy * avg_buy_price * koef_to_usd
+                    portfolio_cost_usd += cost_usd
+
+                    # 3. Denní změna
                     if open_p > 0:
                         change = (price - open_p) / open_p
                         movers.append((t, change))
                     
                 except Exception as e:
-                    print(f"⚠️ Chyba výpočtu u {t}: {e}")
+                    print(f"⚠️ Chyba u {t}: {e}")
 
         except Exception as e:
-            print(f"❌ Velká chyba yfinance: {e}")
+            print(f"❌ Chyba yfinance: {e}")
 
-    # 5. Celkové jmění
+    # 5. Finální Finanční Matematika
     total_net_worth_czk = (portfolio_val_usd + total_cash_usd) * kurz_czk
+    invested_czk = portfolio_cost_usd * kurz_czk
+    profit_czk = (portfolio_val_usd - portfolio_cost_usd) * kurz_czk
     
-    # 6. Top/Flop
-    best_str = "N/A"
-    worst_str = "N/A"
+    # Výpočet procentuálního zisku (ošetření dělení nulou)
+    profit_pct = 0.0
+    if portfolio_cost_usd > 0:
+        profit_pct = ((portfolio_val_usd - portfolio_cost_usd) / portfolio_cost_usd) * 100
+
+    # 6. Top/Flop formátování
+    best_str = "---"
+    worst_str = "---"
     if movers:
         movers.sort(key=lambda x: x[1], reverse=True)
         b = movers[0]
         w = movers[-1]
-        best_str = f"{b[0]} ({b[1]*100:+.1f}%)"
-        worst_str = f"{w[0]} ({w[1]*100:+.1f}%)"
+        best_str = f"🚀 <b>{b[0]}</b> ({b[1]*100:+.2f}%)"
+        worst_str = f"💀 <b>{w[0]}</b> ({w[1]*100:+.2f}%)"
 
-    # 7. Sestavení zprávy
-    msg = f"<b>🤖 {BOT_NAME} (v2.0):</b>\n"
-    msg += f"📅 {datetime.now().strftime('%d.%m. %H:%M')}\n"
-    msg += "------------------\n"
-    msg += f"💰 Jmění: <b>{total_net_worth_czk:,.0f} Kč</b>\n"
-    msg += f"💵 Cash: ${total_cash_usd:,.0f}\n"
-    msg += "------------------\n"
-    msg += f"🚀 {best_str}\n"
-    msg += f"💀 {worst_str}\n"
-    msg += "------------------\n"
-    msg += "<i>GitHub Actions OK ✅</i>"
+    # 7. Sestavení HTML zprávy (Vylepšený design)
+    emoji_status = "🟢" if profit_czk >= 0 else "🔴"
+    
+    msg = f"<b>🎩 CEO REPORT: {datetime.now().strftime('%d.%m.')}</b>\n"
+    msg += f"<i>Denní svodka od Alexe</i>\n"
+    msg += "━━━━━━━━━━━━━━━━━━\n"
+    
+    # Sekce 1: Hlavní čísla
+    msg += f"💰 <b>JMĚNÍ: {total_net_worth_czk:,.0f} Kč</b>\n"
+    msg += f"📊 Zisk: {emoji_status} <b>{profit_czk:+,.0f} Kč</b> ({profit_pct:+.2f}%)\n"
+    msg += "━━━━━━━━━━━━━━━━━━\n"
+    
+    # Sekce 2: Trh (Movers)
+    msg += f"{best_str}\n"
+    msg += f"{worst_str}\n"
+    msg += "━━━━━━━━━━━━━━━━━━\n"
+    
+    # Sekce 3: Hotovost
+    msg += "💳 <b>Stav hotovosti:</b>\n"
+    if cash_details:
+        for m, c in cash_details.items():
+            msg += f"• {m}: {c:,.0f}\n"
+    else:
+        msg += "• <i>Žádná hotovost</i>\n"
+        
+    msg += "━━━━━━━━━━━━━━━━━━\n"
+    msg += f"<i>Kurz USD: {kurz_czk:.2f} Kč</i>"
 
-    print(f"📤 Odesílám: Jmění={total_net_worth_czk}, Cash={total_cash_usd}")
+    print(f"📤 Odesílám report...")
     notify.poslat_zpravu(msg)
 
 if __name__ == "__main__":
