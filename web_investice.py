@@ -24,7 +24,6 @@ from streamlit_lottie import st_lottie
 import google.generativeai as genai
 import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from fpdf import FPDF
 import extra_streamlit_components as stx
 import random
@@ -628,10 +627,10 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         df_div_temp = st.session_state.get('df_div', pd.DataFrame())
         if not df_div_temp.empty:
              for _, r in df_div_temp.iterrows():
-                amt = r['Castka']; currency = r['Mena']
-                if currency == "USD": total_div_czk += amt * kurzy.get("CZK", 20.85)
-                elif currency == "EUR": total_div_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
-                else: total_div_czk += amt
+                amt = r['Castka']
+                if r['Mena'] == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
+                elif r['Mena'] == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+                else: total_divi_czk += amt
         
         total_realized_czk = 0 
         unrealized_profit_czk = (celk_hod_czk - celk_inv_usd * kurzy.get("CZK", 20.85))
@@ -824,7 +823,7 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                 year_low = t_obj.fast_info.year_low
                 year_high = t_obj.fast_info.year_high
                 if price and year_high > year_low:
-                    range_pos = (price - year_low) / (year_high - year_low)
+                    range_pos = (price - year_low) / (year_high - year_high)
                     range_pos = max(0.0, min(1.0, range_pos))
             except: pass
 
@@ -2218,8 +2217,8 @@ def main():
             tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
 
             if buy_trg > 0 or sell_trg > 0:
-                inf = LIVE_DATA.get(tk, {})
-                price = inf.get('price')
+                inf = LIVE_DATA.get(tk)
+                price = inf.get('price') if inf else None
                 if not price:
                     price, _, _ = ziskej_info(tk)
 
@@ -2240,12 +2239,11 @@ def main():
 
     # Čas, kdy se report posílá (600 = 06:00, 1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    # ZMĚNA: Vracíme na 18:00 pro reálný provoz, po tvém testu
-    report_time_int = 1800 
+    report_time_int = 600 # NASTAVENO NA 06:00 PRO TEST
 
     # Pravidlo pro odeslání: 
     # 1. Dnes se ještě neodeslalo 
-    # 2. Aktuální čas je po 18:00
+    # 2. Aktuální čas je po 6:00
     if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
         
         st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
@@ -2591,7 +2589,7 @@ def main():
                                 except Exception:
                                     pass
 
-                                st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
+                                st.plotly_chart(line_fig, use_container_width=True)
                                 add_download_button(fig_map, "vyvoj_ceny")
                             except Exception:
                                 st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
@@ -3177,17 +3175,12 @@ def main():
         
         # === NOVÁ ČÁST: RESET AUTOMATIKY PRO TESTOVÁNÍ ===
         with st.expander("🛠️ Reset Automatického Reportu (Pro test)"):
-            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary", key="reset_button_final"):
-                # Tato logika se spustí jako callback!
+            # Tímto tlačítkem vynulujeme stav a zajistíme restart aplikace
+            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary"):
                 st.session_state['last_telegram_report'] = "2000-01-01"
-                st.session_state['show_reset_msg'] = True
-                # POZNÁMKA: V callbacku je nebezpečné volat st.rerun, proto ho voláme AŽ dole po if bloku.
-            
-            # --- ŘEŠENÍ CHYBY ZPĚTNÉ VAZBY ---
-            if st.session_state.get('show_reset_msg', False):
-                st.success("Stav reportu resetován. Refreshni stránku (F5) pro okamžité spuštění automatiky.")
-                st.session_state['show_reset_msg'] = False # Zobrazíme zprávu jen jednou
-                
+                st.success("Stav reportu resetován. Opakuji spuštění aplikace pro odeslání reportu...")
+                # st.experimental_rerun je kritické pro vynucení kompletního restartu kódu
+                st.experimental_rerun() 
         # ==================================================
         
         # --- 1. AI KONFIGURACE ---
@@ -3258,16 +3251,18 @@ def main():
              msg = "NEZNÁMÁ CHYBA: Volání selhalo."
              
              try:
-                 # Tato funkce (v notification_engine.py) by měla vracet (ok, msg)
+                 # Vzhledem k refaktoringu v notification_engine.py, tato funkce vrací (ok, msg)
                  results = notify.otestovat_tlacitko() 
                  
                  if isinstance(results, tuple) and len(results) == 2:
                      ok, msg = results
                  else:
+                     # Fallback pro případ, že se notification_engine.py neupravil
                      ok = False
                      msg = f"CHYBA API ROZHRANÍ: Funkce otestovat_tlacitko() nevrací (ok, msg), ale {type(results).__name__}."
 
              except Exception as e:
+                 # Odchycení chyby při samotném odeslání (např. chyba API klíče, sítě)
                  ok = False
                  msg = f"Kritická chyba volání: {type(e).__name__}: {e}"
 
