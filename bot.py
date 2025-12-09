@@ -49,6 +49,8 @@ def run_bot():
         
         if df.empty and df_cash.empty:
             print("⚠️ Žádná data.")
+            # I když nejsou data, pošleme aspoň info o chybě
+            notify.poslat_zpravu("⚠️ <b>Alex hlásí:</b> Nemám data! Nahraj prosím 'data.csv' na GitHub.")
             return
 
     except Exception as e:
@@ -94,8 +96,12 @@ def run_bot():
                 open_prices[t] = open_p
                 
                 if t in market_tickers:
-                    pct_change = ((price - open_p) / open_p) * 100
-                    market_data[t] = pct_change
+                    # Ošetření nulové open ceny
+                    if open_p > 0:
+                        pct_change = ((price - open_p) / open_p) * 100
+                        market_data[t] = pct_change
+                    else:
+                        market_data[t] = 0.0
             except: pass
 
     except Exception as e:
@@ -107,7 +113,7 @@ def run_bot():
     portfolio_cost_usd = 0
     daily_gain_usd = 0
     
-    # A) Hotovost (Pro výpočet jmění)
+    # A) Hotovost
     try:
         df_cash['Castka'] = pd.to_numeric(df_cash['Castka'], errors='coerce').fillna(0)
         for mena, castka in df_cash.groupby('Mena')['Castka'].sum().items():
@@ -140,8 +146,9 @@ def run_bot():
         daily_diff = (live_prices[t] - open_prices[t]) * kusy * koef
         daily_gain_usd += daily_diff
         
-        pct = ((live_prices[t] - open_prices[t]) / open_prices[t])
-        movers.append((t, pct))
+        if open_prices[t] > 0:
+            pct = ((live_prices[t] - open_prices[t]) / open_prices[t])
+            movers.append((t, pct))
 
     # 6. FINÁLNÍ METRIKY
     total_net_worth_czk = (portfolio_val_usd + total_cash_usd) * kurz_czk
@@ -187,14 +194,13 @@ def run_bot():
     
     msg += "━━━━━━━━━━━━━━━━━━\n"
     
-    # --- OPRAVENÁ SEKCE HOTOVOSTI (Pod sebe + CZK) ---
+    # HOTOVOST (FIXNUTÝ VZHLED)
     msg += "💳 <b>Stav hotovosti:</b>\n"
     found_cash = False
     try:
         sums = df_cash.groupby('Mena')['Castka'].sum()
-        # Vynutíme pořadí měn, aby to vypadalo hezky a CZK bylo první
-        for mena in ['CZK', 'USD', 'EUR']:
-            if mena in sums and sums[mena] > 1: # Zobrazíme, pokud je tam víc než 1 jednotka
+        for mena in ['CZK', 'USD', 'EUR']: # Vynucené pořadí
+            if mena in sums and sums[mena] > 1:
                 amount = sums[mena]
                 if mena == 'CZK': txt = f"{amount:,.0f} Kč"
                 elif mena == 'USD': txt = f"${amount:,.0f}"
