@@ -6,7 +6,7 @@ on:
     # ⚠️ Čas je v UTC!
     # Nastaveno na 20:12 UTC = 21:12 v ČR (zima)
     # Používáme "divnou minutu" (12), abychom předběhli frontu na GitHub serverech
-    - cron: '17 20 * * *'
+    - cron: '3 22 * * *'
   
   # Toto umožní ruční spuštění tlačítkem "Run workflow" (pro testování)
   # Neboj, ruční spuštění NIJAK neovlivní to automatické!
