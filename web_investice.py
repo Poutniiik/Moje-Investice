@@ -979,7 +979,7 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
             if est_monthly_income_czk < val:
                 next_goal = name
                 next_val = val
-                progress = min(est_monthly_monthly_income_czk / val, 1.0)
+                progress = min(est_monthly_income_czk / val, 1.0)
                 break
             else:
                 pass
@@ -2239,11 +2239,11 @@ def main():
 
     # Čas, kdy se report posílá (1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 600 
+    report_time_int = 600 # ZMĚNA HODNOTY NA 06:00 RÁNO PRO RYCHLÝ TEST
 
     # Pravidlo pro odeslání: 
     # 1. Dnes se ještě neodeslalo 
-    # 2. Aktuální čas je po 18:00
+    # 2. Aktuální čas je po 6:00
     if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
         
         st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
@@ -3237,36 +3237,34 @@ def main():
         # TADY ZAČÍNÁ NOVÁ, BEZPEČNÁ LOGIKA TESTU
         
         def handle_telegram_test():
-             # Musíme to zabalit do try/except, protože nevíme, co vrací notify.otestovat_tlacitko()
+             # Tato funkce nyní bezpečně volá otestovat_tlacitko(), které by mělo vracet (ok, msg)
              ok = False
              msg = "NEZNÁMÁ CHYBA: Volání selhalo."
              
              try:
-                 # Krok 1: Zkusíme získat dvě hodnoty (očekávaný formát)
-                 results = notify.otestovat_tlacitko()
+                 # Vzhledem k tomu, že jsme v notification_engine.py opravili,
+                 # že otestovat_tlacitko() volá poslat_zpravu(), mělo by vracet 2 hodnoty.
+                 results = notify.otestovat_tlacitko() 
                  
                  if isinstance(results, tuple) and len(results) == 2:
                      ok, msg = results
                  else:
-                     # Krok 2: Pokud nevrátilo tuple (ok, msg), zkusíme získat zprávu, pokud je k dispozici
-                     msg = str(results) # Může to být raw string nebo None
-                     if results is not None:
-                         # Zkusíme zjistit status z obsahu (pokud nepadlo, předpokládáme úspěch)
-                         ok = True
-                         msg = f"Testovací zpráva ODESLÁNA. Funkce nevrací status, ale běh byl úspěšný: {msg}"
-                     else:
-                         msg = "Chyba ve funkci 'notify.otestovat_tlacitko()': Nevrátila tuple (True/False, zpráva)."
-                     
+                     # Fallback pro případ, že se notification_engine.py neupravil
+                     ok = False
+                     msg = f"CHYBA API ROZHRANÍ: Funkce otestovat_tlacitko() nevrací (ok, msg), ale {type(results).__name__}."
+
              except Exception as e:
-                 # Odchycena chyba, např. TypeError (při pokusu o získání 2 hodnot z 1 nebo None)
+                 # Odchycení chyby při samotném odeslání (např. chyba API klíče, sítě)
                  ok = False
-                 msg = f"Volání 'notify.otestovat_tlacitko()' selhalo. ({type(e).__name__}: {e})"
+                 msg = f"Kritická chyba volání: {type(e).__name__}: {e}"
 
              # Uložíme výsledek do Session State
              if ok:
-                 st.session_state['telegram_test_msg'] = (f"✅ Test OK! Zpráva odeslána na Telegram. {msg}", "success")
+                 st.session_state['telegram_test_msg'] = (f"✅ Test OK! {msg}", "success")
              else:
-                 st.session_state['telegram_test_msg'] = (f"❌ Test FAILED! {msg}. Zkontroluj BOT_TOKEN a CHAT_ID v 'notification_engine.py'.", "error")
+                 # Zobrazíme konkrétní zprávu z poslat_zpravu() nebo obecnou chybu
+                 final_msg = msg if "Chyba Telegramu" in msg or "Chybí konfigurace" in msg else f"Kritická chyba. {msg}"
+                 st.session_state['telegram_test_msg'] = (f"❌ Test FAILED! {final_msg}. Zkontroluj BOT_TOKEN a CHAT_ID.", "error")
              
              # Vynutíme reload pro zobrazení zprávy
              st.rerun()
@@ -3439,4 +3437,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
