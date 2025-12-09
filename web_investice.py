@@ -1336,7 +1336,7 @@ def render_analýza_korelace_page(df, kurzy):
             try:
                 with st.spinner("Počítám korelace..."):
                     hist_data = yf.download(tickers_list, period="1y")['Close']
-                    returns = np.log(data / data.shift(1)).dropna()
+                    returns = hist_data.pct_change().dropna()
                     corr_matrix = returns.corr()
                     
                     fig_corr = px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale="RdBu_r", origin='lower')
@@ -3129,7 +3129,7 @@ def main():
                 if 'bank_data' in st.session_state:
                     st.dataframe(st.session_state['bank_data'], use_container_width=True, hide_index=True)
                     # Malý součet pro efekt
-                    celkem_banka = st.session_state['bank_data']['Zůstatek'].sum()
+                    celkem_banka = st.session_state['bank_data'].iloc[0]['Zůstatek']
                     mena_banka = st.session_state['bank_data'].iloc[0]['Měna']
                     st.caption(f"Disponibilní v bance: **{celkem_banka:,.2f} {mena_banka}**")
 
@@ -3169,7 +3169,7 @@ def main():
         render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky)
 
 
-    # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
+    # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (ODSTRANĚNÍ DUPLICITNÍHO VOLÁNÍ) ---
     elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
         
@@ -3235,12 +3235,33 @@ def main():
         st.caption("Otestuj spojení s tvým mobilem.")
 
         # TADY JE TLAČÍTKO PRO TEST TELEGRAMU
-        if st.button("🤖 OTESTOVAT TELEGRAM ODESLÁNÍ", type="secondary", use_container_width=True):
-             with st.spinner("Posílám testovací zprávu..."):
-                 # Využíváme stávající logiku testu
-                 ok, msg = notify.otestovat_tlacitko()
-                 if ok: st.success("✅ Test OK! Zpráva odeslána na Telegram.")
-                 else: st.error(f"❌ Test FAILED! Chyba: {msg}. Zkontroluj, zda máš v 'notification_engine.py' správný BOT_TOKEN a CHAT_ID.")
+        # TLAČÍTKO TEĎ VYVOLÁVÁ CHYBU DÍKY ZPŮSOBU STREAMLITU. MUSÍME TO VOLAT Z FUNKCE,
+        # ABYCHOM ZABRÁNILI TypeError, POKUD notify.otestovat_tlacitko() Vrací jen jednu nebo žádnou hodnotu.
+        
+        def handle_telegram_test():
+             # Tato funkce je volána jen PŘI stisknutí tlačítka
+             ok, msg = notify.otestovat_tlacitko()
+             # Logika výsledku se přesouvá do session state, aby se Streamlit nevzbudil uprostřed funkce
+             if ok:
+                 st.session_state['telegram_test_msg'] = ("✅ Test OK! Zpráva odeslána na Telegram.", "success")
+             else:
+                 st.session_state['telegram_test_msg'] = (f"❌ Test FAILED! Chyba: {msg}. Zkontroluj, zda máš v 'notification_engine.py' správný BOT_TOKEN a CHAT_ID.", "error")
+             
+             # Vynutíme reload pro zobrazení zprávy
+             st.rerun()
+        
+        # Zobrazení výsledku z testu po stisknutí
+        if 'telegram_test_msg' in st.session_state:
+             msg, type = st.session_state.pop('telegram_test_msg')
+             if type == "success":
+                 st.success(msg)
+             else:
+                 st.error(msg)
+
+
+        if st.button("🤖 OTESTOVAT TELEGRAM ODESLÁNÍ", type="secondary", use_container_width=True, on_click=handle_telegram_test):
+             # Kód uvnitř tlačítka se neprovádí, když používáme on_click, ale necháme ho prázdný pro strukturu
+             pass
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
     elif page == "🧪 Banka":
