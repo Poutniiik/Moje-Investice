@@ -2237,9 +2237,9 @@ def main():
     if 'last_telegram_report' not in st.session_state:
         st.session_state['last_telegram_report'] = "2000-01-01"
 
-    # Čas, kdy se report posílá (600 = 06:00, 1800 = 18:00)
+    # Čas, kdy se report posílá (1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 600 # NASTAVENO NA 06:00 PRO TEST
+    report_time_int = 1800 # NASTAVENO NA 18:00 PRO TEST
 
     # Pravidlo pro odeslání: 
     # 1. Dnes se ještě neodeslalo 
@@ -3439,3 +3439,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
