@@ -1642,71 +1642,6 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 # ... (zde končí kód funkcí pro renderování stránek a pod ním začíná) ...
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 
-# --- NOVÁ FUNKCE: SESTAVENÍ A ODESLÁNÍ TELEGRAM REPORTU ---
-def send_daily_telegram_report(USER, data_core, alerts, kurzy):
-    """
-    Sestaví ucelený denní report a odešle jej na Telegram.
-    Tato funkce je volána automaticky v Scheduleru.
-    """
-    try:
-        # Extrakce dat z data_core
-        celk_hod_czk = data_core['celk_hod_usd'] * kurzy.get("CZK", 20.85)
-        pct_24h = data_core['pct_24h']
-        cash_usd = data_core['cash_usd']
-        vdf = data_core['vdf']
-        score, rating = cached_fear_greed() # Voláme přímo cache funkci
-        
-        # --- 1. HLAVIČKA A SHRNUTÍ ---
-        summary_text = f"<b>💸 DENNÍ REPORT: {USER.upper()}</b>\n"
-        summary_text += f"📅 {datetime.now().strftime('%d.%m.%Y')}\n"
-        summary_text += "--------------------------------------\n"
-        summary_text += f"Celkové jmění: <b>{celk_hod_czk:,.0f} CZK</b>\n"
-        
-        # Změna 24h
-        zmena_emoji = '🟢' if pct_24h >= 0 else '🔴'
-        summary_text += f"24h Změna: {zmena_emoji} <b>{pct_24h:+.2f}%</b>\n"
-        
-        # Hotovost
-        summary_text += f"Volná hotovost: ${cash_usd:,.0f}\n"
-        summary_text += f"Nálada trhu: <b>{rating}</b> ({score}/100)\n"
-        summary_text += "--------------------------------------\n"
-        
-        # --- 2. TOP/FLOP MOVERS (3 nejlepší/nejhorší) ---
-        movers_text = "<b>📈 Největší pohyby (Dnes):</b>\n"
-        
-        if not vdf.empty and 'Dnes' in vdf.columns:
-            # Původně bylo vdf_sorted, teď vdf_sorted_all
-            vdf_sorted_all = vdf.sort_values('Dnes', ascending=False) 
-            
-            # Top Movers
-            movers_text += "\n🔝 Vítězové:\n"
-            # Bereme jen ty s kladným ziskem (ať to není matoucí)
-            for _, row in vdf_sorted_all[vdf_sorted_all['Dnes'] > 0.001].head(3).iterrows():
-                movers_text += f"  🚀 {row['Ticker']}: {row['Dnes']*100:+.2f}%\n"
-            
-            # Flop Movers
-            movers_text += "🔻 Poražení:\n"
-            # Bereme jen ty se záporným ziskem
-            for _, row in vdf_sorted_all[vdf_sorted_all['Dnes'] < -0.001].tail(3).iterrows():
-                movers_text += f"  💀 {row['Ticker']}: {row['Dnes']*100:+.2f}%\n"
-
-            summary_text += movers_text
-            summary_text += "--------------------------------------\n"
-
-        # --- 3. CENOVÉ ALERTY ---
-        if alerts:
-            summary_text += "<b>🚨 AKTIVNÍ ALERTY:</b>\n" + "\n".join(alerts) + "\n"
-            summary_text += "--------------------------------------\n"
-            
-        # --- 4. ZÁVĚR ---
-        summary_text += "<i>Mějte úspěšný investiční den!</i>"
-        
-        # Odeslání zprávy přes Telegram Engine
-        return notify.poslat_zpravu(summary_text)
-
-    except Exception as e:
-        return False, f"❌ Chyba generování reportu: {e}"
-
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     """
@@ -2230,32 +2165,6 @@ def main():
                     if sell_trg > 0 and price >= sell_trg:
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
-
-    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (SPUŠTĚNÍ) ---
-    today_date = datetime.now().strftime("%Y-%m-%d")
-    
-    if 'last_telegram_report' not in st.session_state:
-        st.session_state['last_telegram_report'] = "2000-01-01"
-
-    # Čas, kdy se report posílá (600 = 06:00, 1800 = 18:00)
-    current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 600 # NASTAVENO NA 06:00 PRO TEST
-
-    # Pravidlo pro odeslání: 
-    # 1. Dnes se ještě neodeslalo 
-    # 2. Aktuální čas je po 6:00
-    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
-        
-        st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
-        
-        # Voláme novou funkci
-        ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
-        
-        if ok:
-            st.session_state['last_telegram_report'] = today_date
-            st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
-        else:
-            st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
 
     # --- 9. SIDEBAR ---
     # --- 9. SIDEBAR (Vylepšené rozložení pro mobil) ---
@@ -3172,16 +3081,6 @@ def main():
     # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (ODSTRANĚNÍ DUPLICITNÍHO VOLÁNÍ) ---
     elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
-        
-        # === NOVÁ ČÁST: RESET AUTOMATIKY PRO TESTOVÁNÍ ===
-        with st.expander("🛠️ Reset Automatického Reportu (Pro test)"):
-            # Tímto tlačítkem vynulujeme stav a zajistíme restart aplikace
-            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary"):
-                st.session_state['last_telegram_report'] = "2000-01-01"
-                st.success("Stav reportu resetován. Opakuji spuštění aplikace pro odeslání reportu...")
-                # st.experimental_rerun je kritické pro vynucení kompletního restartu kódu
-                st.experimental_rerun() 
-        # ==================================================
         
         # --- 1. AI KONFIGURACE ---
         with st.container(border=True):
