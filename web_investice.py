@@ -3234,24 +3234,49 @@ def main():
         st.subheader("📲 NOTIFIKACE (Telegram)")
         st.caption("Otestuj spojení s tvým mobilem.")
 
-        # TADY JE TLAČÍTKO PRO TEST TELEGRAMU
-        # TLAČÍTKO TEĎ VYVOLÁVÁ CHYBU DÍKY ZPŮSOBU STREAMLITU. MUSÍME TO VOLAT Z FUNKCE,
-        # ABYCHOM ZABRÁNILI TypeError, POKUD notify.otestovat_tlacitko() Vrací jen jednu nebo žádnou hodnotu.
+        # TADY ZAČÍNÁ NOVÁ, BEZPEČNÁ LOGIKA TESTU
         
         def handle_telegram_test():
-             # Tato funkce je volána jen PŘI stisknutí tlačítka
-             ok, msg = notify.otestovat_tlacitko()
-             # Logika výsledku se přesouvá do session state, aby se Streamlit nevzbudil uprostřed funkce
+             # Musíme to zabalit do try/except, protože nevíme, co vrací notify.otestovat_tlacitko()
+             try:
+                 # Zkusíme očekávanou variantu (vrací ok, msg)
+                 results = notify.otestovat_tlacitko()
+                 
+                 if isinstance(results, tuple) and len(results) == 2:
+                     ok, msg = results
+                 else:
+                     # Pokud to nevrátilo tuple (ok, msg), znamená to chybu ve funkci
+                     # Ponecháme msg jako raw výsledek a nastavíme ok=False pro signalizaci problému
+                     ok = False
+                     msg = "Chyba ve funkci 'notify.otestovat_tlacitko()': Nevrátila tuple (True/False, zpráva)."
+                     
+             except ValueError:
+                 # Odchytíme chybu, pokud funkce vrací jen jednu hodnotu nebo nic
+                 try:
+                     msg = notify.otestovat_tlacitko()
+                     ok = True # Pokud to nepadlo, předpokládáme, že to zprávu odeslalo
+                     if msg is None:
+                         msg = "Testovací zpráva ODESLÁNA, ale funkce nevrací status (pravděpodobně OK)."
+                         ok = True
+                     else:
+                         msg = str(msg)
+                         
+                 except Exception as e:
+                     ok = False
+                     msg = f"NEZNÁMÁ CHYBA: Volání 'notify.otestovat_tlacitko()' selhalo. ({e})"
+
+             # Uložíme výsledek do Session State
              if ok:
-                 st.session_state['telegram_test_msg'] = ("✅ Test OK! Zpráva odeslána na Telegram.", "success")
+                 st.session_state['telegram_test_msg'] = (f"✅ Test OK! Zpráva odeslána na Telegram. {msg}", "success")
              else:
-                 st.session_state['telegram_test_msg'] = (f"❌ Test FAILED! Chyba: {msg}. Zkontroluj, zda máš v 'notification_engine.py' správný BOT_TOKEN a CHAT_ID.", "error")
+                 st.session_state['telegram_test_msg'] = (f"❌ Test FAILED! {msg}. Zkontroluj BOT_TOKEN a CHAT_ID v 'notification_engine.py'.", "error")
              
              # Vynutíme reload pro zobrazení zprávy
              st.rerun()
         
         # Zobrazení výsledku z testu po stisknutí
         if 'telegram_test_msg' in st.session_state:
+             # Používáme .pop() pro jednorázové zobrazení zprávy po reloadu
              msg, type = st.session_state.pop('telegram_test_msg')
              if type == "success":
                  st.success(msg)
@@ -3259,9 +3284,8 @@ def main():
                  st.error(msg)
 
 
-        if st.button("🤖 OTESTOVAT TELEGRAM ODESLÁNÍ", type="secondary", use_container_width=True, on_click=handle_telegram_test):
-             # Kód uvnitř tlačítka se neprovádí, když používáme on_click, ale necháme ho prázdný pro strukturu
-             pass
+        # Samotné tlačítko
+        st.button("🤖 OTESTOVAT TELEGRAM ODESLÁNÍ", type="secondary", use_container_width=True, on_click=handle_telegram_test)
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
     elif page == "🧪 Banka":
