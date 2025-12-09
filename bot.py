@@ -8,7 +8,7 @@ import os
 
 # --- KONFIGURACE ROBOTA ---
 # ⚠️ DŮLEŽITÉ: Tady musí být PŘESNĚ to jméno, které vidíš v aplikaci vlevo nahoře
-TARGET_USER = "Poutniiik"  
+TARGET_USER = "Filip"  
 BOT_NAME = "Alex"
 
 def safe_float(val, fallback=0.0):
