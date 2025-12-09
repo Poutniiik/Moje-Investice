@@ -5,10 +5,10 @@ import data_manager as dm
 import notification_engine as notify
 import math
 import os
-import random # Přidej pro vtipy
+import random 
 
 # --- KONFIGURACE ROBOTA ---
-TARGET_USER = "Filip"  
+TARGET_USER = "Filip"   
 BOT_NAME = "Alex"
 
 def safe_float(val, fallback=0.0):
@@ -40,6 +40,7 @@ def run_bot():
     if rezim == "Test Spojení":
         notify.poslat_zpravu("📡 <b>Test spojení:</b> Alex slyší a vidí! Vše OK.")
         return
+
     # 1. Načtení dat
     try:
         raw_df = dm.nacti_csv(dm.SOUBOR_DATA)
@@ -197,11 +198,11 @@ def run_bot():
         msg += "• <i>Žádná hotovost</i>\n"
         
     msg += "━━━━━━━━━━━━━━━━━━\n"
-   msg += f"<i>Kurz USD: {kurz_czk:.2f} Kč</i>"
+    msg += f"<i>Kurz USD: {kurz_czk:.2f} Kč</i>"
 
     # --- PŘIDÁNÍ POZNÁMKY (Pokud jsi ji napsal ručně) ---
     if vzkaz_od_sefa:
-    msg += f"\n\n✍️ <b>Poznámka:</b>\n{vzkaz_od_sefa}"
+        msg += f"\n\n✍️ <b>Poznámka:</b>\n{vzkaz_od_sefa}"
 
     print(f"📤 Odesílám report...")
     notify.poslat_zpravu(msg)
