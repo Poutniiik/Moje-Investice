@@ -3,69 +3,110 @@ import yfinance as yf
 from datetime import datetime
 import data_manager as dm
 import notification_engine as notify
+import math
 import os
 
 # --- KONFIGURACE ROBOTA ---
-# Jméno uživatele, pro kterého report generujeme (musí sedět s tvým loginem)
-TARGET_USER = "Beith"  # <--- ZDE SI ZMĚŇ SVÉ UŽIVATELSKÉ JMÉNO, POKUD JE JINÉ
-BOT_NAME = "Alex"      # <--- TADY JSME POJMENOVALI BOTA
+# ⚠️ DŮLEŽITÉ: Tady musí být PŘESNĚ to jméno, které vidíš v aplikaci vlevo nahoře
+TARGET_USER = "Beith"  
+BOT_NAME = "Alex"
+
+def safe_float(val, fallback=0.0):
+    """Pomocná funkce: Pokud je hodnota NaN nebo None, vrátí fallback."""
+    try:
+        f = float(val)
+        if math.isnan(f): return fallback
+        return f
+    except:
+        return fallback
 
 def run_bot():
-    print(f"🤖 {BOT_NAME}: Startuji denní report pro uživatele '{TARGET_USER}'...")
+    print(f"🤖 {BOT_NAME}: Startuji diagnostiku pro uživatele '{TARGET_USER}'...")
 
-    # 1. Načtení dat z GitHubu
+    # 1. Načtení dat
     try:
-        df = dm.nacti_csv(dm.SOUBOR_DATA).query(f"Owner=='{TARGET_USER}'")
-        df_cash = dm.nacti_csv(dm.SOUBOR_CASH).query(f"Owner=='{TARGET_USER}'")
-        print("✅ Data načtena.")
+        # Načteme celá data bez filtru, abychom viděli, kdo tam je
+        raw_df = dm.nacti_csv(dm.SOUBOR_DATA)
+        raw_cash = dm.nacti_csv(dm.SOUBOR_CASH)
+        
+        print(f"📊 DEBUG: V databázi je celkem {len(raw_df)} akcií a {len(raw_cash)} pohybů peněz.")
+        print(f"👥 DEBUG: Nalezení uživatelé v DB: {raw_df['Owner'].unique()}")
+
+        # Teď filtrujeme
+        df = raw_df[raw_df['Owner'] == TARGET_USER].copy()
+        df_cash = raw_cash[raw_cash['Owner'] == TARGET_USER].copy()
+        
+        print(f"✅ Pro uživatele '{TARGET_USER}' nalezeno: {len(df)} akcií, {len(df_cash)} záznamů cash.")
+        
     except Exception as e:
-        print(f"❌ Chyba načítání dat: {e}")
+        print(f"❌ KRITICKÁ CHYBA NAČÍTÁNÍ: {e}")
         return
 
-    # 2. Výpočet Hotovosti
-    # Zjednodušený výpočet hotovosti (bez kurzů, vše v nominálu, nebo fixní kurz pro odhad)
-    # Pro jednoduchost robota budeme předpokládat fixní kurzy, pokud nemáme live feed
-    kurz_czk = 24.0 # Fallback
-    kurz_eur = 1.05 # Fallback
+    # Pokud nemáme data, nemá cenu pokračovat
+    if df.empty and df_cash.empty:
+        print("⚠️ VAROVÁNÍ: Žádná data pro tohoto uživatele! Kontroluji jméno...")
+        notify.poslat_zpravu(f"⚠️ <b>{BOT_NAME} hlásí chybu:</b>\nNenašel jsem žádná data pro uživatele <i>{TARGET_USER}</i>.\nZkontroluj, zda máš v 'bot.py' správné jméno.")
+        return
+
+    # 2. Kurzy (S ochranou proti NaN)
+    kurz_czk = 24.0 
+    kurz_eur = 1.05
     
-    # Zkusíme stáhnout aktuální kurzy
     try:
+        print("🌍 Stahuji kurzy měn...")
         forex = yf.download(["CZK=X", "EURUSD=X"], period="1d", progress=False)
         if not forex.empty:
-            kurz_czk = float(forex["Close"]["CZK=X"].iloc[-1])
-            kurz_eur = float(forex["Close"]["EURUSD=X"].iloc[-1])
-            print(f"💱 Kurzy staženy: USD/CZK={kurz_czk:.2f}, EUR/USD={kurz_eur:.2f}")
-    except:
-        print("⚠️ Nepodařilo se stáhnout kurzy, používám fallback.")
+            # Zkusíme získat hodnotu a ošetřit NaN
+            k_czk = forex["Close"]["CZK=X"].iloc[-1] if "CZK=X" in forex["Close"] else None
+            k_eur = forex["Close"]["EURUSD=X"].iloc[-1] if "EURUSD=X" in forex["Close"] else None
+            
+            if k_czk and not math.isnan(k_czk): kurz_czk = float(k_czk)
+            if k_eur and not math.isnan(k_eur): kurz_eur = float(k_eur)
+            
+        print(f"💱 Použité kurzy: USD/CZK={kurz_czk:.2f}, EUR/USD={kurz_eur:.2f}")
+    except Exception as e:
+        print(f"⚠️ Chyba kurzů ({e}), jedu na fallback (24.0 / 1.05).")
 
-    # Hotovost total v USD
+    # 3. Výpočet Hotovosti
     total_cash_usd = 0
-    zustatky = df_cash.groupby('Mena')['Castka'].sum().to_dict()
-    total_cash_usd += zustatky.get('USD', 0)
-    total_cash_usd += zustatky.get('CZK', 0) / kurz_czk
-    total_cash_usd += zustatky.get('EUR', 0) * kurz_eur
+    try:
+        # Převedeme na čísla, kdyby tam byly stringy
+        df_cash['Castka'] = pd.to_numeric(df_cash['Castka'], errors='coerce').fillna(0)
+        zustatky = df_cash.groupby('Mena')['Castka'].sum().to_dict()
+        
+        total_cash_usd += zustatky.get('USD', 0)
+        total_cash_usd += zustatky.get('CZK', 0) / kurz_czk
+        total_cash_usd += zustatky.get('EUR', 0) * kurz_eur
+    except Exception as e:
+        print(f"❌ Chyba při počítání cash: {e}")
 
-    # 3. Hodnota akcií
+    # 4. Hodnota akcií
     portfolio_val_usd = 0
-    tickers = df['Ticker'].unique().tolist()
     movers = []
+    tickers = df['Ticker'].unique().tolist()
 
     if tickers:
-        print(f"📈 Stahuji ceny pro {len(tickers)} akcií...")
+        print(f"📈 Stahuji ceny pro: {tickers}")
         try:
             live_data = yf.download(tickers, period="1d", group_by='ticker', progress=False)
             
             for t in tickers:
                 try:
-                    # Bezpečné získání ceny z MultiIndexu
+                    # Logika pro získání ceny (single vs multi index)
                     if len(tickers) > 1:
-                        price = float(live_data[t]['Close'].iloc[-1])
-                        open_p = float(live_data[t]['Open'].iloc[-1])
+                        data_slice = live_data[t]
                     else:
-                        price = float(live_data['Close'].iloc[-1])
-                        open_p = float(live_data['Open'].iloc[-1])
+                        data_slice = live_data
+                    
+                    # Ošetření prázdných dat
+                    if data_slice.empty or pd.isna(data_slice['Close'].iloc[-1]):
+                        print(f"⚠️ {t}: Žádná data nebo NaN.")
+                        continue
+
+                    price = float(data_slice['Close'].iloc[-1])
+                    open_p = float(data_slice['Open'].iloc[-1])
                         
-                    # Přepočet měny
+                    # Měna akcie (zjednodušená detekce)
                     curr = "USD"
                     if ".PR" in t: curr = "CZK"
                     elif ".DE" in t: curr = "EUR"
@@ -73,49 +114,51 @@ def run_bot():
                     kusy = df[df['Ticker'] == t]['Pocet'].sum()
                     val = kusy * price
                     
-                    # Konverze na USD pro součet
+                    # Konverze
+                    val_usd = val
                     if curr == "CZK": val_usd = val / kurz_czk
                     elif curr == "EUR": val_usd = val * kurz_eur
-                    else: val_usd = val
                     
                     portfolio_val_usd += val_usd
                     
-                    # Změna v %
-                    change = (price - open_p) / open_p
-                    movers.append((t, change))
+                    # Změna
+                    if open_p > 0:
+                        change = (price - open_p) / open_p
+                        movers.append((t, change))
                     
                 except Exception as e:
-                    print(f"Chyba u {t}: {e}")
-        except Exception as e:
-            print(f"❌ Chyba yfinance: {e}")
+                    print(f"⚠️ Chyba výpočtu u {t}: {e}")
 
-    # 4. Celkové jmění
+        except Exception as e:
+            print(f"❌ Velká chyba yfinance: {e}")
+
+    # 5. Celkové jmění
     total_net_worth_czk = (portfolio_val_usd + total_cash_usd) * kurz_czk
     
-    # 5. Top Movers
-    movers.sort(key=lambda x: x[1], reverse=True)
-    best = movers[0] if movers else ("N/A", 0)
-    worst = movers[-1] if movers else ("N/A", 0)
+    # 6. Top/Flop
+    best_str = "N/A"
+    worst_str = "N/A"
+    if movers:
+        movers.sort(key=lambda x: x[1], reverse=True)
+        b = movers[0]
+        w = movers[-1]
+        best_str = f"{b[0]} ({b[1]*100:+.1f}%)"
+        worst_str = f"{w[0]} ({w[1]*100:+.1f}%)"
 
-    # 6. Sestavení zprávy (TADY SE PŘEDSTAVÍ ALEX)
-    msg = f"<b>🤖 {BOT_NAME} hlásí stav:</b>\n"
-    msg += f"📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
-    msg += "-----------------------------\n"
+    # 7. Sestavení zprávy
+    msg = f"<b>🤖 {BOT_NAME} (v2.0):</b>\n"
+    msg += f"📅 {datetime.now().strftime('%d.%m. %H:%M')}\n"
+    msg += "------------------\n"
     msg += f"💰 Jmění: <b>{total_net_worth_czk:,.0f} Kč</b>\n"
     msg += f"💵 Cash: ${total_cash_usd:,.0f}\n"
-    msg += "-----------------------------\n"
-    msg += f"🚀 Top: {best[0]} ({best[1]*100:+.1f}%)\n"
-    msg += f"💀 Flop: {worst[0]} ({worst[1]*100:+.1f}%)\n"
-    msg += "-----------------------------\n"
-    msg += "<i>Odesláno z GitHub Actions</i>"
+    msg += "------------------\n"
+    msg += f"🚀 {best_str}\n"
+    msg += f"💀 {worst_str}\n"
+    msg += "------------------\n"
+    msg += "<i>GitHub Actions OK ✅</i>"
 
-    # 7. Odeslání
-    print("📤 Odesílám na Telegram...")
-    ok, err = notify.poslat_zpravu(msg)
-    if ok:
-        print("✅ HOTOVO.")
-    else:
-        print(f"❌ CHYBA ODESLÁNÍ: {err}")
+    print(f"📤 Odesílám: Jmění={total_net_worth_czk}, Cash={total_cash_usd}")
+    notify.poslat_zpravu(msg)
 
 if __name__ == "__main__":
     run_bot()
