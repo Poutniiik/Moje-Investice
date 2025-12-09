@@ -5,6 +5,7 @@ import data_manager as dm
 import notification_engine as notify
 import math
 import os
+import random # Přidej pro vtipy
 
 # --- KONFIGURACE ROBOTA ---
 TARGET_USER = "Filip"  
@@ -20,8 +21,25 @@ def safe_float(val, fallback=0.0):
         return fallback
 
 def run_bot():
-    print(f"🤖 {BOT_NAME}: Startuji CEO Report pro uživatele '{TARGET_USER}'...")
+    # 1. NAČTENÍ PARAMETRŮ Z GITHUB MENU
+    # Pokud běží automat, 'INPUT_TYP' nebude existovat, tak použijeme 'Standardní Report'
+    rezim = os.environ.get("INPUT_TYP", "Standardní Report")
+    vzkaz_od_sefa = os.environ.get("INPUT_VZKAZ", "")
 
+    print(f"🤖 {BOT_NAME}: Startuji v režimu '{rezim}'...")
+
+    if rezim == "Jenom Vtip":
+        vtipy = [
+            "Proč se investoři neopalují? Protože se bojí spálení (burn rate).",
+            "Jaký je rozdíl mezi dluhopisem a chlapem? Dluhopis nakonec dospěje.",
+            "Investování je jako mýdlo. Čím víc na to saháš, tím méně toho máš."
+        ]
+        notify.poslat_zpravu(f"🤡 <b>Burzovní vtip:</b>\n\n{random.choice(vtipy)}")
+        return  # Konec, dál nepočítej
+
+    if rezim == "Test Spojení":
+        notify.poslat_zpravu("📡 <b>Test spojení:</b> Alex slyší a vidí! Vše OK.")
+        return
     # 1. Načtení dat
     try:
         raw_df = dm.nacti_csv(dm.SOUBOR_DATA)
@@ -179,7 +197,11 @@ def run_bot():
         msg += "• <i>Žádná hotovost</i>\n"
         
     msg += "━━━━━━━━━━━━━━━━━━\n"
-    msg += f"<i>Kurz USD: {kurz_czk:.2f} Kč</i>"
+   msg += f"<i>Kurz USD: {kurz_czk:.2f} Kč</i>"
+
+    # --- PŘIDÁNÍ POZNÁMKY (Pokud jsi ji napsal ručně) ---
+    if vzkaz_od_sefa:
+    msg += f"\n\n✍️ <b>Poznámka:</b>\n{vzkaz_od_sefa}"
 
     print(f"📤 Odesílám report...")
     notify.poslat_zpravu(msg)
