@@ -24,7 +24,6 @@ from streamlit_lottie import st_lottie
 import google.generativeai as genai
 import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from fpdf import FPDF
 import extra_streamlit_components as stx
 import random
@@ -628,9 +627,9 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         df_div_temp = st.session_state.get('df_div', pd.DataFrame())
         if not df_div_temp.empty:
              for _, r in df_div_temp.iterrows():
-                amt = r['Castka']; currency = r['Mena']
-                if currency == "USD": total_div_czk += amt * kurzy.get("CZK", 20.85)
-                elif currency == "EUR": total_div_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
+                amt = r['Castka']
+                if r['Mena'] == "USD": total_divi_czk += amt * kurzy.get("CZK", 20.85)
+                elif r['Mena'] == "EUR": total_divi_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
                 else: total_divi_czk += amt
         
         total_realized_czk = 0 
@@ -824,7 +823,7 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                 year_low = t_obj.fast_info.year_low
                 year_high = t_obj.fast_info.year_high
                 if price and year_high > year_low:
-                    range_pos = (price - year_low) / (year_high - year_low)
+                    range_pos = (price - year_low) / (year_high - year_high)
                     range_pos = max(0.0, min(1.0, range_pos))
             except: pass
 
@@ -1899,6 +1898,7 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user")
                             st.toast("Účet vytvořen!", icon="✅")
             with t3:
+                st.caption("Zapomněl jsi heslo?")
                 with st.form("recovery"):
                     ru = st.text_input("Jméno")
                     rk = st.text_input("Záchranný kód")
@@ -2239,12 +2239,11 @@ def main():
 
     # Čas, kdy se report posílá (600 = 06:00, 1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    # NASTAVENO NA 18:00 PRO REÁLNÝ PROVOZ
-    report_time_int = 1800 
+    report_time_int = 600 # NASTAVENO NA 06:00 PRO TEST
 
     # Pravidlo pro odeslání: 
     # 1. Dnes se ještě neodeslalo 
-    # 2. Aktuální čas je po 18:00
+    # 2. Aktuální čas je po 6:00
     if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
         
         st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
@@ -2590,7 +2589,7 @@ def main():
                                 except Exception:
                                     pass
 
-                                st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
+                                st.plotly_chart(line_fig, use_container_width=True)
                                 add_download_button(fig_map, "vyvoj_ceny")
                             except Exception:
                                 st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
@@ -2780,6 +2779,8 @@ def main():
 
             # --- 6. CRASH TEST ---
             with st.expander("💥 CRASH TEST (Zátěžová zkouška)", expanded=False):
+                st.info("Co se stane s portfoliem, když přijde krize?")
+                
                 scenarios = {
                     "COVID-19 (2020)": {"drop": 34, "desc": "Pandemie (-34%)"},
                     "Finanční krize (2008)": {"drop": 57, "desc": "Hypoteční krize (-57%)"},
@@ -3059,7 +3060,7 @@ def main():
                     c_info1.info(f"Celkem: **{total_est:,.2f} {menu}**")
                     
                     if zustatek >= total_est:
-                        c_info2.success(f"Na účtu: {zustatky:,.2f} {menu}")
+                        c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
                         if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
                             ok, msg = proved_nakup(ticker_input, qty, limit_price, USER)
                             if ok: st.balloons(); st.success(msg); time.sleep(2); st.rerun()
@@ -3175,10 +3176,11 @@ def main():
         # === NOVÁ ČÁST: RESET AUTOMATIKY PRO TESTOVÁNÍ ===
         with st.expander("🛠️ Reset Automatického Reportu (Pro test)"):
             # Tímto tlačítkem vynulujeme stav a zajistíme restart aplikace
-            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary", key="reset_button_manual"):
+            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary"):
                 st.session_state['last_telegram_report'] = "2000-01-01"
-                st.info("Stav reportu resetován. Automatika se spustí při dalším refreshu stránky (F5).")
-                # ZDE NEVOLÁME st.rerun, ABYCHOM SE VYHNULI ŽLUTÉ CHYBĚ A NECHALI UŽIVATELE RUČNĚ REFRESHNOUT.
+                st.success("Stav reportu resetován. Opakuji spuštění aplikace pro odeslání reportu...")
+                # st.experimental_rerun je kritické pro vynucení kompletního restartu kódu
+                st.experimental_rerun() 
         # ==================================================
         
         # --- 1. AI KONFIGURACE ---
