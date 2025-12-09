@@ -2239,7 +2239,7 @@ def main():
 
     # Čas, kdy se report posílá (1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 1800 
+    report_time_int = 600 
 
     # Pravidlo pro odeslání: 
     # 1. Dnes se ještě neodeslalo 
@@ -3439,3 +3439,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
