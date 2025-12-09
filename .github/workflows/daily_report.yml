@@ -4,8 +4,8 @@ name: Denní Report (Bot)
 on:
   schedule:
     # ⚠️ Čas je v UTC!
-    # 19:00 UTC = 20:00 v ČR (zima) / 21:00 v ČR (léto)
-    - cron: '0 19 * * *'
+    # 20:00 UTC = 21:00 v ČR (zima) / 22:00 v ČR (léto)
+    - cron: '0 20 * * *'
   
   # Toto umožní ruční spuštění tlačítkem "Run workflow" (pro testování)
   workflow_dispatch:
