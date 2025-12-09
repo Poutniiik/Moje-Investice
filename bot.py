@@ -55,9 +55,8 @@ def run_bot():
         print(f"❌ Chyba načítání dat: {e}")
         return
 
-    # 3. PŘÍPRAVA TICKERŮ (Portfolio + Benchmarky)
+    # 3. PŘÍPRAVA TICKERŮ
     my_tickers = df['Ticker'].unique().tolist()
-    # Přidáme S&P 500 (^GSPC) a Bitcoin (BTC-USD) pro srovnání
     market_tickers = ["^GSPC", "BTC-USD"]
     all_tickers = list(set(my_tickers + market_tickers))
 
@@ -65,18 +64,15 @@ def run_bot():
     kurz_czk = 24.0 
     kurz_eur = 1.05
     
-    live_prices = {} # Cena teď
-    open_prices = {} # Cena ráno (pro denní změnu)
-    market_data = {} # Data pro S&P a BTC
+    live_prices = {} 
+    open_prices = {} 
+    market_data = {} 
 
     try:
         print(f"🌍 Stahuji data pro {len(all_tickers)} tickerů + Kurzy...")
-        
-        # Stáhneme vše najednou + kurzy
         download_list = all_tickers + ["CZK=X", "EURUSD=X"]
         raw_data = yf.download(download_list, period="1d", group_by='ticker', progress=False)
 
-        # Zpracování kurzů
         if "CZK=X" in raw_data: 
             k = raw_data["CZK=X"]["Close"].iloc[-1]
             if not math.isnan(k): kurz_czk = float(k)
@@ -84,10 +80,8 @@ def run_bot():
             k = raw_data["EURUSD=X"]["Close"].iloc[-1]
             if not math.isnan(k): kurz_eur = float(k)
 
-        # Zpracování cen akcií a trhu
         for t in all_tickers:
             try:
-                # Ošetření struktury yfinance (Single vs Multi index)
                 if len(download_list) > 1: data = raw_data[t]
                 else: data = raw_data
 
@@ -96,28 +90,24 @@ def run_bot():
                 price = float(data['Close'].iloc[-1])
                 open_p = float(data['Open'].iloc[-1])
                 
-                # Uložení
                 live_prices[t] = price
                 open_prices[t] = open_p
                 
-                # Pokud je to trh, vypočítáme rovnou změnu v %
                 if t in market_tickers:
                     pct_change = ((price - open_p) / open_p) * 100
                     market_data[t] = pct_change
-
             except: pass
 
     except Exception as e:
         print(f"⚠️ Chyba stahování dat: {e}")
 
-    # 5. VÝPOČET PORTFOLIA (Majetek, Zisk celkový, Zisk denní)
+    # 5. VÝPOČET PORTFOLIA
     total_cash_usd = 0
     portfolio_val_usd = 0
     portfolio_cost_usd = 0
+    daily_gain_usd = 0
     
-    daily_gain_usd = 0 # O kolik se to pohnulo dnes
-    
-    # A) Hotovost
+    # A) Hotovost (Pro výpočet jmění)
     try:
         df_cash['Castka'] = pd.to_numeric(df_cash['Castka'], errors='coerce').fillna(0)
         for mena, castka in df_cash.groupby('Mena')['Castka'].sum().items():
@@ -133,7 +123,6 @@ def run_bot():
     for t in my_tickers:
         if t not in live_prices: continue
         
-        # Měna aktiva
         curr = "USD"; koef = 1.0
         if ".PR" in t: curr = "CZK"; koef = 1.0 / kurz_czk
         elif ".DE" in t: curr = "EUR"; koef = kurz_eur
@@ -142,19 +131,15 @@ def run_bot():
         kusy = row['Pocet'].sum()
         avg_buy = row['Cena'].mean()
         
-        # Hodnoty
         val_usd = kusy * live_prices[t] * koef
         cost_usd = kusy * avg_buy * koef
         
         portfolio_val_usd += val_usd
         portfolio_cost_usd += cost_usd
         
-        # Denní změna tohoto aktiva ($)
-        # (Cena teď - Cena ráno) * kusy * měnový kurz
         daily_diff = (live_prices[t] - open_prices[t]) * kusy * koef
         daily_gain_usd += daily_diff
         
-        # Procentuální změna pro Movers
         pct = ((live_prices[t] - open_prices[t]) / open_prices[t])
         movers.append((t, pct))
 
@@ -163,12 +148,10 @@ def run_bot():
     total_profit_czk = (portfolio_val_usd - portfolio_cost_usd) * kurz_czk
     total_profit_pct = (portfolio_val_usd - portfolio_cost_usd) / portfolio_cost_usd * 100 if portfolio_cost_usd > 0 else 0
     
-    # Denní výkonnost portfolia v % (Jen akcie)
     my_daily_pct = 0.0
     if portfolio_val_usd > 0:
         my_daily_pct = (daily_gain_usd / (portfolio_val_usd - daily_gain_usd)) * 100
 
-    # Benchmarky
     sp500_pct = market_data.get("^GSPC", 0.0)
     btc_pct = market_data.get("BTC-USD", 0.0)
 
@@ -176,7 +159,6 @@ def run_bot():
     emoji_main = "🟢" if total_profit_czk >= 0 else "🔴"
     emoji_daily = "📈" if my_daily_pct >= 0 else "📉"
     
-    # Porovnání s trhem
     beat_market = my_daily_pct > sp500_pct
     market_msg = "🏆 <b>Porazil jsi trh!</b>" if beat_market else "🐢 <b>Trh byl dnes rychlejší.</b>"
 
@@ -205,19 +187,31 @@ def run_bot():
     
     msg += "━━━━━━━━━━━━━━━━━━\n"
     
-    # Hotovost (kompaktnější)
-    cash_str = []
+    # --- OPRAVENÁ SEKCE HOTOVOSTI (Pod sebe + CZK) ---
+    msg += "💳 <b>Stav hotovosti:</b>\n"
+    found_cash = False
     try:
         sums = df_cash.groupby('Mena')['Castka'].sum()
-        if 'CZK' in sums and sums['CZK'] > 100: cash_str.append(f"{sums['CZK']:,.0f} Kč")
-        if 'USD' in sums and sums['USD'] > 10: cash_str.append(f"${sums['USD']:,.0f}")
-        if 'EUR' in sums and sums['EUR'] > 10: cash_str.append(f"€{sums['EUR']:,.0f}")
+        # Vynutíme pořadí měn, aby to vypadalo hezky a CZK bylo první
+        for mena in ['CZK', 'USD', 'EUR']:
+            if mena in sums and sums[mena] > 1: # Zobrazíme, pokud je tam víc než 1 jednotka
+                amount = sums[mena]
+                if mena == 'CZK': txt = f"{amount:,.0f} Kč"
+                elif mena == 'USD': txt = f"${amount:,.0f}"
+                elif mena == 'EUR': txt = f"€{amount:,.0f}"
+                else: txt = f"{amount:,.0f} {mena}"
+                
+                msg += f"• {txt}\n"
+                found_cash = True
     except: pass
     
-    if cash_str: msg += f"💳 Cash: {' | '.join(cash_str)}"
+    if not found_cash:
+        msg += "• <i>Prázdno</i>\n"
+    
+    msg += "━━━━━━━━━━━━━━━━━━\n"
 
     if vzkaz_od_sefa:
-        msg += f"\n\n✍️ <b>Poznámka:</b> {vzkaz_od_sefa}"
+        msg += f"\n✍️ <b>Poznámka:</b> {vzkaz_od_sefa}"
 
     print(f"📤 Odesílám vylepšený report...")
     notify.poslat_zpravu(msg)
