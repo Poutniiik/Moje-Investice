@@ -1899,20 +1899,17 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user")
                             st.toast("Účet vytvořen!", icon="✅")
             with t3:
-                st.caption("Zapomněl jsi heslo?")
                 with st.form("recovery"):
                     ru = st.text_input("Jméno")
                     rk = st.text_input("Záchranný kód")
                     rnp = st.text_input("Nové heslo", type="password")
                     if st.form_submit_button("OBNOVIT"):
                         df_u = nacti_uzivatele(); row = df_u[df_u['username'] == ru]
-                        # Oprava: Musíme kontrolovat recovery_key, ne staré heslo (row.iloc[0]['password'] == zasifruj(old))
-                        # Jelikož nemám původní kód pro obnovu, používám původní logiku, ale s novými proměnnými
-                        if not row.empty and row.iloc[0]['recovery_key'] == zasifruj(rk):
-                            if len(rnp) > 0:
-                                df_u.at[row.index[0], 'password'] = zasifruj(rnp); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Heslo obnoveno!")
+                        if not row.empty and row.iloc[0]['password'] == zasifruj(old):
+                            if new == conf and len(new) > 0:
+                                df_u.at[row.index[0], 'password'] = zasifruj(new); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Heslo obnoveno!")
                             else: st.error("Chyba v novém hesle.")
-                        else: st.error("Záchranný kód nebo jméno nesedí.")
+                        else: st.error("Staré heslo nesedí.")
         return
 
     # =========================================================================
@@ -2240,8 +2237,7 @@ def main():
 
     # Čas, kdy se report posílá (600 = 06:00, 1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    # ZMĚNA: Vracíme na 18:00 pro reálný provoz, po tvém testu
-    report_time_int = 1800 
+    report_time_int = 1800 # NASTAVENO NA 18:00 PRO REÁLNÝ PROVOZ
 
     # Pravidlo pro odeslání: 
     # 1. Dnes se ještě neodeslalo 
@@ -3062,7 +3058,7 @@ def main():
                     c_info1.info(f"Celkem: **{total_est:,.2f} {menu}**")
                     
                     if zustatek >= total_est:
-                        c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
+                        c_info2.success(f"Na účtu: {zustatky:,.2f} {menu}")
                         if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
                             ok, msg = proved_nakup(ticker_input, qty, limit_price, USER)
                             if ok: st.balloons(); st.success(msg); time.sleep(2); st.rerun()
@@ -3177,17 +3173,11 @@ def main():
         
         # === NOVÁ ČÁST: RESET AUTOMATIKY PRO TESTOVÁNÍ ===
         with st.expander("🛠️ Reset Automatického Reportu (Pro test)"):
-            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary", key="reset_button_final"):
-                # Tato logika se spustí jako callback!
+            # Nastavíme stav v Session State, NEVOLÁME st.rerun() uvnitř callbacku!
+            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary"):
                 st.session_state['last_telegram_report'] = "2000-01-01"
-                st.session_state['show_reset_msg'] = True
-                # POZNÁMKA: V callbacku je nebezpečné volat st.rerun, proto ho voláme AŽ dole po if bloku.
-            
-            # --- ŘEŠENÍ CHYBY ZPĚTNÉ VAZBY ---
-            if st.session_state.get('show_reset_msg', False):
-                st.success("Stav reportu resetován. Refreshni stránku (F5) pro okamžité spuštění automatiky.")
-                st.session_state['show_reset_msg'] = False # Zobrazíme zprávu jen jednou
-                
+                st.session_state['trigger_main_rerun'] = True # Nastaví trigger
+                st.info("Stav reportu resetován. Opakuji spuštění aplikace pro odeslání reportu...")
         # ==================================================
         
         # --- 1. AI KONFIGURACE ---
