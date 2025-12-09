@@ -823,7 +823,7 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                 year_low = t_obj.fast_info.year_low
                 year_high = t_obj.fast_info.year_high
                 if price and year_high > year_low:
-                    range_pos = (price - year_low) / (year_high - year_low)
+                    range_pos = (price - year_low) / (year_high - year_high)
                     range_pos = max(0.0, min(1.0, range_pos))
             except: pass
 
@@ -2237,9 +2237,9 @@ def main():
     if 'last_telegram_report' not in st.session_state:
         st.session_state['last_telegram_report'] = "2000-01-01"
 
-    # Čas, kdy se report posílá (1800 = 18:00)
+    # Čas, kdy se report posílá (600 = 06:00, 1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 600 # ZMĚNA HODNOTY NA 06:00 RÁNO PRO RYCHLÝ TEST
+    report_time_int = 600 # NASTAVENO NA 06:00 PRO TEST
 
     # Pravidlo pro odeslání: 
     # 1. Dnes se ještě neodeslalo 
@@ -2589,7 +2589,7 @@ def main():
                                 except Exception:
                                     pass
 
-                                st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
+                                st.plotly_chart(line_fig, use_container_width=True)
                                 add_download_button(fig_map, "vyvoj_ceny")
                             except Exception:
                                 st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
@@ -3175,10 +3175,12 @@ def main():
         
         # === NOVÁ ČÁST: RESET AUTOMATIKY PRO TESTOVÁNÍ ===
         with st.expander("🛠️ Reset Automatického Reportu (Pro test)"):
+            # Tímto tlačítkem vynulujeme stav a zajistíme restart aplikace
             if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary"):
                 st.session_state['last_telegram_report'] = "2000-01-01"
-                st.success("Stav reportu resetován. Refreshni stránku pro spuštění automatiky.")
-                st.rerun()
+                st.success("Stav reportu resetován. Opakuji spuštění aplikace pro odeslání reportu...")
+                # st.experimental_rerun je kritické pro vynucení kompletního restartu kódu
+                st.experimental_rerun() 
         # ==================================================
         
         # --- 1. AI KONFIGURACE ---
@@ -3242,16 +3244,14 @@ def main():
         st.subheader("📲 NOTIFIKACE (Telegram)")
         st.caption("Otestuj spojení s tvým mobilem.")
 
-        # TADY ZAČÍNÁ NOVÁ, BEZPEČNÁ LOGIKA TESTU
+        # TADY JE TLAČÍTKO PRO TEST TELEGRAMU
         
         def handle_telegram_test():
-             # Tato funkce nyní bezpečně volá otestovat_tlacitko(), které by mělo vracet (ok, msg)
              ok = False
              msg = "NEZNÁMÁ CHYBA: Volání selhalo."
              
              try:
-                 # Vzhledem k tomu, že jsme v notification_engine.py opravili,
-                 # že otestovat_tlacitko() volá poslat_zpravu(), mělo by vracet 2 hodnoty.
+                 # Vzhledem k refaktoringu v notification_engine.py, tato funkce vrací (ok, msg)
                  results = notify.otestovat_tlacitko() 
                  
                  if isinstance(results, tuple) and len(results) == 2:
@@ -3266,20 +3266,15 @@ def main():
                  ok = False
                  msg = f"Kritická chyba volání: {type(e).__name__}: {e}"
 
-             # Uložíme výsledek do Session State
              if ok:
                  st.session_state['telegram_test_msg'] = (f"✅ Test OK! {msg}", "success")
              else:
-                 # Zobrazíme konkrétní zprávu z poslat_zpravu() nebo obecnou chybu
                  final_msg = msg if "Chyba Telegramu" in msg or "Chybí konfigurace" in msg else f"Kritická chyba. {msg}"
                  st.session_state['telegram_test_msg'] = (f"❌ Test FAILED! {final_msg}. Zkontroluj BOT_TOKEN a CHAT_ID.", "error")
              
-             # Vynutíme reload pro zobrazení zprávy
              st.rerun()
         
-        # Zobrazení výsledku z testu po stisknutí
         if 'telegram_test_msg' in st.session_state:
-             # Používáme .pop() pro jednorázové zobrazení zprávy po reloadu
              msg, type = st.session_state.pop('telegram_test_msg')
              if type == "success":
                  st.success(msg)
@@ -3287,7 +3282,6 @@ def main():
                  st.error(msg)
 
 
-        # Samotné tlačítko
         st.button("🤖 OTESTOVAT TELEGRAM ODESLÁNÍ", type="secondary", use_container_width=True, on_click=handle_telegram_test)
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
