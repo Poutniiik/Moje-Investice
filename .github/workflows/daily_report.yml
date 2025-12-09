@@ -5,7 +5,7 @@ on:
   schedule:
     # ⚠️ Čas je v UTC!
     # 17:00 UTC = 18:00 v ČR (zima) / 19:00 v ČR (léto)
-    - cron: '0 17 * * *'
+    - cron: '0 19 * * *'
   
   # Toto umožní ruční spuštění tlačítkem "Run workflow" (pro testování)
   workflow_dispatch:
