@@ -4,10 +4,12 @@ name: Denní Report (Bot)
 on:
   schedule:
     # ⚠️ Čas je v UTC!
-    # 20:00 UTC = 21:00 v ČR (zima) / 22:00 v ČR (léto)
-    - cron: '0 20 * * *'
+    # Nastaveno na 20:12 UTC = 21:12 v ČR (zima)
+    # Používáme "divnou minutu" (12), abychom předběhli frontu na GitHub serverech
+    - cron: '17 20 * * *'
   
   # Toto umožní ruční spuštění tlačítkem "Run workflow" (pro testování)
+  # Neboj, ruční spuštění NIJAK neovlivní to automatické!
   workflow_dispatch:
 
 jobs:
