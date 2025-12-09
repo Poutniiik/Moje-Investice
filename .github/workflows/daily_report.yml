@@ -11,35 +11,49 @@ on:
   # Toto umožní ruční spuštění tlačítkem "Run workflow" (pro testování)
   # Neboj, ruční spuštění NIJAK neovlivní to automatické!
   workflow_dispatch:
+  
+    inputs:
+      typ_zpravy:
+        description: 'Co mám provést?'
+        required: true
+        default: 'Standardní Report'
+        type: choice
+        options:
+        - Standardní Report
+        - Jenom Vtip
+        - Test Spojení
+      
+      vzkaz:
+        description: 'Připsat poznámku do reportu?'
+        required: false
+        type: string
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Povolení zapisovat do repozitáře (aktualizace DB)
+      contents: write
 
     steps:
-    # 1. Stáhni kód z repozitáře
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. Nastav Python
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    # 3. Nainstaluj knihovny
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # 4. Spusť Robota
     - name: Run Trading Bot
       env:
-        # Zde předáváme tajná hesla z nastavení GitHubu do skriptu
         TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
         TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        # TADY PŘEDÁVÁME TO, CO JSI NAKLIKAL (nebo defaulty, když jede automat)
+        INPUT_TYP: ${{ inputs.typ_zpravy }}
+        INPUT_VZKAZ: ${{ inputs.vzkaz }}
       run: python bot.py
