@@ -3173,6 +3173,14 @@ def main():
     elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
         
+        # === NOVÁ ČÁST: RESET AUTOMATIKY PRO TESTOVÁNÍ ===
+        with st.expander("🛠️ Reset Automatického Reportu (Pro test)"):
+            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary"):
+                st.session_state['last_telegram_report'] = "2000-01-01"
+                st.success("Stav reportu resetován. Refreshni stránku pro spuštění automatiky.")
+                st.rerun()
+        # ==================================================
+        
         # --- 1. AI KONFIGURACE ---
         with st.container(border=True):
             st.subheader("🤖 AI Jádro & Osobnost")
@@ -3437,3 +3445,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
