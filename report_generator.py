@@ -75,14 +75,35 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
 portfolio_path = "portfolio_data.csv"
 try:
     df_portfolio = pd.read_csv(portfolio_path)
-    # Získání metrik z PORTFOLIA
-    celkem_zaznamu_portf = len(df_portfolio)
-    status_portf = f"Úspěšně načteno {celkem_zaznamu_portf} záznamů."
     
+    # KONTROLA A PŘEČTENÍ HODNOT
+    
+    # 1. Zajištění, že máme sloupce 'Pocet' a 'Cena'
+    if 'Pocet' in df_portfolio.columns and 'Cena' in df_portfolio.columns:
+        
+        # 2. Převod sloupců na numerický typ (pro jistotu, ignorujeme chyby v datech)
+        df_portfolio['Pocet'] = pd.to_numeric(df_portfolio['Pocet'], errors='coerce').fillna(0)
+        df_portfolio['Cena'] = pd.to_numeric(df_portfolio['Cena'], errors='coerce').fillna(0)
+        
+        # 3. VÝPOČET: Vytvoření sloupce 'Hodnota' = Pocet * Cena
+        df_portfolio['Hodnota'] = df_portfolio['Pocet'] * df_portfolio['Cena']
+        
+        # 4. Získání výsledné metriky: CELKOVÁ HODNOTA PORTFOLIA
+        celkova_hodnota = df_portfolio['Hodnota'].sum()
+        pocet_pozic = len(df_portfolio[df_portfolio['Pocet'] > 0]) # Počet pozic s nenulovým počtem
+        
+        status_portf = f"Úspěšně zpracováno {len(df_portfolio)} záznamů."
+        
+    else:
+        # Pokud chybí klíčové sloupce
+        celkova_hodnota = "CHYBA SLOUPCŮ"
+        pocet_pozic = "N/A"
+        status_portf = "CHYBA: Chybí sloupce 'Pocet' nebo 'Cena'."
+        
 except Exception as e:
-    celkem_zaznamu_portf = "N/A"
-    status_portf = f"CHYBA čtení PORTFOLIA: {e}"
-
+    celkova_hodnota = "N/A"
+    pocet_pozic = "N/A"
+    status_portf = f"KRITICKÁ CHYBA čtení PORTFOLIA: {e}"
 
 # 2. HISTORY DATA (history_data.csv)
 history_path = "history_data.csv"
