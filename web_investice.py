@@ -1732,6 +1732,48 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
             if ".PR" in tkr: m = "CZK"
             elif ".DE" in tkr: m = "EUR"
             
+            # --- TADY ZAČÍNÁ OPRAVA SEKTORŮ ---
+            
+            # 1. Zjistíme, co máš napsáno v CSV ty
+            user_sektor = "Doplnit"
+            try:
+                # Najdeme hodnotu v tvých datech
+                raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
+                # Pokud to není prázdné a není to "Doplnit", tak to bereme jako tvůj vlastní název
+                if pd.notnull(raw_sektor) and str(raw_sektor).strip() != "" and str(raw_sektor) != "Doplnit":
+                    user_sektor = str(raw_sektor)
+            except: pass
+
+            # 2. Rozhodování: Alex vs. Ty
+            sektor = "Doplnit" # Výchozí stav
+            
+            # Máme data od Alexe v Cache?
+            if tkr in fundament_cache:
+                f = fundament_cache[tkr]
+                # Rychlé načtení čísel
+                pe_ratio = f.get('peRatio', 0)
+                market_cap = f.get('marketCap', 0)
+                div_vynos = f.get('dividendYield', 0)
+                alex_sektor = f.get('sector', 'Doplnit')
+                
+                # ROZHODNUTÍ DNE:
+                if user_sektor != "Doplnit":
+                    sektor = user_sektor      # Máš tam svůj název -> Použijeme tvůj
+                else:
+                    sektor = alex_sektor      # Máš tam "Doplnit" -> Použijeme Alexe!
+            
+            else:
+                # Alex data nemá, musíme postaru přes Yahoo (pomalé)
+                f, _ = cached_detail_akcie(tkr)
+                pe_ratio = f.get('trailingPE', 0)
+                market_cap = f.get('marketCap', 0)
+                div_vynos = ziskej_yield(tkr)
+                
+                if user_sektor != "Doplnit":
+                    sektor = user_sektor
+                else:
+                    sektor = f.get('sector', 'Doplnit')
+            
             # Fundamenty (Zkusíme Cache, jinak Yahoo)
             if tkr in fundament_cache:
                 # Bleskové načtení z cache
@@ -3344,6 +3386,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
