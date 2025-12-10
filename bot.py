@@ -68,7 +68,7 @@ def get_ai_commentary(total_val, daily_pct, sp500_pct, top_mover, flop_mover):
 
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         # Sestavíme prompt pro AI
         prompt = (
