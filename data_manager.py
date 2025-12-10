@@ -5,6 +5,7 @@ from io import StringIO
 import hashlib
 import time
 from datetime import datetime
+import os
 
 # --- KONSTANTY (Databáze) ---
 REPO_NAZEV = "Poutniiik/Moje-Investice" 
@@ -19,7 +20,17 @@ RISK_FREE_RATE = 0.04
 
 # --- PŘIPOJENÍ (GitHub) ---
 # BEZPEČNĚJŠÍ ZÍSKÁNÍ TOKENU:
-GITHUB_TOKEN = st.secrets.get("github", {}).get("token", "")
+GITHUB_TOKEN = os.environ.get("GH_TOKEN") 
+
+if not GITHUB_TOKEN:
+    # 2. Fallback pro Streamlit (čteme tvůj původní název 'token' z secrets.toml)
+    try: 
+        if "github" in st.secrets:
+            GITHUB_TOKEN = st.secrets["github"]["token"]
+        else:
+            GITHUB_TOKEN = ""
+    except Exception: 
+        GITHUB_TOKEN = ""
 
 def get_repo(): 
     """Vrací instanci GitHub repozitáře nebo None s chybou."""
