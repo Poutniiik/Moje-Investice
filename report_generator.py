@@ -47,24 +47,33 @@ def send_telegram_message(message: str) -> bool: # Odstranili jsme parse_mode z 
 
 # --- 3. Funkce pro generování obsahu reportu ---
 
-def generate_report_content() -> str:
-    """Generuje obsah reportu jako PLAIN TEXT."""
+def generate_report_content() -> Tuple[str, Optional[str]]:
+    """Generuje obsah reportu ve formátu HTML, používá pouze bezpečné tagy."""
     
     current_time = datetime.now().strftime("%d.%m.%Y v %H:%M:%S")
     
-    # Text bez jakéhokoliv formátování!
-    report_text = f"""
-Streamlit Report: Denní Souhrn
-------------------------------
-Datum spuštění: {current_time}
-Celkový počet uživatelů: 155
-Nových záznamů za den: 3
-Stav aplikace: Dnes bez incidentů.
-Odkaz: https://tvojeaplikace.streamlit.app/
-"""
+    # Zde můžeš vložit logiku pro získání dat z tvé Streamlit aplikace
+    total_users = 158 
+    new_records = 3 
+    status_message = "Vše běží hladce, data OK."
     
-    # Nyní vracíme pouze text
-    return report_text 
+    # Používáme jen základní, osvědčené HTML tagy: <b> (tučné), <pre> (předformátovaný text)
+    html_report_text = f"""
+    <b>🚀 Streamlit Report: Denní Souhrn</b>
+    
+    Datum: <pre>{current_time}</pre>
+    
+    <b>Přehled metrik:</b>
+    
+    \u2022 Celkový počet uživatelů: <b>{total_users}</b>
+    \u2022 Nových záznamů za den: <b>{new_records}</b>
+    \u2022 Stav: <i>{status_message}</i>
+    
+    Odkaz na aplikaci: https://tvojeaplikace.streamlit.app/
+    """
+    
+    # Vrátíme HTML text a specifikujeme mód 'HTML'
+    return html_report_text, 'HTML' 
 
 
 # --- 4. Hlavní spouštěcí blok ---
