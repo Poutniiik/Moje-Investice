@@ -2,40 +2,36 @@
 
 name: Daily Telegram Report
 
-# Nastavení spuštění: Každý den v 8:00 UTC (10:00 SEČ)
-# POZNÁMKA: Čas 06:00 UTC = 7:00 SEČ / 8:00 SELČ
+# Nastavení spuštění: Každý den v 6:00 UTC (tj. 7:00 SEČ / 8:00 SELČ)
 on:
   schedule:
-    # Běží každý den v 6:00 ráno UTC (tj. v 7:00 SEČ / 8:00 SELČ)
     - cron: '0 6 * * *' 
 
 jobs:
   run_report_bot:
-    runs-on: ubuntu-latest  # Použijeme stabilní Linux prostředí
+    runs-on: ubuntu-latest
     steps:
-      # 1. Stáhni kód z repozitáře
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Nastav Python (zde 3.11)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # 3. Nainstaluj všechny potřebné balíčky (Z TVÉHO POŽADAVKU)
+      # Nainstaluj klíčové balíčky (Z TVÉHO SEZNAMU)
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Tvůj seznam závislostí:
-          pip install streamlit pandas yfinance plotly PyGithub requests feedparser streamlit-lottie google-generativeai fpdf extra-streamlit-components wordcloud matplotlib numpy python-dotenv gitpython
+          pip install streamlit pandas yfinance plotly PyGithub requests feedparser streamlit-lottie google-generativeai fpdf extra-streamlit-components wordcloud matplotlib numpy python-dotenv 
           
-      # 4. Spusť Bota
+      # Spusť Bota
       - name: Run Telegram Bot
+        # Předáváme Secrety do prostředí Bota
         env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # <--- Používáme Secret name GEMINI_API_KEY
         run: |
           python report_bot.py
