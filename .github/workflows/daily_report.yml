@@ -1,17 +1,11 @@
 name: Denní Report (Bot)
 
-# Kdy se to má spustit?
 on:
   schedule:
-    # ⚠️ Čas je v UTC!
-    # Nastaveno na 20:12 UTC = 21:12 v ČR (zima)
-    # Používáme "divnou minutu" (12), abychom předběhli frontu na GitHub serverech
+    # 22:02 UTC = 23:02 v ČR (zima)
     - cron: '2 22 * * *'
   
-  # Toto umožní ruční spuštění tlačítkem "Run workflow" (pro testování)
-  # Neboj, ruční spuštění NIJAK neovlivní to automatické!
   workflow_dispatch:
-  
     inputs:
       typ_zpravy:
         description: 'Co mám provést?'
@@ -53,7 +47,7 @@ jobs:
         TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
         TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        # 👇 TADY MUSÍ BÝT TOTO PROPOJENÍ:
+        # Tady je to propojení:
         GEMINI_API_KEY: ${{ secrets.API_KEY }} 
         INPUT_TYP: ${{ inputs.typ_zpravy }}
         INPUT_VZKAZ: ${{ inputs.vzkaz }}
