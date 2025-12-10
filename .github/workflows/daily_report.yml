@@ -1,33 +1,57 @@
+Automatické spuštění denního reportu a jeho odeslání na Telegram.
+
+name: 📈 Denní Telegram Report
+
+Kdy se má workflow spustit
+
 on:
-  schedule:
-    - cron: '0 12 * * *'
-  
-  # Toto je náš manuální spouštěč!
-  workflow_dispatch:
 
-Tímto zápisem říkáš GitHubu: "Spusť tento workflow buď podle plánu (`schedule`), **NEBO** když mi uživatel klikne na tlačítko v rozhraní (`workflow_dispatch`)."
+1. Spustí se každý den v 18:00 UTC (tj. 20:00 SELČ / 19:00 SEČ)
 
-Teď, když máš opravený a kompletní kód pro workflow i Python skript, můžeš oba soubory nahrát na GitHub a hned to otestovat ručním spuštěním! Jdeme dál!
+schedule:
+# Formát: m h d m dny_v_tydnu
+- cron: '0 18 * * *'
 
+2. Umožní ruční spuštění z karty Actions (Vytvoří tlačítko)
+
+workflow_dispatch:
+
+Definice jobu (úlohy)
+
+jobs:
+generate_report:
+# Běží na virtuálním stroji s Ubuntu
+runs-on: ubuntu-latest
+
+# !!! ZDE JE KLÍČOVÉ ODSZENÍ SEKCE steps !!!
 steps:
-- name: 1. Získání kódu z repozitáře
-  uses: actions/checkout@v4
+  
+  # Krok 1: Checkout kódu (Stáhne tvůj repozitář)
+  - name: 1. Získání kódu z repozitáře
+    uses: actions/checkout@v4
 
-- name: 2. Nastavení prostředí Python 3.11
-  uses: actions/setup-python@v5
-  with:
-    python-version: '3.11'
-    
-- name: 3. Instalace potřebných knihoven (requests, yfinance)
-  run: |
-    # Doporučuji zřídit soubor requirements.txt s obsahem 'requests'
-    # Nyní instalujeme i yfinance pro data z burzy
-    pip install requests yfinance
+  # Krok 2: Nastavení Pythonu
+  - name: 2. Nastavení prostředí Python 3.11
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.11' # Moderní verze
+      cache: 'pip' # Rychlejší instalace
+      
+  # Krok 3: Instalace závislostí
+  - name: 3. Instalace potřebných knihoven
+    # Náš soubor requirements.txt obsahuje všechny potřebné balíčky
+    run: pip install -r requirements.txt
 
-- name: 4. Spuštění skriptu pro generování a odeslání reportu
-  run: python report_generator.py
-  # Zde předáme uložené tajemství (Secrets) skriptu jako proměnné prostředí
-  env:
-    GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-    TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-    TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  # Krok 4: Spuštění Python skriptu s proměnnými prostředí (Secrets)
+  - name: 4. Spuštění skriptu pro generování a odeslání reportu
+    env:
+      # Proměnné prostředí, které tvůj Python skript čte:
+      # GH_TOKEN: Pro přístup k tvým souborům na GitHubu (nacti_csv)
+      GH_TOKEN: ${{ secrets.GITHUB_REPORT_TOKEN }}
+      # TELEGRAM_BOT_TOKEN a CHAT_ID: Pro odeslání zprávy
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      
+    run: |
+      # Spustíme náš finální skript
+      python daily_reporter_bot.py
