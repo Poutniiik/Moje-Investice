@@ -140,18 +140,18 @@ def get_css(theme):
         div.stRadio > div[role="radiogroup"] > label {
             background-color: rgba(13, 17, 23, 0.8);
             border: 1px solid #30363D;
-            padding: 12px 5px; /* Upraven padding, ať se to tam vejde */
+            padding: 12px 5px; 
             margin-bottom: 8px;
             border-radius: 5px;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             color: #8b949e;
             cursor: pointer;
             
-            /* 👇 TOTO JE TA KLÍČOVÁ ZMĚNA 👇 */
-            display: block; /* Změna z flex na block, aby poslechlo width */
-            width: 100%;    /* Roztáhni se na plnou šířku sidebaru */
-            text-align: center; /* Text pěkně doprostřed */
-            box-sizing: border-box; /* Aby padding nenafukoval šířku */
+            /* 👇 KLÍČOVÉ PRO RESPONSIVITU 👇 */
+            display: block; 
+            width: 100%;    
+            text-align: center; 
+            box-sizing: border-box; 
         }
 
         /* Hover efekt - vysunutí a rozsvícení */
@@ -163,14 +163,14 @@ def get_css(theme):
             box-shadow: -5px 0 10px rgba(0, 255, 153, 0.2);
         }
 
-        /* Aktivní položka */
+        /* Aktivní položka (ÚPRAVA TRANSFORMACE) */
         div.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
             background-color: #00FF99 !important;
             color: black !important;
             border-color: #00FF99 !important;
             font-weight: bold;
             box-shadow: 0 0 15px rgba(0, 255, 153, 0.5);
-            transform: scale(1.05);
+            transform: scale(1.02); /* Změna z 1.05 na 1.02 pro lepší responzivitu */
         }
         """
         
