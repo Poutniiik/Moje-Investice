@@ -1,31 +1,33 @@
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  
+  # Toto je náš manuální spouštěč!
+  workflow_dispatch:
+
+Tímto zápisem říkáš GitHubu: "Spusť tento workflow buď podle plánu (`schedule`), **NEBO** když mi uživatel klikne na tlačítko v rozhraní (`workflow_dispatch`)."
+
+Teď, když máš opravený a kompletní kód pro workflow i Python skript, můžeš oba soubory nahrát na GitHub a hned to otestovat ručním spuštěním! Jdeme dál!
+
 steps:
+- name: 1. Získání kódu z repozitáře
+  uses: actions/checkout@v4
 
-  # Krok 1: Checkout kódu (Stáhne tvůj repozitář)
-  - name: Stáhnutí kódu
-    uses: actions/checkout@v4
+- name: 2. Nastavení prostředí Python 3.11
+  uses: actions/setup-python@v5
+  with:
+    python-version: '3.11'
+    
+- name: 3. Instalace potřebných knihoven (requests, yfinance)
+  run: |
+    # Doporučuji zřídit soubor requirements.txt s obsahem 'requests'
+    # Nyní instalujeme i yfinance pro data z burzy
+    pip install requests yfinance
 
-  # Krok 2: Nastavení Pythonu
-  - name: Nastavení Pythonu 3.x
-    uses: actions/setup-python@v5
-    with:
-      python-version: '3.11' # Moderní verze
-      cache: 'pip' # Rychlejší instalace
-      
-  # Krok 3: Instalace závislostí
-  - name: Instalace knihoven
-    # Náš soubor requirements.txt obsahuje všechny potřebné balíčky
-    run: pip install -r requirements.txt
-
-  # Krok 4: Spuštění Python skriptu s proměnnými prostředí (Secrets)
-  - name: Spuštění Daily Report Bota
-    env:
-      # Kritické klíče (musíš je definovat jako Secrets v tvém GitHub Repozitáři!)
-      # GH_TOKEN: Pro přístup k tvým souborům na GitHubu (nacti_csv)
-      GH_TOKEN: ${{ secrets.GITHUB_REPORT_TOKEN }}
-      # TELEGRAM_BOT_TOKEN a CHAT_ID: Pro odeslání zprávy (notification_engine)
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      
-    run: |
-      # Spustíme náš finální skript
-      python daily_reporter_bot.py
+- name: 4. Spuštění skriptu pro generování a odeslání reportu
+  run: python report_generator.py
+  # Zde předáme uložené tajemství (Secrets) skriptu jako proměnné prostředí
+  env:
+    GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+    TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
