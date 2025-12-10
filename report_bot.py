@@ -19,48 +19,67 @@ USER_TO_REPORT = "Filip" # Změň na svého uživatele, pokud je potřeba
 
 def vytvor_a_odesli_denni_report():
     
-    # ÚRYVEK K ZMĚNĚ V report_bot.py
-    # 1. SBĚR DAT A INICIALIZACE
+    # 0. INICIALIZACE VŠECH KLÍČOVÝCH PROMĚNNÝCH NA 0.0 (TOTO CHYBĚLO!)
+    hodnota_portfolia_usd = 0.0
+    hodnota_portfolia_vcer_usd = 0.0
+    denni_zmena_abs = 0.0
+    denni_zmena_pct = 0.0
+    total_cash_usd = 0.0 # Hotovost
+    celk_hod_czk = 0.0 # Celkové jmění
+    rating = "N/A"
+    score = 50
+    kurz_czk = 22.0 # Fallback pro kurz
+    
+    # 1. SBĚR DAT A KALKULACE
     try:
-        # Načtení VŠECH dat
+        # 1.1 Načtení dat a filtr pro uživatele
         df_cash_all = nacti_csv(SOUBOR_CASH)
         df_portfolio_all = nacti_csv(SOUBOR_DATA)
 
-        # FILTROVÁNÍ DAT POUZE PRO AKTIVNÍHO UŽIVATELE (Tohle chybělo!)
         df_cash = df_cash_all[df_cash_all['Owner'] == USER_TO_REPORT]
         df_portfolio = df_portfolio_all[df_portfolio_all['Owner'] == USER_TO_REPORT]
+        
+        # Získání kurzu a Fear/Greed (musí být před kalkulací CZK!)
+        kurzy = ziskej_kurzy()
+        kurz_czk = kurzy.get("CZK", 22.0)
+        score, rating = ziskej_fear_greed()
 
-        # KONTROLA PRÁZDNOTY
-        if df_portfolio.empty:
-            raise ValueError(f"Portfolio pro uživatele {USER_TO_REPORT} je prázdné.")
-        
-        # Získání kurzu a Fear/Greed
-        # ... (zbytek logiky sběru dat)
-        
-        # 2. KALKULACE PORTFOLIA
-        # ZDE MUSÍME POUŽÍT AGREGACI DAT Z PORTFOLIA (Jako v main.py)
-        # Nyní to musí být správně, protože máme data
-        
-        df_g = df_portfolio.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
-        df_g['Investice'] = df_portfolio.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
-        
+        # 1.2 Kalkulace Portfolia (pouze pokud NENÍ prázdné)
+        if not df_portfolio.empty:
+            df_g = df_portfolio.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
+            list_tickeru = df_g['Ticker'].unique().tolist()
+            ceny, vcer_close = ziskej_ceny_portfolia_bot(list_tickeru)
 
-        # 3. KALKULACE ZMĚNY
-        denni_zmena_abs = hodnota_portfolia_usd - hodnota_portfolia_vcer_usd
-        # Aby se zabránilo dělení nulou při nulové hodnotě portfolia:
-        if hodnota_portfolia_vcer_usd > 0:
-            denni_zmena_pct = (denni_zmena_abs / hodnota_portfolia_vcer_usd) * 100
-        else:
-            denni_zmena_pct = 0.0
+            # Projdi portfolio pro denní kalkulaci
+            for index, row in df_g.iterrows(): 
+                tkr = row['Ticker']
+                pocet = row['Pocet']
+                
+                # Ceny (Fallback na průměrnou nákupní cenu)
+                p_dnes = ceny.get(tkr, row['Cena'])
+                p_vcer = vcer_close.get(tkr, row['Cena'])
+
+                hodnota_portfolia_usd += pocet * p_dnes
+                hodnota_portfolia_vcer_usd += pocet * p_vcer
             
-        # 4. CELKOVÁ HOTOVOST (stejná logika jako dříve, jen robustnější)
-        cash_usd_to_czk = df_cash[df_cash['Mena'] == 'USD']['Castka'].sum()
-        total_cash_usd = cash_usd_to_czk / kurzy.get("CZK", 22.0)
-        
-        celk_hod_usd = hodnota_portfolia_usd + total_cash_usd
-        celk_hod_czk = celk_hod_usd * kurzy.get("CZK", 22.0)
+            # Denní změna (Portfolia)
+            if hodnota_portfolia_vcer_usd > 0:
+                denni_zmena_abs = hodnota_portfolia_usd - hodnota_portfolia_vcer_usd
+                denni_zmena_pct = (denni_zmena_abs / hodnota_portfolia_vcer_usd) * 100
 
+        # 1.3 Kalkulace hotovosti (USD ekvivalent)
+        cash_usd = df_cash[df_cash['Mena'] == 'USD']['Castka'].sum()
+        cash_czk = df_cash[df_cash['Mena'] == 'CZK']['Castka'].sum() / kurz_czk
+        cash_eur = df_cash[df_cash['Mena'] == 'EUR']['Castka'].sum() * kurzy.get("EUR", 1.16)
+        
+        total_cash_usd = cash_usd + cash_czk + cash_eur
+        
+        # 1.4 Finální součty (Nyní bezpečné, protože všechny proměnné jsou inicializovány)
+        celk_hod_usd = hodnota_portfolia_usd + total_cash_usd
+        celk_hod_czk = celk_hod_usd * kurz_czk
+        
     except Exception as e:
+        # Tady už jen chytáme neočekávané chyby (YFinance, API atd.)
         error_msg = f"❌ CHYBA AUTOREPORTU:\nSelhalo stažení/kalkulace dat: {e}"
         return notify.poslat_zpravu(error_msg)
 
