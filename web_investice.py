@@ -9,7 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from utils import make_plotly_cyberpunk
-from github import Github
+from github import Github, GithubException # Přidán import pro handling chyb
 from io import StringIO
 from datetime import datetime, timedelta
 from utils import make_matplotlib_cyberpunk
@@ -48,13 +48,49 @@ from ai_brain import (
 
 
 # --- KONFIGURACE ---
-# Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
 st.set_page_config(
     page_title="Terminal Pro",
     layout="wide",
     page_icon="💹",
     initial_sidebar_state="expanded"
 )
+
+# --- MAGICKÁ FUNKCE: CLOUD SYNC BRIDGE 🌉 ---
+def sync_file_to_github(filename):
+    """
+    Vezme lokální soubor (např. data.csv) a okamžitě ho nahraje na GitHub.
+    Používá GH_TOKEN ze st.secrets.
+    """
+    token = st.secrets.get("GH_TOKEN")
+    if not token:
+        # Pokud nemáme token, nic neděláme (lokální režim)
+        return
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(REPO_NAZEV) # Bere název repozitáře z data_manager
+        
+        # 1. Načtení obsahu lokálního souboru
+        with open(filename, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # 2. Pokus o update nebo vytvoření na GitHubu
+        try:
+            contents = repo.get_contents(filename)
+            repo.update_file(contents.path, f"🤖 Auto-Sync: {filename}", content, contents.sha)
+            # Volitelné: Zobrazit toast, že se to povedlo (může rušit, tak zakomentováno)
+            # st.toast(f"☁️ Cloud Sync: {filename} OK", icon="✅")
+        except GithubException as e:
+            if e.status == 404:
+                # Soubor neexistuje, vytvoříme ho
+                repo.create_file(filename, f"🤖 Auto-Sync: {filename}", content)
+            else:
+                print(f"Chyba GitHub Sync ({filename}): {e}")
+                
+    except Exception as e:
+        print(f"Critical Sync Error: {e}")
+
+# --- KONEC MAGICKÉ FUNKCE ---
 
 # --- CITÁTY ---
 CITATY = [
@@ -68,17 +104,9 @@ CITATY = [
     "„Bohatství není o tom mít hodně peněz, ale o tom mít hodně možností.“ — Chris Rock"
 ]
 
-# --- ANALÝZA SENTIMENTU ---
-KW_POSITIVNI = ["RŮST", "ZISK", "REKORD", "DIVIDEND", "POKLES INFLACE", "BÝČÍ", "UP", "PROFIT", "HIGHS", "SKOK", "VYDĚLAL"]
-KW_NEGATIVNI = ["PÁD", "ZTRÁTA", "KRIZE", "MEDVĚDÍ", "DOWN", "LOSS", "CRASH", "PRODĚLAL", "VÁLKA", "BANKROT", "INFLACE", "POKLES"]
-
-
-# --- APLIKACE STYLU (Tohle se musí stát hned) ---
-# Defaultně nastavíme Cyberpunk, ale uživatel si to může změnit v Sidebaru
+# --- APLIKACE STYLU ---
 if 'ui_theme' not in st.session_state:
     st.session_state['ui_theme'] = "🕹️ Cyberpunk (Retro)"
-
-# Aplikujeme styl
 st.markdown(f"<style>{get_css(st.session_state['ui_theme'])}</style>", unsafe_allow_html=True)
 
 # --- COOKIE MANAGER ---
@@ -92,60 +120,52 @@ def load_lottieurl(url: str):
     if r.status_code != 200: return None
     return r.json()
 
-# --- TURBO CACHE WRAPPERS (ZRYCHLENÍ APLIKACE) ---
-# Tyto funkce obalují původní funkce do cache, aby se nevolaly zbytečně často.
-
-@st.cache_data(ttl=3600) # 1 hodina cache pro detaily (fundamenty se mění pomalu)
+# --- TURBO CACHE WRAPPERS ---
+@st.cache_data(ttl=3600)
 def cached_detail_akcie(ticker):
     return ziskej_detail_akcie(ticker)
 
-@st.cache_data(ttl=1800) # 30 minut cache pro Fear & Greed
+@st.cache_data(ttl=1800)
 def cached_fear_greed():
     return ziskej_fear_greed()
 
-@st.cache_data(ttl=3600) # 1 hodina pro zprávy
+@st.cache_data(ttl=3600)
 def cached_zpravy():
     return ziskej_zpravy()
 
-@st.cache_data(ttl=300) # 5 minut cache pro hromadné ceny (Live data)
+@st.cache_data(ttl=300)
 def cached_ceny_hromadne(tickers_list):
     return ziskej_ceny_hromadne(tickers_list)
 
-@st.cache_data(ttl=3600) # 1 hodina cache pro kurzy
+@st.cache_data(ttl=3600)
 def cached_kurzy():
     return ziskej_kurzy()
 
-# -----------------------------------------------------
-
-# --- NÁSTROJ PRO ŘÍZENÍ STAVU: ZNEHODNOCENÍ DAT ---
 def invalidate_data_core():
-    """Vynutí opětovný přepočet datového jádra při příštím zobrazení stránky."""
     if 'data_core' in st.session_state:
-        # Nastavíme timestamp do minulosti, čímž vyprší 5minutový limit
         st.session_state['data_core']['timestamp'] = datetime.now() - timedelta(minutes=6)
 
-# --- OPRAVA 1: CACHOVANÁ INICIALIZACE AI (Aby se nevolala pořád dokola) ---
 @st.cache_resource(show_spinner="Připojuji neurální sítě...")
 def get_cached_ai_connection():
-    """
-    Tato funkce zajistí, že se init_ai() zavolá jen JEDNOU za běh serveru,
-    ne při každém kliknutí uživatele. To zabrání chybě 429.
-    """
     try:
         return init_ai()
     except Exception as e:
-        # Pokud to selže, vrátíme None a False, aby aplikace nepadla
         print(f"Chyba init_ai: {e}")
         return None, False
 
-# --- DATABÁZE A TRANSAKČNÍ FUNKCE (Zachovány) ---
+# --- TRANSAKČNÍ FUNKCE (S NAPOJENÍM NA CLOUD SYNC) ---
+
 def pridat_do_watchlistu(ticker, target_buy, target_sell, user):
     df_w = st.session_state['df_watch']
     if ticker not in df_w['Ticker'].values:
         new = pd.DataFrame([{"Ticker": ticker, "TargetBuy": float(target_buy), "TargetSell": float(target_sell), "Owner": user}])
         updated = pd.concat([df_w, new], ignore_index=True)
         st.session_state['df_watch'] = updated
+        
+        # 1. Uložit lokálně
         uloz_data_uzivatele(updated, user, SOUBOR_WATCHLIST)
+        # 2. 🌉 Odeslat do cloudu
+        sync_file_to_github(SOUBOR_WATCHLIST)
         return True
     return False
 
@@ -153,19 +173,18 @@ def odebrat_z_watchlistu(ticker, user):
     df_w = st.session_state['df_watch']
     updated = df_w[df_w['Ticker'] != ticker]
     st.session_state['df_watch'] = updated
+    
+    # 1. Uložit lokálně
     uloz_data_uzivatele(updated, user, SOUBOR_WATCHLIST)
+    # 2. 🌉 Odeslat do cloudu
+    sync_file_to_github(SOUBOR_WATCHLIST)
 
 def get_zustatky(user):
     df_cash = st.session_state.get('df_cash', pd.DataFrame())
     if df_cash.empty: return {}
     return df_cash.groupby('Mena')['Castka'].sum().to_dict()
 
-# --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
 def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
-    """
-    Provede pohyb peněz a vrátí upravený DataFrame. 
-    ULOŽENÍ do souboru se DĚJE VŽDY AŽ PO ÚSPĚŠNÉ TRANSAKCI.
-    """
     novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
     df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
     return df_cash_temp
@@ -174,26 +193,26 @@ def pridat_dividendu(ticker, castka, mena, user):
     df_div = st.session_state['df_div']
     df_cash_temp = st.session_state['df_cash'].copy()
     
-    # Krok 1: Záznam dividendy
     novy = pd.DataFrame([{"Ticker": ticker, "Castka": float(castka), "Mena": mena, "Datum": datetime.now(), "Owner": user}])
     df_div = pd.concat([df_div, novy], ignore_index=True)
     
-    # Krok 2: Pohyb peněz (Atomický)
     df_cash_temp = pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user, df_cash_temp)
     
-    # Krok 3: Uložení obou změn a invalidace
     try:
+        # 1. Uložit lokálně
         uloz_data_uzivatele(df_div, user, SOUBOR_DIVIDENDY)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
-        # Aktualizace Session State AŽ PO ÚSPĚCHU
+        # 2. 🌉 Odeslat do cloudu (Oba soubory)
+        sync_file_to_github(SOUBOR_DIVIDENDY)
+        sync_file_to_github(SOUBOR_CASH)
+        
         st.session_state['df_div'] = df_div
         st.session_state['df_cash'] = df_cash_temp
         invalidate_data_core()
         return True, f"✅ Připsáno {castka:,.2f} {mena} od {ticker}"
     except Exception as e:
         return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
-
 
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
     if pd.isna(aktualni_hodnota_usd): return pd.DataFrame(columns=["Date", "TotalUSD", "Owner"])
@@ -213,9 +232,10 @@ def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
         full_hist = pd.concat([full_hist, new_row], ignore_index=True)
 
     uloz_csv(full_hist, SOUBOR_VYVOJ, "Daily snapshot")
+    # Zde sync dělat nemusíme nutně hned, ale pro pořádek:
+    # sync_file_to_github(SOUBOR_VYVOJ) 
     return full_hist[full_hist['Owner'] == str(user)]
 
-# --- ATOMICKÁ FUNKCE: PROVEDENÍ NÁKUPU ---
 def proved_nakup(ticker, kusy, cena, user):
     df_p = st.session_state['df'].copy()
     df_cash_temp = st.session_state['df_cash'].copy()
@@ -225,30 +245,29 @@ def proved_nakup(ticker, kusy, cena, user):
     zustatky = get_zustatky(user)
 
     if zustatky.get(mena, 0) >= cost:
-        # Krok 1: Odepsání hotovosti (lokálně)
         df_cash_temp = pohyb_penez(-cost, mena, "Nákup", ticker, user, df_cash_temp)
         
-        # Krok 2: Připsání akcií (lokálně)
         d = pd.DataFrame([{"Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), "Owner": user, "Sektor": "Doplnit", "Poznamka": "CLI/Auto"}])
         df_p = pd.concat([df_p, d], ignore_index=True)
         
-        # Krok 3: Atomické uložení a invalidace
         try:
+            # 1. Uložit lokálně
             uloz_data_uzivatele(df_p, user, SOUBOR_DATA)
             uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
             
-            # Aktualizace Session State AŽ PO ÚSPĚCHU
+            # 2. 🌉 Odeslat do cloudu (Klíčové pro robota!)
+            sync_file_to_github(SOUBOR_DATA)
+            sync_file_to_github(SOUBOR_CASH)
+            
             st.session_state['df'] = df_p
             st.session_state['df_cash'] = df_cash_temp
             invalidate_data_core()
             return True, f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
         except Exception as e:
-            # Selhal zápis, stav v Session State zůstává starý, nic není poškozen
             return False, f"❌ Chyba zápisu transakce (NÁKUP): {e}"
     else:
-        return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
+        return False, f"❌ Nedostatek {mena}"
 
-# --- ATOMICKÁ FUNKCE: PROVEDENÍ PRODEJE ---
 def proved_prodej(ticker, kusy, cena, user, mena_input):
     df_p = st.session_state['df'].copy()
     df_h = st.session_state['df_hist'].copy()
@@ -256,7 +275,6 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
     
     df_t = df_p[df_p['Ticker'] == ticker].sort_values('Datum')
 
-    # --- BEZPEČNOSTNÍ REFACTORING: Zjištění měny (fallback) ---
     final_mena = mena_input
     if final_mena is None or final_mena == "N/A":
         final_mena = "USD"
@@ -265,14 +283,11 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
         elif 'LIVE_DATA' in st.session_state:
             final_mena = st.session_state['LIVE_DATA'].get(ticker, {}).get('curr', 'USD')
 
-
     if df_t.empty or df_t['Pocet'].sum() < kusy:
         return False, "Nedostatek kusů."
 
     zbyva, zisk, trzba = kusy, 0, kusy * cena
-    df_p_novy = df_p.copy() # Pracujeme s kopií, dokud neprovedeme atomický zápis
-
-    # Logika odebrání kusů z DF portfolia
+    df_p_novy = df_p.copy()
     indices_to_drop = []
     
     for idx, row in df_t.iterrows():
@@ -288,20 +303,22 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
 
     df_p_novy = df_p_novy.drop(indices_to_drop)
 
-    # Krok 1: Záznam do historie
     new_h = pd.DataFrame([{"Ticker": ticker, "Kusu": kusy, "Prodejka": cena, "Zisk": zisk, "Mena": final_mena, "Datum": datetime.now(), "Owner": user}])
     df_h = pd.concat([df_h, new_h], ignore_index=True)
     
-    # Krok 2: Připsání hotovosti (lokálně)
     df_cash_temp = pohyb_penez(trzba, final_mena, "Prodej", f"Prodej {ticker}", user, df_cash_temp)
     
-    # Krok 3: Atomické uložení a invalidace
     try:
+        # 1. Uložit lokálně
         uloz_data_uzivatele(df_p_novy, user, SOUBOR_DATA)
         uloz_data_uzivatele(df_h, user, SOUBOR_HISTORIE)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
-        # Aktualizace Session State AŽ PO ÚSPĚCHU
+        # 2. 🌉 Odeslat do cloudu (Všechny tři soubory)
+        sync_file_to_github(SOUBOR_DATA)
+        sync_file_to_github(SOUBOR_HISTORIE)
+        sync_file_to_github(SOUBOR_CASH)
+        
         st.session_state['df'] = df_p_novy
         st.session_state['df_hist'] = df_h
         st.session_state['df_cash'] = df_cash_temp
@@ -310,27 +327,27 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
     except Exception as e:
         return False, f"❌ Chyba zápisu transakce (PRODEJ): {e}"
 
-# --- ATOMICKÁ FUNKCE: PROVEDENÍ SMĚNY ---
 def proved_smenu(castka, z_meny, do_meny, user):
-    kurzy = st.session_state['data_core']['kurzy'] # Bereme aktuální kurzy z cache
+    kurzy = st.session_state['data_core']['kurzy']
     df_cash_temp = st.session_state['df_cash'].copy()
     
-    # Kalkulace směny
     if z_meny == "USD": castka_usd = castka
     elif z_meny == "CZK": castka_usd = castka / kurzy.get("CZK", 20.85)
-    elif z_meny == "EUR": castka_usd = castka / kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85) / kurzy.get("CZK", 20.85) # Aproximace
+    elif z_meny == "EUR": castka_usd = castka / kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85) / kurzy.get("CZK", 20.85)
 
     if do_meny == "USD": vysledna = castka_usd
     elif do_meny == "CZK": vysledna = castka_usd * kurzy.get("CZK", 20.85)
     elif do_meny == "EUR": vysledna = castka_usd / kurzy.get("EUR", 1.16)
 
-    # Krok 1: Odepsání a připsání (lokálně)
     df_cash_temp = pohyb_penez(-castka, z_meny, "Směna", f"Směna na {do_meny}", user, df_cash_temp)
     df_cash_temp = pohyb_penez(vysledna, do_meny, "Směna", f"Směna z {z_meny}", user, df_cash_temp)
     
-    # Krok 2: Atomické uložení a invalidace
     try:
+        # 1. Uložit lokálně
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
+        # 2. 🌉 Odeslat do cloudu
+        sync_file_to_github(SOUBOR_CASH)
+        
         st.session_state['df_cash'] = df_cash_temp
         invalidate_data_core()
         return True, f"Směněno: {vysledna:,.2f} {do_meny}"
@@ -1644,35 +1661,25 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
-    """
-    Spouští všechny složité výpočty a cachuje výsledky do session_state.
-    Tím se zabrání zbytečnému opakování stahování dat a kalkulací.
-    """
-    
-    # Krok 1: Inicializace (zajištění, že máme data k práci)
     all_tickers = []
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     
-    # Stáhneme živá data a kurzy (POUŽITÍ CACHE WRAPPERU)
     LIVE_DATA = cached_ceny_hromadne(list(set(all_tickers)))
     
-    # Poznámka: LIVE_DATA může být None, pokud se nepovedlo stažení, ale ziskej_ceny_hromadne obvykle vrací {}
     if LIVE_DATA:
         if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
         if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
     
-    st.session_state['LIVE_DATA'] = LIVE_DATA if LIVE_DATA else {} # Uložíme pro fallback v proved_prodej
+    st.session_state['LIVE_DATA'] = LIVE_DATA if LIVE_DATA else {}
     
-    # Krok 2: Fundamentální data pro portfolio (POUŽITÍ CACHE WRAPPERU)
     fundament_data = {}
     if not df.empty:
         tickers_in_portfolio = df['Ticker'].unique().tolist()
         for tkr in tickers_in_portfolio:
-            info, _ = cached_detail_akcie(tkr) # Použití cache místo přímého volání
+            info, _ = cached_detail_akcie(tkr)
             fundament_data[tkr] = info
 
-    # Krok 3: Výpočet portfolia
     viz_data = []
     celk_hod_usd = 0
     celk_inv_usd = 0
@@ -1742,7 +1749,6 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
 
     vdf = pd.DataFrame(viz_data) if viz_data else pd.DataFrame()
 
-    # Krok 4: Výpočet denní změny
     hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
     zmena_24h = 0
     pct_24h = 0
@@ -1752,10 +1758,8 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
             zmena_24h = celk_hod_usd - vcera
             pct_24h = (zmena_24h / vcera * 100)
 
-    # Krok 5: Výpočet hotovosti (USD ekvivalent)
     cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*kurzy.get("EUR", 1.16))
 
-    # Krok 6: Sestavení a uložení Data Core
     data_core = {
         'vdf': vdf,
         'viz_data_list': viz_data,
@@ -1772,26 +1776,18 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     st.session_state['data_core'] = data_core
     return data_core
 
-
-# --- HLAVNÍ FUNKCE (Router) ---
+# --- HLAVNÍ FUNKCE (S Vypnutou starou automatikou) ---
 def main():
-    # --- 1. BEZPEČNÁ INICIALIZACE AI (Fix 1: Použití cache wrapperu) ---
     model, AI_AVAILABLE = get_cached_ai_connection()
-
-    # 1. Start Cookie Manager
     cookie_manager = get_manager()
 
-    # 2. Inicializace stavu (Session State)
     if 'prihlasen' not in st.session_state:
         st.session_state['prihlasen'] = False
         st.session_state['user'] = ""
 
-    # 3. ZPOŽDĚNÍ PRO COOKIES (Nutné pro stx)
     time.sleep(0.3)
 
-    # 4. LOGIKA PŘIHLÁŠENÍ (Gatekeeper)
-    if 'chat_expanded' not in st.session_state:
-        st.session_state['chat_expanded'] = False
+    if 'chat_expanded' not in st.session_state: st.session_state['chat_expanded'] = False
 
     if not st.session_state['prihlasen']:
         cookie_user = cookie_manager.get("invest_user")
@@ -2102,7 +2098,6 @@ def main():
             st.session_state['df_cash'] = nacti_csv(SOUBOR_CASH).query(f"Owner=='{USER}'").copy()
             st.session_state['df_div'] = nacti_csv(SOUBOR_DIVIDENDY).query(f"Owner=='{USER}'").copy()
             st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
-            # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
     
     df = st.session_state['df']
@@ -2110,10 +2105,9 @@ def main():
     df_div = st.session_state['df_div']
     df_watch = st.session_state['df_watch']
     zustatky = get_zustatky(USER)
-    kurzy = cached_kurzy() # Inicializace, hodnoty se upřesní v jádru
+    kurzy = cached_kurzy()
 
-    # --- 6. VÝPOČTY (CENTRALIZOVANÝ DAT CORE) ---
-    # Zkontrolujeme cache (např. platnost 5 minut)
+    # --- VÝPOČTY CORE ---
     cache_timeout = timedelta(minutes=5)
     
     if ('data_core' not in st.session_state or 
@@ -2122,10 +2116,8 @@ def main():
         with st.spinner("🔄 Aktualizuji datové jádro (LIVE data)..."):
             data_core = calculate_all_data(USER, df, df_watch, zustatky, kurzy)
     else:
-        # Použijeme data z cache
         data_core = st.session_state['data_core']
 
-    # --- 7. EXTRACT DATA CORE ---
     vdf = data_core['vdf']
     viz_data_list = data_core['viz_data_list']
     celk_hod_usd = data_core['celk_hod_usd']
@@ -2135,7 +2127,11 @@ def main():
     pct_24h = data_core['pct_24h']
     cash_usd = data_core['cash_usd']
     fundament_data = data_core['fundament_data']
-    LIVE_DATA = st.session_state['LIVE_DATA'] # Vždy musíme vytáhnout z SS, protože ho cachuje calculate_all_data
+    LIVE_DATA = st.session_state['LIVE_DATA'] 
+    kurzy = data_core['kurzy'] 
+    kurz_czk = kurzy.get("CZK", 20.85)
+    celk_hod_czk = celk_hod_usd * kurz_czk
+    celk_inv_czk = celk_inv_usd * kurz_czk
     
     # OPRAVA: Přepisujeme lokální kurzy z data_core pro použití ve všech podřízených funkcích.
     kurzy = data_core['kurzy'] 
@@ -3338,4 +3334,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
