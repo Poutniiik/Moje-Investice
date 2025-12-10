@@ -69,7 +69,7 @@ def get_ai_commentary(total_val, daily_pct, sp500_pct, top_mover, flop_mover):
     if not api_key: return "<i>(AI klíč nenalezen, Alex mlčí)</i>"
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         prompt = (f"Jsi sarkastický burzovní robot Alex. Portfolio: {total_val:,.0f} CZK. "
                   f"Změna dnes: {daily_pct:+.2f}%. Trh S&P 500: {sp500_pct:+.2f}%. "
                   f"Top: {top_mover}. Flop: {flop_mover}. "
