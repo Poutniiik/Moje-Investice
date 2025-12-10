@@ -1,0 +1,21 @@
+steps:
+- name: 1. Získání kódu z repozitáře
+  uses: actions/checkout@v4
+
+- name: 2. Nastavení prostředí Python 3.11
+  uses: actions/setup-python@v5
+  with:
+    python-version: '3.11'
+    
+- name: 3. Instalace potřebných knihoven (requests)
+  run: |
+    # Doporučuji zřídit soubor requirements.txt s obsahem 'requests'
+    pip install requests
+
+- name: 4. Spuštění skriptu pro generování a odeslání reportu
+  run: python report_generator.py
+  # Zde předáme uložené tajemství (Secrets) skriptu jako proměnné prostředí
+  env:
+    GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+    TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
