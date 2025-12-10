@@ -2221,6 +2221,20 @@ def main():
         st.divider()
         st.header(f"👤 {USER.upper()}")
         
+
+    # --- DIAGNOSTIKA ALEXE (VLOŽ TOTO) ---
+    try:
+        test_cache = nacti_market_cache()
+        if test_cache:
+            st.sidebar.success(f"✅ Alex Cache: AKTIVNÍ")
+            pocet = len(test_cache.get('fundamentals', {}))
+            st.sidebar.info(f"📦 Známe sektory pro: {pocet} akcií")
+        else:
+            st.sidebar.error("❌ Alex Cache: NEDOSTUPNÁ")
+            st.sidebar.warning("Aplikace nevidí soubor market_cache.json")
+    except Exception as e:
+        st.sidebar.error(f"❌ Chyba Cache: {e}")
+        
         # --- 1. NAVIGACE (POSUNUTO NAHORU PRO LEPŠÍ OVLÁDÁNÍ) ---
         # Na mobilu je lepší mít tlačítka hned po ruce
         page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení", "🧪 Banka"], label_visibility="collapsed")
@@ -3370,6 +3384,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
