@@ -9,24 +9,23 @@ from typing import Tuple, Optional
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-# --- 2. Funkce pro odeslání zprávy (Finální verze) ---
+# --- 2. Funkce pro odeslání zprávy (Nejbezpečnější verze) ---
 
-def send_telegram_message(message: str, parse_mode: Optional[str] = None) -> bool:
-    """Odešle textovou zprávu na Telegram. Bezpečně přidává parse_mode, jen pokud je nastaven."""
+def send_telegram_message(message: str) -> bool: # Odstranili jsme parse_mode z argumentů
+    """Odešle textovou zprávu na Telegram jako PLAIN TEXT."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("CHYBA: Klíče nejsou nastaveny.")
         return False
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     
+    # Payload, který posílá pouze text a chat ID (NEJBEZPEČNĚJŠÍ)
     payload = {
         'chat_id': TELEGRAM_CHAT_ID,
         'text': message
     }
     
-    # Přidáme parse_mode jen pro HTML/Markdown, nikoli pro None
-    if parse_mode:
-        payload['parse_mode'] = parse_mode
+    # Všimni si, že parse_mode se neposílá vůbec!
 
     try:
         response = requests.post(url, data=payload)
@@ -37,6 +36,7 @@ def send_telegram_message(message: str, parse_mode: Optional[str] = None) -> boo
             print("Zpráva úspěšně odeslána na Telegram.")
             return True
         else:
+            # Tohle nám napoví, co je špatně, pokud to selže
             print(f"Chyba z Telegram API: {response_json.get('description', 'Neznámá chyba')}")
             return False
 
@@ -45,34 +45,26 @@ def send_telegram_message(message: str, parse_mode: Optional[str] = None) -> boo
         return False
 
 
-# --- 3. Funkce pro generování obsahu reportu (Zapnutí HTML) ---
+# --- 3. Funkce pro generování obsahu reportu ---
 
-def generate_report_content() -> Tuple[str, Optional[str]]:
-    """Generuje obsah reportu ve formátu HTML."""
+def generate_report_content() -> str:
+    """Generuje obsah reportu jako PLAIN TEXT."""
     
     current_time = datetime.now().strftime("%d.%m.%Y v %H:%M:%S")
     
-    # Příklad dat z tvé aplikace
-    total_users = 155 
-    new_records = 3 
-    status_message = "Dnes bez incidentů."
+    # Text bez jakéhokoliv formátování!
+    report_text = f"""
+Streamlit Report: Denní Souhrn
+------------------------------
+Datum spuštění: {current_time}
+Celkový počet uživatelů: 155
+Nových záznamů za den: 3
+Stav aplikace: Dnes bez incidentů.
+Odkaz: https://tvojeaplikace.streamlit.app/
+"""
     
-    # Vytvoření zprávy v HTML formátu
-    html_report_text = f"""
-    <b>🚀 Streamlit Report: Denní Souhrn</b>
-    <pre>Datum spuštění: {current_time}</pre>
-    <hr>
-    <b>Přehled metrik:</b>
-    <ul>
-        <li>Celkový počet uživatelů: <b>{total_users}</b></li>
-        <li>Nových záznamů za den: <b>{new_records}</b></li>
-        <li>Stav aplikace: {status_message}</li>
-    </ul>
-    <a href="https://tvojeaplikace.streamlit.app/">Odkaz na tvou Streamlit aplikaci</a>
-    """
-    
-    # Vrátíme HTML text a specifikujeme mód 'HTML'
-    return html_report_text, 'HTML' 
+    # Nyní vracíme pouze text
+    return report_text 
 
 
 # --- 4. Hlavní spouštěcí blok ---
@@ -81,10 +73,11 @@ if __name__ == '__main__':
     print(f"Spouštím Telegram report generator v {datetime.now().strftime('%H:%M:%S')}...")
     
     try:
-        report_content, parse_mode = generate_report_content()
+        # Nyní generujeme POUZE text
+        report_content = generate_report_content()
         
-        # Odeslání zprávy.
-        success = send_telegram_message(report_content, parse_mode=parse_mode)
+        # Odeslání zprávy. parse_mode neposíláme.
+        success = send_telegram_message(report_content)
         
         if success:
             print("Skript dokončen úspěšně.")
