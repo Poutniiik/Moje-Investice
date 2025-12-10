@@ -30,7 +30,7 @@ def ziskej_kurzy():
 
 # --- ZÍSKÁNÍ CEN PORTFOLIA (Kopírováno z utils.py) ---
 def ziskej_ceny_portfolia_bot(list_tickeru):
-    """Získá aktuální ceny a včerejší close pro seznam tickerů."""
+    """Získá aktuální ceny a včerejší close pro seznam tickerů (Robustní pro GHA)."""
     ceny = {}
     vcer_close = {}
     if not list_tickeru:
@@ -38,18 +38,25 @@ def ziskej_ceny_portfolia_bot(list_tickeru):
 
     for tkr in list_tickeru:
         try:
-            ticker_data = yf.Ticker(tkr).history(period="1d", interval="1m", prepost=True)
+            # Nová hlavička pro stabilnější API přístup v Cloudu (GHA)
+            ticker_obj = yf.Ticker(tkr)
+            
+            # Historická data pro aktuální cenu
+            ticker_data = ticker_obj.history(period="1d", interval="1m", prepost=True)
             
             # Získání aktuální ceny (poslední dostupná)
             if not ticker_data.empty:
                 ceny[tkr] = ticker_data['Close'].iloc[-1]
                 
-            # Získání včerejší Close ceny pro porovnání
-            info = yf.Ticker(tkr).info
-            if info.get('previousClose'):
+            # Získání včerejší Close ceny pro porovnání z .info
+            # Použijeme info, ale s ošetřením, aby to nepadlo tichou chybou
+            info = ticker_obj.info
+            if info and info.get('previousClose'):
                 vcer_close[tkr] = info['previousClose']
             
-        except Exception:
+        except Exception as e:
+            # Tiché selhání s logem (uvidíme v GHA logu, co se stalo, i když report dorazí)
+            print(f"❌ Chyba YFinance pro {tkr}: {e}") 
             ceny[tkr] = 0.0
             vcer_close[tkr] = 0.0
             
