@@ -20,7 +20,7 @@ RISK_FREE_RATE = 0.04
 
 # --- PŘIPOJENÍ (GitHub) ---
 # BEZPEČNĚJŠÍ ZÍSKÁNÍ TOKENU:
-GITHUB_TOKEN = os.environ.get("GH_TOKEN") 
+GITHUB_TOKEN = os.environ.get("GH_TOKEN")
 
 if not GITHUB_TOKEN:
     # 2. Fallback pro Streamlit (čteme tvůj původní název 'token' z secrets.toml)
