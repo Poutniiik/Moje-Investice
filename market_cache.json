@@ -1,9 +1,9 @@
 {
-  "timestamp": "2025-12-10 04:09:05",
+  "timestamp": "2025-12-10 04:47:23",
   "prices": {
-    "BTC-USD": {
-      "price": 92484.515625,
-      "change_pct": -0.23877599450951734,
+    "F": {
+      "price": 13.079999923706055,
+      "change_pct": -0.3808087608458663,
       "currency": "USD"
     },
     "AAPL": {
@@ -11,9 +11,9 @@
       "change_pct": -0.35231915927013663,
       "currency": "USD"
     },
-    "F": {
-      "price": 13.079999923706055,
-      "change_pct": -0.3808087608458663,
+    "^GSPC": {
+      "price": 6840.509765625,
+      "change_pct": -0.001463285558606407,
       "currency": "USD"
     },
     "CEZ.PR": {
@@ -21,26 +21,18 @@
       "change_pct": 0.1568627450980392,
       "currency": "USD"
     },
+    "BTC-USD": {
+      "price": 92597.828125,
+      "change_pct": -0.11654803430742658,
+      "currency": "USD"
+    },
     "ADS.DE": {
       "price": 159.89999389648438,
       "change_pct": -0.0937264307485997,
       "currency": "USD"
-    },
-    "^GSPC": {
-      "price": 6840.509765625,
-      "change_pct": -0.001463285558606407,
-      "currency": "USD"
     }
   },
   "fundamentals": {
-    "AAPL": {
-      "dividendYield": 0.37,
-      "peRatio": 37.205368,
-      "sector": "Technology",
-      "country": "United States",
-      "marketCap": 4113459052544,
-      "shortName": "Apple Inc."
-    },
     "F": {
       "dividendYield": 4.6,
       "peRatio": 11.179487,
@@ -48,6 +40,14 @@
       "country": "United States",
       "marketCap": 52117241856,
       "shortName": "Ford Motor Company"
+    },
+    "AAPL": {
+      "dividendYield": 0.37,
+      "peRatio": 37.205368,
+      "sector": "Technology",
+      "country": "United States",
+      "marketCap": 4113459052544,
+      "shortName": "Apple Inc."
     },
     "CEZ.PR": {
       "dividendYield": 3.66,
@@ -67,7 +67,7 @@
     }
   },
   "kurzy": {
-    "CZK": 20.858400344848633,
-    "EUR": 1.1629259586334229
+    "CZK": 20.857900619506836,
+    "EUR": 1.1631964445114136
   }
 }
