@@ -24,49 +24,60 @@ RSS_ZDROJE = [
 # --- EXTERNÍ DATA ---
 @st.cache_data(ttl=3600)
 def ziskej_fear_greed():
+    """Získá Fear & Greed Index z CNN."""
     url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
         r = requests.get(url, headers=headers, timeout=5)
+        r.raise_for_status() # Vyhodí chybu pro 4XX/5XX
         data = r.json()
         score = int(data['fear_and_greed']['score'])
         rating = data['fear_and_greed']['rating']
         return score, rating
-    except: return None, None
+    except Exception: return None, None
 
 @st.cache_data(ttl=3600)
 def ziskej_zpravy():
+    """Stáhne aktuální finanční zprávy z definovaných RSS zdrojů."""
     news = []
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     for url in RSS_ZDROJE:
         try:
             response = requests.get(url, headers=headers, timeout=5)
-            if response.status_code == 200:
-                feed = feedparser.parse(response.content)
-                for entry in feed.entries[:5]: 
-                    datum = entry.get('published', datetime.now().strftime("%d.%m.%Y"))
-                    news.append({"title": entry.title, "link": entry.link, "published": datum})
+            response.raise_for_status() # Vyhodí chybu pro 4XX/5XX
+            feed = feedparser.parse(response.content)
+            for entry in feed.entries[:5]: 
+                datum = entry.get('published', datetime.now().strftime("%d.%m.%Y"))
+                news.append({"title": entry.title, "link": entry.link, "published": datum})
         except Exception: 
             pass
     return news
 
 @st.cache_data(ttl=86400)
 def ziskej_yield(ticker):
+    """Získá dividendový výnos (jako desetinné číslo, např. 0.02)"""
     try:
         t = yf.Ticker(str(ticker))
-        d = t.info.get('dividendYield')
-        if d and d > 0.30: return d / 100 
+        # Používáme fast_info pro rychlý přístup, pokud je k dispozici
+        d = t.fast_info.get('dividend_yield', 0) 
+        if not d and 'dividendYield' in t.info:
+            d = t.info.get('dividendYield')
+        
+        # Ošetření: dividendYield v info je již procento (0.05 = 5%)
+        # Zkontrolujeme, zda to není absurdně vysoká hodnota (procenta z info API)
+        if d and d > 1.0: return d / 100 
         return d if d else 0
     except Exception: return 0
 
 @st.cache_data(ttl=86400)
 def ziskej_earnings_datum(ticker):
+    """Získá datum zveřejnění výsledků."""
     try:
         t = yf.Ticker(str(ticker))
         cal = t.calendar
         if cal is not None and 'Earnings Date' in cal:
             dates = cal['Earnings Date']
-            if dates:
+            if dates and pd.notna(dates[0]):
                 return dates[0]
     except Exception:
         pass
@@ -76,6 +87,7 @@ def ziskej_earnings_datum(ticker):
 
 @st.cache_data(ttl=86400, show_spinner=False, persist="disk")
 def _ziskej_info_cached(ticker):
+    """Stáhne detailní info o akcii z YF (delší, ale kompletní data)."""
     t = yf.Ticker(str(ticker))
     info = t.info
     
@@ -105,6 +117,7 @@ def _ziskej_info_cached(ticker):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _ziskej_historii_cached(ticker):
+    """Stáhne historická data za 1 rok (pro grafy)."""
     try:
         t = yf.Ticker(str(ticker))
         return t.history(period="1y")
@@ -112,28 +125,32 @@ def _ziskej_historii_cached(ticker):
         return None
 
 def ziskej_detail_akcie(ticker):
+    """Sjednocuje získání info a historie akcie s prioritou na cachovanou verzi."""
     info = {}
     hist = None
     try:
+        # Priorita 1: Cachované detailní info (s delším TTL)
         info = _ziskej_info_cached(ticker)
     except Exception:
+        # Fallback: Rychlé info, pokud detailní selže (např. při API limitu)
         try:
             t = yf.Ticker(str(ticker))
             fi = t.fast_info
             info = {
                 "longName": ticker,
-                "longBusinessSummary": "MISSING_SUMMARY",
+                "longBusinessSummary": "Pouze rychlé info (detailní data nedostupná).",
                 "recommendationKey": "N/A",
                 "targetMeanPrice": 0,
-                "trailingPE": fi.trailing_pe,
-                "marketCap": fi.market_cap,
-                "currency": fi.currency,
-                "currentPrice": fi.last_price,
+                "trailingPE": fi.trailing_pe if pd.notna(fi.trailing_pe) else 0,
+                "marketCap": fi.market_cap if pd.notna(fi.market_cap) else 0,
+                "currency": fi.currency if fi.currency else "USD",
+                "currentPrice": fi.last_price if pd.notna(fi.last_price) else 0,
                 "website": "",
                 "profitMargins": 0, "returnOnEquity": 0, "revenueGrowth": 0, "debtToEquity": 0, "quickRatio": 0, "numberOfAnalystOpinions": 0,
                 "heldPercentInsiders": 0, "heldPercentInstitutions": 0
             }
         except:
+            # Poslední záchrana
             info = {
                 "longName": ticker, 
                 "currency": "USD", 
@@ -145,16 +162,20 @@ def ziskej_detail_akcie(ticker):
                 "heldPercentInsiders": 0, "heldPercentInstitutions": 0
             }
 
+    # Historie se stahuje odděleně
     hist = _ziskej_historii_cached(ticker)
     return info, hist
 
 # --- POMOCNÁ FUNKCE PRO TRŽNÍ HODINY ---
 def zjisti_stav_trhu(timezone_str, open_hour, close_hour):
+    """Kontroluje, zda je burza v dané časové zóně a čase otevřená."""
     try:
         tz = pytz.timezone(timezone_str)
         now = datetime.now(tz)
         is_open = False
+        # Obvykle se kontroluje pondělí (0) až pátek (4)
         if 0 <= now.weekday() <= 4:
+            # Check vnitřní hodiny
             if open_hour <= now.hour < close_hour:
                 is_open = True
         return now.strftime("%H:%M"), is_open
@@ -163,6 +184,8 @@ def zjisti_stav_trhu(timezone_str, open_hour, close_hour):
 
 # --- PDF GENERATOR ---
 def clean_text(text):
+    """Převádí českou diakritiku na ASCII pro FPDF (pro jednoduchost bez UTF-8 fontů)."""
+    # Seznam diakritických znaků pro FPDF (mohl by být rozšířen, ale toto je základ)
     replacements = {
         'á': 'a', 'č': 'c', 'ď': 'd', 'é': 'e', 'ě': 'e', 'í': 'i', 'ň': 'n', 'ó': 'o', 'ř': 'r', 'š': 's', 'ť': 't', 'ú': 'u', 'ů': 'u', 'ý': 'y', 'ž': 'z',
         'Á': 'A', 'Č': 'C', 'Ď': 'D', 'É': 'E', 'Ě': 'E', 'Í': 'I', 'Ň': 'N', 'Ó': 'O', 'Ř': 'R', 'Š': 'S', 'Ť': 'T', 'Ú': 'U', 'Ů': 'U', 'Ý': 'Y', 'Ž': 'Z'
@@ -172,9 +195,13 @@ def clean_text(text):
     return text
 
 def vytvor_pdf_report(user, total_czk, cash_usd, profit_czk, data_list):
+    """Generuje PDF report portfolia."""
+    # Pro správnou češtinu ve FPDF (bez nutnosti rozšiřovat font) bychom použili např. 'cp1250' kódování
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
+    
+    # Používáme clean_text (zůstává pro kompatibilitu s aktuálním fontem)
     pdf.cell(0, 10, clean_text(f"INVESTICNI REPORT: {user}"), ln=True, align='C')
     
     pdf.set_font("Arial", size=10)
@@ -208,33 +235,64 @@ def vytvor_pdf_report(user, total_czk, cash_usd, profit_czk, data_list):
     return pdf.output(dest='S').encode('latin-1', 'replace')
 
 def odeslat_email(prijemce, predmet, telo):
+    """
+    Odesílá email pomocí SMTP. Vyžaduje 'email' sekci v Streamlit secrets.
+    Použijte App Password pro Gmail.
+    """
     try:
-        sender_email = st.secrets["email"]["sender"]
-        sender_password = st.secrets["email"]["password"]
+        # BEZPEČNÝ PŘÍSTUP K SECRETS (ÚPRAVA)
+        secrets = st.secrets.get("email", {})
+        sender_email = secrets.get("sender")
+        sender_password = secrets.get("password")
+        
+        if not sender_email or not sender_password:
+            return "Chyba: Emailový účet nebo heslo nebylo nalezeno v Streamlit Secrets."
+
         msg = MIMEText(telo, 'html')
         msg['Subject'] = predmet
         msg['From'] = sender_email
         msg['To'] = prijemce
+        
+        # SMTPS se spouští na portu 465 (přímé SSL)
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, prijemce, msg.as_string())
         return True
-    except Exception as e: return f"Chyba: {e}"
+    except Exception as e: 
+        return f"Chyba odesílání emailu: {e}"
 
 @st.cache_data(ttl=3600)
 def ziskej_ceny_hromadne(tickers):
+    """Stáhne aktuální cenu a měnu pro seznam tickerů včetně kurzů."""
     data = {}
     if not tickers: return data
     try:
+        # Vždy zahrneme kurzy pro kalkulace
         ts = list(set(tickers + ["CZK=X", "EURUSD=X"]))
         df_y = yf.download(ts, period="1d", group_by='ticker', progress=False)
+        
+        # Zajištění multi-indexu u jednoho tickeru
+        is_multi_index = isinstance(df_y.columns, pd.MultiIndex)
+        
         for t in ts:
             try:
-                if isinstance(df_y.columns, pd.MultiIndex): price = df_y[t]['Close'].iloc[-1]
-                else: price = df_y['Close'].iloc[-1]
+                if is_multi_index and t in df_y.columns.levels[0]: 
+                    price = df_y[t]['Close'].iloc[-1]
+                elif not is_multi_index and t in df_y.columns: 
+                    price = df_y['Close'].iloc[-1]
+                elif len(ts) == 1:
+                    price = df_y['Close'].iloc[-1]
+                else:
+                    continue # Skip if no data for this ticker
+
                 curr = "USD"
                 if ".PR" in t: curr = "CZK"
                 elif ".DE" in t: curr = "EUR"
+                
+                # Zajištění, že kurzové tickery mají správné měny
+                if t == "CZK=X": curr = "CZK/USD"
+                elif t == "EURUSD=X": curr = "EUR/USD"
+
                 if pd.notnull(price): data[t] = {"price": float(price), "curr": curr}
             except Exception: pass
     except Exception: pass
@@ -242,27 +300,39 @@ def ziskej_ceny_hromadne(tickers):
 
 @st.cache_data(ttl=3600)
 def ziskej_kurzy(): 
-    return {"USD": 1.0, "CZK": 20.85, "EUR": 1.16}
+    """Získá výchozí kurzy (fallback, pokud ziskej_ceny_hromadne selže)."""
+    return {"USD": 1.0, "CZK": 20.85, "EUR": 1.16} # CZK/USD a EUR/USD
 
 @st.cache_data(ttl=3600)
 def ziskej_info(ticker):
+    """Rychlá informace o ceně, měně a denní změně pomocí Fast Info."""
     mena = "USD"
-    if str(ticker).endswith(".PR"): mena = "CZK"
-    elif str(ticker).endswith(".DE"): mena = "EUR"
+    if str(ticker).upper().endswith(".PR"): mena = "CZK"
+    elif str(ticker).upper().endswith(".DE"): mena = "EUR"
     try: 
         t = yf.Ticker(str(ticker))
-        price = t.fast_info.last_price
-        prev = t.fast_info.previous_close
-        zmena = ((price/prev)-1) if prev else 0
-        api_curr = t.fast_info.currency
+        fi = t.fast_info
+        price = fi.last_price
+        prev = fi.previous_close
+        
+        # Bezpečný výpočet denní změny
+        zmena = ((price/prev)-1) if pd.notna(price) and pd.notna(prev) and prev else 0
+        
+        # Měna z API (preferováno)
+        api_curr = fi.currency
         if api_curr and api_curr != "N/A": mena = api_curr
+            
         return price, mena, zmena
     except Exception: return None, mena, 0
 
 # --- FINANČNÍ FUNKCE ---
 def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_year=252):
+    """Vypočítá Sharpe Ratio."""
+    # Ošetření NaN, 0.0 standardní odchylky a prázdného dataframu
+    returns = returns.dropna()
     if returns.empty or returns.std() == 0:
         return 0.0
+        
     daily_risk_free_rate = risk_free_rate / periods_per_year
     excess_returns = returns - daily_risk_free_rate
     sharpe_ratio = np.sqrt(periods_per_year) * (excess_returns.mean() / returns.std())
@@ -270,12 +340,12 @@ def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_y
 
 # --- 1. STYLOVÁNÍ PRO PLOTLY (Interaktivní) ---
 def make_plotly_cyberpunk(fig):
-    """Aplikuje Cyberpunk skin na Plotly graf bezpečně podle typu trace."""
+    """Aplikuje Cyberpunk skin na Plotly graf bezpečně."""
     neon_green = "#00FF99"
     dark_bg = "rgba(0,0,0,0)"
     grid_color = "#30363D"
 
-    # Layout styling (bezpečné, univerzální)
+    # Layout styling (Univerzální)
     try:
         fig.update_layout(
             paper_bgcolor=dark_bg,
@@ -289,42 +359,26 @@ def make_plotly_cyberpunk(fig):
     except Exception:
         pass
 
-    # Aplikuj styl selektivně podle typu trace
-    try:
-        for t in fig.data:
-            t_type = getattr(t, "type", None)
+    # Trace styling (Optimalizované)
+    for t in fig.data:
+        t_type = getattr(t, "type", None)
 
-            # PIE: obrys se nastavuje přes marker.line
-            if t_type == "pie":
-                try:
-                    current_marker = dict(t.marker) if getattr(t, "marker", None) is not None else {}
-                    current_marker["line"] = dict(width=3, color=neon_green)
-                    t.marker = current_marker
-                except Exception:
-                    try:
-                        t.marker = {"line": dict(width=3, color=neon_green)}
-                    except Exception:
-                        pass
-
-            # Trace, které běžně podporují line
-            elif t_type in ("scatter", "bar", "line", "ohlc", "candlestick"):
-                try:
-                    t.line = dict(width=3, color=neon_green)
-                except Exception:
-                    pass
-
-            # Fallback: pokud má trace marker, pokusíme se nastavit marker.line
-            else:
-                try:
-                    if hasattr(t, "marker"):
-                        m = dict(t.marker) if getattr(t, "marker", None) is not None else {}
-                        m["line"] = dict(width=3, color=neon_green)
-                        t.marker = m
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
+        if hasattr(t, 'marker') and t_type == "pie":
+            # Pie/Doughnut: Nastavíme obrys markeru
+            t.marker.line = dict(width=3, color=neon_green)
+        
+        elif hasattr(t, 'line'):
+            # Scatter/Line/Area: Nastavíme barvu čáry
+            if t_type in ("scatter", "area", "line"):
+                # Area grafy mohou mít fillcolor, který by to přepsalo, 
+                # takže nastavujeme pouze čáru
+                t.line.color = neon_green
+        
+        # Fallback pro ostatní trace s markery
+        elif hasattr(t, "marker"):
+            if hasattr(t.marker, 'color') and t.marker.color is None:
+                t.marker.color = neon_green
+                
     return fig
 
 # --- 2. STYLOVÁNÍ PRO MATPLOTLIB (Statické) ---
