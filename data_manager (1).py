@@ -21,7 +21,7 @@ RISK_FREE_RATE = 0.04 # <--- PŘIDÁNO: Bezriziková úroková míra (např. 4%)
 # Logika se přesunula sem, aby neznečišťovala main.py
 try: 
     if "github" in st.secrets:
-        GITHUB_TOKEN = st.secrets["github"]["GH_TOKEN"]
+        GITHUB_TOKEN = st.secrets["github"]["token"]
     else:
         # Tichý režim, aby main.py neházel chybu při importu, 
         # varování zobrazíme až při pokusu o akci.
