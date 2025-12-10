@@ -64,7 +64,7 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
     pocet_history = "N/A"
     status_history = "N/A"
     pocet_cash = "N/A"
-    status_cash = "N/A""
+    status_cash = "N/A"
     # ----------------------------------------------------
     
     current_time = datetime.now().strftime("%d.%m.%Y v %H:%M:%S")
