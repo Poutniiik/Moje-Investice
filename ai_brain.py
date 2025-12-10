@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+import os
 
 # --- KONSTANTY & MANUÁL ---
 APP_MANUAL = """
@@ -16,25 +17,35 @@ MAPA APLIKACE:
 """
 
 # --- INICIALIZACE ---
+# ÚRYVEK Z ai_brain.py
+
 def init_ai():
     """
-    Pokusí se připojit k Google Gemini a nastavit model.
-    Vrací: (model, True) pokud ok, jinak (None, False)
+    Pokusí se připojit k Google Gemini.
+    Priorita: 1. os.environ.get (pro GHA bota) 2. st.secrets (pro Streamlit).
     """
-    # 1. Bezpečné získání API klíče
-    key = st.secrets.get("google", {}).get("api_key")
+    import os 
     
+    # 1. Zkusíme načíst z GHA prostředí (Používáme standardizovaný název)
+    key = os.environ.get("GEMINI_API_KEY") 
+    
+    if not key:
+        # 2. Fallback na Streamlit secrets (Používáme TVŮJ existující název 'api_key')
+        try:
+            if "google" in st.secrets:
+                key = st.secrets["google"]["api_key"] # Zde je 'api_key' dle tvého secrets.toml
+        except Exception:
+             pass 
+            
     if not key:
         return None, False
     
     try:
-        # 2. Konfigurace a vytvoření modelu
         genai.configure(api_key=key)
-        # Používáme gemini-2.5-flash, který je rychlý a efektivní
         model = genai.GenerativeModel('gemini-2.5-flash') 
         return model, True
     except Exception:
-        # Pokud selže konfigurace
+        # Pokud je klíč neplatný, padne to tichou chybou
         return None, False
 
 # --- FUNKCE PRO JEDNOTLIVÉ ÚKOLY ---
