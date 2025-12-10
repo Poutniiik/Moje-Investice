@@ -14,7 +14,7 @@ import ai_brain as ai
 # ... (Zbytek hlavičky report_bot.py)
 
 # --- KONFIGURACE PRO STANDALONE SKRIPT ---
-USER_TO_REPORT = "admin" # Změň na svého uživatele, pokud je potřeba
+USER_TO_REPORT = "Filip" # Změň na svého uživatele, pokud je potřeba
 # ----------------------------------------
 
 def vytvor_a_odesli_denni_report():
@@ -66,14 +66,17 @@ def vytvor_a_odesli_denni_report():
         error_msg = f"❌ CHYBA AUTOREPORTU:\nSelhalo stažení/kalkulace dat: {e}"
         return notify.poslat_zpravu(error_msg)
 
+   # ÚRYVEK K ZMĚNĚ V report_bot.py
+
     # 5. GENERACE AI DENÍKU
     # AI potřebuje data v CZK, takže přepočítáme
     ai_model, ai_ok = ai.init_ai()
     denik = "AI modul není k dispozici."
     if ai_ok:
-        denik = ai.vytvor_kapitansky_denik(
+        # ZDE JE OPRAVA: POUŽÍVÁME SKUTEČNÝ NÁZEV Z ai_brain.py
+        denik = ai.generate_rpg_story(
             ai_model, 
-            level_name="BETA TESTER", # Můžeš si zvolit jiný název
+            level_name="BETA TESTER", 
             denni_zmena=denni_zmena_abs * kurzy.get("CZK", 22.0),
             celk_hod=celk_hod_czk,
             score=score if score else 50
