@@ -97,7 +97,6 @@ def uloz_csv(df, nazev_souboru, zprava):
     return uloz_csv_bezpecne(df, nazev_souboru, zprava)
 
 def nacti_csv(nazev_souboru):
-    """Načítá soubor z GitHubu a zajišťuje správné typování sloupců."""
     try:
         repo = get_repo()
         if not repo: raise Exception("GitHub Token není k dispozici.")
@@ -105,6 +104,10 @@ def nacti_csv(nazev_souboru):
         # Při načítání z repozitáře neděláme .copy()
         file = repo.get_contents(nazev_souboru)
         df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
+
+        file = repo.get_contents(nazev_souboru)
+        content = file.decoded_content.decode("latin-1") # LATIN-1 (místo UTF-8) je velmi robustní pro CSV
+        df = pd.read_csv(StringIO(content))
         
         # Robustnější typování (ZLEPŠENÍ)
         date_cols = [col for col in df.columns if col in ['Datum', 'Date']]
