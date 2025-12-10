@@ -69,44 +69,78 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
         zmena_za_den = "N/A"
 
 
-    # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ ---
-    csv_file_path = "portfolio_data.csv" # Změň na název tvého CSV souboru!
-    try:
-        # Příklad: Načítání CSV souboru, který je v kořenovém adresáři
-        df_local = pd.read_csv(csv_file_path)
-        
-        # Získání metrik z lokálního CSV
-        celkem_zaznamu = len(df_local)
-        lokalni_status = f"Úspěšně načteno {celkem_zaznamu} záznamů."
-        
-    except FileNotFoundError:
-        celkem_zaznamu = "N/A"
-        lokalni_status = f"CHYBA: Soubor '{csv_file_path}' nebyl nalezen."
-    except Exception as e:
-        celkem_zaznamu = "N/A"
-        lokalni_status = f"CHYBA při čtení CSV: {e}"
+   # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ ---
+
+# 1. PORTFOLIO DATA (portfolio_data.csv)
+portfolio_path = "portfolio_data.csv"
+try:
+    df_portfolio = pd.read_csv(portfolio_path)
+    # Získání metrik z PORTFOLIA
+    celkem_zaznamu_portf = len(df_portfolio)
+    status_portf = f"Úspěšně načteno {celkem_zaznamu_portf} záznamů."
+    
+except Exception as e:
+    celkem_zaznamu_portf = "N/A"
+    status_portf = f"CHYBA čtení PORTFOLIA: {e}"
 
 
-    # --- C) TVORBA HTML REPORTU ---
+# 2. HISTORY DATA (history_data.csv)
+history_path = "history_data.csv"
+try:
+    df_history = pd.read_csv(history_path)
+    # Získání metrik z HISTORIE
+    pocet_history = len(df_history)
+    status_history = f"Načteno {pocet_history} historických záznamů."
     
-    html_report_text = f"""
-    <b>🚀 Denní Report: Finance a Data</b>
-    <pre>Datum: {current_time}</pre>
+except Exception as e:
+    pocet_history = "N/A"
+    status_history = f"CHYBA čtení HISTORIE: {e}"
+
+
+# 3. CASH DATA (cash_data.csv)
+cash_path = "cash_data.csv"
+try:
+    df_cash = pd.read_csv(cash_path)
+    # Získání metrik z CASH
+    pocet_cash = len(df_cash)
+    status_cash = f"Načteno {pocet_cash} cash záznamů."
     
-    <b>📊 Yahoo Finance Metriky ({ticker_symbol})</b>
-    \u2022 Poslední cena: <b>{posledni_cena}</b>
-    \u2022 Změna za den: <b>{zmena_za_den}%</b>
-    \u2022 Stav: <i>{yahoo_status}</i>
-    
-    <b>📁 Lokální CSV Souhrn</b>
-    \u2022 Celkem záznamů: <b>{celkem_zaznamu}</b>
-    \u2022 Stav: <i>{lokalni_status}</i>
-    
-    <a href="https://moje-investice-pesalikcistokrevnimamlas.streamlit.app/">Odkaz na tvou Streamlit aplikaci</a>
-    """
-    
-    # Vrátíme HTML text a specifikujeme mód 'HTML'
-    return html_report_text, 'HTML' 
+except Exception as e:
+    pocet_cash = "N/A"
+    status_cash = f"CHYBA čtení CASH: {e}"
+
+
+# --- C) TVORBA HTML REPORTU ---
+
+html_report_text = f"""
+<b>🚀 Denní Report: Finance a Data</b>
+<pre>Datum: {current_time}</pre>
+
+<b>📊 Yahoo Finance Metriky ({ticker_symbol})</b>
+\u2022 Poslední cena: <b>{posledni_cena}</b>
+\u2022 Změna za den: <b>{zmena_za_den}%</b>
+\u2022 Stav Yahoo: <i>{yahoo_status}</i>
+
+<b>📁 Lokální CSV Souhrn</b>
+<hr>
+<b>PORTFOLIO DATA ({portfolio_path})</b>
+\u2022 Celkem záznamů: <b>{celkem_zaznamu_portf}</b>
+\u2022 Stav: <i>{status_portf}</i>
+
+<b>HISTORY DATA ({history_path})</b>
+\u2022 Celkem záznamů: <b>{pocet_history}</b>
+\u2022 Stav: <i>{status_history}</i>
+
+<b>CASH DATA ({cash_path})</b>
+\u2022 Celkem záznamů: <b>{pocet_cash}</b>
+\u2022 Stav: <i>{status_cash}</i>
+<hr>
+
+<a href="https://moje-investice-pesalikcistokrevnimamlas.streamlit.app/">Odkaz na tvou Streamlit aplikaci</a>
+"""
+
+# Vrátíme HTML text a specifikujeme mód 'HTML'
+return html_report_text, 'HTML'
 
 
 # --- 4. Hlavní spouštěcí blok ---
