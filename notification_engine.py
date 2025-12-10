@@ -1,45 +1,31 @@
 import streamlit as st
 import requests
-import os
 
 def init_telegram():
-    """
-    Načte klíče pro Telegram.
-    1. Zkusí Streamlit secrets (pro web).
-    2. Zkusí Environment Variables (pro robota/GitHub Actions).
-    """
-    token, chat_id = None, None
-
-    # 1. Zkusíme Streamlit Secrets (pokud běžíme v appce)
+    """Načte klíče pro Telegram ze secrets.toml."""
     try:
-        if "telegram" in st.secrets:
-            token = st.secrets["telegram"]["bot_token"]
-            chat_id = st.secrets["telegram"]["chat_id"]
-    except FileNotFoundError:
-        pass # Nejsme ve Streamlitu nebo chybí secrets.toml
+        if "telegram" not in st.secrets:
+            return None, None
+        
+        token = st.secrets["telegram"]["bot_token"]
+        chat_id = st.secrets["telegram"]["chat_id"]
+        return token, chat_id
     except Exception:
-        pass
-
-    # 2. Pokud stále nemáme, zkusíme Environment Variables (pro Robota)
-    if not token:
-        token = os.environ.get("TG_BOT_TOKEN")
-    if not chat_id:
-        chat_id = os.environ.get("TG_CHAT_ID")
-
-    return token, chat_id
+        return None, None
 
 def poslat_zpravu(text):
     """
-    Odešle zprávu přes Telegram Bota.
+    Odešle zprávu přes Telegram Bota pomocí obyčejného HTTP požadavku.
+    Používá HTML formátování.
     """
     token, chat_id = init_telegram()
     
     if not token or not chat_id:
-        print("❌ CHYBA: Chybí konfigurace Telegramu (secrets nebo ENV).")
-        return False, "Chybí konfigurace Telegramu"
+        return False, "❌ Chybí konfigurace Telegramu v secrets.toml"
         
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     
+    # Payload pro odeslání zprávy
     payload = {
         "chat_id": chat_id,
         "text": text,
@@ -47,7 +33,7 @@ def poslat_zpravu(text):
     }
     
     try:
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, timeout=5)
         
         if response.status_code == 200:
             return True, "✅ Zpráva odeslána na Telegram!"
