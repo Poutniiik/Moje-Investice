@@ -1,3 +1,15 @@
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  
+  # Toto je náš manuální spouštěč!
+  workflow_dispatch:
+
+Tímto zápisem říkáš GitHubu: "Spusť tento workflow buď podle plánu (`schedule`), **NEBO** když mi uživatel klikne na tlačítko v rozhraní (`workflow_dispatch`)."
+
+Teď, když máš opravený a kompletní kód pro workflow i Python skript, můžeš oba soubory nahrát na GitHub a hned to otestovat ručním spuštěním! Jdeme dál!
+
 steps:
 - name: 1. Získání kódu z repozitáře
   uses: actions/checkout@v4
