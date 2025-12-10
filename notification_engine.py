@@ -1,18 +1,33 @@
+# Soubor: notification_engine.py
+
 import streamlit as st
 import requests
+import os # <--- PŘIDEJ TENTO IMPORT NAHORNÍ ČÁST SOUBORU
 
 def init_telegram():
-    """Načte klíče pro Telegram ze secrets.toml."""
-    # Používáme .get() s bezpečnými fallbacky pro token a chat_id
-    secrets = st.secrets.get("telegram", {})
-    token = secrets.get("bot_token")
-    chat_id = secrets.get("chat_id")
+    """
+    Načte klíče pro Telegram. 
+    Priorita: 1. Systémové proměnné (pro GHA bota) 2. st.secrets (pro Streamlit).
+    """
+    # 1. Zkusíme načíst ze systémových proměnných (pro bota GHA/Cron)
+    token = os.environ.get("TELEGRAM_BOT_TOKEN") 
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     
-    if not token or not chat_id:
-        return None, None
-        
-    return token, chat_id
+    if token and chat_id:
+        return token, chat_id # Načteno z prostředí (GHA)
 
+    # 2. Fallback pro Streamlit (pro aplikaci)
+    try:
+        # Používáme tvé původní názvy z secrets.toml
+        if "telegram" in st.secrets:
+            token = st.secrets["telegram"]["bot_token"]
+            chat_id = st.secrets["telegram"]["chat_id"]
+            return token, chat_id
+    except Exception:
+        # st.secrets není dostupné
+        pass
+        
+    return None, None
 def poslat_zpravu(text):
     """
     Odešle zprávu přes Telegram Bota pomocí obyčejného HTTP požadavku.
