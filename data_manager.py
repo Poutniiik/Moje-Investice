@@ -132,7 +132,7 @@ def nacti_csv(nazev_souboru):
             if 'Sektor' not in df.columns: df['Sektor'] = "Doplnit"
             if 'Poznamka' not in df.columns: df['Poznamka'] = ""
         
-        if 'Owner' not in df.columns: df['Owner'] = "admin"
+        if 'Owner' not in df.columns: df['Owner'] = "Filip"
         df['Owner'] = df['Owner'].astype(str)
         return df
         
