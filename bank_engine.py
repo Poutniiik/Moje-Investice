@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 # 👇 NASTAVENÍ PROSTŘEDÍ (Sandbox vs. Development) 👇
 # ==========================================
 
-# 1. Vyber prostředí: "sandbox" (testovací) nebo "development" (reálné banky, zdarma)
+# 1. Vyber prostředí: "sandbox" (testovací) nebo "development" (reálné banky)
 PLAID_ENV = "sandbox"
 
 # 2. Nastavení URL podle prostředí
@@ -18,27 +18,26 @@ elif PLAID_ENV == "development":
     BASE_URL = "https://development.plaid.com"
     INSTITUTION_ID = "ins_109508" # Zde pak bude reálná banka
 
-# 3. Načtení klíčů (Pokud je nemáš v secrets, doplň je sem do uvozovek pro test)
-try:
-    PLAID_CLIENT_ID = st.secrets["plaid"]["client_id"]
-    PLAID_SECRET = st.secrets["plaid"][f"secret_{PLAID_ENV}"] 
-except Exception:
-    # ⚠️ SEM SI JE MŮŽEŠ DÁT PRO RYCHLÝ TEST, POKUD JEŠTĚ NEJSOU V SECRETS
-    PLAID_CLIENT_ID = "" 
-    PLAID_SECRET = ""
+# 3. Načtení klíčů (BEZPEČNÁ IMPLEMENTACE Z SECRETS)
+# Klíče se načtou s prázdným řetězcem jako fallback, aby se zabránilo chybám.
+PLAID_CLIENT_ID = st.secrets.get("plaid", {}).get("client_id", "")
+PLAID_SECRET = st.secrets.get("plaid", {}).get(f"secret_{PLAID_ENV}", "")
 
 # ==========================================
 
 def simulace_pripojeni():
-    """Vytvoří připojení k bance."""
+    """
+    Vytvoří připojení k bance a vymění Public Token za Access Token (Sandbox).
+    Vrací Access Token nebo chybovou zprávu.
+    """
     if not PLAID_CLIENT_ID or not PLAID_SECRET:
-        return "Chyba: Chybí API klíče."
+        return "Chyba: Chybí Plaid API klíče v secrets.toml."
 
     if PLAID_ENV == "development":
-        return "⚠️ Pro Development režim je potřeba Plaid Link (Frontend)."
+        return "⚠️ Pro Development režim je potřeba Plaid Link (Frontend) a skutečná banka."
 
     try:
-        # 1. Vytvoření veřejného tokenu
+        # 1. Vytvoření veřejného tokenu (Public Token)
         url_pt = f"{BASE_URL}/sandbox/public_token/create"
         payload_pt = {
             "client_id": PLAID_CLIENT_ID,
@@ -48,7 +47,8 @@ def simulace_pripojeni():
         }
         
         r_pt = requests.post(url_pt, json=payload_pt)
-        if r_pt.status_code != 200: return f"Chyba Public Token: {r_pt.text}"
+        if r_pt.status_code != 200: 
+            return f"Chyba Public Token (krok 1): {r_pt.text}"
         
         public_token = r_pt.json()['public_token']
         
@@ -61,15 +61,19 @@ def simulace_pripojeni():
         }
         
         r_ex = requests.post(url_ex, json=payload_ex)
-        if r_ex.status_code != 200: return f"Chyba Access Token: {r_ex.text}"
+        if r_ex.status_code != 200: 
+            return f"Chyba Access Token (krok 2): {r_ex.text}"
         
         return r_ex.json()['access_token']
 
     except Exception as e:
-        return f"Kritická chyba: {str(e)}"
+        return f"Kritická chyba simulace: {str(e)}"
 
 def stahni_data(access_token):
-    """Stáhne transakce (Historii)."""
+    """
+    Stáhne transakce za posledních 90 dní.
+    POZN: Plaid vrací výdaje jako KLADNÉ částky.
+    """
     if not PLAID_CLIENT_ID or not PLAID_SECRET: return None
 
     try:
@@ -92,23 +96,28 @@ def stahni_data(access_token):
         data_json = r.json()
         data_list = []
         for t in data_json['transactions']:
-            amount = -t['amount'] 
+            # Převedeme KLADNÉ Plaid částky na KLASICKÉ finanční (Výdaje jako záporné)
+            # Protože Plaid vrací amount jako 'user-facing value'
+            amount_klasicke_finance = -t['amount'] 
+            
+            # Získání kategorie
             cat = t['category'][0] if 'category' in t and t['category'] else "Ostatní"
+            
             data_list.append({
                 "Datum": t['date'],
                 "Obchodník": t['name'],
-                "Částka": amount,
+                "Částka": amount_klasicke_finance,
                 "Měna": t['iso_currency_code'],
                 "Kategorie": cat,
-                "Druh": "Výdaj" if amount < 0 else "Příjem"
+                "Druh": "Výdaj" if amount_klasicke_finance < 0 else "Příjem"
             })
         return pd.DataFrame(data_list)
-    except Exception as e:
+    except Exception:
         return None
 
 # --- NOVÁ FUNKCE: ZŮSTATKY 💰 ---
 def stahni_zustatky(access_token):
-    """Zjistí aktuální zůstatek na účtech."""
+    """Zjistí aktuální zůstatek na účtech (Available/Current)."""
     if not PLAID_CLIENT_ID or not PLAID_SECRET: return None
 
     try:
@@ -126,8 +135,7 @@ def stahni_zustatky(access_token):
         results = []
         
         for acc in accounts:
-            # Plaid vrací "available" (disponibilní) a "current" (účetní) zůstatek
-            # Bereme available, pokud existuje, jinak current
+            # Preferujeme "available" (disponibilní) před "current" (účetní)
             bal = acc['balances']['available'] if acc['balances']['available'] is not None else acc['balances']['current']
             
             results.append({
@@ -139,5 +147,5 @@ def stahni_zustatky(access_token):
             
         return pd.DataFrame(results)
         
-    except Exception as e:
+    except Exception:
         return None
