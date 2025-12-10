@@ -315,14 +315,25 @@ def proved_smenu(castka, z_meny, do_meny, user):
     kurzy = st.session_state['data_core']['kurzy'] # Bereme aktuální kurzy z cache
     df_cash_temp = st.session_state['df_cash'].copy()
     
-    # Kalkulace směny
-    if z_meny == "USD": castka_usd = castka
-    elif z_meny == "CZK": castka_usd = castka / kurzy.get("CZK", 20.85)
-    elif z_meny == "EUR": castka_usd = castka / kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85) / kurzy.get("CZK", 20.85) # Aproximace
+    # Získání kurzů z cache (předpokládáme CZK=USD/CZK, EUR=EUR/USD)
+    kurz_usd_czk = kurzy.get("CZK", 20.85) 
+    kurz_eur_usd = kurzy.get("EUR", 1.0) # Zajištění, že EUR/USD není příliš divné (1.0 je bezpečný fallback)
 
-    if do_meny == "USD": vysledna = castka_usd
-    elif do_meny == "CZK": vysledna = castka_usd * kurzy.get("CZK", 20.85)
-    elif do_meny == "EUR": vysledna = castka_usd / kurzy.get("EUR", 1.16)
+    # Kalkulace na USD ekvivalent (Krok A)
+    if z_meny == "USD": 
+        castka_usd = castka
+    elif z_meny == "CZK": 
+        castka_usd = castka / kurz_usd_czk
+    elif z_meny == "EUR": 
+        castka_usd = castka * kurz_eur_usd
+
+    # Přepočet z USD ekvivalentu na cílovou měnu (Krok B)
+    if do_meny == "USD": 
+        vysledna = castka_usd
+    elif do_meny == "CZK": 
+        vysledna = castka_usd * kurz_usd_czk
+    elif do_meny == "EUR": 
+        vysledna = castka_usd / kurz_eur_usd
 
     # Krok 1: Odepsání a připsání (lokálně)
     df_cash_temp = pohyb_penez(-castka, z_meny, "Směna", f"Směna na {do_meny}", user, df_cash_temp)
@@ -1864,6 +1875,7 @@ def main():
             st.session_state['user'] = cookie_user
             st.rerun()
 
+    # ... (začátek funkce main, uvnitř if not st.session_state['prihlasen'])
     # --- ZOBRAZENÍ LOGIN FORMULÁŘE ---
     if not st.session_state['prihlasen']:
         c1,c2,c3 = st.columns([1, 2, 1])
@@ -1903,12 +1915,16 @@ def main():
                     rk = st.text_input("Záchranný kód")
                     rnp = st.text_input("Nové heslo", type="password")
                     if st.form_submit_button("OBNOVIT"):
-                        df_u = nacti_uzivatele(); row = df_u[df_u['username'] == u]
-                        if not row.empty and row.iloc[0]['password'] == zasifruj(old):
-                            if new == conf and len(new) > 0:
-                                df_u.at[row.index[0], 'password'] = zasifruj(new); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Hotovo!")
-                            else: st.error("Chyba v novém hesle.")
-                        else: st.error("Staré heslo nesedí.")
+                        df_u = nacti_uzivatele()
+                        row = df_u[df_u['username'] == ru] # POUŽITO 'ru'
+                        if not row.empty and row.iloc[0]['recovery_key'] == zasifruj(rk): # KONTROLA recovery_key
+                            if len(rnp) >= 6:
+                                # AKTUALIZACE HESLA
+                                df_u.at[row.index[0], 'password'] = zasifruj(rnp) 
+                                uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}")
+                                st.success("Heslo obnoveno! Nyní se přihlas.")
+                            else: st.error("Nové heslo je příliš krátké (min 6 znaků).")
+                        else: st.error("Jméno nebo záchranný kód nesedí.")
         return
 
     # =========================================================================
@@ -3389,3 +3405,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
