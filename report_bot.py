@@ -7,7 +7,10 @@ from datetime import datetime
 import pandas as pd
 # MĚNÍME IMPORTOVANÉ FUNKCE
 from data_manager import SOUBOR_CASH, SOUBOR_DATA, SOUBOR_VYVOJ, nacti_csv
-from utils import ziskej_fear_greed, ziskej_kurzy, ziskej_ceny_portfolia_bot # Nová funkce!
+import bot_utils as utils # Nyní budeme volat utility jako utils.ziskej_kurzy()
+from data_manager import SOUBOR_CASH, SOUBOR_DATA, nacti_csv 
+import notification_engine as notify
+import ai_brain as ai
 import notification_engine as notify 
 # Přidáme AI pro generování deníku
 import ai_brain as ai 
@@ -40,15 +43,15 @@ def vytvor_a_odesli_denni_report():
         df_portfolio = df_portfolio_all[df_portfolio_all['Owner'] == USER_TO_REPORT]
         
         # Získání kurzu a Fear/Greed (musí být před kalkulací CZK!)
-        kurzy = ziskej_kurzy()
+        kurzy = utils.ziskej_kurzy()
         kurz_czk = kurzy.get("CZK", 22.0)
-        score, rating = ziskej_fear_greed()
+        score, rating = utils.ziskej_fear_greed()
 
         # 1.2 Kalkulace Portfolia (pouze pokud NENÍ prázdné)
         if not df_portfolio.empty:
             df_g = df_portfolio.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
             list_tickeru = df_g['Ticker'].unique().tolist()
-            ceny, vcer_close = ziskej_ceny_portfolia_bot(list_tickeru)
+            ceny, vcer_close = utils.ziskej_ceny_portfolia_bot(list_tickeru)
 
             # Projdi portfolio pro denní kalkulaci
             for index, row in df_g.iterrows(): 
