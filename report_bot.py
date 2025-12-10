@@ -14,7 +14,7 @@ import ai_brain as ai
 # ... (Zbytek hlavičky report_bot.py)
 
 # --- KONFIGURACE PRO STANDALONE SKRIPT ---
-USER_TO_REPORT = "Filip" # Změň na svého uživatele, pokud je potřeba
+USER_TO_REPORT = "admin" # Změň na svého uživatele, pokud je potřeba
 # ----------------------------------------
 
 def vytvor_a_odesli_denni_report():
