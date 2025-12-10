@@ -1,19 +1,24 @@
 {
-  "timestamp": "2025-12-10 04:47:23",
+  "timestamp": "2025-12-10 05:40:53",
   "prices": {
-    "F": {
-      "price": 13.079999923706055,
-      "change_pct": -0.3808087608458663,
-      "currency": "USD"
-    },
     "AAPL": {
       "price": 277.17999267578125,
       "change_pct": -0.35231915927013663,
       "currency": "USD"
     },
+    "ADS.DE": {
+      "price": 159.89999389648438,
+      "change_pct": -0.0937264307485997,
+      "currency": "USD"
+    },
     "^GSPC": {
       "price": 6840.509765625,
       "change_pct": -0.001463285558606407,
+      "currency": "USD"
+    },
+    "F": {
+      "price": 13.079999923706055,
+      "change_pct": -0.3808087608458663,
       "currency": "USD"
     },
     "CEZ.PR": {
@@ -22,25 +27,12 @@
       "currency": "USD"
     },
     "BTC-USD": {
-      "price": 92597.828125,
-      "change_pct": -0.11654803430742658,
-      "currency": "USD"
-    },
-    "ADS.DE": {
-      "price": 159.89999389648438,
-      "change_pct": -0.0937264307485997,
+      "price": 92587.7578125,
+      "change_pct": -0.12741068190122792,
       "currency": "USD"
     }
   },
   "fundamentals": {
-    "F": {
-      "dividendYield": 4.6,
-      "peRatio": 11.179487,
-      "sector": "Consumer Cyclical",
-      "country": "United States",
-      "marketCap": 52117241856,
-      "shortName": "Ford Motor Company"
-    },
     "AAPL": {
       "dividendYield": 0.37,
       "peRatio": 37.205368,
@@ -49,14 +41,6 @@
       "marketCap": 4113459052544,
       "shortName": "Apple Inc."
     },
-    "CEZ.PR": {
-      "dividendYield": 3.66,
-      "peRatio": 23.718426,
-      "sector": "Utilities",
-      "country": "Czech Republic",
-      "marketCap": 685506691072,
-      "shortName": "CEZ"
-    },
     "ADS.DE": {
       "dividendYield": 1.22,
       "peRatio": 23.549337,
@@ -64,10 +48,26 @@
       "country": "Germany",
       "marketCap": 28549998592,
       "shortName": "adidas AG                     N"
+    },
+    "F": {
+      "dividendYield": 4.6,
+      "peRatio": 11.179487,
+      "sector": "Consumer Cyclical",
+      "country": "United States",
+      "marketCap": 52117241856,
+      "shortName": "Ford Motor Company"
+    },
+    "CEZ.PR": {
+      "dividendYield": 3.66,
+      "peRatio": 23.718426,
+      "sector": "Utilities",
+      "country": "Czech Republic",
+      "marketCap": 685506691072,
+      "shortName": "CEZ"
     }
   },
   "kurzy": {
-    "CZK": 20.857900619506836,
-    "EUR": 1.1631964445114136
+    "CZK": 20.857099533081055,
+    "EUR": 1.1633317470550537
   }
 }
