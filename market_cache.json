@@ -1,21 +1,6 @@
 {
-  "timestamp": "2025-12-10 03:19:51",
+  "timestamp": "2025-12-10 03:32:11",
   "prices": {
-    "BTC-USD": {
-      "price": 92424.1328125,
-      "change_pct": -0.30390974412355204,
-      "currency": "USD"
-    },
-    "CEZ.PR": {
-      "price": 1277.0,
-      "change_pct": 0.1568627450980392,
-      "currency": "USD"
-    },
-    "^GSPC": {
-      "price": 6840.509765625,
-      "change_pct": -0.001463285558606407,
-      "currency": "USD"
-    },
     "ADS.DE": {
       "price": 159.89999389648438,
       "change_pct": -0.0937264307485997,
@@ -30,17 +15,24 @@
       "price": 277.17999267578125,
       "change_pct": -0.35231915927013663,
       "currency": "USD"
+    },
+    "^GSPC": {
+      "price": 6840.509765625,
+      "change_pct": -0.001463285558606407,
+      "currency": "USD"
+    },
+    "CEZ.PR": {
+      "price": 1277.0,
+      "change_pct": 0.1568627450980392,
+      "currency": "USD"
+    },
+    "BTC-USD": {
+      "price": 92423.0234375,
+      "change_pct": -0.30510640506871867,
+      "currency": "USD"
     }
   },
   "fundamentals": {
-    "CEZ.PR": {
-      "dividendYield": 3.66,
-      "peRatio": 23.718426,
-      "sector": "Utilities",
-      "country": "Czech Republic",
-      "marketCap": 685506691072,
-      "shortName": "CEZ"
-    },
     "ADS.DE": {
       "dividendYield": 1.22,
       "peRatio": 23.549337,
@@ -64,10 +56,18 @@
       "country": "United States",
       "marketCap": 4113459052544,
       "shortName": "Apple Inc."
+    },
+    "CEZ.PR": {
+      "dividendYield": 3.66,
+      "peRatio": 23.718426,
+      "sector": "Utilities",
+      "country": "Czech Republic",
+      "marketCap": 685506691072,
+      "shortName": "CEZ"
     }
   },
   "kurzy": {
-    "CZK": 20.853700637817383,
-    "EUR": 1.1629259586334229
+    "CZK": 20.858699798583984,
+    "EUR": 1.1627906560897827
   }
 }
