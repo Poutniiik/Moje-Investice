@@ -2221,6 +2221,42 @@ def main():
 
         st.divider()
         st.header(f"👤 {USER.upper()}")
+
+                        # --- 🕵️‍♂️ SHERLOCK HOLMES DIAGNOSTIKA ---
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔍 Diagnostika Spojení")
+
+    # 1. Kontrola Tokenu
+    token = st.secrets.get("GH_TOKEN")
+    if token:
+        st.sidebar.success(f"🔑 Token: OK (Root)")
+    else:
+        # Zkusíme se podívat, jestli nespadl pod Google
+        token_nested = st.secrets.get("google", {}).get("GH_TOKEN")
+        if token_nested:
+            st.sidebar.warning(f"⚠️ Token je pod [google]!")
+            token = token_nested # Oprava za běhu
+        else:
+            st.sidebar.error("❌ Token: NENALEZEN nikde!")
+
+    # 2. Kontrola Repozitáře
+    st.sidebar.info(f"📂 Repo: {REPO_NAZEV}")
+
+    # 3. Testovací připojení (pokud máme token)
+    if token:
+        try:
+            g = Github(token)
+            repo = g.get_repo(REPO_NAZEV)
+            st.sidebar.success("✅ GitHub: Připojeno")
+            
+            try:
+                c = repo.get_contents("market_cache.json")
+                st.sidebar.success("📦 Soubor: VIDÍM HO!")
+            except Exception as e:
+                st.sidebar.error(f"❌ Soubor: NEVIDÍM ({e})")
+                
+        except Exception as e:
+            st.sidebar.error(f"❌ GitHub Error: {e}")
         
         # --- 1. NAVIGACE (POSUNUTO NAHORU PRO LEPŠÍ OVLÁDÁNÍ) ---
         # Na mobilu je lepší mít tlačítka hned po ruce
@@ -3371,6 +3407,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
