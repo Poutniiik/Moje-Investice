@@ -56,7 +56,7 @@ def ziskej_ceny_portfolia_bot(list_tickeru):
             
         except Exception as e:
             # Tiché selhání s logem (uvidíme v GHA logu, co se stalo, i když report dorazí)
-            print(f"❌ Chyba YFinance pro {tkr}: {e}") 
+            print(f"❌ Chyba YFinance pro {tkr}: {e}") # <--- TENTO ŘÁDEK ZAJISTÍ LOGOVÁNÍ
             ceny[tkr] = 0.0
             vcer_close[tkr] = 0.0
             
