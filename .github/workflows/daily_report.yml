@@ -53,7 +53,7 @@ jobs:
         TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
         TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        API_KEY: ${{ secrets.API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.API_KEY }} 
         INPUT_TYP: ${{ inputs.typ_zpravy }}
         INPUT_VZKAZ: ${{ inputs.vzkaz }}
       run: python bot.py
