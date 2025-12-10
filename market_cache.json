@@ -1,24 +1,9 @@
 {
-  "timestamp": "2025-12-10 02:51:35",
+  "timestamp": "2025-12-10 03:19:51",
   "prices": {
     "BTC-USD": {
-      "price": 92340.7421875,
-      "change_pct": -0.39386156756516244,
-      "currency": "USD"
-    },
-    "ADS.DE": {
-      "price": 159.89999389648438,
-      "change_pct": -0.0937264307485997,
-      "currency": "USD"
-    },
-    "^GSPC": {
-      "price": 6840.509765625,
-      "change_pct": -0.001463285558606407,
-      "currency": "USD"
-    },
-    "AAPL": {
-      "price": 277.17999267578125,
-      "change_pct": -0.35231915927013663,
+      "price": 92424.1328125,
+      "change_pct": -0.30390974412355204,
       "currency": "USD"
     },
     "CEZ.PR": {
@@ -26,29 +11,28 @@
       "change_pct": 0.1568627450980392,
       "currency": "USD"
     },
+    "^GSPC": {
+      "price": 6840.509765625,
+      "change_pct": -0.001463285558606407,
+      "currency": "USD"
+    },
+    "ADS.DE": {
+      "price": 159.89999389648438,
+      "change_pct": -0.0937264307485997,
+      "currency": "USD"
+    },
     "F": {
       "price": 13.079999923706055,
       "change_pct": -0.3808087608458663,
       "currency": "USD"
+    },
+    "AAPL": {
+      "price": 277.17999267578125,
+      "change_pct": -0.35231915927013663,
+      "currency": "USD"
     }
   },
   "fundamentals": {
-    "ADS.DE": {
-      "dividendYield": 1.22,
-      "peRatio": 23.549337,
-      "sector": "Consumer Cyclical",
-      "country": "Germany",
-      "marketCap": 28549998592,
-      "shortName": "adidas AG                     N"
-    },
-    "AAPL": {
-      "dividendYield": 0.37,
-      "peRatio": 37.205368,
-      "sector": "Technology",
-      "country": "United States",
-      "marketCap": 4113459052544,
-      "shortName": "Apple Inc."
-    },
     "CEZ.PR": {
       "dividendYield": 3.66,
       "peRatio": 23.718426,
@@ -57,6 +41,14 @@
       "marketCap": 685506691072,
       "shortName": "CEZ"
     },
+    "ADS.DE": {
+      "dividendYield": 1.22,
+      "peRatio": 23.549337,
+      "sector": "Consumer Cyclical",
+      "country": "Germany",
+      "marketCap": 28549998592,
+      "shortName": "adidas AG                     N"
+    },
     "F": {
       "dividendYield": 4.6,
       "peRatio": 11.179487,
@@ -64,10 +56,18 @@
       "country": "United States",
       "marketCap": 52117241856,
       "shortName": "Ford Motor Company"
+    },
+    "AAPL": {
+      "dividendYield": 0.37,
+      "peRatio": 37.205368,
+      "sector": "Technology",
+      "country": "United States",
+      "marketCap": 4113459052544,
+      "shortName": "Apple Inc."
     }
   },
   "kurzy": {
-    "CZK": 20.85070037841797,
-    "EUR": 1.1627906560897827
+    "CZK": 20.853700637817383,
+    "EUR": 1.1629259586334229
   }
 }
