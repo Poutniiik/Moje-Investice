@@ -2221,35 +2221,6 @@ def main():
 
         st.divider()
         st.header(f"👤 {USER.upper()}")
-
-       # --- 🕵️‍♂️ SHERLOCK HOLMES DIAGNOSTIKA (VLOŽENO SEM) ---
-        st.markdown("---")
-        st.caption("🔍 Diagnostika Spojení")
-        
-        # 1. Hledání klíče
-        token = st.secrets.get("GH_TOKEN")
-        if not token and "google" in st.secrets:
-            token = st.secrets["google"].get("GH_TOKEN")
-        
-        if token:
-            st.success(f"🔑 Token: NALEZEN")
-        else:
-            st.error("❌ Token: CHYBÍ!")
-
-        # 2. Test připojení k souboru
-        if token:
-            try:
-                g = Github(token)
-                repo = g.get_repo(REPO_NAZEV)
-                try:
-                    repo.get_contents("market_cache.json")
-                    st.success("✅ Soubor: VIDÍM HO!")
-                except:
-                    st.warning("⚠️ Soubor: NEVIDÍM (Alex ještě neběžel?)")
-            except Exception as e:
-                st.error(f"❌ Chyba GitHub: {e}")
-        st.markdown("---")
-    
         
         # --- 1. NAVIGACE (POSUNUTO NAHORU PRO LEPŠÍ OVLÁDÁNÍ) ---
         # Na mobilu je lepší mít tlačítka hned po ruce
@@ -3400,6 +3371,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
