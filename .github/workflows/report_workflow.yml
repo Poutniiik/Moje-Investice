@@ -1,0 +1,32 @@
+on:
+schedule:   <-- CHYBA: Chybí odsazení pro 'schedule' pod 'on'.
+\# Tato konfigurace spouští workflow každý den...
+\- cron: '0 12 \* \* \*' <-- CHYBA: Chybí mezera po pomlčce a odsazení.
+
+workflow_dispatch: <-- CHYBA: Chybí odsazení pod 'on'.
+
+jobs:
+generate_and_send_report: <-- CHYBA: Chybí odsazení pro job.
+runs-on: ubuntu-latest
+
+steps:
+- name: 1. Získání kódu z repozitáře
+  uses: actions/checkout@v4
+
+- name: 2. Nastavení prostředí Python 3.11
+  uses: actions/setup-python@v5
+  with:
+    python-version: '3.11'
+    
+- name: 3. Instalace potřebných knihoven (requests, yfinance)
+  run: |
+    # Nyní instalujeme i yfinance pro data z burzy
+    pip install requests yfinance
+
+- name: 4. Spuštění skriptu pro generování a odeslání reportu
+  run: python report_generator.py
+  # Zde předáme uložené tajemství (Secrets) skriptu jako proměnné prostředí
+  env:
+    GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+    TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
