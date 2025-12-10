@@ -34,9 +34,9 @@ jobs:
       - name: Run Telegram Bot
         # Zde musíš nastavit proměnné prostředí pro tvého bota
         env:
-          # TOKENY JE NUTNÉ ZÍSKAT Z GITHUB SECRETS!
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }} # <--- POUŽÍVÁME NÁZEV, KTERÝ JSI ÚSPĚŠNĚ ULOŽIL
         run: |
           # Spustíme skript report_bot.py
           python report_bot.py
