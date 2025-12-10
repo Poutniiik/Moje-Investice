@@ -41,6 +41,9 @@ def vytvor_a_odesli_denni_report():
 
         df_cash = df_cash_all[df_cash_all['Owner'] == USER_TO_REPORT]
         df_portfolio = df_portfolio_all[df_portfolio_all['Owner'] == USER_TO_REPORT]
+
+        print(f"✅ Načteno Portfolio pro: {USER_TO_REPORT}")
+        print(f"   Tickery v portfoliu: {df_portfolio['Ticker'].unique().tolist()}")
         
         # Získání kurzu a Fear/Greed (musí být před kalkulací CZK!)
         kurzy = utils.ziskej_kurzy()
