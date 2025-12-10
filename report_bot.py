@@ -19,33 +19,31 @@ USER_TO_REPORT = "Filip" # Změň na svého uživatele, pokud je potřeba
 
 def vytvor_a_odesli_denni_report():
     
+    # ÚRYVEK K ZMĚNĚ V report_bot.py
     # 1. SBĚR DAT A INICIALIZACE
     try:
-        # Načtení dat (důležité pro GHA, které nemá session state)
-        df_cash = nacti_csv(SOUBOR_CASH)
-        df_portfolio = nacti_csv(SOUBOR_DATA)
+        # Načtení VŠECH dat
+        df_cash_all = nacti_csv(SOUBOR_CASH)
+        df_portfolio_all = nacti_csv(SOUBOR_DATA)
+
+        # FILTROVÁNÍ DAT POUZE PRO AKTIVNÍHO UŽIVATELE (Tohle chybělo!)
+        df_cash = df_cash_all[df_cash_all['Owner'] == USER_TO_REPORT]
+        df_portfolio = df_portfolio_all[df_portfolio_all['Owner'] == USER_TO_REPORT]
+
+        # KONTROLA PRÁZDNOTY
+        if df_portfolio.empty:
+            raise ValueError(f"Portfolio pro uživatele {USER_TO_REPORT} je prázdné.")
         
         # Získání kurzu a Fear/Greed
-        kurzy = ziskej_kurzy()
-        score, rating = ziskej_fear_greed()
+        # ... (zbytek logiky sběru dat)
         
-        # Získání aktuálních cen a včerejších closů
-        list_tickeru = df_portfolio['Ticker'].unique().tolist()
-        ceny, vcer_close = ziskej_ceny_portfolia_bot(list_tickeru)
-
         # 2. KALKULACE PORTFOLIA
-        hodnota_portfolia_usd = 0.0
-        hodnota_portfolia_vcer_usd = 0.0
+        # ZDE MUSÍME POUŽÍT AGREGACI DAT Z PORTFOLIA (Jako v main.py)
+        # Nyní to musí být správně, protože máme data
         
-        for index, row in df_portfolio.iterrows():
-            tkr = row['Ticker']
-            pocet = row['Pocet']
-            
-            p_dnes = ceny.get(tkr, 0.0)
-            p_vcer = vcer_close.get(tkr, 0.0)
-
-            hodnota_portfolia_usd += pocet * p_dnes
-            hodnota_portfolia_vcer_usd += pocet * p_vcer
+        df_g = df_portfolio.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
+        df_g['Investice'] = df_portfolio.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
+        
 
         # 3. KALKULACE ZMĚNY
         denni_zmena_abs = hodnota_portfolia_usd - hodnota_portfolia_vcer_usd
