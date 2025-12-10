@@ -32,11 +32,10 @@ jobs:
           
       # 4. Spusť Bota
       - name: Run Telegram Bot
-        # Zde musíš nastavit proměnné prostředí pro tvého bota
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }} # <--- POUŽÍVÁME NÁZEV, KTERÝ JSI ÚSPĚŠNĚ ULOŽIL
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # <--- Používáme Secret name GEMINI_API_KEY
         run: |
-          # Spustíme skript report_bot.py
           python report_bot.py
