@@ -1687,26 +1687,21 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     fundament_cache = {}
     
     if cache:
-        # Cache dostupná! Použijeme ji.
         print("⚡ Používám Market Cache od Alexe")
-        # Kurzy z cache
         if "kurzy" in cache:
             kurzy["CZK"] = cache["kurzy"].get("CZK", 24.0)
             kurzy["EUR"] = cache["kurzy"].get("EUR", 1.05)
         
-        # Ceny z cache
         if "prices" in cache:
             for t, data in cache["prices"].items():
                 LIVE_DATA[t] = {"price": data["price"], "curr": "USD"} 
         
-        # Fundamenty z cache
         if "fundamentals" in cache:
             fundament_cache = cache["fundamentals"]
             
-    # Pokud v cache něco chybí nebo cache nebyla, dočteme zbytek klasicky (pomaleji)
+    # Pokud v cache něco chybí, dočteme zbytek
     chybejici_tickery = [t for t in all_tickers if t not in LIVE_DATA]
     if chybejici_tickery:
-        # Tady voláme starou funkci cached_ceny_hromadne (tu v kódu určitě někde máš, nech ji tam!)
         dotažena_data = cached_ceny_hromadne(chybejici_tickery)
         LIVE_DATA.update(dotažena_data)
 
@@ -1723,7 +1718,7 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
             
-            # Cena z LIVE_DATA (buď Cache nebo Yahoo)
+            # Cena
             info_live = LIVE_DATA.get(tkr, {})
             p = info_live.get('price', row['Cena'])
             
@@ -1732,63 +1727,44 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
             if ".PR" in tkr: m = "CZK"
             elif ".DE" in tkr: m = "EUR"
             
-            # --- TADY ZAČÍNÁ OPRAVA SEKTORŮ ---
+            # --- INTEGROVANÁ LOGIKA SEKTORŮ A FUNDAMENTŮ ---
             
-            # 1. Zjistíme, co máš napsáno v CSV ty
+            # A) Zjistíme, co máš napsáno v CSV ty (USER INPUT)
             user_sektor = "Doplnit"
             try:
-                # Najdeme hodnotu v tvých datech
                 raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
-                # Pokud to není prázdné a není to "Doplnit", tak to bereme jako tvůj vlastní název
                 if pd.notnull(raw_sektor) and str(raw_sektor).strip() != "" and str(raw_sektor) != "Doplnit":
                     user_sektor = str(raw_sektor)
             except: pass
 
-            # 2. Rozhodování: Alex vs. Ty
-            sektor = "Doplnit" # Výchozí stav
+            # B) Načteme data z Cache nebo Yahoo (ALEX DATA)
+            alex_sektor = "Doplnit"
+            pe_ratio = 0
+            market_cap = 0
+            div_vynos = 0
             
-            # Máme data od Alexe v Cache?
-            if tkr in fundament_cache:
-                f = fundament_cache[tkr]
-                # Rychlé načtení čísel
-                pe_ratio = f.get('peRatio', 0)
-                market_cap = f.get('marketCap', 0)
-                div_vynos = f.get('dividendYield', 0)
-                alex_sektor = f.get('sector', 'Doplnit')
-                
-                # ROZHODNUTÍ DNE:
-                if user_sektor != "Doplnit":
-                    sektor = user_sektor      # Máš tam svůj název -> Použijeme tvůj
-                else:
-                    sektor = alex_sektor      # Máš tam "Doplnit" -> Použijeme Alexe!
-            
-            else:
-                # Alex data nemá, musíme postaru přes Yahoo (pomalé)
-                f, _ = cached_detail_akcie(tkr)
-                pe_ratio = f.get('trailingPE', 0)
-                market_cap = f.get('marketCap', 0)
-                div_vynos = ziskej_yield(tkr)
-                
-                if user_sektor != "Doplnit":
-                    sektor = user_sektor
-                else:
-                    sektor = f.get('sector', 'Doplnit')
-            
-            # Fundamenty (Zkusíme Cache, jinak Yahoo)
             if tkr in fundament_cache:
                 # Bleskové načtení z cache
                 f = fundament_cache[tkr]
                 pe_ratio = f.get('peRatio', 0)
                 market_cap = f.get('marketCap', 0)
-                sektor = f.get('sector', 'Doplnit')
                 div_vynos = f.get('dividendYield', 0)
+                alex_sektor = f.get('sector', 'Doplnit')
             else:
                 # Pomalé načtení (jen když není v cache)
                 f, _ = cached_detail_akcie(tkr)
                 pe_ratio = f.get('trailingPE', 0)
                 market_cap = f.get('marketCap', 0)
-                sektor = "Doplnit" 
                 div_vynos = ziskej_yield(tkr)
+                alex_sektor = f.get('sector', 'Doplnit')
+
+            # C) ROZHODNUTÍ: Kdo vyhrál?
+            if user_sektor != "Doplnit":
+                final_sektor = user_sektor   # Vyhrál jsi ty
+            else:
+                final_sektor = alex_sektor   # Vyhrál Alex
+
+            # --- KONEC LOGIKY ---
 
             # Výpočty
             hod = row['Pocet']*p
@@ -1801,12 +1777,14 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
 
             celk_hod_usd += hod*k
             celk_inv_usd += inv*k
-
             dnes_zmena = 0 
             
             viz_data.append({
-                "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m,
-                "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": "🟢 Free", "Investice": inv, "Divi": div_vynos, "Dnes": dnes_zmena,
+                "Ticker": tkr, 
+                "Sektor": final_sektor,  # Použijeme vítěze
+                "HodnotaUSD": hod*k, "Zisk": z, "Měna": m,
+                "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], 
+                "Dan": "🟢 Free", "Investice": inv, "Divi": div_vynos, "Dnes": dnes_zmena,
                 "Země": "N/A", "P/E": pe_ratio, "Kapitalizace": market_cap / 1e9 if market_cap else 0
             })
 
@@ -3386,6 +3364,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
