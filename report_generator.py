@@ -173,7 +173,7 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
     """
 
     # TENTO ŘÁDEK ZPŮSOBIL CHYBU A JE Nyní SPRÁVNĚ ODSZEN
-    return html_report_text, 'HTML' 
+    return html_report_text, 'None' 
 
 
 # --- 4. Hlavní spouštěcí blok ---
