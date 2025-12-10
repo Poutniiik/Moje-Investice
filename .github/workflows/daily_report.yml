@@ -1,0 +1,42 @@
+# Soubor: .github/workflows/daily_report.yml
+
+name: Daily Telegram Report
+
+# Nastavení spuštění: Každý den v 8:00 UTC (10:00 SEČ)
+# POZNÁMKA: Čas 06:00 UTC = 7:00 SEČ / 8:00 SELČ
+on:
+  schedule:
+    # Běží každý den v 6:00 ráno UTC (tj. v 7:00 SEČ / 8:00 SELČ)
+    - cron: '0 6 * * *' 
+
+jobs:
+  run_report_bot:
+    runs-on: ubuntu-latest  # Použijeme stabilní Linux prostředí
+    steps:
+      # 1. Stáhni kód z repozitáře
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Nastav Python (zde 3.11)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. Nainstaluj všechny potřebné balíčky (Z TVÉHO POŽADAVKU)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Tvůj seznam závislostí:
+          pip install streamlit pandas yfinance plotly PyGithub requests feedparser streamlit-lottie google-generativeai fpdf extra-streamlit-components wordcloud matplotlib numpy python-dotenv gitpython
+          
+      # 4. Spusť Bota
+      - name: Run Telegram Bot
+        # Zde musíš nastavit proměnné prostředí pro tvého bota
+        env:
+          # TOKENY JE NUTNÉ ZÍSKAT Z GITHUB SECRETS!
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Spustíme skript report_bot.py
+          python report_bot.py
