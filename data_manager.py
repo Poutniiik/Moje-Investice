@@ -20,32 +20,28 @@ RISK_FREE_RATE = 0.04
 
 # --- PŘIPOJENÍ (GitHub) ---
 def get_github_token():
-    """Získá token ze secrets nebo ENV variables."""
-    token = None
-    # 1. Streamlit Secrets
-    try:
-        if "github" in st.secrets:
-            token = st.secrets["github"]["token"]
-    except: pass
+    """Získá token ze secrets (různé varianty) nebo ENV."""
+    # 1. Nejčastější varianta (GH_TOKEN přímo v rootu) - TOTO TI CHYBĚLO!
+    if "GH_TOKEN" in st.secrets:
+        return st.secrets["GH_TOKEN"]
+
+    # 2. Varianta v sekci [github]
+    if "github" in st.secrets and "token" in st.secrets["github"]:
+        return st.secrets["github"]["token"]
     
-    # 2. Environment Variables (Fallback)
-    if not token:
-        token = os.environ.get("GH_TOKEN")
-        
-    return token
+    # 3. Environment Variables (Fallback)
+    return os.environ.get("GH_TOKEN")
 
 def get_repo(): 
     token = get_github_token()
     if not token: 
-        # Pokud běžíme v appce, ukážeme chybu, jinak jen print
-        try: st.error("⚠️ GitHub Token nenalezen.")
-        except: print("⚠️ GitHub Token nenalezen.")
+        # Tichý režim nebo logování chyby
+        print("⚠️ GitHub Token nenalezen v Secrets ani ENV.")
         return None
     try:
         return Github(token).get_repo(REPO_NAZEV)
     except Exception as e:
-        try: st.error(f"Chyba při připojení k repozitáři: {e}")
-        except: print(f"Chyba při připojení k repozitáři: {e}")
+        print(f"Chyba při připojení k repozitáři: {e}")
         return None
 
 def zasifruj(text): 
@@ -66,7 +62,7 @@ def uloz_csv_bezpecne(df, nazev_souboru, zprava):
             repo.update_file(contents.path, zprava, csv_content, contents.sha)
             return True 
         except Exception as e:
-            if "404" in str(e):
+            if "404" in str(e): # Soubor neexistuje, vytvoříme ho
                 try:
                     repo.create_file(nazev_souboru, zprava, csv_content)
                     return True 
@@ -126,7 +122,6 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
         full_df = pd.concat([full_df, user_df], ignore_index=True)
     uloz_csv(full_df, nazev_souboru, f"Update {username}")
     
-    # Bezpečné vymazání cache (jen když běží Streamlit)
     try: st.cache_data.clear()
     except: pass
 
