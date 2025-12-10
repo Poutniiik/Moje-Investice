@@ -7,6 +7,7 @@ import requests
 import numpy as np
 import pytz
 from datetime import datetime
+import time
 # NEimportujeme STREAMLIT ani dekorátory!
 
 # --- ZÍSKÁNÍ FEAR & GREED (Kopírováno z utils.py) ---
