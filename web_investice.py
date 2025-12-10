@@ -62,7 +62,7 @@ def sync_file_to_github(filename):
     Vezme lokální soubor (např. data.csv) a okamžitě ho nahraje na GitHub.
     Používá GH_TOKEN ze st.secrets.
     """
-    token = st.secrets.get("TOKEN")
+    token = st.secrets.get("GH_TOKEN")
     if not token:
         # Pokud nemáme token, nic neděláme (lokální režim)
         return
@@ -93,7 +93,7 @@ def sync_file_to_github(filename):
 
 def nacti_market_cache():
     """Stáhne předpřipravená data (JSON) od robota Alexe."""
-    token = st.secrets.get("TOKEN")
+    token = st.secrets.get("GH_TOKEN")
     if not token: return None
     try:
         g = Github(token)
@@ -3407,6 +3407,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
