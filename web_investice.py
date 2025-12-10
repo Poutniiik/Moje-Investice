@@ -1671,8 +1671,7 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
             else: st.error("Nepodařilo se načíst data o firmě.")
 
 
-# ... (zde končí kód funkcí pro renderování stránek a pod ním začíná) ...
-# --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
+
 
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 # --- UPRAVENÁ FUNKCE PRO VÝPOČET DAT (POUŽÍVÁ CACHE) ⚡ ---
@@ -3345,6 +3344,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
