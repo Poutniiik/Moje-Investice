@@ -1,8 +1,8 @@
 import os
 import requests
 from datetime import datetime
-import json
 import traceback
+from typing import Tuple, Optional # Import pro type hinting
 
 # --- 1. Nastavení a klíče ---
 
@@ -10,9 +10,9 @@ import traceback
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-# --- 2. Funkce pro odeslání zprávy ---
+# --- 2. Funkce pro odeslání zprávy (OPRAVENO: Odstranění parse_mode, pokud je None) ---
 
-def send_telegram_message(message: str, parse_mode: str = 'MarkdownV2') -> bool:
+def send_telegram_message(message: str, parse_mode: Optional[str] = None) -> bool:
     """Odešle textovou zprávu na Telegram."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("CHYBA: Proměnné TELEGRAM_BOT_TOKEN nebo TELEGRAM_CHAT_ID nejsou nastaveny v prostředí.")
@@ -20,16 +20,15 @@ def send_telegram_message(message: str, parse_mode: str = 'MarkdownV2') -> bool:
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     
-    # Text musí být ošetřen pro režim MarkdownV2 (speciální znaky jako ., -, ( atd. musí být escapovány)
-    # Zde použijeme jednoduchou utilitu, která se hodí pro formátování.
-    # POZNÁMKA: Pro jednoduchost, pokud neplánuješ složité formátování, 
-    # můžeš použít parse_mode='HTML' nebo 'Markdown' (pokud to tvůj bot podporuje)
-    
+    # Základní payload
     payload = {
         'chat_id': TELEGRAM_CHAT_ID,
-        'text': message,
-        'parse_mode': parse_mode
+        'text': message
     }
+    
+    # DŮLEŽITÉ: parse_mode se přidá do payloadu POUZE, pokud je hodnota (např. 'HTML')
+    if parse_mode:
+        payload['parse_mode'] = parse_mode
 
     try:
         response = requests.post(url, data=payload)
@@ -49,61 +48,24 @@ def send_telegram_message(message: str, parse_mode: str = 'MarkdownV2') -> bool:
         return False
 
 
-# --- 3. Funkce pro generování obsahu reportu ---
+# --- 3. Funkce pro generování obsahu reportu (OPRAVENO: Vrací jen testovací text) ---
 
-def generate_report_content() -> str:
+def generate_report_content() -> Tuple[str, Optional[str]]:
     """
     Tato funkce generuje obsah reportu. 
-    Zde provádíš veškerou logiku, jako je načítání dat, výpočty a sumarizace.
+    Pro debugování vrací pouze čistý, neformátovaný text.
     """
     
-    # 💡 Příklad, jak vygenerovat report (zde si vlož svou Streamlit logiku)
+    current_time = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     
-    current_time = datetime.now().strftime("%d\\.\\%m\\.\\%Y v %H:%M:%S")
-    
-    # Předpokládejme, že z tvé Streamlit aplikace bys normálně získal tato data
-    total_users = 152
-    new_records = 15
-    status_message = "Aplikace běžela bez chyb."
-    
-    # Vytvoření zprávy ve formátu MarkdownV2 (vyžaduje escapování teček, hvězdiček, apod.)
-    # Všimni si, že se používá zpětné lomítko \ před speciálními znaky (tečka, pomlčka)
-    
-    report_text = f"""
-*🚀 Streamlit Report: Denní Souhrn*
-Datum spuštění: `{current_time}`
+    # Testovací text bez jakéhokoliv speciálního formátování (pro eliminaci chyby 400)
+    test_text = f"Test cisteho textu z GitHub Actions. Datum: {current_time}. Klice byly nacteny. Pokud toto vidite, problem neni ve formatovani."
 
-\\- \\- \\- \\- \\- \\- \\- \\- \\- \\- \\- \\- \\- \\- \\- \\-
+    # Vracíme text a None jako mód (aby se neposílal parse_mode)
+    return test_text, None 
+    
+    # Původní kód je odsud níže nedostupný, což je pro debug správné.
 
-**Přehled metrik:**
-* Celkový počet uživatelů: `{total_users}`
-* Nových záznamů za den: `{new_records}`
-* Důležité info: {status_message}
-
-[Odkaz na aplikaci](https://tvojeaplikace\\.streamlit\\.app/)
-
-*Poznámka:* Text je formátován pomocí `MarkdownV2` pro lepší vzhled\\.
-    """
-    
-    # Pro tento příklad musíme escapovat všechny speciální znaky pro MarkdownV2
-    # Nezapomeň escapovat: _, *, [, ], (, ), ~, `, >, #, +, -, =, |, {, }, ., !
-    
-    # Jednoduchý hack, jak se vyhnout složitému escapování v textu, je použít 'HTML' mód:
-    
-    html_report_text = f"""
-    <b>🚀 Streamlit Report: Denní Souhrn</b>
-    <pre>Datum spuštění: {current_time.replace('\\', '')}</pre>
-    <hr>
-    <b>Přehled metrik:</b>
-    <ul>
-        <li>Celkový počet uživatelů: <b>{total_users}</b></li>
-        <li>Nových záznamů za den: <b>{new_records}</b></li>
-        <li>Důležité info: {status_message}</li>
-    </ul>
-    <a href="https://tvojeaplikace.streamlit.app/">Odkaz na aplikaci</a>
-    """
-    
-    return html_report_text, 'HTML' # Vrátíme text a mód formátování
 
 # --- 4. Hlavní spouštěcí blok ---
 
@@ -114,7 +76,7 @@ if __name__ == '__main__':
         # Generování obsahu a výběr módu formátování
         report_content, parse_mode = generate_report_content()
         
-        # Odeslání zprávy
+        # Odeslání zprávy.
         success = send_telegram_message(report_content, parse_mode=parse_mode)
         
         if success:
