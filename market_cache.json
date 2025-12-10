@@ -36,7 +36,7 @@
     "ADS.DE": {
       "dividendYield": 1.22,
       "peRatio": 23.549337,
-      "sector": "Consumer Cyclical",
+      "sektor": "Consumer Cyclical",
       "country": "Germany",
       "marketCap": 28549998592,
       "shortName": "adidas AG                     N"
@@ -44,7 +44,7 @@
     "F": {
       "dividendYield": 4.6,
       "peRatio": 11.179487,
-      "sector": "Consumer Cyclical",
+      "sektor": "Consumer Cyclical",
       "country": "United States",
       "marketCap": 52117241856,
       "shortName": "Ford Motor Company"
@@ -52,7 +52,7 @@
     "AAPL": {
       "dividendYield": 0.37,
       "peRatio": 37.205368,
-      "sector": "Technology",
+      "sektor": "Technology",
       "country": "United States",
       "marketCap": 4113459052544,
       "shortName": "Apple Inc."
@@ -60,7 +60,7 @@
     "CEZ.PR": {
       "dividendYield": 3.66,
       "peRatio": 23.718426,
-      "sector": "Utilities",
+      "sektor": "Utilities",
       "country": "Czech Republic",
       "marketCap": 685506691072,
       "shortName": "CEZ"
