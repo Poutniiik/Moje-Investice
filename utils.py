@@ -74,6 +74,38 @@ def ziskej_yield(ticker):
     except Exception: 
         return 0.0
 
+# Soubor: utils.py (přidat novou funkci)
+
+# ... (někde k dalším utilitám)
+
+@st.cache_data(ttl=300) # Ceny cachujeme jen 5 minut, jsou fresh
+def ziskej_ceny_portfolia_bot(list_tickeru):
+    """Získá aktuální ceny a včerejší close pro seznam tickerů."""
+    ceny = {}
+    vcer_close = {}
+    if not list_tickeru:
+        return ceny, vcer_close
+
+    for tkr in list_tickeru:
+        try:
+            ticker_data = yf.Ticker(tkr).history(period="1d", interval="1m", prepost=True)
+            
+            # Získání aktuální ceny (poslední dostupná)
+            if not ticker_data.empty:
+                ceny[tkr] = ticker_data['Close'].iloc[-1]
+                
+            # Získání včerejší Close ceny pro porovnání
+            info = yf.Ticker(tkr).info
+            if info.get('previousClose'):
+                vcer_close[tkr] = info['previousClose']
+            
+        except Exception:
+            # Tiché selhání, pokud selže Yahoo
+            ceny[tkr] = 0.0
+            vcer_close[tkr] = 0.0
+            
+    return ceny, vcer_close
+
 @st.cache_data(ttl=86400)
 def ziskej_earnings_datum(ticker):
     """Získá datum zveřejnění výsledků."""
