@@ -48,28 +48,61 @@ def send_telegram_message(message: str) -> bool: # Odstranili jsme parse_mode z 
 # --- 3. Funkce pro generování obsahu reportu ---
 
 def generate_report_content() -> Tuple[str, Optional[str]]:
-    """Generuje obsah reportu ve formátu HTML, používá pouze bezpečné tagy."""
+    """Generuje obsah reportu ve formátu HTML, kombinuje data z Yahoo a lokálních CSV."""
     
     current_time = datetime.now().strftime("%d.%m.%Y v %H:%M:%S")
     
-    # Zde můžeš vložit logiku pro získání dat z tvé Streamlit aplikace
-    total_users = 158 
-    new_records = 3 
-    status_message = "Vše běží hladce, data OK."
+    # --- A) NAČÍTÁNÍ DAT Z YAHOO FINANCE ---
+    ticker_symbol = "MSFT" # Příklad: Můžeš si zvolit jiný symbol
+    try:
+        data = yf.download(ticker_symbol, period="5d", interval="1d")
+        
+        # Získání metrik z Yahoo dat
+        posledni_cena = data['Close'].iloc[-1]
+        zmena_za_den = (data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100
+        
+        yahoo_status = f"Poslední cena {ticker_symbol}: {posledni_cena:.2f} USD ({zmena_za_den:.2f}%)"
+        
+    except Exception as e:
+        yahoo_status = f"CHYBA načítání Yahoo dat pro {ticker_symbol}: {e}"
+        posledni_cena = "N/A"
+        zmena_za_den = "N/A"
+
+
+    # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ ---
+    csv_file_path = "portfolio_data.csv" # Změň na název tvého CSV souboru!
+    try:
+        # Příklad: Načítání CSV souboru, který je v kořenovém adresáři
+        df_local = pd.read_csv(csv_file_path)
+        
+        # Získání metrik z lokálního CSV
+        celkem_zaznamu = len(df_local)
+        lokalni_status = f"Úspěšně načteno {celkem_zaznamu} záznamů."
+        
+    except FileNotFoundError:
+        celkem_zaznamu = "N/A"
+        lokalni_status = f"CHYBA: Soubor '{csv_file_path}' nebyl nalezen."
+    except Exception as e:
+        celkem_zaznamu = "N/A"
+        lokalni_status = f"CHYBA při čtení CSV: {e}"
+
+
+    # --- C) TVORBA HTML REPORTU ---
     
-    # Používáme jen základní, osvědčené HTML tagy: <b> (tučné), <pre> (předformátovaný text)
     html_report_text = f"""
-    <b>🚀 Streamlit Report: Denní Souhrn</b>
+    <b>🚀 Denní Report: Finance a Data</b>
+    <pre>Datum: {current_time}</pre>
     
-    Datum: <pre>{current_time}</pre>
+    <b>📊 Yahoo Finance Metriky ({ticker_symbol})</b>
+    \u2022 Poslední cena: <b>{posledni_cena}</b>
+    \u2022 Změna za den: <b>{zmena_za_den}%</b>
+    \u2022 Stav: <i>{yahoo_status}</i>
     
-    <b>Přehled metrik:</b>
+    <b>📁 Lokální CSV Souhrn</b>
+    \u2022 Celkem záznamů: <b>{celkem_zaznamu}</b>
+    \u2022 Stav: <i>{lokalni_status}</i>
     
-    \u2022 Celkový počet uživatelů: <b>{total_users}</b>
-    \u2022 Nových záznamů za den: <b>{new_records}</b>
-    \u2022 Stav: <i>{status_message}</i>
-    
-    Odkaz na aplikaci: https://tvojeaplikace.streamlit.app/
+    <a href="https://moje-investice-pesalikcistokrevnimamlas.streamlit.app/">Odkaz na tvou Streamlit aplikaci</a>
     """
     
     # Vrátíme HTML text a specifikujeme mód 'HTML'
