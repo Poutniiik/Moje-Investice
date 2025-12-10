@@ -3,15 +3,15 @@ import requests
 
 def init_telegram():
     """Načte klíče pro Telegram ze secrets.toml."""
-    try:
-        if "telegram" not in st.secrets:
-            return None, None
-        
-        token = st.secrets["telegram"]["bot_token"]
-        chat_id = st.secrets["telegram"]["chat_id"]
-        return token, chat_id
-    except Exception:
+    # Používáme .get() s bezpečnými fallbacky pro token a chat_id
+    secrets = st.secrets.get("telegram", {})
+    token = secrets.get("bot_token")
+    chat_id = secrets.get("chat_id")
+    
+    if not token or not chat_id:
         return None, None
+        
+    return token, chat_id
 
 def poslat_zpravu(text):
     """
@@ -38,7 +38,10 @@ def poslat_zpravu(text):
         if response.status_code == 200:
             return True, "✅ Zpráva odeslána na Telegram!"
         else:
-            return False, f"❌ Chyba Telegramu: {response.text}"
+            # Zahrneme jen část response.text, aby to nebylo moc dlouhé
+            error_detail = response.json().get("description", response.text[:100])
+            return False, f"❌ Chyba Telegram API: {error_detail}"
+            
     except Exception as e:
         return False, f"❌ Chyba spojení: {str(e)}"
 
