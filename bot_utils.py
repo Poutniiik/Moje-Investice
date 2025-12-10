@@ -31,33 +31,35 @@ def ziskej_kurzy():
 
 # --- ZÍSKÁNÍ CEN PORTFOLIA (Kopírováno z utils.py) ---
 def ziskej_ceny_portfolia_bot(list_tickeru):
-    """Získá aktuální ceny a včerejší close pro seznam tickerů (Robustní pro GHA)."""
+    """Získá aktuální ceny a včerejší close pro seznam tickerů (ULTRA-ROBUSTNÍ pro GHA)."""
     ceny = {}
     vcer_close = {}
     if not list_tickeru:
         return ceny, vcer_close
 
+    # Vytvoření sezení s User-Agent hlavičkou pro stabilnější volání (i pro yfinance)
+    session = requests.Session()
+    session.headers.update({'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+
     for tkr in list_tickeru:
         try:
-            # Nová hlavička pro stabilnější API přístup v Cloudu (GHA)
-            ticker_obj = yf.Ticker(tkr)
+            # POUŽITÍ SESSION PROTI PÁDU SSL
+            ticker_obj = yf.Ticker(tkr, session=session)
             
-            # Historická data pro aktuální cenu
+            # 1. Historická data pro aktuální cenu
             ticker_data = ticker_obj.history(period="1d", interval="1m", prepost=True)
             
-            # Získání aktuální ceny (poslední dostupná)
             if not ticker_data.empty:
                 ceny[tkr] = ticker_data['Close'].iloc[-1]
                 
-            # Získání včerejší Close ceny pro porovnání z .info
-            # Použijeme info, ale s ošetřením, aby to nepadlo tichou chybou
+            # 2. Získání včerejší Close ceny pro porovnání z .info
             info = ticker_obj.info
             if info and info.get('previousClose'):
                 vcer_close[tkr] = info['previousClose']
             
         except Exception as e:
-            # Tiché selhání s logem (uvidíme v GHA logu, co se stalo, i když report dorazí)
-            print(f"❌ Chyba YFinance pro {tkr}: {e}") # <--- TENTO ŘÁDEK ZAJISTÍ LOGOVÁNÍ
+            # ZAJISTÍME ZALOGOVÁNÍ, I KDYŽ BY GHA CHTĚLO BÝT ZTICHA
+            print(f"❌ Chyba YFinance pro {tkr}: {e}") 
             ceny[tkr] = 0.0
             vcer_close[tkr] = 0.0
             
