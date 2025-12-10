@@ -3,7 +3,7 @@ name: Denní Report (Bot)
 on:
   schedule:
     # 22:02 UTC = 23:02 v ČR (zima)
-    - cron: '2 22 * * *'
+    - cron: '0 3 * * *'
   
   workflow_dispatch:
     inputs:
