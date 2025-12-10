@@ -58,16 +58,21 @@ def ziskej_yield(ticker):
     """Získá dividendový výnos (jako desetinné číslo, např. 0.02)"""
     try:
         t = yf.Ticker(str(ticker))
-        # Používáme fast_info pro rychlý přístup, pokud je k dispozici
-        d = t.fast_info.get('dividend_yield', 0) 
-        if not d and 'dividendYield' in t.info:
-            d = t.info.get('dividendYield')
+        # Zkusíme primárně fast_info (je spolehlivější pro real-time data)
+        d_fast = t.fast_info.get('dividend_yield', 0)
+        if d_fast and d_fast > 0:
+            return d_fast
         
-        # Ošetření: dividendYield v info je již procento (0.05 = 5%)
-        # Zkontrolujeme, zda to není absurdně vysoká hodnota (procenta z info API)
-        if d and d > 1.0: return d / 100 
-        return d if d else 0
-    except Exception: return 0
+        # Fallback na info (zde bývá hodnota v procentech)
+        d = t.info.get('dividendYield')
+        if d and d > 0.0:
+            # Pokud je hodnota absurdně velká (např. 20.0 pro 20%), předpokládáme %, ale Yahoo to obvykle vrací jako float 0.02
+            if d > 1.0: return d / 100 
+            return d
+            
+        return 0.0
+    except Exception: 
+        return 0.0
 
 @st.cache_data(ttl=86400)
 def ziskej_earnings_datum(ticker):
