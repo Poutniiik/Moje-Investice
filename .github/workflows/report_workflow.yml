@@ -7,10 +7,11 @@ steps:
   with:
     python-version: '3.11'
     
-- name: 3. Instalace potřebných knihoven (requests)
+- name: 3. Instalace potřebných knihoven (requests, yfinance)
   run: |
     # Doporučuji zřídit soubor requirements.txt s obsahem 'requests'
-    pip install requests
+    # Nyní instalujeme i yfinance pro data z burzy
+    pip install requests yfinance
 
 - name: 4. Spuštění skriptu pro generování a odeslání reportu
   run: python report_generator.py
