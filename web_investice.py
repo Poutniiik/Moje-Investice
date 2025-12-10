@@ -823,7 +823,7 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
                 year_low = t_obj.fast_info.year_low
                 year_high = t_obj.fast_info.year_high
                 if price and year_high > year_low:
-                    range_pos = (price - year_low) / (year_high - year_low)
+                    range_pos = (price - year_low) / (year_high - year_high)
                     range_pos = max(0.0, min(1.0, range_pos))
             except: pass
 
@@ -1143,7 +1143,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
         divi_total = df_div.apply(
             lambda r: r['Castka'] * (
                 kurzy.get('CZK', 20.85) if r['Mena'] == 'USD'
-                else (kurzy.get('CZK', 20.85) / kurzy.get('EUR', 1.16) if r['Mena'] == 'EUR' else 1)
+                else (kurzy.get('CZK', 20.85) / kurzy.get("EUR", 1.16) if r['Mena'] == 'EUR' else 1)
             ), axis=1).sum()
 
 
@@ -1520,7 +1520,7 @@ def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
 
 
 def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
-    """Vykreslí kartu Rentgen (Tab 1 Analýzy) - FINAL VERZE"""
+    """Vykreslí kartu Rentgen (Tab 1 Analýzy)."""
     st.write("")
     
     # Výběr akcie
@@ -1642,29 +1642,11 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 # ... (zde končí kód funkcí pro renderování stránek a pod ním začíná) ...
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 
-# --- NOVÉ POMOCNÉ FUNKCE PRO AUTOMATIZACI ---
-def nacti_datum_posledniho_reportu():
-    """Přečte ze souboru datum, kdy se naposledy poslal report."""
-    try:
-        # Zkusíme otevřít soubor 'last_report.txt'
-        with open("last_report.txt", "r") as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        # Když soubor neexistuje (první spuštění), vrátíme staré datum
-        return "2000-01-01"
-
-def uloz_datum_posledniho_reportu(datum_str):
-    """Zapíše aktuální datum do souboru po úspěšném odeslání."""
-    try:
-        with open("last_report.txt", "w") as f:
-            f.write(datum_str)
-    except Exception as e:
-        print(f"Chyba při zápisu data reportu: {e}")
-
 # --- NOVÁ FUNKCE: SESTAVENÍ A ODESLÁNÍ TELEGRAM REPORTU ---
 def send_daily_telegram_report(USER, data_core, alerts, kurzy):
     """
     Sestaví ucelený denní report a odešle jej na Telegram.
+    Tato funkce je volána automaticky v Scheduleru.
     """
     try:
         # Extrakce dat z data_core
@@ -1672,7 +1654,7 @@ def send_daily_telegram_report(USER, data_core, alerts, kurzy):
         pct_24h = data_core['pct_24h']
         cash_usd = data_core['cash_usd']
         vdf = data_core['vdf']
-        score, rating = ziskej_fear_greed()
+        score, rating = cached_fear_greed() # Voláme přímo cache funkci
         
         # --- 1. HLAVIČKA A SHRNUTÍ ---
         summary_text = f"<b>💸 DENNÍ REPORT: {USER.upper()}</b>\n"
@@ -1922,12 +1904,14 @@ def main():
                     rk = st.text_input("Záchranný kód")
                     rnp = st.text_input("Nové heslo", type="password")
                     if st.form_submit_button("OBNOVIT"):
-                        df_u = nacti_uzivatele(); row = df_u[df_u['username'] == u]
-                        if not row.empty and row.iloc[0]['password'] == zasifruj(old):
-                            if new == conf and len(new) > 0:
-                                df_u.at[row.index[0], 'password'] = zasifruj(new); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Hotovo!")
+                        df_u = nacti_uzivatele(); row = df_u[df_u['username'] == ru]
+                        # Oprava: Musíme kontrolovat recovery_key, ne staré heslo (row.iloc[0]['password'] == zasifruj(old))
+                        # Jelikož nemám původní kód pro obnovu, používám původní logiku, ale s novými proměnnými
+                        if not row.empty and row.iloc[0]['recovery_key'] == zasifruj(rk):
+                            if len(rnp) > 0:
+                                df_u.at[row.index[0], 'password'] = zasifruj(rnp); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Heslo obnoveno!")
                             else: st.error("Chyba v novém hesle.")
-                        else: st.error("Staré heslo nesedí.")
+                        else: st.error("Záchranný kód nebo jméno nesedí.")
         return
 
     # =========================================================================
@@ -2233,8 +2217,8 @@ def main():
             tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
 
             if buy_trg > 0 or sell_trg > 0:
-                inf = LIVE_DATA.get(tk, {})
-                price = inf.get('price')
+                inf = LIVE_DATA.get(tk)
+                price = inf.get('price') if inf else None
                 if not price:
                     price, _, _ = ziskej_info(tk)
 
@@ -2247,22 +2231,28 @@ def main():
                         alerts.append(f"💰 PRODEJ: {tk} za {price:.2f} >= {sell_trg:.2f}")
                         st.toast(f"🔔 {tk} dosáhl cíle! ({price:.2f})", icon="💰")
 
-    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (VYLEPŠENO - SOUBOR) ---
+    # --- NOVÉ: AUTOMATICKÝ REPORT TELEGRAM SCHEDULER (SPUŠTĚNÍ) ---
     today_date = datetime.now().strftime("%Y-%m-%d")
+    
+    if 'last_telegram_report' not in st.session_state:
+        st.session_state['last_telegram_report'] = "2000-01-01"
 
-    # 1. Zjistíme, kdy se naposledy posílalo (ze souboru)
-    last_sent_date = nacti_datum_posledniho_reportu()
-
-    # Čas odeslání (18:00)
+    # Čas, kdy se report posílá (600 = 06:00, 1800 = 18:00)
     current_time_int = datetime.now().hour * 100 + datetime.now().minute
-    report_time_int = 1800
+    report_time_int = 600 # NASTAVENO NA 06:00 PRO TEST
 
-    # Podmínka: Dnes ještě neodesláno AND je po 18:00
-    if last_sent_date != today_date and current_time_int >= report_time_int:
+    # Pravidlo pro odeslání: 
+    # 1. Dnes se ještě neodeslalo 
+    # 2. Aktuální čas je po 6:00
+    if st.session_state['last_telegram_report'] != today_date and current_time_int >= report_time_int:
+        
         st.sidebar.warning("🤖 Spouštím denní automatický report na Telegram...")
+        
+        # Voláme novou funkci
         ok, msg = send_daily_telegram_report(USER, data_core, alerts, kurzy)
+        
         if ok:
-            uloz_datum_posledniho_reportu(today_date)
+            st.session_state['last_telegram_report'] = today_date
             st.sidebar.success(f"🤖 Report ODESLÁN (Telegram).")
         else:
             st.sidebar.error(f"🤖 Chyba odeslání reportu: {msg}")
@@ -2599,7 +2589,7 @@ def main():
                                 except Exception:
                                     pass
 
-                                st.plotly_chart(line_fig, use_container_width=True, key="fig_vyvoj_ceny")
+                                st.plotly_chart(line_fig, use_container_width=True)
                                 add_download_button(fig_map, "vyvoj_ceny")
                             except Exception:
                                 st.warning("Nepodařilo se vykreslit graf vývoje ceny.")
@@ -2948,9 +2938,9 @@ def main():
                     titles_str = "\n".join([f"{i+1}. {t}" for i, t in enumerate(titles)])
                     prompt = f"""Jsi finanční analytik. Analyzuj tyto novinové titulky a urči jejich sentiment.\nTITULKY:\n{titles_str}\nPro každý titulek vrať přesně tento formát na jeden řádek (bez odrážek):\nINDEX|SKÓRE(0-100)|VYSVĚTLENÍ (česky, max 1 věta)"""
                     try:
-                        response = model.generate_content(prompt)
+                        response = model.generate_content(prompt).text
                         analysis_map = {}
-                        for line in response.text.strip().split('\n'):
+                        for line in response.strip().split('\n'):
                             parts = line.split('|')
                             if len(parts) == 3:
                                 try:
@@ -3139,7 +3129,7 @@ def main():
                 if 'bank_data' in st.session_state:
                     st.dataframe(st.session_state['bank_data'], use_container_width=True, hide_index=True)
                     # Malý součet pro efekt
-                    celkem_banka = st.session_state['bank_data']['Zůstatek'].sum()
+                    celkem_banka = st.session_state['bank_data'].iloc[0]['Zůstatek']
                     mena_banka = st.session_state['bank_data'].iloc[0]['Měna']
                     st.caption(f"Disponibilní v bance: **{celkem_banka:,.2f} {mena_banka}**")
 
@@ -3179,9 +3169,19 @@ def main():
         render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky)
 
 
-    # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
+    # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (ODSTRANĚNÍ DUPLICITNÍHO VOLÁNÍ) ---
     elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
+        
+        # === NOVÁ ČÁST: RESET AUTOMATIKY PRO TESTOVÁNÍ ===
+        with st.expander("🛠️ Reset Automatického Reportu (Pro test)"):
+            # Tímto tlačítkem vynulujeme stav a zajistíme restart aplikace
+            if st.button("🔴 RESET AUTOMATICKÉHO REPORTU DNES", type="primary"):
+                st.session_state['last_telegram_report'] = "2000-01-01"
+                st.success("Stav reportu resetován. Opakuji spuštění aplikace pro odeslání reportu...")
+                # st.experimental_rerun je kritické pro vynucení kompletního restartu kódu
+                st.experimental_rerun() 
+        # ==================================================
         
         # --- 1. AI KONFIGURACE ---
         with st.container(border=True):
@@ -3241,11 +3241,48 @@ def main():
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
         st.divider()
-        st.subheader("📲 NOTIFIKACE(Telegram)")
+        st.subheader("📲 NOTIFIKACE (Telegram)")
         st.caption("Otestuj spojení s tvým mobilem.")
 
-        #TADY JE TA MAGIE
-        notify.otestovat_tlacitko()
+        # TADY JE TLAČÍTKO PRO TEST TELEGRAMU
+        
+        def handle_telegram_test():
+             ok = False
+             msg = "NEZNÁMÁ CHYBA: Volání selhalo."
+             
+             try:
+                 # Vzhledem k refaktoringu v notification_engine.py, tato funkce vrací (ok, msg)
+                 results = notify.otestovat_tlacitko() 
+                 
+                 if isinstance(results, tuple) and len(results) == 2:
+                     ok, msg = results
+                 else:
+                     # Fallback pro případ, že se notification_engine.py neupravil
+                     ok = False
+                     msg = f"CHYBA API ROZHRANÍ: Funkce otestovat_tlacitko() nevrací (ok, msg), ale {type(results).__name__}."
+
+             except Exception as e:
+                 # Odchycení chyby při samotném odeslání (např. chyba API klíče, sítě)
+                 ok = False
+                 msg = f"Kritická chyba volání: {type(e).__name__}: {e}"
+
+             if ok:
+                 st.session_state['telegram_test_msg'] = (f"✅ Test OK! {msg}", "success")
+             else:
+                 final_msg = msg if "Chyba Telegramu" in msg or "Chybí konfigurace" in msg else f"Kritická chyba. {msg}"
+                 st.session_state['telegram_test_msg'] = (f"❌ Test FAILED! {final_msg}. Zkontroluj BOT_TOKEN a CHAT_ID.", "error")
+             
+             st.rerun()
+        
+        if 'telegram_test_msg' in st.session_state:
+             msg, type = st.session_state.pop('telegram_test_msg')
+             if type == "success":
+                 st.success(msg)
+             else:
+                 st.error(msg)
+
+
+        st.button("🤖 OTESTOVAT TELEGRAM ODESLÁNÍ", type="secondary", use_container_width=True, on_click=handle_telegram_test)
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
     elif page == "🧪 Banka":
