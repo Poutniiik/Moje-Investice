@@ -1,0 +1,31 @@
+steps:
+
+  # Krok 1: Checkout kódu (Stáhne tvůj repozitář)
+  - name: Stáhnutí kódu
+    uses: actions/checkout@v4
+
+  # Krok 2: Nastavení Pythonu
+  - name: Nastavení Pythonu 3.x
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.11' # Moderní verze
+      cache: 'pip' # Rychlejší instalace
+      
+  # Krok 3: Instalace závislostí
+  - name: Instalace knihoven
+    # Náš soubor requirements.txt obsahuje všechny potřebné balíčky
+    run: pip install -r requirements.txt
+
+  # Krok 4: Spuštění Python skriptu s proměnnými prostředí (Secrets)
+  - name: Spuštění Daily Report Bota
+    env:
+      # Kritické klíče (musíš je definovat jako Secrets v tvém GitHub Repozitáři!)
+      # GH_TOKEN: Pro přístup k tvým souborům na GitHubu (nacti_csv)
+      GH_TOKEN: ${{ secrets.GITHUB_REPORT_TOKEN }}
+      # TELEGRAM_BOT_TOKEN a CHAT_ID: Pro odeslání zprávy (notification_engine)
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      
+    run: |
+      # Spustíme náš finální skript
+      python daily_reporter_bot.py
