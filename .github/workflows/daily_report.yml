@@ -2,10 +2,13 @@
 
 name: Daily Telegram Report
 
-# Nastavení spuštění: Každý den v 6:00 UTC (tj. 7:00 SEČ / 8:00 SELČ)
+# TADY JE TA OPRAVA: PŘIDÁNÍ RUČNÍHO SPUŠTĚNÍ
 on:
   schedule:
+    # Běží každý den v 6:00 ráno UTC
     - cron: '0 6 * * *' 
+  # TOTO UMOŽNÍ TLAČÍTKO 'Run workflow'
+  workflow_dispatch: 
 
 jobs:
   run_report_bot:
