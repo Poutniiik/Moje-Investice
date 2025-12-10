@@ -1730,43 +1730,49 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
             # --- INTEGROVANÁ LOGIKA SEKTORŮ A FUNDAMENTŮ ---
             
             # A) Zjistíme, co máš napsáno v CSV ty (USER INPUT)
-            user_sektor = "Doplnit"
+            raw_sektor = "Doplnit"
             try:
-                raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
-                if pd.notnull(raw_sektor) and str(raw_sektor).strip() != "" and str(raw_sektor) != "Doplnit":
-                    user_sektor = str(raw_sektor)
-            except: pass
+                val = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
+                # Převedeme na text a ořízneme mezery
+                str_val = str(val).strip()
+                
+                # Pokud to není "None", "nan", "Doplnit" nebo prázdné "", tak to bereme
+                if val is not None and str_val.lower() not in ["none", "nan", "doplnit", ""]:
+                    raw_sektor = str_val
+                else:
+                    raw_sektor = "EMPTY" # Značka, že je to prázdné
+            except: 
+                raw_sektor = "EMPTY"
 
-            # B) Načteme data z Cache nebo Yahoo (ALEX DATA)
+            # 2. Zjistíme, co má ALEX (Cache Data)
             alex_sektor = "Doplnit"
-            pe_ratio = 0
-            market_cap = 0
-            div_vynos = 0
             
+            # Načtení fundamentů z Cache (pokud existuje)
             if tkr in fundament_cache:
-                # Bleskové načtení z cache
                 f = fundament_cache[tkr]
+                alex_sektor = f.get('sector', 'Doplnit')
+                
+                # Ostatní čísla rovnou bereme z cache
                 pe_ratio = f.get('peRatio', 0)
                 market_cap = f.get('marketCap', 0)
                 div_vynos = f.get('dividendYield', 0)
-                alex_sektor = f.get('sector', 'Doplnit')
             else:
-                # Pomalé načtení (jen když není v cache)
+                # Pokud cache není, zkusíme starou cestu (Yahoo)
                 f, _ = cached_detail_akcie(tkr)
+                alex_sektor = f.get('sector', 'Doplnit')
                 pe_ratio = f.get('trailingPE', 0)
                 market_cap = f.get('marketCap', 0)
                 div_vynos = ziskej_yield(tkr)
-                alex_sektor = f.get('sector', 'Doplnit')
 
-            # C) ROZHODNUTÍ: Kdo vyhrál?
-            if user_sektor != "Doplnit":
-                final_sektor = user_sektor   # Vyhrál jsi ty
+            # 3. FINÁLNÍ SOUBOJ: Kdo vyhrál?
+            if raw_sektor != "EMPTY":
+                final_sektor = raw_sektor   # Vyhrál jsi ty (máš tam vlastní název)
             else:
-                final_sektor = alex_sektor   # Vyhrál Alex
+                final_sektor = alex_sektor  # Máš tam prázdno -> Vyhrál Alex
 
-            # --- KONEC LOGIKY ---
+            # --- KONEC OPRAVY ---
 
-            # Výpočty
+            # Pokračování kódu...
             hod = row['Pocet']*p
             inv = row['Investice']
             z = hod-inv
@@ -3364,6 +3370,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
