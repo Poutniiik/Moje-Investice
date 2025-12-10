@@ -1,76 +1,101 @@
 # =======================================================
 # SOUBOR: report_bot.py (Standalone script)
-# Měl by být spuštěn mimo Streamlit (Cron, AWS Lambda, atd.)
 # =======================================================
 import sys
 import os
 from datetime import datetime
 import pandas as pd
-# Importujeme moduly, na kterých Terminal Pro závisí:
-# Ujisti se, že adresář se soubory 'data_manager.py' atd. je v PYTHONPATH.
-from data_manager import SOUBOR_CASH, nacti_csv
-from utils import ziskej_fear_greed
+# MĚNÍME IMPORTOVANÉ FUNKCE
+from data_manager import SOUBOR_CASH, SOUBOR_DATA, SOUBOR_VYVOJ, nacti_csv
+from utils import ziskej_fear_greed, ziskej_kurzy, ziskej_ceny_portfolia_bot # Nová funkce!
 import notification_engine as notify 
+# Přidáme AI pro generování deníku
+import ai_brain as ai 
+# ... (Zbytek hlavičky report_bot.py)
 
-# --- KONFIGURACE PRO STANDALONE SKRIPT (UPRAV DLE POTŘEBY) ---
-# V reálném nasazení se tokeny musí načíst z prostředí (os.environ.get)
-# Zde PŘEDPOKLÁDÁME, že tvé moduly (data_manager/notify) si klíče najdou!
-USER_TO_REPORT = "Filip" # Zadej jméno uživatele, pro kterého report generuješ
-CZK_USD_RATE = 22.0 # Pro jednoduchý přepočet hotovosti (cca)
-# -----------------------------------------------------------
+# --- KONFIGURACE PRO STANDALONE SKRIPT ---
+USER_TO_REPORT = "admin" # Změň na svého uživatele, pokud je potřeba
+# ----------------------------------------
 
 def vytvor_a_odesli_denni_report():
     
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] Spouštím denní report...")
-    
-    # 1. SBĚR DAT (GitHub a YFinance)
+    # 1. SBĚR DAT A INICIALIZACE
     try:
-        # Musí se načíst, protože data_manager automaticky nevidí Streamlit session state
+        # Načtení dat (důležité pro GHA, které nemá session state)
         df_cash = nacti_csv(SOUBOR_CASH)
+        df_portfolio = nacti_csv(SOUBOR_DATA)
         
-        # Získání živých dat (Fear/Greed)
+        # Získání kurzu a Fear/Greed
+        kurzy = ziskej_kurzy()
         score, rating = ziskej_fear_greed()
         
-        # 2. KALKULACE (Hotovost)
-        user_cash = df_cash[df_cash['Owner'] == USER_TO_REPORT]
-        
-        # Zjednodušená kalkulace: Zkusíme součet CZK + USD * kurz
-        cash_czk = user_cash[user_cash['Mena'] == 'CZK']['Castka'].sum()
-        cash_usd_to_czk = user_cash[user_cash['Mena'] == 'USD']['Castka'].sum() * CZK_USD_RATE
-        total_cash_czk = cash_czk + cash_usd_to_czk
-        
-        # V reálné situaci by zde následovala složitá kalkulace portfolia
-        
-    except Exception as e:
-        # Pokud selže GitHub nebo YFinance, pošleme jen chybovou zprávu
-        error_msg = f"❌ CHYBA AUTOREPORTU:\nSelhalo stažení dat: {e}"
-        print(error_msg)
-        # Zkusíme poslat chybu, i když by mohla selhat notifikace
-        notify.poslat_zpravu(error_msg) 
-        return False
+        # Získání aktuálních cen a včerejších closů
+        list_tickeru = df_portfolio['Ticker'].unique().tolist()
+        ceny, vcer_close = ziskej_ceny_portfolia_bot(list_tickeru)
 
-    # 3. TVORBA ZPRÁVY (HTML pro Telegram)
+        # 2. KALKULACE PORTFOLIA
+        hodnota_portfolia_usd = 0.0
+        hodnota_portfolia_vcer_usd = 0.0
+        
+        for index, row in df_portfolio.iterrows():
+            tkr = row['Ticker']
+            pocet = row['Pocet']
+            
+            p_dnes = ceny.get(tkr, 0.0)
+            p_vcer = vcer_close.get(tkr, 0.0)
+
+            hodnota_portfolia_usd += pocet * p_dnes
+            hodnota_portfolia_vcer_usd += pocet * p_vcer
+
+        # 3. KALKULACE ZMĚNY
+        denni_zmena_abs = hodnota_portfolia_usd - hodnota_portfolia_vcer_usd
+        # Aby se zabránilo dělení nulou při nulové hodnotě portfolia:
+        if hodnota_portfolia_vcer_usd > 0:
+            denni_zmena_pct = (denni_zmena_abs / hodnota_portfolia_vcer_usd) * 100
+        else:
+            denni_zmena_pct = 0.0
+            
+        # 4. CELKOVÁ HOTOVOST (stejná logika jako dříve, jen robustnější)
+        cash_usd_to_czk = df_cash[df_cash['Mena'] == 'USD']['Castka'].sum()
+        total_cash_usd = cash_usd_to_czk / kurzy.get("CZK", 22.0)
+        
+        celk_hod_usd = hodnota_portfolia_usd + total_cash_usd
+        celk_hod_czk = celk_hod_usd * kurzy.get("CZK", 22.0)
+
+    except Exception as e:
+        error_msg = f"❌ CHYBA AUTOREPORTU:\nSelhalo stažení/kalkulace dat: {e}"
+        return notify.poslat_zpravu(error_msg)
+
+    # 5. GENERACE AI DENÍKU
+    # AI potřebuje data v CZK, takže přepočítáme
+    ai_model, ai_ok = ai.init_ai()
+    denik = "AI modul není k dispozici."
+    if ai_ok:
+        denik = ai.vytvor_kapitansky_denik(
+            ai_model, 
+            level_name="BETA TESTER", # Můžeš si zvolit jiný název
+            denni_zmena=denni_zmena_abs * kurzy.get("CZK", 22.0),
+            celk_hod=celk_hod_czk,
+            score=score if score else 50
+        )
+    
+    # 6. TVORBA ZPRÁVY (HTML pro Telegram)
+    # Zbarvíme změnu podle výsledku
+    barva = "🟢" if denni_zmena_abs >= 0 else "🔴"
+    
     zprava = f"<b>🚀 RANNÍ BRIEFING</b> | {datetime.now().strftime('%d.%m. %H:%M')}\n\n"
     zprava += f"👤 Investor: {USER_TO_REPORT}\n\n"
-    zprava += f"💰 Hotovost (CZK ekv.): {total_cash_czk:,.0f} Kč\n"
+    zprava += f"💎 **Celkové jmění:** {celk_hod_czk:,.0f} Kč\n"
+    zprava += f"📈 **Hodnota Portfolia:** {hodnota_portfolia_usd:,.0f} $\n"
+    zprava += f"{barva} **Denní změna:** {denni_zmena_abs:+.0f} $ ({denni_zmena_pct:+.2f}%)\n"
+    zprava += f"💰 Hotovost (USD): {total_cash_usd:,.0f} $\n\n"
     
-    # Fear/Greed
-    if score is not None:
-        zprava += f"<b>🧠 Nálada trhu:</b> {rating} ({score}/100)\n"
-    else:
-        zprava += "🧠 Nálada trhu: Data nejsou dostupná.\n"
-        
-    zprava += f"\n💡 Tip: Nezapomeň zkontrolovat své investiční cíle!"
+    zprava += f"<b>🧠 Nálada trhu:</b> {rating} ({score}/100)\n"
+    zprava += f"--- KAPITÁNSKÝ DENÍK ---\n"
+    zprava += f"<i>{denik}</i>\n"
 
-    # 4. ODESLÁNÍ
-    ok, msg = notify.poslat_zpravu(zprava)
-    
-    if ok:
-        print(f"✅ Report odeslán: {msg}")
-    else:
-        print(f"❌ Chyba odeslání: {msg}")
-        
-    return ok
+    # 7. ODESLÁNÍ
+    return notify.poslat_zpravu(zprava)
 
 if __name__ == "__main__":
     vytvor_a_odesli_denni_report()
