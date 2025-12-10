@@ -2227,12 +2227,12 @@ def main():
     st.sidebar.subheader("🔍 Diagnostika Spojení")
 
     # 1. Kontrola Tokenu
-    token = st.secrets.get("GH_TOKEN")
+    token = st.secrets.get("TOKEN")
     if token:
         st.sidebar.success(f"🔑 Token: OK (Root)")
     else:
         # Zkusíme se podívat, jestli nespadl pod Google
-        token_nested = st.secrets.get("google", {}).get("GH_TOKEN")
+        token_nested = st.secrets.get("google", {}).get("TOKEN")
         if token_nested:
             st.sidebar.warning(f"⚠️ Token je pod [google]!")
             token = token_nested # Oprava za běhu
@@ -3407,6 +3407,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
