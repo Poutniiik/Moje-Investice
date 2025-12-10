@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 
 # --- KONSTANTY (Databáze) ---
-REPO_NAZEV = "Poutniik/Moje-Investice" 
+REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
 SOUBOR_HISTORIE = "history_data.csv"
