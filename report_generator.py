@@ -50,7 +50,7 @@ def send_telegram_message(message: str, parse_mode: Optional[str] = None) -> boo
 # --- 3. Funkce pro generování obsahu reportu (LOGIKA ZAPOUZDŘENA A OPRAVENA) ---
 
 def generate_report_content() -> Tuple[str, Optional[str]]:
-    """Generuje obsah reportu ve formátu HTML, kombinuje data z Yahoo a lokálních CSV."""
+    """Generuje obsah reportu jako strukturovaný čistý text (Plain Text)."""
     
     # ----------------------------------------------------
     # --- PROJDI TYTO PROMĚNNÉ, KTERÉ MUSÍŠ DEFINOVAT ---
@@ -64,7 +64,7 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
     pocet_history = "N/A"
     status_history = "N/A"
     pocet_cash = "N/A"
-    status_cash = "N/A"
+    status_cash = "N/A""
     # ----------------------------------------------------
     
     current_time = datetime.now().strftime("%d.%m.%Y v %H:%M:%S")
@@ -77,17 +77,17 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
         posledni_cena = data['Close'].iloc[-1]
         zmena_za_den = (data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100
         
-        yahoo_status = f"Poslední cena {ticker_symbol}: {posledni_cena:.2f} USD ({zmena_za_den:.2f}%)"
+        # Bezpečné formátování čísel pro text
+        cena_str = f"{posledni_cena:,.2f} USD"
+        zmena_str = f"{zmena_za_den:,.2f}%"
+        yahoo_status = f"Status: OK"
         
     except Exception as e:
-        yahoo_status = f"CHYBA načítání Yahoo dat pro {ticker_symbol}: {e}"
-        posledni_cena = "N/A"
-        zmena_za_den = "N/A"
+        yahoo_status = f"CHYBA načítání Yahoo dat: {e}"
+        cena_str = "N/A"
+        zmena_str = "N/A"
 
-
-    # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ (OPRAVENO ODSZENÍ A LOGIKA) ---
-
-    # 1. PORTFOLIO DATA (portfolio_data.csv)
+    # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ (Logika pro portfolio data) ---
     portfolio_path = "portfolio_data.csv"
     try:
         df_portfolio = pd.read_csv(portfolio_path)
@@ -97,24 +97,22 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
             df_portfolio['Pocet'] = pd.to_numeric(df_portfolio['Pocet'], errors='coerce').fillna(0)
             df_portfolio['Cena'] = pd.to_numeric(df_portfolio['Cena'], errors='coerce').fillna(0)
             
-            # VÝPOČET: Vytvoření sloupce 'Hodnota' = Pocet * Cena
             df_portfolio['Hodnota'] = df_portfolio['Pocet'] * df_portfolio['Cena']
             
-            # Získání výsledné metriky: CELKOVÁ HODNOTA PORTFOLIA
             celkova_hodnota = df_portfolio['Hodnota'].sum()
             pocet_pozic = len(df_portfolio[df_portfolio['Pocet'] > 0])
             
-            status_portf = f"Úspěšně zpracováno {len(df_portfolio)} záznamů."
+            status_portf = f"Status: Zpracováno {len(df_portfolio)} záznamů."
             
         else:
             celkova_hodnota = "CHYBA SLOUPCŮ"
             pocet_pozic = "N/A"
-            status_portf = "CHYBA: Chybí sloupce 'Pocet' nebo 'Cena'."
+            status_portf = "CHYBA: Chybí sloupce Pocet/Cena."
             
     except Exception as e:
         celkova_hodnota = "N/A"
         pocet_pozic = "N/A"
-        status_portf = f"KRITICKÁ CHYBA čtení PORTFOLIA: {e}"
+        status_portf = f"CHYBA čtení PORTFOLIA: {e}"
 
     # 2. HISTORY DATA (history_data.csv)
     history_path = "history_data.csv"
@@ -142,38 +140,45 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
         status_cash = f"CHYBA čtení CASH: {e}"
 
 
-    # --- C) TVORBA HTML REPORTU (OPRAVENO ODSZENÍ A VLOŽENÍ HODNOT) ---
+   if isinstance(celkova_hodnota, (int, float)):
+        hodnota_str = f"{celkova_hodnota:,.2f} CZK"
+    else:
+        hodnota_str = str(celkova_hodnota) 
 
-    html_report_text = f"""
-    <b>🚀 Denní Report: Finance a Data</b>
-    <pre>Datum: {current_time}</pre>
+    report_text = f"""
+======================================
+🚀 DENNÍ REPORT: FINANCE A DATA
+Datum: {current_time}
+======================================
 
-    <b>📊 Yahoo Finance Metriky ({ticker_symbol})</b>
-    \u2022 Poslední cena: <b>{posledni_cena}</b>
-    \u2022 Změna za den: <b>{zmena_za_den}%</b>
-    \u2022 Stav Yahoo: <i>{yahoo_status}</i>
+📊 YAHOO FINANCE METRIKY ({ticker_symbol})
+- Poslední cena: {cena_str}
+- Změna za den: {zmena_str}
+- Status: {yahoo_status}
 
-    <b>📁 Lokální CSV Souhrn</b>
-    <hr>
-    <b>PORTFOLIO DATA ({portfolio_path})</b>
-    \u2022 Celkem pozic: <b>{pocet_pozic}</b>
-    \u2022 **CELKOVÁ HODNOTA:** <b>{celkova_hodnota:,.2f} CZK</b>
-    \u2022 Stav: <i>{status_portf}</i>
+======================================
 
-    <b>HISTORY DATA ({history_path})</b>
-    \u2022 Celkem záznamů: <b>{pocet_history}</b>
-    \u2022 Stav: <i>{status_history}</i>
+📁 LOKÁLNÍ DATA SOUHRN
 
-    <b>CASH DATA ({cash_path})</b>
-    \u2022 Celkem záznamů: <b>{pocet_cash}</b>
-    \u2022 Stav: <i>{status_cash}</i>
-    <hr>
+| PORTFOLIO DATA (portfolio_data.csv)
+| Celkem pozic: {pocet_pozic}
+| CELKOVÁ HODNOTA: {hodnota_str}
+| Stav: {status_portf}
 
-    <a href="https://moje-investice-pesalikcistokrevnimamlas.streamlit.app/">Odkaz na tvou Streamlit aplikaci</a>
-    """
+| HISTORY DATA (history_data.csv)
+| Celkem záznamů: {pocet_history}
+| Stav: {status_history}
 
-    # TENTO ŘÁDEK ZPŮSOBIL CHYBU A JE Nyní SPRÁVNĚ ODSZEN
-    return html_report_text, 'None' 
+| CASH DATA (cash_data.csv)
+| Celkem záznamů: {pocet_cash}
+| Stav: {status_cash}
+
+======================================
+Odkaz na aplikaci: https://moje-investice-pesalikcistokrevnimamlas.streamlit.app/
+"""
+
+    # Vrátíme ČISTÝ TEXT a None (bez parse_mode)
+    return report_text, None 
 
 
 # --- 4. Hlavní spouštěcí blok ---
@@ -182,11 +187,13 @@ if __name__ == '__main__':
     print(f"Spouštím Telegram report generator v {datetime.now().strftime('%H:%M:%S')}...")
     
     try:
-        # Nyní generujeme HTML a mód je 'HTML'
-        report_content, parse_mode = generate_report_content()
+        # POUŽÍVÁME VÝSTUP Z generate_report_content
+        report_content, parse_mode_unused = generate_report_content()
         
-        # Odeslání zprávy. Nyní posíláme parse_mode!
-        success = send_telegram_message(report_content, parse_mode=parse_mode)
+        # Odeslání zprávy. parse_mode je None, proto se neposílá!
+        # Musíme změnit send_telegram_message na verzi, která nepoužívá parse_mode, 
+        # nebo jej poslat jako None.
+        success = send_telegram_message(report_content)
         
         if success:
             print("Skript dokončen úspěšně.")
