@@ -324,36 +324,45 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ SMĚNY ---
 def proved_smenu(castka, z_meny, do_meny, user):
-    kurzy = st.session_state['data_core']['kurzy'] # Bereme aktuální kurzy z cache
+    # 1. Získání kurzů (Bezpečnější metoda s pojistkou)
+    if 'data_core' in st.session_state and 'kurzy' in st.session_state['data_core']:
+        kurzy = st.session_state['data_core']['kurzy']
+    else:
+        # ZÁCHRANA: Pokud jádro chybí, zavoláme si kurzy přímo
+        kurzy = cached_kurzy()
+    
     df_cash_temp = st.session_state['df_cash'].copy()
     
     # Kalkulace směny
-    # Změna: Zjednodušení na převod přes CZK/EUR a USD jako referenční, jelikož nemáme live EUR/CZK
     kurz_czk = kurzy.get("CZK", 20.85)
     kurz_eur_usd = kurzy.get("EUR", 1.16)
     
-    # 1. Převod castky Z_MENY na USD
+    # 2. Převod částky Z_MENY na USD (Referenční měna)
+    castka_usd = 0.0
     if z_meny == "USD": castka_usd = castka
     elif z_meny == "CZK": castka_usd = castka / kurz_czk
-    elif z_meny == "EUR": castka_usd = castka * kurz_eur_usd # USD=EUR, to je asi chyba v API, ale budeme se držet tvé logiky
+    elif z_meny == "EUR": castka_usd = castka * kurz_eur_usd 
     
-    # 2. Převod USD na DO_MENY
+    # 3. Převod USD na DO_MENY
+    vysledna = 0.0
     if do_meny == "USD": vysledna = castka_usd
     elif do_meny == "CZK": vysledna = castka_usd * kurz_czk
-    elif do_meny == "EUR": vysledna = castka_usd / kurz_eur_usd # Zde je chyba v logice, ale držíme se tvého původního kódu
+    elif do_meny == "EUR": vysledna = castka_usd / kurz_eur_usd
 
-    # Krok 1: Odepsání a připsání (lokálně)
+    # 4. Provedení pohybu (Odepsat a Připsat)
+    # Odpis
     df_cash_temp = pohyb_penez(-castka, z_meny, "Směna", f"Směna na {do_meny}", user, df_cash_temp)
+    # Přípis
     df_cash_temp = pohyb_penez(vysledna, do_meny, "Směna", f"Směna z {z_meny}", user, df_cash_temp)
     
-    # Krok 2: Atomické uložení a invalidace
+    # 5. Uložení
     try:
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         st.session_state['df_cash'] = df_cash_temp
         invalidate_data_core()
-        return True, f"Směněno: {vysledna:,.2f} {do_meny}"
+        return True, f"✅ Směněno: {castka} {z_meny} -> {vysledna:,.2f} {do_meny}"
     except Exception as e:
-        return False, f"❌ Chyba zápisu transakce (SMĚNA): {e}"
+        return False, f"❌ Chyba zápisu transakce (SMĚNA): {str(e)}"
 
 
 def render_ticker_tape(data_dict):
@@ -1305,6 +1314,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
