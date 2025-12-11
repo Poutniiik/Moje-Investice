@@ -1718,7 +1718,7 @@ from pages.analysis_page import analysis_page # NOVÝ IMPORT
 # ... (kód před routerem)
 
     # --- 10. STRÁNKY (Refaktorovaný router) ---
-    if page == "🏠 Přehled":
+    elif if page == "🏠 Přehled":
         # VOLÁNÍ REFRAKTOROVANÉHO DASHBOARDU (Z minulé opravy)
         dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, 
                        zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA, 
@@ -2231,5 +2231,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
