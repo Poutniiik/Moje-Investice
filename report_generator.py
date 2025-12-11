@@ -64,7 +64,7 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
     current_time = datetime.now().strftime("%d.%m.%Y v %H:%M:%S")
 
     # --- A) NAČÍTÁNÍ DAT Z YAHOO FINANCE ---
-    ticker_symbol = "MSFT" 
+    ticker_symbol = "AAPL" 
     try:
         data = yf.download(ticker_symbol, period="5d", interval="1d")
         
