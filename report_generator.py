@@ -44,7 +44,7 @@ def send_telegram_message(message: str) -> bool:
         return False
 
 
-# --- 3. Funkce pro generování obsahu reportu (OPRAVENÁ SYNTAXE) ---
+# --- 3. Funkce pro generování obsahu reportu (Konečně verze bez chyb) ---
 
 def generate_report_content() -> Tuple[str, Optional[str]]:
     """Generuje obsah reportu jako strukturovaný čistý text (Plain Text)."""
@@ -59,38 +59,32 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
     pocet_history = "N/A"
     status_history = "N/A"
     pocet_cash = "N/A"
-    # Zde byla chyba!
-    status_cash = "N/A" 
+    status_cash = "N/A"
     
     current_time = datetime.now().strftime("%d.%m.%Y v %H:%M:%S")
 
-   # --- A) NAČÍTÁNÍ DAT Z YAHOO FINANCE (OPRAVENO: Bezpečné formátování) ---
-ticker_symbol = "AAPL" 
-posledni_cena = "N/A" # Defaultní hodnota
-zmena_za_den = "N/A"  # Defaultní hodnota
-yahoo_status = "CHYBA: Data zatím nenačtena"
-
-try:
-    data = yf.download(ticker_symbol, period="5d", interval="1d")
-    
-    # KONTROLA: Ujistíme se, že DataFrame má dostatek dat
-    if len(data) >= 2:
-        posledni_cena = data['Close'].iloc[-1]
-        zmena_za_den = (data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100
+    # --- A) NAČÍTÁNÍ DAT Z YAHOO FINANCE ---
+    ticker_symbol = "MSFT" 
+    try:
+        data = yf.download(ticker_symbol, period="5d", interval="1d")
         
-        # Bezpečné formátování (pouze pokud je hodnota číselná, což by teď měla být)
-        cena_str = f"{posledni_cena:,.2f} USD"
-        zmena_str = f"{zmena_za_den:,.2f}%"
-        yahoo_status = "Status: OK"
-    else:
+        # Ošetření chyby 'unsupported format string'
+        if len(data) >= 2:
+            posledni_cena = data['Close'].iloc[-1]
+            zmena_za_den = (data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100
+            
+            cena_str = f"{posledni_cena:,.2f} USD"
+            zmena_str = f"{zmena_za_den:,.2f}%"
+            yahoo_status = "Status: OK"
+        else:
+            cena_str = "N/A"
+            zmena_str = "N/A"
+            yahoo_status = "CHYBA: Staženo málo dat."
+        
+    except Exception as e:
+        yahoo_status = f"CHYBA načítání Yahoo dat: {e}"
         cena_str = "N/A"
         zmena_str = "N/A"
-        yahoo_status = "CHYBA: Staženo málo dat."
-        
-except Exception as e:
-    yahoo_status = f"CHYBA načítání Yahoo dat: {e}"
-    cena_str = "N/A"
-    zmena_str = "N/A"
 
     # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ ---
 
@@ -142,12 +136,12 @@ except Exception as e:
         
     except Exception as e:
         pocet_cash = "N/A"
-        # status_cash je již definováno jako "N/A", ale přepíšeme detailní chybou
         status_cash = f"CHYBA čtení CASH: {e}"
 
 
     # --- C) TVORBA STRUKTUROVANÉHO TEXTOVÉHO REPORTU ---
     
+    # Bezpečné formátování pro celkovou hodnotu
     if isinstance(celkova_hodnota, (int, float)):
         hodnota_str = f"{celkova_hodnota:,.2f} CZK"
     else:
@@ -185,7 +179,6 @@ Datum: {current_time}
 Odkaz na aplikaci: https://moje-investice-pesalikcistokrevnimamlas.streamlit.app/
 """
 
-    # Vrátíme ČISTÝ TEXT a None
     return report_text, None 
 
 
