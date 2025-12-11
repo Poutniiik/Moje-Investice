@@ -29,9 +29,7 @@ import pytz
 from styles import get_css
 from data_manager import (
     REPO_NAZEV, SOUBOR_DATA, SOUBOR_UZIVATELE, SOUBOR_HISTORIE,
-    SOUBOR_CASH, SOUBOR_VYVOJ, SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY,
-    RISK_FREE_RATE,
-    get_repo, zasifruj, uloz_csv, uloz_csv_bezpecne, nacti_csv,
+    # ... další importy
     uloz_data_uzivatele, nacti_uzivatele
 )
 from utils import (
@@ -1741,6 +1739,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
