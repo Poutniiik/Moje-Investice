@@ -175,49 +175,57 @@ def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
 
 def pridat_dividendu(ticker, castka, mena, user):
     """
-    Přidá dividendu - OPRAVA: Okamžitá aktualizace paměti a sjednocení typů.
+    OPRAVENÁ FUNKCE: Přidání dividendy s vynucením formátů pro prázdné tabulky.
     """
-    # 1. Načteme aktuální stav
+    # 1. Načteme aktuální stav (vždy pracujeme s kopií)
     df_div = st.session_state['df_div'].copy()
     df_cash_temp = st.session_state['df_cash'].copy()
     
+    # 2. Vytvoříme nový řádek (vynutíme typy)
     datum_obj = datetime.now()
     
-    # 2. Vytvoříme nový řádek
-    novy = pd.DataFrame([{
-        "Ticker": ticker, 
-        "Castka": float(castka), 
-        "Mena": mena, 
-        "Datum": datum_obj, 
-        "Owner": user
-    }])
+    novy_zaznam = {
+        "Ticker": str(ticker).upper(),
+        "Castka": float(castka),
+        "Mena": str(mena),
+        "Datum": datum_obj,
+        "Owner": str(user)
+    }
+    novy = pd.DataFrame([novy_zaznam])
     
-    # 3. Spojíme a HNED sjednotíme formát data (tohle je klíčové)
-    updated_div = pd.concat([df_div, novy], ignore_index=True)
+    # 3. Spojíme s existující tabulkou
+    if df_div.empty:
+        updated_div = novy
+    else:
+        updated_div = pd.concat([df_div, novy], ignore_index=True)
+
+    # 4. KLÍČOVÁ OPRAVA: Vynucení formátu DATA po spojení
+    # Bez tohoto kroku se datum v prázdné tabulce změní na text a filtr roku ho nenajde.
     updated_div['Datum'] = pd.to_datetime(updated_div['Datum'], errors='coerce')
     
-    # 4. Provedeme pohyb peněz (použije opravenou funkci výše)
-    df_cash_temp = pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user, df_cash_temp)
+    # 5. Provedeme pohyb peněz (připsání do peněženky)
+    # Vytvoříme popisek
+    poznamka = f"Divi {ticker}"
+    df_cash_temp = pohyb_penez(castka, mena, "Dividenda", poznamka, user, df_cash_temp)
     
-    # 5. Ukládání
+    # 6. Ukládání s kontrolou
     try:
         # A) Uložit do souboru (GitHub)
+        # Použijeme funkci z data_manageru, která provede merge s ostatními uživateli
         uloz_data_uzivatele(updated_div, user, SOUBOR_DIVIDENDY)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
-        # B) Aktualizovat paměť (Session State) - MUSÍ BÝT PŘESNĚ TAKTO
+        # B) Aktualizovat paměť (Session State)
         st.session_state['df_div'] = updated_div
         st.session_state['df_cash'] = df_cash_temp
         
-        # C) Reset cache výpočtů
+        # C) Reset cache výpočtů (aby se to projevilo v grafech)
         invalidate_data_core()
+        st.cache_data.clear() # Pro jistotu vyčistíme i globální cache
         
-        return True, f"✅ Připsáno {castka:,.2f} {mena} od {ticker}"
+        return True, f"✅ ÚSPĚCH: Připsáno {castka:,.2f} {mena} od {ticker}!"
     except Exception as e:
-        return False, f"❌ Chyba zápisu: {e}"
-
-
-
+        return False, f"❌ CHYBA ZÁPISU: {str(e)}"
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ NÁKUPU ---
 def proved_nakup(ticker, kusy, cena, user):
@@ -1226,6 +1234,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
