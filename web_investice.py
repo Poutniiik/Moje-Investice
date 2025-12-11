@@ -1048,7 +1048,7 @@ def main():
         
         # --- 1. NAVIGACE (POSUNUTO NAHORU PRO LEPŠÍ OVLÁDÁNÍ) ---
         # Na mobilu je lepší mít tlačítka hned po ruce
-        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení", "🧪 Banka"], label_visibility="collapsed")
+        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení",], label_visibility="collapsed")
         
         st.divider()
 
@@ -1200,10 +1200,6 @@ def main():
         # Předáváme funkci uloz_data_uzivatele přímo, protože tak je importována.
         settings_page(USER, df, st.session_state['df_hist'], df_cash, df_div, df_watch, uloz_data_uzivatele, invalidate_data_core)
                 
-    # --- BANKOVNÍ TESTER (Stránka) ---
-    elif page == "🧪 Banka":
-        # NOVÉ VOLÁNÍ MODULÁRNÍ FUNKCE PRO BANKU
-        bank_page()
 
     # --- AI CHATBOT (Vždy dole) ---
     with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
@@ -1246,6 +1242,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
