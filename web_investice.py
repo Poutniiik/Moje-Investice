@@ -195,23 +195,38 @@ def pridat_dividendu(ticker, castka, mena, user):
         return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
 
 
+# Úprava funkce kolem řádku 207 v web_investice.py
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
     if pd.isna(aktualni_hodnota_usd): return pd.DataFrame(columns=["Date", "TotalUSD", "Owner"])
+    
     full_hist = nacti_csv(SOUBOR_VYVOJ)
+    
+    # 💡 NOVÁ KONTROLA: ZAJIŠTĚNÍ DATUMOVÉHO FORMÁTU A VYŘAZENÍ CHYBNÝCH ŘÁDKŮ
+    full_hist['Date'] = pd.to_datetime(full_hist['Date'], errors='coerce')
+    full_hist = full_hist.dropna(subset=['Date']) # Vyhodíme řádky, kde se datum nepodařilo převést
+    
     today = datetime.now().strftime("%Y-%m-%d")
     user_hist = full_hist[full_hist['Owner'] == str(user)].copy()
     dnes_zapsano = False
 
+    # 💡 NOVÁ KONTROLA: ZJISTĚNÍ, ZDA JE HISTORIE PRÁZDNÁ
     if not user_hist.empty:
+        # ZDE PŮVODNĚ PŘICHÁZELA CHYBA, PROTOŽE LAST_DATE MOHL BÝT V JINÉM FORMÁTU
+        
         last_date = user_hist.iloc[-1]['Date']
-        if pd.notnull(last_date) and last_date.strftime("%Y-%m-%d") == today:
+        
+        # Kontrola, že je poslední datum datetime a porovnání s dneškem
+        if pd.notna(last_date) and isinstance(last_date, datetime) and last_date.strftime("%Y-%m-%d") == today:
             dnes_zapsano = True
-            full_hist.at[user_hist.index[-1], 'TotalUSD'] = aktualni_hodnota_usd
+            # Použijeme loc pro bezpečné psaní
+            full_hist.loc[user_hist.index[-1], 'TotalUSD'] = aktualni_hodota_usd
 
     if not dnes_zapsano:
-        new_row = pd.DataFrame([{"Date": datetime.now(), "TotalUSD": aktualni_hodnota_usd, "Owner": str(user)}])
+        # POUZE ZAPISUJEME BEZPEČNĚ DATETIME OBJEKT
+        new_row = pd.DataFrame([{"Date": datetime.now().replace(tzinfo=None), "TotalUSD": aktualni_hodnota_usd, "Owner": str(user)}])
         full_hist = pd.concat([full_hist, new_row], ignore_index=True)
 
+    # Uložení CSV a návrat
     uloz_csv(full_hist, SOUBOR_VYVOJ, "Daily snapshot")
     return full_hist[full_hist['Owner'] == str(user)]
 
@@ -3405,4 +3420,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
