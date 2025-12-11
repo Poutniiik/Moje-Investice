@@ -1184,7 +1184,8 @@ def main():
                    pohyb_penez, invalidate_data_core)
 
     elif page == "💎 Dividendy":
-        # NOVÉ VOLÁNÍ MODULÁRNÍ FUNKCE PRO DIVIDENDY
+        # KABELÁŽ: Posíláme funkci 'pridat_dividendu' (bez závorek!)
+        # Pořadí musí sedět přesně na definici ve stránce
         dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu)
 
 
@@ -1242,6 +1243,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
