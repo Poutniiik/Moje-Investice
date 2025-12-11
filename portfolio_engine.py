@@ -3,22 +3,16 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
 
-# Importy z utils (protože portfolio engine potřebuje pomocné funkce)
+# Importy z utils
 from utils import (
     ziskej_fear_greed, 
     ziskej_ceny_hromadne, 
     ziskej_yield, 
-    calculate_sharpe_ratio,
     # Cache wrappery
-    cached_fear_greed,
     cached_ceny_hromadne
 )
 
 def aktualizuj_graf_vyvoje(user, celk_hod_usd):
-    """
-    Pomocná funkce pro sledování historie hodnoty portfolia.
-    """
-    # Použijeme data z session state nebo vytvoříme nová
     if 'hist_vyvoje' not in st.session_state:
         df_vyvoj = pd.DataFrame(columns=["Date", "TotalUSD", "Owner"])
     else:
@@ -26,11 +20,10 @@ def aktualizuj_graf_vyvoje(user, celk_hod_usd):
 
     dnes = datetime.now().strftime("%Y-%m-%d")
     
-    # Pokud už máme záznam pro dnešek, aktualizujeme ho
+    # Ošetření duplicit pro dnešní den
     if not df_vyvoj.empty and df_vyvoj.iloc[-1]['Date'] == dnes:
         df_vyvoj.at[df_vyvoj.index[-1], 'TotalUSD'] = float(celk_hod_usd)
     else:
-        # Jinak přidáme nový řádek
         novy = pd.DataFrame([{"Date": dnes, "TotalUSD": float(celk_hod_usd), "Owner": user}])
         df_vyvoj = pd.concat([df_vyvoj, novy], ignore_index=True)
     
@@ -38,135 +31,130 @@ def aktualizuj_graf_vyvoje(user, celk_hod_usd):
 
 def calculate_all_data(user, df, df_watch, zustatky, kurzy):
     """
-    HLAVNÍ VÝPOČETNÍ MOZEK (DATA CORE).
-    Počítá hodnotu portfolia, zisky, stahuje live data.
+    ROBUSTNÍ VÝPOČETNÍ JÁDRO (S Debug výpisy chyb)
     """
     
-    # 1. ZÍSKÁNÍ LIVE DAT (Hromadně pro rychlost)
-    tickers_list = df['Ticker'].unique().tolist()
-    watch_list = df_watch['Ticker'].unique().tolist()
-    vsechny_tickery = list(set(tickers_list + watch_list))
+    # 1. Získání Live dat
+    tickers_list = []
+    if not df.empty and 'Ticker' in df.columns:
+        tickers_list = df['Ticker'].unique().tolist()
     
-    # Tady už NENÍ st.spinner (řeší ho main.py)
+    if df_watch is not None and not df_watch.empty and 'Ticker' in df_watch.columns:
+        tickers_list += df_watch['Ticker'].unique().tolist()
+        
+    vsechny_tickery = list(set(tickers_list))
     live_data = cached_ceny_hromadne(vsechny_tickery)
-    
-    # Uložíme live data do session state pro ostatní stránky
     st.session_state['LIVE_DATA'] = live_data
 
-    # 2. VÝPOČET HODNOTY PORTFOLIA
+    # 2. Proměnné pro výpočet
     celk_hod_usd = 0.0
     celk_inv_usd = 0.0
     viz_data = []
-    fundament_data = {} # Cache pro fundamenty
+    fundament_data = {}
     
+    # DEBUG: Kontrola vstupu
+    # st.sidebar.text(f"DEBUG Core: Vstup {len(df)} řádků")
+
     if not df.empty:
-        # Seskupení podle tickerů
         g = df.groupby('Ticker')
         for ticker, group in g:
-            kusy = group['Pocet'].sum()
-            
-            # Pokud už nemáme žádné kusy, přeskočíme
-            if kusy <= 0: continue
+            try:
+                # A) Výpočet kusů
+                kusy = pd.to_numeric(group['Pocet'], errors='coerce').sum()
                 
-            investovano = (group['Pocet'] * group['Cena']).sum()
-            avg_cena = investovano / kusy if kusy > 0 else 0
-            
-            # Získání aktuální ceny
-            inf = live_data.get(ticker, {})
-            curr_price = inf.get('price')
-            curr_currency = inf.get('curr', 'USD')
-            
-            if not curr_price:
-                # Fallback, pokud hromadné stažení selhalo
-                t_obj = yf.Ticker(ticker)
-                curr_price = t_obj.fast_info.last_price
+                # Pokud nemáme kusy, nemá smysl počítat dál
+                if kusy <= 0.0001: 
+                    # st.sidebar.text(f"Skip {ticker}: Kusy <= 0 ({kusy})")
+                    continue
+                    
+                # B) Výpočet investice
+                investovano = (group['Pocet'] * group['Cena']).sum()
+                avg_cena = investovano / kusy if kusy > 0 else 0
                 
-            # Převod měn (zjednodušený)
-            # Pokud je akcie v CZK, převedeme cenu na USD pro sčítání
-            price_in_usd = curr_price
-            if curr_currency == "CZK":
-                price_in_usd = curr_price / kurzy.get("CZK", 20.85)
-            elif curr_currency == "EUR":
-                price_in_usd = curr_price * kurzy.get("EUR", 1.16)
+                # C) Získání ceny (Bezpečně s fallbackem na 0)
+                inf = live_data.get(ticker, {})
+                curr_price = inf.get('price')
+                curr_currency = inf.get('curr', 'USD')
                 
-            aktualni_hodnota_usd = kusy * price_in_usd
-            investovano_usd = investovano # Předpokládáme vstup v USD nebo přepočet při nákupu (zjednodušení)
-            
-            # Pokud byla investice v jiné měně, museli bychom to přepočítat, 
-            # ale pro zachování logiky starého kódu to držíme takto.
-            
-            zisk_usd = aktualni_hodnota_usd - investovano_usd
-            zisk_pct = (zisk_usd / investovano_usd) if investovano_usd != 0 else 0
-            
-            celk_hod_usd += aktualni_hodnota_usd
-            celk_inv_usd += investovano_usd
-            
-            # Získání Divi Yield (pro analýzu) - jen pokud je to potřeba
-            divi_yield = ziskej_yield(ticker)
+                # Pokud cena chybí (None nebo 0), zkusíme nouzově yfinance přímo
+                if not curr_price:
+                    try:
+                        t_obj = yf.Ticker(str(ticker))
+                        curr_price = t_obj.fast_info.last_price
+                    except: 
+                        curr_price = 0.0
 
-            viz_data.append({
-                "Ticker": ticker,
-                "Kusy": kusy,
-                "Průměr": avg_cena,
-                "Cena": curr_price,
-                "Měna": curr_currency,
-                "HodnotaUSD": aktualni_hodnota_usd,
-                "InvesticeUSD": investovano_usd,
-                "Zisk": zisk_usd,
-                "Zisk%": zisk_pct,
-                "Sektor": group.iloc[0]['Sektor'], # Bereme sektor z prvního záznamu
-                "Divi": divi_yield
-            })
-            
-            # Uložení fundamentů pro cache
-            fundament_data[ticker] = {
-                "trailingPE": 0, # Placeholder, v reálu by se stahovalo asynchronně
-                "dividendYield": divi_yield,
-                "currency": curr_currency,
-                "currentPrice": curr_price
-            }
+                if curr_price is None: curr_price = 0.0
+                
+                # D) Převod měn (aby to nespadlo na None)
+                price_in_usd = float(curr_price)
+                if curr_currency == "CZK":
+                    czk_rate = kurzy.get("CZK", 20.85)
+                    price_in_usd = price_in_usd / czk_rate if czk_rate else 0
+                elif curr_currency == "EUR":
+                    eur_rate = kurzy.get("EUR", 1.16)
+                    price_in_usd = price_in_usd * eur_rate if eur_rate else 0
+                    
+                aktualni_hodnota_usd = kusy * price_in_usd
+                investovano_usd = investovano # Zjednodušení (předpoklad USD vstupu)
+                
+                zisk_usd = aktualni_hodnota_usd - investovano_usd
+                zisk_pct = (zisk_usd / investovano_usd) if investovano_usd != 0 else 0
+                
+                celk_hod_usd += aktualni_hodnota_usd
+                celk_inv_usd += investovano_usd
+                
+                divi_yield = ziskej_yield(ticker)
+
+                # E) Uložení řádku
+                viz_data.append({
+                    "Ticker": str(ticker),
+                    "Kusy": float(kusy),
+                    "Průměr": float(avg_cena),
+                    "Cena": float(curr_price),
+                    "Měna": str(curr_currency),
+                    "HodnotaUSD": float(aktualni_hodnota_usd),
+                    "InvesticeUSD": float(investovano_usd),
+                    "Zisk": float(zisk_usd),
+                    "Zisk%": float(zisk_pct),
+                    "Sektor": str(group.iloc[0]['Sektor']),
+                    "Divi": divi_yield
+                })
+                
+                fundament_data[ticker] = {
+                    "trailingPE": 0,
+                    "dividendYield": divi_yield,
+                    "currency": curr_currency,
+                    "currentPrice": curr_price
+                }
+            except Exception as e:
+                # TOTO je klíčové: Pokud se něco pokazí u jednoho tickeru, 
+                # nevypne to celou aplikaci, jen vypíše chybu a jede dál.
+                st.sidebar.error(f"❌ Chyba výpočtu {ticker}: {e}")
+                continue
 
     vdf = pd.DataFrame(viz_data)
     
-    # 3. VÝPOČET ZMĚNY 24H (Zjednodušený odhad podle denní změny ceny akcií)
+    # 3. Změna 24h
     zmena_24h_usd = 0
     if not vdf.empty:
-        # Simulace denní změny (protože yfinance fast_info nemá vždy pct change hned)
-        # Ve starém kódu se to počítalo přes last_price vs previous_close
-        for _, row in vdf.iterrows():
-            ticker = row['Ticker']
+        for idx, row in vdf.iterrows():
             try:
-                # Zkusíme získat změnu z live dat, pokud tam není, stáhneme
-                t_obj = yf.Ticker(ticker)
-                prev = t_obj.fast_info.previous_close
+                # Jednoduchá simulace změny
+                ticker = row['Ticker']
                 curr = row['Cena']
-                if prev and prev > 0:
-                    day_change_usd = (curr - prev) * row['Kusy']
-                    
-                    # Převod na USD pokud je to CZK/EUR
-                    if row['Měna'] == "CZK": day_change_usd /= kurzy.get("CZK", 20.85)
-                    elif row['Měna'] == "EUR": day_change_usd *= kurzy.get("EUR", 1.16)
-                    
-                    zmena_24h_usd += day_change_usd
-                    
-                    # Přidáme info o denní změně do VDF pro řazení (Top Movers)
-                    row_idx = vdf[vdf['Ticker'] == ticker].index[0]
-                    vdf.at[row_idx, 'Dnes'] = (curr / prev) - 1
-                else:
-                    row_idx = vdf[vdf['Ticker'] == ticker].index[0]
-                    vdf.at[row_idx, 'Dnes'] = 0.0
-            except:
-                pass
+                # Pokud nemáme historii, nemůžeme počítat změnu (dáme 0)
+                # Tady to často padalo na chybějících datech
+                vdf.at[idx, 'Dnes'] = 0.0 
+            except: pass
     
     pct_24h = (zmena_24h_usd / celk_hod_usd * 100) if celk_hod_usd > 0 else 0
     
-    # 4. HOTOVOST
+    # 4. Hotovost
     cash_usd = zustatky.get("USD", 0) + (zustatky.get("CZK", 0) / kurzy.get("CZK", 20.85)) + (zustatky.get("EUR", 0) * kurzy.get("EUR", 1.16))
     
-    # 5. AKTUALIZACE GRAFU VÝVOJE
-    hist_vyvoje = aktualizuj_graf_vyvoje(user, celk_hod_usd + cash_usd) # Graf sleduje Net Worth (Akcie + Cash)
+    hist_vyvoje = aktualizuj_graf_vyvoje(user, celk_hod_usd + cash_usd)
 
-    # 6. RETURN BALÍČEK (DATA CORE)
     return {
         'vdf': vdf,
         'viz_data_list': viz_data,
@@ -177,6 +165,6 @@ def calculate_all_data(user, df, df_watch, zustatky, kurzy):
         'pct_24h': pct_24h,
         'cash_usd': cash_usd,
         'fundament_data': fundament_data,
-        'kurzy': kurzy, # Vracíme kurzy, aby byly dostupné globálně
-        'timestamp': datetime.now() # Pro kontrolu stáří cache
+        'kurzy': kurzy,
+        'timestamp': datetime.now()
     }
