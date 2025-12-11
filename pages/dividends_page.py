@@ -176,22 +176,26 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
     with t_div3:
         st.caption("Peníze se automaticky připíší do peněženky.")
         with st.form("add_div"):
-            # Používáme df, které je předané, k výběru Tickeru
+            # Používáme df k výběru Tickeru, pokud existuje
             dt_ticker = st.selectbox("Ticker", df['Ticker'].unique() if not df.empty else ["Jiny"])
             dt_amount = st.number_input("Částka (Netto)", 0.0, step=0.1)
             dt_curr = st.selectbox("Měna", ["USD", "CZK", "EUR"])
             
-            # ZDE VOLÁME PŘEDANOU TRANSAKČNÍ FUNKCI
-            if st.form_submit_button("💰 PŘIPSAT DIVIDENDU"):
-                # pridat_dividendu_fn JE FUNKCE Z web_investice.py, která provede uložení
-                ok, msg = pridat_dividendu(...)
-
-if ok:
-    st.success(msg)
-    # 👇 TADY CHYBÍ TENTO KÓD PRO OKAMŽITÝ REFRESH 👇
-    import time
-    time.sleep(1)      # Krátká pauza, ať si stihnete přečíst "Úspěch"
-    st.rerun()         # <--- TOTO JE TA KOUZELNÁ FORMULE
-    # 👆 ------------------------------------------ 👆
-else:
-    st.error(msg)
+            # Tlačítko uvnitř formuláře
+            submitted = st.form_submit_button("💰 PŘIPSAT DIVIDENDU")
+            
+            if submitted:
+                if dt_amount > 0:
+                    # 1. Voláme funkci, která nám přišla jako argument (pridat_dividendu_fn)
+                    # POZOR: Musíme použít správné názvy proměnných z formuláře výše
+                    ok, msg = pridat_dividendu_fn(dt_ticker, dt_amount, dt_curr, USER)
+    
+                    if ok:
+                        st.success(msg)
+                        import time
+                        time.sleep(1)      # Krátká pauza pro přečtení
+                        st.rerun()         # <--- TADY JE TEN FIX (Restart)
+                    else:
+                        st.error(msg)
+                else:
+                    st.warning("Zadej částku větší než 0.")
