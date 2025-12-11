@@ -1,21 +1,21 @@
 # =========================================================================
 # SOUBOR: pages/dashboard.py
-# Cíl: Obsahuje veškerou logiku pro vykreslení stránky "🏠 Přehled"
+# ZMĚNA: POUŽÍVÁ JEDNODUŠŠÍ ABSOLUTNÍ IMPORTY Z ROOT MODULŮ
 # =========================================================================
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime
 import yfinance as yf
 import random
 import numpy as np
 
-# Importujeme vše potřebné z jiných modulů pro nezávislost
-from utils import (
-    cached_fear_greed, zjisti_stav_trhu, make_plotly_cyberpunk
-)
-from ai_brain import ask_ai_guard
+# Imports z root modulů: FUNKCE, KTERÉ POTŘEBUJE TATO STRÁNKA
+# Nyní voláme přímo moduly, protože Streamlit je obvykle najde
+import utils 
+import ai_brain 
+import web_investice # Kvůli volání get_zustatky/get_task_progress, atd.
 
 # --- NOVÉ STATICKÉ DATOVÉ STRUKTURY PRO ÚKOLY (PŘESUNUTO Z web_investice.py) ---
 # Zde rozšiřujeme a upřesňujeme seznam RPG úkolů
