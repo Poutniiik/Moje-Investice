@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 import random
-import bank_page
+from . import bank_page
 
 def simulace_pripojeni():
     """Simuluje připojení k bance a vrátí fiktivní token."""
