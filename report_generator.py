@@ -63,28 +63,36 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
     
     current_time = datetime.now().strftime("%d.%m.%Y v %H:%M:%S")
 
-    # --- A) NAČÍTÁNÍ DAT Z YAHOO FINANCE ---
-    ticker_symbol = "AAPL" 
-    try:
-        data = yf.download(ticker_symbol, period="5d", interval="1d")
+   # --- A) NAČÍTÁNÍ DAT Z YAHOO FINANCE (FINÁLNÍ OPRAVA CHYBY) ---
+ticker_symbol = "AAPL" 
+posledni_cena = "N/A" # Defaultní hodnota pro případ chyby
+zmena_za_den = "N/A"  # Defaultní hodnota pro případ chyby
+yahoo_status = "CHYBA: Data zatím nenačtena"
+cena_str = "N/A"
+zmena_str = "N/A"
+
+try:
+    data = yf.download(ticker_symbol, period="5d", interval="1d")
+    
+    # KONTROLA: Ujistíme se, že DataFrame má dostatek dat (aspoň 2 dny pro výpočet změny)
+    if len(data) >= 2:
+        posledni_cena = data['Close'].iloc[-1]
+        zmena_za_den = (data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100
         
-        # Ošetření chyby 'unsupported format string'
-        if len(data) >= 2:
-            posledni_cena = data['Close'].iloc[-1]
-            zmena_za_den = (data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100
-            
-            cena_str = f"{posledni_cena:,.2f} USD"
-            zmena_str = f"{zmena_za_den:,.2f}%"
-            yahoo_status = "Status: OK"
-        else:
-            cena_str = "N/A"
-            zmena_str = "N/A"
-            yahoo_status = "CHYBA: Staženo málo dat."
-        
-    except Exception as e:
-        yahoo_status = f"CHYBA načítání Yahoo dat: {e}"
+        # Bezpečné formátování čísel pro text
+        cena_str = f"{posledni_cena:,.2f} USD"
+        zmena_str = f"{zmena_za_den:,.2f}%"
+        yahoo_status = "Status: OK"
+    else:
+        # Zpracuje případ, kdy data jsou, ale je jich málo
         cena_str = "N/A"
         zmena_str = "N/A"
+        yahoo_status = "CHYBA: Staženo málo dat pro výpočet změny."
+        
+except Exception as e:
+    # Zpracuje případ, kdy data nejsou stažena vůbec
+    yahoo_status = f"CHYBA načítání Yahoo dat: {e}"
+    # ponechá cena_str a zmena_str na "N/A" (nastaveno na začátku bloku)
 
     # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ ---
 
