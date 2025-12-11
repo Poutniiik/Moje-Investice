@@ -27,6 +27,8 @@ jobs:
         run: python report_generator.py
         
         # Přenášíme tajné klíče jako proměnné prostředí do skriptu
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+       env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  # Nově přidáno: GITHUB_TOKEN pro čtení CSV souborů
+      GITHUB_TOKEN_REPORT: ${{ secrets.GITHUB_TOKEN }}
