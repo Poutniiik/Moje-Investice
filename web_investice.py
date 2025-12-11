@@ -50,6 +50,7 @@ from ai_brain import (
 from pages.dashboard import dashboard_page
 from pages.analysis_page import analysis_page
 from pages.news_page import news_page
+from pages.trade_page import trade_page
 from pages.dividends_page import dividends_page
 from pages.gamification_page import gamification_page
 from pages.settings_page import settings_page
@@ -1740,6 +1741,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
