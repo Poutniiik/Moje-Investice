@@ -10,9 +10,10 @@ import time
 import zipfile
 import io
 import extra_streamlit_components as stx
+from datetime import datetime
 
 # Imports z root modulů - klíčové závislosti
-import data_manager
+import data_manager # KLÍČOVÁ ZMĚNA
 import notification_engine as notify
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
