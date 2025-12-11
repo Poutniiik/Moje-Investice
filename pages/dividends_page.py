@@ -184,11 +184,14 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
             # ZDE VOLÁME PŘEDANOU TRANSAKČNÍ FUNKCI
             if st.form_submit_button("💰 PŘIPSAT DIVIDENDU"):
                 # pridat_dividendu_fn JE FUNKCE Z web_investice.py, která provede uložení
-                ok, msg = pridat_dividendu_fn(dt_ticker, dt_amount, dt_curr, USER)
-                
-                if ok:
-                    st.success(msg)
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error(msg)
+                ok, msg = pridat_dividendu(...)
+
+if ok:
+    st.success(msg)
+    # 👇 TADY CHYBÍ TENTO KÓD PRO OKAMŽITÝ REFRESH 👇
+    import time
+    time.sleep(1)      # Krátká pauza, ať si stihnete přečíst "Úspěch"
+    st.rerun()         # <--- TOTO JE TA KOUZELNÁ FORMULE
+    # 👆 ------------------------------------------ 👆
+else:
+    st.error(msg)
