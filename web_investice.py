@@ -1701,7 +1701,7 @@ def main():
     # --- BANKOVNÍ TESTER (Stránka) ---
     elif page == "🧪 Banka":
         # NOVÉ VOLÁNÍ MODULÁRNÍ FUNKCE PRO BANKU
-        bank_page())
+        bank_page()
 
     # --- AI CHATBOT (Vždy dole) ---
     with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
@@ -1741,6 +1741,8 @@ def main():
                     st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
                     st.rerun()
 
+
 if __name__ == "__main__":
     main()
+
 
