@@ -424,8 +424,100 @@ def analysis_page(df, df_watch, vdf, model, AI_AVAILABLE, kurzy, viz_data_list, 
 def render_souboj_page(df, kurzy, calculate_sharpe_ratio):
     """Vykreslí Srovnání výkonnosti (Tab 2 Analýzy)."""
     st.subheader("⚔️ SROVNÁNÍ VÝKONNOSTI AKCIÍ")
-    st.info("Tato sekce by normálně obsahovala složitou logiku pro stahování dat a srovnání.")
-    # Implementace logiky (zde by byla zkopírovaná logika z web_investice.py)
+
+            portfolio_tickers = df['Ticker'].unique().tolist() if not df.empty else []
+            default_tickers = ['AAPL', 'MSFT', '^GSPC']
+            initial_selection = list(set(portfolio_tickers[:5] + ['^GSPC']))
+
+            tickers_to_compare = st.multiselect(
+                "Vyberte akcie/indexy pro srovnání výkonnosti:",
+                options=list(set(default_tickers + portfolio_tickers)),
+                default=initial_selection,
+                key="multi_compare"
+            )
+
+            if tickers_to_compare:
+                try:
+                    with st.spinner(f"Stahuji historická data pro {len(tickers_to_compare)} tickerů..."):
+                        raw_data = yf.download(tickers_to_compare, period="1y", interval="1d", progress=False)['Close']
+
+                    if raw_data.empty:
+                        st.warning("Nepodařilo se načíst historická data pro vybrané tickery.")
+                    else:
+                        # Normalizace (Start na 0%)
+                        normalized_data = raw_data.apply(lambda x: (x / x.iloc[0] - 1) * 100)
+
+                        fig_multi_comp = px.line(
+                            normalized_data,
+                            title='Normalizovaná výkonnost (Změna v %) od počátku',
+                            template="plotly_dark"
+                        )
+                        
+                        # --- VYLEPŠENÍ PRO MOBIL (LEGENDA DOLE) ---
+                        fig_multi_comp.update_layout(
+                            xaxis_title="Datum",
+                            yaxis_title="Změna (%)",
+                            height=500,
+                            margin=dict(t=50, b=0, l=0, r=0),
+                            font_family="Roboto Mono",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            legend=dict(
+                                orientation="h",  # Horizontální legenda
+                                yanchor="bottom", 
+                                y=-0.2,           # Posunutá pod graf
+                                xanchor="center", 
+                                x=0.5
+                            )
+                        )
+                        fig_multi_comp.update_xaxes(showgrid=False)
+                        fig_multi_comp.update_yaxes(showgrid=True, gridcolor='#30363D')
+                        st.plotly_chart(fig_multi_comp, use_container_width=True, key="fig_srovnani")
+                        add_download_button(fig_multi_comp, "srovnani_akcii")
+
+                        st.divider()
+                        st.subheader("Detailní srovnání metrik")
+
+                        # Tabulka metrik (zůstává stejná, je super)
+                        comp_list = []
+                        # Omezíme to na max 4 pro přehlednost v tabulce, nebo necháme vše
+                        for t in tickers_to_compare[:4]: 
+                            i, h = cached_detail_akcie(t)
+                            if i:
+                                mc = i.get('marketCap', 0)
+                                pe = i.get('trailingPE', 0)
+                                dy = i.get('dividendYield', 0)
+                                # Bezpečný výpočet změny
+                                perf = 0
+                                if h is not None and not h.empty:
+                                    start_p = h['Close'].iloc[0]
+                                    end_p = h['Close'].iloc[-1]
+                                    if start_p != 0:
+                                        perf = ((end_p / start_p) - 1) * 100
+
+                                comp_list.append({
+                                    "Metrika": [f"Kapitalizace", f"P/E Ratio", f"Dividenda", f"Změna 1R"],
+                                    "Hodnota": [
+                                        f"${mc/1e9:.1f}B",
+                                        f"{pe:.2f}" if pe > 0 else "N/A",
+                                        f"{dy*100:.2f}%" if dy else "0%",
+                                        f"{perf:+.2f}%"
+                                    ],
+                                    "Ticker": t
+                                })
+
+                        if comp_list:
+                            # Transpozice pro hezčí tabulku: Sloupce = Tickery, Řádky = Metriky
+                            final_data = {"Metrika": comp_list[0]["Metrika"]}
+                            for item in comp_list:
+                                final_data[item["Ticker"]] = item["Hodnota"]
+                            
+                            st.dataframe(pd.DataFrame(final_data), use_container_width=True, hide_index=True)
+
+                except Exception as e:
+                    st.error(f"Chyba při stahování dat: {e}")
+            else:
+                st.info("Vyberte alespoň jeden ticker.")
 
 def render_mapa_sektory_page(df, vdf):
     """Vykreslí Mapu trhu a Sektory (Tab 3 Analýzy)."""
