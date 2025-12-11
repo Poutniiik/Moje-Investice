@@ -88,80 +88,83 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
 
     # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ ---
 
-    # 1. PORTFOLIO DATA (portfolio_data.csv) - Nyní s P/L analýzou
-    portfolio_path = "portfolio_data.csv"
-    max_zisk_pct = -1000 
-    max_propad_pct = 1000
+    # 1. PORTFOLIO DATA (portfolio_data.csv) - DEBUG VERZE
+portfolio_path = "portfolio_data.csv"
+max_zisk_pct = -1000 
+max_propad_pct = 1000
+
+try:
+    print("DEBUG: Zacinam cteni Portfolio CSV.")
+    df_portfolio = pd.read_csv(portfolio_path)
+    print(f"DEBUG: Nacteno {len(df_portfolio)} radku.")
     
-    try:
-        df_portfolio = pd.read_csv(portfolio_path)
+    # KONTROLA KLÍČOVÝCH SLOUPCŮ
+    required_cols = ['Pocet', 'Cena', 'Ticker']
+    if not all(col in df_portfolio.columns for col in required_cols):
+        raise ValueError(f"Chybí klíčové sloupce: {list(set(required_cols) - set(df_portfolio.columns))}")
         
-        if 'Pocet' in df_portfolio.columns and 'Cena' in df_portfolio.columns and 'Ticker' in df_portfolio.columns:
-            
-            df_portfolio['Pocet'] = pd.to_numeric(df_portfolio['Pocet'], errors='coerce').fillna(0)
-            df_portfolio['Cena'] = pd.to_numeric(df_portfolio['Cena'], errors='coerce').fillna(0)
-            
-            # Agregace pro získání průměrné nákupní ceny
-            df_agregovano = df_portfolio[df_portfolio['Pocet'] > 0].groupby('Ticker').agg(
-                Pocet=('Pocet', 'sum'),
-                Nakupni_Cena=('Cena', 'mean')
-            ).reset_index()
+    df_portfolio['Pocet'] = pd.to_numeric(df_portfolio['Pocet'], errors='coerce').fillna(0)
+    df_portfolio['Cena'] = pd.to_numeric(df_portfolio['Cena'], errors='coerce').fillna(0)
+    
+    # AGREGACE:
+    df_agregovano = df_portfolio[df_portfolio['Pocet'] > 0].groupby('Ticker').agg(
+        Pocet=('Pocet', 'sum'),
+        Nakupni_Cena=('Cena', 'mean')
+    ).reset_index()
+    print(f"DEBUG: Agregovano {len(df_agregovano)} unikatnich tickeru.")
 
-            df_agregovano['Aktualni_Cena'] = 0.0
+    df_agregovano['Aktualni_Hodnota'] = 0.0
+    df_agregovano['Vykonnost_PCT'] = 0.0
+    
+    # VÝPOČET: Iterace přes tikery pro získání aktuální ceny (IZOLOVANÝ TRY/EXCEPT)
+    for index, row in df_agregovano.iterrows():
+        ticker = row['Ticker']
+        nakupni_cena = row['Nakupni_Cena']
+        
+        try:
+            print(f"DEBUG: Stahuji cenu pro {ticker}...")
+            # Načtení aktuální ceny z Yahoo
+            cena_data = yf.download(ticker, period="1d", interval="1m", progress=False, show_errors=False)
             
-            # VÝPOČET: Iterace přes tikery pro získání aktuální ceny a P/L
-            for index, row in df_agregovano.iterrows():
-                ticker = row['Ticker']
-                nakupni_cena = row['Nakupni_Cena']
+            if not cena_data.empty and 'Close' in cena_data.columns:
+                aktualni_cena = cena_data['Close'].iloc[-1]
+                vykonnost_pct = ((aktualni_cena / nakupni_cena) - 1) * 100
                 
-                try:
-                    cena_data = yf.download(ticker, period="1d", interval="1m", progress=False)
-                    if not cena_data.empty:
-                        aktualni_cena = cena_data['Close'].iloc[-1]
-                    else:
-                        aktualni_cena = nakupni_cena # Pokud selže, nákupní cena
-                    
-                    vykonnost_pct = ((aktualni_cena / nakupni_cena) - 1) * 100
-                    
-                    # IDENTIFIKACE VÍTĚZŮ A PROPADÁKŮ
-                    if vykonnost_pct > max_zisk_pct:
-                        max_zisk_pct = vykonnost_pct
-                        nejvetsi_vitez = f"{ticker} ({max_zisk_pct:,.2f}%)"
-                    
-                    if vykonnost_pct < max_propad_pct:
-                        max_propad_pct = vykonnost_pct
-                        nejvetsi_propadak = f"{ticker} ({max_propad_pct:,.2f}%)"
-
-                except Exception:
-                    pass # Chybu ignorujeme, P/L bude 0
-
-            # FINÁLNÍ SOUHRN
-            df_agregovano['Aktualni_Hodnota'] = df_agregovano['Pocet'] * df_agregovano['Aktualni_Cena']
-            celkova_hodnota = df_agregovano['Aktualni_Hodnota'].sum()
-            pocet_pozic = len(df_agregovano)
+                df_agregovano.loc[index, 'Aktualni_Hodnota'] = row['Pocet'] * aktualni_cena
+                df_agregovano.loc[index, 'Vykonnost_PCT'] = vykonnost_pct
+                
+                # IDENTIFIKACE VÍTĚZŮ A PROPADÁKŮ
+                if vykonnost_pct > max_zisk_pct:
+                    max_zisk_pct = vykonnost_pct
+                    nejvetsi_vitez = f"{ticker} ({max_zisk_pct:,.2f}%)"
+                
+                if vykonnost_pct < max_propad_pct:
+                    max_propad_pct = vykonnost_pct
+                    nejvetsi_propadak = f"{ticker} ({max_propad_pct:,.2f}%)"
             
-            status_portf = f"Status: Zpracováno {len(df_portfolio)} záznamů."
-            
-        else:
-            celkova_hodnota = "CHYBA SLOUPCŮ"
-            pocet_pozic = "N/A"
-            status_portf = "CHYBA: Chybí klíčové sloupce Ticker/Pocet/Cena."
-            
-    except Exception as e:
-        celkova_hodnota = "N/A"
-        pocet_pozic = "N/A"
-        status_portf = f"KRITICKÁ CHYBA čtení PORTFOLIA: {e}"
+            else:
+                print(f"DEBUG: Selhalo stahovani, pouzivam nakupni cenu pro {ticker}.")
+                df_agregovano.loc[index, 'Aktualni_Hodnota'] = row['Pocet'] * nakupni_cena
+                # Výkonnost bude 0% (pouze lokální cena)
 
-    # 2. HISTORY DATA (history_data.csv)
-    history_path = "history_data.csv"
-    try:
-        df_history = pd.read_csv(history_path)
-        pocet_history = len(df_history)
-        status_history = f"Status: Načteno {pocet_history} historických záznamů."
+        except Exception as e:
+            print(f"DEBUG: KRITICKÁ CHYBA analýzy pro {ticker}: {e}")
+            df_agregovano.loc[index, 'Aktualni_Hodnota'] = row['Pocet'] * nakupni_cena # Fallback
         
-    except Exception as e:
-        pocet_history = "N/A"
-        status_history = f"CHYBA čtení HISTORIE: {e}"
+    # FINÁLNÍ SOUHRN: Celková hodnota portfolia
+    celkova_hodnota = df_agregovano['Aktualni_Hodnota'].sum()
+    pocet_pozic = len(df_agregovano)
+    
+    status_portf = f"Status: Zpracováno {len(df_portfolio)} záznamů. P/L OK."
+
+except Exception as e:
+    # Tady se ocitneme, pokud padlo celé CSV
+    celkova_hodnota = "N/A"
+    pocet_pozic = "N/A"
+    status_portf = f"KRITICKÁ CHYBA čtení PORTFOLIA: {e}"
+    # Zde se také musí nastavit Vítěz a Propadák na N/A
+    nejvetsi_vitez = "N/A"
+    nejvetsi_propadak = "N/A"
 
 
     # 3. CASH DATA (cash_data.csv)
