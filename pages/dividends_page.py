@@ -91,15 +91,23 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
 
     t_div1, t_div2, t_div3 = st.tabs(["HISTORIE VÝPLAT", "❄️ EFEKT SNĚHOVÉ KOULE", "PŘIDAT DIVIDENDU"])
 
+   # SOUBOR: pages/dividends_page.py
+# (Najdi řádek "with t_div1:" a nahraď jeho obsah tímto)
+
     with t_div1:
         if not df_div.empty:
-            # Graf - OPRAVA VIZUALIZACE
-            df_div_view = df_div.copy()
-            df_div_view['Datum'] = pd.to_datetime(df_div_view['Datum'], errors='coerce')
+            # --- ZÁCHRANNÁ BRZDA: Vyčistíme data pro zobrazení ---
+            # Toto udělá to samé co F5 - sjednotí formát data v paměti
+            df_view = df_div.copy()
+            df_view['Datum'] = pd.to_datetime(df_view['Datum'], errors='coerce')
+            # -----------------------------------------------------
 
-            plot_df = df_div_view.copy()
+            # Graf - používáme už čistý df_view
+            plot_df = df_view.copy()
+            # Odstraníme případné nesmyslné řádky (NaT), aby graf nespadl
+            plot_df = plot_df.dropna(subset=['Datum']) 
             plot_df['Datum_Den'] = plot_df['Datum'].dt.strftime('%Y-%m-%d')
-            
+
             plot_df_grouped = plot_df.groupby(['Datum_Den', 'Ticker'])['Castka'].sum().reset_index()
             plot_df_grouped = plot_df_grouped.sort_values('Datum_Den')
 
@@ -107,16 +115,14 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
                              title="Historie výplat (po dnech)",
                              labels={'Datum_Den': 'Datum', 'Castka': 'Částka'},
                              template="plotly_dark")
-
-            # Vynutíme, aby osa X byla kategorie (text), ne časová osa -> tlusté sloupce
             fig_div.update_xaxes(type='category')
-
             fig_div.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
             fig_div = utils.make_plotly_cyberpunk(fig_div)
             st.plotly_chart(fig_div, use_container_width=True)
 
-            # Tabulka - tu necháme s původními detailními daty
-            st.dataframe(df_div_view.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
+            # Tabulka - ZDE BYL PROBLÉM
+            # Řadíme už opravená data, takže to nespadne a zobrazí se i ten nový řádek
+            st.dataframe(df_view.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
         else:
             st.info("Zatím žádné dividendy.")
 
