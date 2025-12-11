@@ -42,7 +42,7 @@ from utils import (
 from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis,
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
-
+)
 from portfolio_engine import calculate_all_data, aktualizuj_graf_vyvoje
 )
 
@@ -1604,6 +1604,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
