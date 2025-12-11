@@ -9,7 +9,6 @@ import numpy as np
 
 # Imports z root modulů
 import utils
-from . import bank_engine
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
 def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy, 
@@ -142,57 +141,33 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
                 else:
                     st.error("Chybí prostředky")
 
-    # PRAVÝ SLOUPEC: BANKA + MANUÁLNÍ VKLAD 
+    # PRAVÝ SLOUPEC: MANUÁLNÍ VKLAD (Čistá verze)
     with c_ex2:
-        with st.expander("🏧 BANKA & BANKOMAT", expanded=False):
+        with st.expander("💰 VKLAD & VÝBĚR (Peněženka)", expanded=False):
             
-            # A) BANKOVNÍ PROPOJENÍ
-            st.caption("🌐 Moje Banka (Plaid API)")
-            if st.button("🔄 Synchronizovat zůstatky", key="sync_bank", use_container_width=True):
-                with st.spinner("Šifrované spojení..."):
-                    # bank_engine je importován a volán přímo
-                    t_msg = bank_engine.simulace_pripojeni() 
-                    if "Chyba" in t_msg: st.error(t_msg)
-                    else:
-                        df_b = bank_engine.stahni_zustatky(t_msg)
-                        if df_b is not None:
-                            st.session_state['bank_data'] = df_b
-                            st.toast("Data z banky stažena!", icon="✅")
-                        else: st.warning("Žádná data.")
+            st.info("Zde si můžeš ručně dobít nebo vybrat virtuální hotovost.")
             
-            # Zobrazení dat z banky, pokud jsou načtena
-            if 'bank_data' in st.session_state:
-                st.dataframe(st.session_state['bank_data'], use_container_width=True, hide_index=True)
-                celkem_banka = st.session_state['bank_data']['Zůstatek'].sum()
-                mena_banka = st.session_state['bank_data'].iloc[0]['Měna']
-                st.caption(f"Disponibilní v bance: **{celkem_banka:,.2f} {mena_banka}**")
-
-            st.divider()
-
-            # B) MANUÁLNÍ VKLAD/VÝBĚR 
-            st.caption("📝 Manuální operace")
+            # MANUÁLNÍ VKLAD/VÝBĚR 
             op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
             v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
             v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
             
             if st.button(f"Provést {op}", use_container_width=True):
                 sign = 1 if op == "Vklad" else -1
+                
+                # Kontrola zůstatku při výběru
                 if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
                     st.error("Nedostatek prostředků")
+                elif v_a <= 0:
+                    st.warning("Zadej částku vyšší než 0")
                 else:
-                    # Tady voláme atomickou funkci, která musí být definována v web_investice.py
-                    # Pro zachování principu modularizace PŘEDÁME FUNKCI POHYBU A FUNKCI UKLÁDÁNÍ
-                    
+                    # Voláme funkci pohybu peněz
                     df_cash_new = pohyb_penez_fn(v_a * sign, v_m, op, "Manual", USER, df_cash)
                     
-                    # Protože funkce ukládání potřebuje data_manager, musíme ji nechat v main
-                    # Zde jen vrátíme výsledek
-                    st.session_state['df_cash'] = df_cash_new # Aktualizujeme state
+                    # Aktualizace stavu a refresh
+                    st.session_state['df_cash'] = df_cash_new
                     invalidate_data_core_fn() # Invalidujeme cache
-                    st.success("Hotovo"); time.sleep(1); st.rerun()
-
-    # Historie transakcí
-    if not df_cash.empty:
-        st.divider()
-        st.caption("Poslední pohyby na účtu")
-        st.dataframe(df_cash.sort_values('Datum', ascending=False).head(3), use_container_width=True, hide_index=True)
+                    
+                    st.success("Hotovo")
+                    time.sleep(1)
+                    st.rerun()
