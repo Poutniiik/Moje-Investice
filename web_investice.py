@@ -997,9 +997,9 @@ def main():
             st.rerun()
 
     # --- ZOBRAZENÍ LOGIN FORMULÁŘE (Komponenta) ---
-if not st.session_state['prihlasen']:
+    if not st.session_state['prihlasen']:
     render_login_screen(cookie_manager)
-    return  # Zastavíme zbytek aplikace, dokud se nepřihlásí
+    return
     # =========================================================================
     # ZDE ZAČÍNÁ APLIKACE PRO PŘIHLÁŠENÉHO UŽIVATELE
     # =========================================================================
@@ -1561,6 +1561,7 @@ if not st.session_state['prihlasen']:
 
 if __name__ == "__main__":
     main()
+
 
 
 
