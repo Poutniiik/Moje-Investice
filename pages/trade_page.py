@@ -18,7 +18,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Imports z root modulů
 import utils
-import bank_engine
+import ..bank_engine as bank_engine
 
 
 
