@@ -15,6 +15,8 @@ import utils
 # --- HLAVNÍ FUNKCE STRÁNKY ---
 def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
     """
+    st.error(f"DEBUG KONTROLA: 'pridat_dividendu_fn' je typu: {type(pridat_dividendu_fn)}")
+    # 👆👆👆👆👆👆
     Vykreslí stránku '💎 Dividendy'.
     Přijímá: USER, df, df_div, kurzy, viz_data_list, a FUNKCI pridat_dividendu_fn
     """
