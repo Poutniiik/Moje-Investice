@@ -286,7 +286,7 @@ def render_analýza_měny_page(vdf, viz_data_list, kurzy, celk_hod_usd, get_zust
     
     data_to_use = viz_data_list.to_dict('records') if isinstance(viz_data_list, pd.DataFrame) else viz_data_list
     for item in data_to_use:
-        curr = item['Měna']; val = item['Hodnota']
+        curr = item['Měna']; val = item['HodnotaUSD']
         if curr in assets_by_curr: assets_by_curr[curr] += val
         else: assets_by_curr["USD"] += item['HodnotaUSD']
 
