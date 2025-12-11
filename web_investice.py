@@ -148,11 +148,14 @@ def get_zustatky(user):
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
 # Najdi původní definici pohyb_penez a nahraď ji touto (je to stejné jako v tvém kódu, jen pro jistotu):
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
+# SOUBOR: web_investice.py
+
 def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
     """
-    Provede pohyb peněz s datem jako TEXTEM (řeší problémy s řazením).
+    Provede pohyb peněz - OPRAVENO: Bezpečný zápis data.
     """
     datum_obj = datetime.now()
+    
     novy = pd.DataFrame([{
         "Typ": typ, 
         "Castka": float(castka), 
@@ -161,21 +164,26 @@ def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
         "Datum": datum_obj, 
         "Owner": user
     }])
+    
+    # Spojení
     df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
+    # Pojistka pro sjednocení datumu
+    if 'Datum' in df_cash_temp.columns:
+        df_cash_temp['Datum'] = pd.to_datetime(df_cash_temp['Datum'], errors='coerce')
+        
     return df_cash_temp
-# V souboru web_investice.py
 
 def pridat_dividendu(ticker, castka, mena, user):
     """
-    Přidá dividendu a peníze - verze s OPRAVENÝM DATEM (String).
+    Přidá dividendu - OPRAVA: Okamžitá aktualizace paměti a sjednocení typů.
     """
-    # 1. Načtení stavu
-    df_div = st.session_state['df_div']
+    # 1. Načteme aktuální stav
+    df_div = st.session_state['df_div'].copy()
     df_cash_temp = st.session_state['df_cash'].copy()
     
-    # 2. Vytvoření řádku (Datum jako text!)
     datum_obj = datetime.now()
     
+    # 2. Vytvoříme nový řádek
     novy = pd.DataFrame([{
         "Ticker": ticker, 
         "Castka": float(castka), 
@@ -184,23 +192,24 @@ def pridat_dividendu(ticker, castka, mena, user):
         "Owner": user
     }])
     
-    # 3. Spojení
+    # 3. Spojíme a HNED sjednotíme formát data (tohle je klíčové)
     updated_div = pd.concat([df_div, novy], ignore_index=True)
-
-    updated_div['Datum'] = pd.to_datetime(updated_div['Datum'])
-    # 4. Pohyb peněz (zavolá naši opravenou funkci)
+    updated_div['Datum'] = pd.to_datetime(updated_div['Datum'], errors='coerce')
+    
+    # 4. Provedeme pohyb peněz (použije opravenou funkci výše)
     df_cash_temp = pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user, df_cash_temp)
     
-    # 5. Uložení a propsání do systému
+    # 5. Ukládání
     try:
+        # A) Uložit do souboru (GitHub)
         uloz_data_uzivatele(updated_div, user, SOUBOR_DIVIDENDY)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
-        # DŮLEŽITÉ: Aktualizace paměti aplikace
+        # B) Aktualizovat paměť (Session State) - MUSÍ BÝT PŘESNĚ TAKTO
         st.session_state['df_div'] = updated_div
         st.session_state['df_cash'] = df_cash_temp
         
-        # Reset cache výpočtů, aby se změna projevila hned
+        # C) Reset cache výpočtů
         invalidate_data_core()
         
         return True, f"✅ Připsáno {castka:,.2f} {mena} od {ticker}"
@@ -1217,6 +1226,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
