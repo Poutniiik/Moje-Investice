@@ -14,7 +14,6 @@ import numpy as np
 
 import utils 
 import ai_brain 
-import web_investice
 
 # --- STATICKÉ DATOVÉ STRUKTURY PRO ÚKOLY ---
 RPG_TASKS = [
