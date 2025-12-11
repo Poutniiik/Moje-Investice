@@ -10,6 +10,7 @@ import numpy as np
 
 # Imports z root modulů
 import utils
+import data_manager
 import bank_engine
 
 
