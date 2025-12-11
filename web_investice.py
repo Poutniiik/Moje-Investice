@@ -996,10 +996,10 @@ def main():
             st.session_state['user'] = cookie_user
             st.rerun()
 
-    # --- ZOBRAZENÍ LOGIN FORMULÁŘE (Komponenta) ---
-    if not st.session_state['prihlasen']:
-    render_login_screen(cookie_manager)
-    return()
+        if not st.session_state['prihlasen']:  # <--- Tady je dvojtečka
+        # 👇 Tady MUSÍ být mezera/odsazení
+            render_login_screen(cookie_manager)
+            st.stop()
     # =========================================================================
     # ZDE ZAČÍNÁ APLIKACE PRO PŘIHLÁŠENÉHO UŽIVATELE
     # =========================================================================
@@ -1561,6 +1561,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
