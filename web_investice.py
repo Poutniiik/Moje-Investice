@@ -999,7 +999,7 @@ def main():
     # --- ZOBRAZENÍ LOGIN FORMULÁŘE (Komponenta) ---
     if not st.session_state['prihlasen']:
     render_login_screen(cookie_manager)
-    return
+    return()
     # =========================================================================
     # ZDE ZAČÍNÁ APLIKACE PRO PŘIHLÁŠENÉHO UŽIVATELE
     # =========================================================================
@@ -1561,6 +1561,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
