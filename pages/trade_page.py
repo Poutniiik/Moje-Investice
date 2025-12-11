@@ -7,19 +7,16 @@ import streamlit as st
 import pandas as pd
 import time
 import numpy as np
-
-# --- BEZPEČNOSTNÍ FIX PRO NAČTENÍ SOUBORŮ Z KOŘENOVÉ SLOŽKY ---
 import sys
 import os
-# Přidáme kořenovou složku do cesty, aby Python našel bank_engine.py
-# Toto je nutné, protože Streamlit v podsložkách nevidí kořenové soubory.
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) 
-# --- KONEC FIXU ---
 
-# Imports z root modulů
-from  import utils 
-from  import bank_engine
-# ... zbytek souboru
+# Přidání root cesty
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Root moduly
+import utils
+import bank_engine
+import data_manager
 
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
