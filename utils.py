@@ -268,6 +268,42 @@ def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_y
     sharpe_ratio = np.sqrt(periods_per_year) * (excess_returns.mean() / returns.std())
     return sharpe_ratio
 
+# =========================================================================
+# SOUBOR: utils.py
+# ZMĚNA: PŘIDÁNÍ CACHE WRAPPERŮ Z web_investice.py
+# =========================================================================
+
+
+# --- CACHE WRAPPERS (PŘESUNUTO Z web_investice.py) ---
+
+@st.cache_data(ttl=3600) # 1 hodina cache pro detaily (fundamenty se mění pomalu)
+def cached_detail_akcie(ticker):
+    """Cache wrapper pro ziskej_detail_akcie."""
+    # Nativní volání v utils.py (protože je to definováno zde)
+    return ziskej_detail_akcie(ticker) 
+
+@st.cache_data(ttl=1800) # 30 minut cache pro Fear & Greed
+def cached_fear_greed():
+    """Cache wrapper pro ziskej_fear_greed."""
+    return ziskej_fear_greed()
+
+@st.cache_data(ttl=3600) # 1 hodina pro zprávy
+def cached_zpravy():
+    """Cache wrapper pro ziskej_zpravy."""
+    return ziskej_zpravy()
+
+@st.cache_data(ttl=300) # 5 minut cache pro hromadné ceny (Live data)
+def cached_ceny_hromadne(tickers_list):
+    """Cache wrapper pro ziskej_ceny_hromadne."""
+    return ziskej_ceny_hromadne(tickers_list)
+
+@st.cache_data(ttl=3600) # 1 hodina cache pro kurzy
+def cached_kurzy():
+    """Cache wrapper pro ziskej_kurzy."""
+    return ziskej_kurzy()
+
+
+
 # --- 1. STYLOVÁNÍ PRO PLOTLY (Interaktivní) ---
 def make_plotly_cyberpunk(fig):
     """Aplikuje Cyberpunk skin na Plotly graf bezpečně podle typu trace."""
