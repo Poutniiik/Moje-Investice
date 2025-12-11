@@ -1718,8 +1718,8 @@ from pages.analysis_page import analysis_page # NOVÝ IMPORT
 # ... (kód před routerem)
 
     # --- 10. STRÁNKY (Refaktorovaný router) ---
-    elif if page == "🏠 Přehled":
-        # VOLÁNÍ REFRAKTOROVANÉHO DASHBOARDU (Z minulé opravy)
+    if page == "🏠 Přehled":
+        # VOLÁNÍ MODULU DASHBOARD (19 argumentů)
         dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, 
                        zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA, 
                        df, zustatky, celk_inv_czk, df_cash)
@@ -1728,14 +1728,13 @@ from pages.analysis_page import analysis_page # NOVÝ IMPORT
         render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST)
         
     elif page == "📈 Analýza":
-        # NOVÉ VOLÁNÍ JEDNÉ MODULÁRNÍ FUNKCE PRO CELOU ANALÝZU
+        # NOVÉ VOLÁNÍ JEDNÉ MODULÁRNÍ FUNKCE PRO CELOU ANALÝZU (9 záložek)
         analysis_page(df, df_watch, vdf, model, AI_AVAILABLE, kurzy, viz_data_list, celk_hod_usd, get_zustatky, LIVE_DATA, calculate_sharpe_ratio)
 
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         
         # --- 1. MRAK SLOV (Wordcloud) ---
-        # Na mobilu je lepší, když je to přes celou šířku
         try:
             from wordcloud import WordCloud
             import matplotlib.pyplot as plt
@@ -1747,7 +1746,7 @@ from pages.analysis_page import analysis_page # NOVÝ IMPORT
                     stop_words = ["A", "I", "O", "U", "V", "S", "K", "Z", "SE", "SI", "NA", "DO", "JE", "TO", "ŽE", "ALE", "PRO", "JAK", "TAK", "OD", "PO", "NEBO", "BUDE", "BYL", "MÁ", "JSOU", "KTERÝ", "KTERÁ", "ONLINE", "AKTUÁNĚ", "CENA", "BURZA", "TRH", "AKCIE", "INVESTICE", "ČESKÉ", "NOVINY", "IDNES", "SEZNAM"]
 
                     wc = WordCloud(
-                        width=800, height=300, # Trochu vyšší pro mobil
+                        width=800, height=300, 
                         background_color=None,
                         mode="RGBA",
                         stopwords=stop_words,
@@ -1767,12 +1766,10 @@ from pages.analysis_page import analysis_page # NOVÝ IMPORT
         st.divider()
 
         # --- 2. HLAVNÍ OVLÁDACÍ PANEL ---
-        # Tlačítko pro AI analýzu všech zpráv (Sentiment 2.0)
         if AI_AVAILABLE:
             if st.button("🧠 SPUSTIT AI SENTIMENT TRHU (Všechny zprávy)", type="primary", use_container_width=True):
                 with st.spinner("AI čte noviny a analyzuje náladu..."):
                     raw_news = cached_zpravy()
-                    # Vezmeme jen top 10 zpráv, ať to netrvá věčnost
                     titles = [n['title'] for n in raw_news[:10]]
                     titles_str = "\n".join([f"{i+1}. {t}" for i, t in enumerate(titles)])
                     prompt = f"""Jsi finanční analytik. Analyzuj tyto novinové titulky a urči jejich sentiment.\nTITULKY:\n{titles_str}\nPro každý titulek vrať přesně tento formát na jeden řádek (bez odrážek):\nINDEX|SKÓRE(0-100)|VYSVĚTLENÍ (česky, max 1 věta)"""
@@ -1791,9 +1788,8 @@ from pages.analysis_page import analysis_page # NOVÝ IMPORT
                     except Exception as e: st.error(f"Chyba AI: {e}")
 
         # --- 3. NEWS FEED (KARTY POD SEBOU) ---
-        # Žádné sloupce! Jeden dlouhý feed, jako na Instagramu/Twitteru.
-        
         def analyze_news_with_ai(title, link):
+            # Tato funkce by potřebovala celk_hod_czk a viz_data_list, které jsou dostupné ve main()
             portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
             if viz_data_list: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
             prompt_to_send = f"Analyzuj tuto zprávu V KONTEXTU MÉHO PORTFOLIA. Zpráva: {title}. Jaký má dopad? (Odkaz: {link})"
@@ -1841,6 +1837,7 @@ from pages.analysis_page import analysis_page # NOVÝ IMPORT
             st.info("Žádné nové zprávy.")
 
     elif page == "💸 Obchod":
+        # ... celý blok Obchod
         st.title("💸 OBCHODNÍ PULT")
         
         # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
@@ -2231,6 +2228,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
