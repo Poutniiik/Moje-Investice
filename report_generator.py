@@ -44,7 +44,7 @@ def send_telegram_message(message: str) -> bool:
         return False
 
 
-# --- 3. Funkce pro generování obsahu reportu (Konečně verze bez chyb) ---
+# --- 3. Funkce pro generování obsahu reportu (OPRAVENO ODSZENÍ A LOGIKA) ---
 
 def generate_report_content() -> Tuple[str, Optional[str]]:
     """Generuje obsah reportu jako strukturovaný čistý text (Plain Text)."""
@@ -63,36 +63,31 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
     
     current_time = datetime.now().strftime("%d.%m.%Y v %H:%M:%S")
 
-   # --- A) NAČÍTÁNÍ DAT Z YAHOO FINANCE (FINÁLNÍ OPRAVA CHYBY) ---
-ticker_symbol = "AAPL" 
-posledni_cena = "N/A" # Defaultní hodnota pro případ chyby
-zmena_za_den = "N/A"  # Defaultní hodnota pro případ chyby
-yahoo_status = "CHYBA: Data zatím nenačtena"
-cena_str = "N/A"
-zmena_str = "N/A"
-
-try:
-    data = yf.download(ticker_symbol, period="5d", interval="1d")
+    # --- A) NAČÍTÁNÍ DAT Z YAHOO FINANCE (FINÁLNÍ OPRAVA CHYBY) ---
+    ticker_symbol = "MSFT" 
     
-    # KONTROLA: Ujistíme se, že DataFrame má dostatek dat (aspoň 2 dny pro výpočet změny)
-    if len(data) >= 2:
-        posledni_cena = data['Close'].iloc[-1]
-        zmena_za_den = (data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100
+    # Inicializace stringových hodnot
+    cena_str = "N/A"
+    zmena_str = "N/A"
+
+    try:
+        data = yf.download(ticker_symbol, period="5d", interval="1d")
         
-        # Bezpečné formátování čísel pro text
-        cena_str = f"{posledni_cena:,.2f} USD"
-        zmena_str = f"{zmena_za_den:,.2f}%"
-        yahoo_status = "Status: OK"
-    else:
-        # Zpracuje případ, kdy data jsou, ale je jich málo
-        cena_str = "N/A"
-        zmena_str = "N/A"
-        yahoo_status = "CHYBA: Staženo málo dat pro výpočet změny."
+        # Ošetření chyby 'unsupported format string'
+        if len(data) >= 2:
+            posledni_cena = data['Close'].iloc[-1]
+            zmena_za_den = (data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100
+            
+            # Bezpečné formátování čísel pro text
+            cena_str = f"{posledni_cena:,.2f} USD"
+            zmena_str = f"{zmena_za_den:,.2f}%"
+            yahoo_status = "Status: OK"
+        else:
+            yahoo_status = "CHYBA: Staženo málo dat pro výpočet změny."
         
-except Exception as e:
-    # Zpracuje případ, kdy data nejsou stažena vůbec
-    yahoo_status = f"CHYBA načítání Yahoo dat: {e}"
-    # ponechá cena_str a zmena_str na "N/A" (nastaveno na začátku bloku)
+    except Exception as e:
+        yahoo_status = f"CHYBA načítání Yahoo dat: {e}"
+
 
     # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ ---
 
@@ -187,6 +182,7 @@ Datum: {current_time}
 Odkaz na aplikaci: https://moje-investice-pesalikcistokrevnimamlas.streamlit.app/
 """
 
+    # TENTO ŘÁDEK JE KLÍČOVÝ A NYNÍ SPRÁVNĚ ODSZEN
     return report_text, None 
 
 
