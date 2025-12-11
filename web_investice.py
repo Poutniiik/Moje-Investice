@@ -44,7 +44,7 @@ from ai_brain import (
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
 from portfolio_engine import calculate_all_data, aktualizuj_graf_vyvoje
-
+)
 
 # --- NOVÝ IMPORT Z MODULU PAGES (UŽ BEZ CYKLU) ---
 from pages.dashboard import dashboard_page
@@ -1604,6 +1604,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
