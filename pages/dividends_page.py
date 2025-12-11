@@ -175,40 +175,44 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
         else:
             st.info("Zatím nemáš data pro sněhovou kouli. Přidej první dividendu!")
 
-    with t_div3:
-        st.subheader("🛠️ Diagnostický režim")
-        
-        # 1. Kontrola dat
-        tickers_dostupne = ["Zadny"]
+
+# ... (zbytek kódu nahoře v dividends_page.py) ...
+
+    # TOTO VLOŽ ÚPLNĚ DOLŮ (MIMO st.tabs)
+    st.divider()
+    st.header("💰 PŘIPSAT NOVOU DIVIDENDU")
+    
+    col_test1, col_test2 = st.columns(2)
+    
+    with col_test1:
+        # Seznam tickerů
+        tick_list = ["Jiny"]
         if not df.empty:
-            tickers_dostupne = df['Ticker'].unique()
+            tick_list = df['Ticker'].unique().tolist()
             
-        # 2. Vstupy BEZ formuláře (pro jistotu)
-        d_tick = st.selectbox("Ticker", tickers_dostupne, key="debug_tick")
-        d_amt = st.number_input("Částka", 0.0, step=0.1, key="debug_amt")
-        d_curr = st.selectbox("Měna", ["USD", "CZK", "EUR"], key="debug_curr")
+        d_tick = st.selectbox("Vyber akcii", tick_list, key="final_tick")
+        d_amt = st.number_input("Částka (v čistém)", min_value=0.0, step=0.1, key="final_amt")
+    
+    with col_test2:
+        d_curr = st.selectbox("Měna", ["USD", "CZK", "EUR"], key="final_curr")
+        st.write("")
+        st.write("")
         
-        # 3. Tlačítko s výpisem
-        if st.button("🚀 ODESLAT DIVIDENDU (TEST)"):
-            st.info("1. Tlačítko stisknuto - Jsem uvnitř!")
+        # Tlačítko přímo na stránce (žádný formulář, žádné záložky)
+        if st.button("💾 ULOŽIT (TEST)", type="primary", use_container_width=True):
+            st.toast("⏳ Pracuji...", icon="⚙️")
             
-            if d_amt > 0:
-                st.write("2. Volám hlavní funkci 'pridat_dividendu_fn'...")
+            # 1. Volání funkce
+            try:
+                ok, msg = pridat_dividendu_fn(d_tick, d_amt, d_curr, USER)
                 
-                # Zkusíme zavolat funkci a chytit případnou chybu
-                try:
-                    ok, msg = pridat_dividendu_fn(d_tick, d_amt, d_curr, USER)
-                    st.write(f"3. Funkce vrátila: OK={ok}, MSG={msg}")
+                if ok:
+                    st.success(f"✅ HOTOVO: {msg}")
+                    import time
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"❌ CHYBA FUNKCE: {msg}")
                     
-                    if ok:
-                        st.success("✅ ÚSPĚCH! " + msg)
-                        import time
-                        time.sleep(2)
-                        st.rerun()
-                    else:
-                        st.error("❌ CHYBA Z FUNKCE: " + msg)
-                except Exception as e:
-                    st.error(f"4. 💣 KRITICKÁ CHYBA PŘI VOLÁNÍ: {e}")
-                    st.warning("Tip: Zkontroluj v 'web_investice.py', jestli existuje funkce 'pridat_dividendu'!")
-            else:
-                st.warning("⚠️ Částka musí být větší než 0.")
+            except Exception as e:
+                st.error(f"❌ KRITICKÁ CHYBA: {e}")
