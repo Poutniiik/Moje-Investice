@@ -152,14 +152,13 @@ def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
     """
     Provede pohyb peněz s datem jako TEXTEM (řeší problémy s řazením).
     """
-    datum_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S") # <--- Důležitá změna
-    
+    datum_obj = datetime.now()
     novy = pd.DataFrame([{
         "Typ": typ, 
         "Castka": float(castka), 
         "Mena": mena, 
         "Poznamka": poznamka, 
-        "Datum": datum_str, 
+        "Datum": datum_obj, 
         "Owner": user
     }])
     df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
@@ -175,19 +174,20 @@ def pridat_dividendu(ticker, castka, mena, user):
     df_cash_temp = st.session_state['df_cash'].copy()
     
     # 2. Vytvoření řádku (Datum jako text!)
-    datum_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    datum_obj = datetime.now()
     
     novy = pd.DataFrame([{
         "Ticker": ticker, 
         "Castka": float(castka), 
         "Mena": mena, 
-        "Datum": datum_str, 
+        "Datum": datum_obj, 
         "Owner": user
     }])
     
     # 3. Spojení
     updated_div = pd.concat([df_div, novy], ignore_index=True)
-    
+
+    updated_div['Datum'] = pd.to_datetime(updated_div['Datum'])
     # 4. Pohyb peněz (zavolá naši opravenou funkci)
     df_cash_temp = pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user, df_cash_temp)
     
@@ -1217,6 +1217,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
