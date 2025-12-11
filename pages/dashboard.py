@@ -12,12 +12,9 @@ import yfinance as yf
 import random
 import numpy as np
 
-# Importujeme vše potřebné z jiných modulů pro nezávislost
-from utils import (
-    cached_fear_greed, zjisti_stav_trhu, make_plotly_cyberpunk
-)
-from ai_brain import ask_ai_guard
-# Nyní máme čistý import, bez rizika cyklu!
+import utils 
+import ai_brain 
+import web_investice
 
 # --- STATICKÉ DATOVÉ STRUKTURY PRO ÚKOLY ---
 RPG_TASKS = [
