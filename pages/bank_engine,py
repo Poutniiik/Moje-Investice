@@ -12,9 +12,7 @@ import zipfile
 from datetime import datetime
 
 # Imports z root modulů - klíčové závislosti
-import utils
-import bank_engine
-
+import bank_engine # Pro simulaci propojení s bankou
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
 def bank_page():
@@ -124,7 +122,3 @@ def bank_page():
             if not expenses.empty:
                 fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
                 st.plotly_chart(fig_exp, use_container_width=True)
-
-        
-    except Exception as e:
-        return None
