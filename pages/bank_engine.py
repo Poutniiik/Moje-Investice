@@ -13,7 +13,7 @@ from datetime import datetime
 
 # Imports z root modulů - klíčové závislosti
 from  import utils
-from  import bank_engine
+from .. import bank_engine
 
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
