@@ -2,6 +2,7 @@
 # SOUBOR: report_generator.py
 # Cíl: Nezávislý skript pro GitHub Actions
 # Autor: Beith (Tvůj Senior Lead Developer)
+# ZMĚNA: Odstranění FutureWarnings pro vyšší stabilitu
 # =========================================================================
 
 import os
@@ -65,7 +66,8 @@ def get_kurzy_gha():
     """Získá live kurzy (CZK a EUR vs USD)."""
     try:
         ts = ["CZK=X", "EURUSD=X"]
-        df_y = yf.download(ts, period="1d", group_by='ticker', progress=False)
+        # ZMĚNA 1 (ŘÁDEK 68): Přidání auto_adjust=True pro potlačení FutureWarning
+        df_y = yf.download(ts, period="1d", group_by='ticker', progress=False, auto_adjust=True)
         czk_price = df_y["CZK=X"]['Close'].iloc[-1] if not df_y["CZK=X"].empty else 20.85
         eur_usd = df_y["EURUSD=X"]['Close'].iloc[-1] if not df_y["EURUSD=X"].empty else 1.16
         return {"USD": 1.0, "CZK": czk_price, "EUR": eur_usd}
@@ -77,7 +79,8 @@ def get_live_data_gha(tickers):
     data = {}
     if not tickers: return data
     try:
-        df_y = yf.download(tickers, period="1d", group_by='ticker', progress=False)
+        # ZMĚNA 2 (ŘÁDEK 80): Přidání auto_adjust=True pro potlačení FutureWarning
+        df_y = yf.download(tickers, period="1d", group_by='ticker', progress=False, auto_adjust=True)
         for t in tickers:
             try:
                 if isinstance(df_y.columns, pd.MultiIndex): price = df_y[t]['Close'].iloc[-1]
@@ -130,7 +133,8 @@ def calculate_gha(df_p, df_c, kurzy):
     
     if not df_p.empty:
         df_g = df_p.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
-        df_g['Investice'] = df_p.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
+        # ZMĚNA 3 (ŘÁDEK 133): Přidání include_groups=False pro potlačení FutureWarning
+        df_g['Investice'] = df_p.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum(), include_groups=False).values
         
         for _, row in df_g.iterrows():
             tkr = row['Ticker']
@@ -249,6 +253,9 @@ def run_report():
         print("Automatický report úspěšně odeslán.")
     else:
         print(f"CHYBA: Automatický report selhal. {msg}")
+
+if __name__ == "__main__":
+    run_report()
 
 if __name__ == "__main__":
     run_report()
