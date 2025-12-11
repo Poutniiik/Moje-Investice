@@ -7,14 +7,16 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 import yfinance as yf
 import random
 import numpy as np
 
-# Imports z root modulů: FUNKCE, KTERÉ POTŘEBUJE TATO STRÁNKA
-import utils 
-import ai_brain 
+# Importujeme vše potřebné z jiných modulů pro nezávislost
+from utils import (
+    cached_fear_greed, zjisti_stav_trhu, make_plotly_cyberpunk
+)
+from ai_brain import ask_ai_guard
 # Nyní máme čistý import, bez rizika cyklu!
 
 # --- STATICKÉ DATOVÉ STRUKTURY PRO ÚKOLY ---
