@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # --- KONEC FIXU ---
 
 # Imports z root modulů
-from .. import utils
+from  import utils
 from .. import bank_engine
 # ... zbytek souboru
 
