@@ -124,7 +124,7 @@ def dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, ce
     with c_left:
         with st.container(border=True):
             st.caption("🧠 PSYCHOLOGIE TRHU")
-            score, rating = cached_fear_greed()
+            score, rating = utils.cached_fear_greed()
             if score:
                 st.metric("Fear & Greed Index", f"{score}/100", rating)
                 fig_gauge = go.Figure(go.Indicator(
@@ -187,7 +187,7 @@ def dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, ce
                     with st.spinner("Analyzuji rizika..."):
                          top_mover = best.get('Ticker', "N/A") if 'best' in locals() else "N/A"
                          flop_mover = worst.get('Ticker', "N/A") if 'worst' in locals() else "N/A"
-                         res = ask_ai_guard(model, pct_24h, cash_usd, top_mover, flop_mover)
+                         res =ai_brain.ask_ai_guard()(model, pct_24h, cash_usd, top_mover, flop_mover)
                          st.info(f"🤖 **AI:** {res}")
 
     # 3. ŘÁDEK: GRAFY (VÝVOJ + NOVÝ TABBED BOX)
