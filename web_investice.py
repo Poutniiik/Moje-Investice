@@ -1068,45 +1068,60 @@ def main():
         st.progress(level_progress)
 
         # --- VLOŽIT DO SIDEBARU (web_investice.py) ---
+       # --- VLOŽIT DO SIDEBARU (web_investice.py) - LEVEL 2 DEBUGGER ---
         st.divider()
-        if st.toggle("🐞 DEBUG MÓD (Diagnostika)"):
-            st.markdown("### 🕵️ Průběh testu:")
+        if st.toggle("🐞 DEBUG MÓD (Level 2)"):
+            st.markdown("### 🧬 Hloubková diagnostika")
             
-            # TEST 1: Kontrola Secrets
-            if "github" in st.secrets:
-                st.success("✅ Secrets nalezeny")
+            # 1. RAW DATA (Co je fyzicky v paměti z CSV)
+            if 'df' in st.session_state:
+                raw_len = len(st.session_state['df'])
+                last_raw_date = st.session_state['df']['Datum'].max() if not st.session_state['df'].empty else "N/A"
             else:
-                st.error("❌ CHYBÍ 'github' v secrets.toml!")
-            
-            # TEST 2: Spojení s GitHubem
-            from data_manager import get_repo # Import pro jistotu
-            repo = None
-            try:
-                repo = get_repo()
-                if repo:
-                    st.success(f"✅ Připojeno k repu: {repo.full_name}")
-                else:
-                    st.error("❌ GitHub vrátil None (chybný token?)")
-            except Exception as e:
-                st.error(f"❌ Chyba spojení: {e}")
+                raw_len = 0
+                last_raw_date = "N/A"
 
-            # TEST 3: Pokus o ZÁPIS (Klíčový test!)
-            if repo:
-                if st.button("🛠️ TEST ZÁPISU (Vytvoří debug.txt)"):
+            # 2. CORE DATA (Co vidí grafy a tabulky)
+            if 'data_core' in st.session_state and 'vdf' in st.session_state['data_core']:
+                core_len = len(st.session_state['data_core']['vdf'])
+                # Timestamp jádra (kdy naposledy se počítalo)
+                core_time = st.session_state['data_core'].get('timestamp', datetime.min)
+            else:
+                core_len = 0
+                core_time = "Nikdy"
+
+            # 3. POROVNÁNÍ (Je tam zpoždění?)
+            c1, c2 = st.columns(2)
+            c1.metric("💾 Raw (CSV)", f"{raw_len} řádků")
+            c2.metric("📊 Core (Grafy)", f"{core_len} řádků")
+
+            if raw_len != core_len:
+                st.error("⚠️ ROZCHOD DAT! (Jádro je pozadu)")
+                st.info("Příčina: Akce proběhla, ale stránka se neobnovila.")
+            else:
+                st.success("✅ Synchronizováno")
+
+            st.write(f"🕒 Poslední výpočet jádra: {core_time}")
+            
+            # 4. MANUÁLNÍ NÁSTROJE
+            st.markdown("---")
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("🔥 Hard Reset Cache"):
+                    st.cache_data.clear()
+                    if 'data_core' in st.session_state: del st.session_state['data_core']
+                    st.rerun()
+            with col_btn2:
+                if st.button("🛠️ Test zápisu (GitHub)"):
                     try:
-                        repo.create_file("debug_test.txt", "Debug test", "Test zápisu", branch="main")
-                        st.success("✅ ZÁPIS FUNGUJE! (Token má práva)")
-                        # Hned ho zase smažeme, ať tam nestraší
-                        contents = repo.get_contents("debug_test.txt")
-                        repo.delete_file(contents.path, "Delete debug", contents.sha)
+                        from data_manager import get_repo
+                        repo = get_repo()
+                        repo.create_file("test_ping.txt", "ping", "pong", branch="main")
+                        contents = repo.get_contents("test_ping.txt")
+                        repo.delete_file(contents.path, "del", contents.sha)
+                        st.toast("✅ GitHub Zápis OK!", icon="🟢")
                     except Exception as e:
-                        if "422" in str(e) or "already exists" in str(e):
-                             st.warning("⚠️ Soubor už existoval (Zápis asi funguje).")
-                        elif "403" in str(e) or "404" in str(e):
-                            st.error(f"❌ CHYBA PRÁV: Token nemůže zapisovat! ({e})")
-                            st.info("💡 Řešení: Přegeneruj Token a zaškrtni 'repo' (Full control).")
-                        else:
-                            st.error(f"❌ Jiná chyba zápisu: {e}")
+                        st.error(f"❌ Chyba: {e}")
 
             # TEST 4: Kontrola Datových typů (Proč nejdou dividendy)
             st.markdown("---")
@@ -1290,6 +1305,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
