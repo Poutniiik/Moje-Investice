@@ -9,7 +9,7 @@ import numpy as np
 
 # Imports z root modulů
 import utils
-import bank_engine # Zůstává zde pro simulaci banky, které jsou volány přímo
+from . import bank_engine
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
 def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy, 
