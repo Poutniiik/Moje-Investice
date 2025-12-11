@@ -53,7 +53,7 @@ from pages.dashboard import dashboard_page
 from pages.analysis_page import analysis_page
 from pages.news_page import news_page
 from pages.trade_page import trade_page
-from pages.dividends_page import
+from pages.dividends_page import dividends_page
 # from pages.dashboard import RPG_TASKS, get_task_progress # Tyto jsou teď volány pouze v render_gamifikace_page
 
 # --- KONFIGURACE ---
@@ -1980,6 +1980,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
