@@ -2048,7 +2048,7 @@ def main():
         render_ticker_tape(LIVE_DATA)
 
     # --- 10. STRÁNKY (Refaktorovaný router) ---
-    if page == "🏠 Přehled":
+   if page == "🏠 Přehled":
         # NOVÉ VOLÁNÍ FUNKCE Z MODULU PAGES
         # Všimni si, že teď předáváme df, zustatky, celk_inv_czk a df_cash!
         dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, 
@@ -3065,5 +3065,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
