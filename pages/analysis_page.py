@@ -423,116 +423,156 @@ def analysis_page(df, df_watch, vdf, model, AI_AVAILABLE, kurzy, viz_data_list, 
 
 def render_souboj_page(df, kurzy, calculate_sharpe_ratio):
     """Vykreslí Srovnání výkonnosti (Tab 2 Analýzy)."""
-    st.subheader("⚔️ SROVNÁNÍ VÝKONNOSTI AKCIÍ")
+    st.subheader("⚔️ SROVNÁNÍ VÝKONNOSTI")
+    st.info("Vyber akcie a porovnej, která by ti vydělala nejvíc.")
 
-            portfolio_tickers = df['Ticker'].unique().tolist() if not df.empty else []
-            default_tickers = ['AAPL', 'MSFT', '^GSPC']
-            initial_selection = list(set(portfolio_tickers[:5] + ['^GSPC']))
+    # Vytvoříme seznam tickerů (Portfolio + Benchmarky)
+    my_tickers = df['Ticker'].unique().tolist() if not df.empty else []
+    benchmarks = ["SPY", "QQQ", "BTC-USD", "GC=F"]
+    all_options = list(set(my_tickers + benchmarks))
 
-            tickers_to_compare = st.multiselect(
-                "Vyberte akcie/indexy pro srovnání výkonnosti:",
-                options=list(set(default_tickers + portfolio_tickers)),
-                default=initial_selection,
-                key="multi_compare"
-            )
+    selected = st.multiselect("Vyber soupeře:", all_options, default=my_tickers[:2] if len(my_tickers) >= 2 else ["SPY"])
+    period = st.select_slider("Období:", options=["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], value="1y")
 
-            if tickers_to_compare:
-                try:
-                    with st.spinner(f"Stahuji historická data pro {len(tickers_to_compare)} tickerů..."):
-                        raw_data = yf.download(tickers_to_compare, period="1y", interval="1d", progress=False)['Close']
-
-                    if raw_data.empty:
-                        st.warning("Nepodařilo se načíst historická data pro vybrané tickery.")
-                    else:
-                        # Normalizace (Start na 0%)
-                        normalized_data = raw_data.apply(lambda x: (x / x.iloc[0] - 1) * 100)
-
-                        fig_multi_comp = px.line(
-                            normalized_data,
-                            title='Normalizovaná výkonnost (Změna v %) od počátku',
-                            template="plotly_dark"
-                        )
-                        
-                        # --- VYLEPŠENÍ PRO MOBIL (LEGENDA DOLE) ---
-                        fig_multi_comp.update_layout(
-                            xaxis_title="Datum",
-                            yaxis_title="Změna (%)",
-                            height=500,
-                            margin=dict(t=50, b=0, l=0, r=0),
-                            font_family="Roboto Mono",
-                            plot_bgcolor="rgba(0,0,0,0)",
-                            paper_bgcolor="rgba(0,0,0,0)",
-                            legend=dict(
-                                orientation="h",  # Horizontální legenda
-                                yanchor="bottom", 
-                                y=-0.2,           # Posunutá pod graf
-                                xanchor="center", 
-                                x=0.5
-                            )
-                        )
-                        fig_multi_comp.update_xaxes(showgrid=False)
-                        fig_multi_comp.update_yaxes(showgrid=True, gridcolor='#30363D')
-                        st.plotly_chart(fig_multi_comp, use_container_width=True, key="fig_srovnani")
-                        add_download_button(fig_multi_comp, "srovnani_akcii")
-
-                        st.divider()
-                        st.subheader("Detailní srovnání metrik")
-
-                        # Tabulka metrik (zůstává stejná, je super)
-                        comp_list = []
-                        # Omezíme to na max 4 pro přehlednost v tabulce, nebo necháme vše
-                        for t in tickers_to_compare[:4]: 
-                            i, h = cached_detail_akcie(t)
-                            if i:
-                                mc = i.get('marketCap', 0)
-                                pe = i.get('trailingPE', 0)
-                                dy = i.get('dividendYield', 0)
-                                # Bezpečný výpočet změny
-                                perf = 0
-                                if h is not None and not h.empty:
-                                    start_p = h['Close'].iloc[0]
-                                    end_p = h['Close'].iloc[-1]
-                                    if start_p != 0:
-                                        perf = ((end_p / start_p) - 1) * 100
-
-                                comp_list.append({
-                                    "Metrika": [f"Kapitalizace", f"P/E Ratio", f"Dividenda", f"Změna 1R"],
-                                    "Hodnota": [
-                                        f"${mc/1e9:.1f}B",
-                                        f"{pe:.2f}" if pe > 0 else "N/A",
-                                        f"{dy*100:.2f}%" if dy else "0%",
-                                        f"{perf:+.2f}%"
-                                    ],
-                                    "Ticker": t
-                                })
-
-                        if comp_list:
-                            # Transpozice pro hezčí tabulku: Sloupce = Tickery, Řádky = Metriky
-                            final_data = {"Metrika": comp_list[0]["Metrika"]}
-                            for item in comp_list:
-                                final_data[item["Ticker"]] = item["Hodnota"]
-                            
-                            st.dataframe(pd.DataFrame(final_data), use_container_width=True, hide_index=True)
-
-                except Exception as e:
-                    st.error(f"Chyba při stahování dat: {e}")
-            else:
-                st.info("Vyberte alespoň jeden ticker.")
+    if selected:
+        with st.spinner("Počítám výsledky zápasu..."):
+            try:
+                # Stažení dat
+                # Přidáno auto_adjust=True pro potlačení FutureWarning
+                data = yf.download(selected, period=period, progress=False, auto_adjust=True)['Close']
+                
+                # Normalizace (vše začíná na 0%)
+                if not data.empty:
+                    rel_data = (data / data.iloc[0] - 1) * 100
+                    
+                    fig = px.line(rel_data, x=rel_data.index, y=rel_data.columns, 
+                                  labels={"value": "Zisk (%)", "variable": "Ticker", "Date": "Datum"},
+                                  template="plotly_dark")
+                    
+                    fig.update_layout(hovermode="x unified", font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+                    fig = utils.make_plotly_cyberpunk(fig)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Tabulka vítězů
+                    final_ret = rel_data.iloc[-1].sort_values(ascending=False)
+                    st.write("🏆 **Výsledková listina:**")
+                    for t, v in final_ret.items():
+                        st.write(f"{'🥇' if v == final_ret.max() else '🔸'} **{t}**: {v:+.2f} %")
+                else:
+                    st.warning("Nepodařilo se stáhnout data.")
+            except Exception as e:
+                st.error(f"Chyba při stahování: {e}")
 
 def render_mapa_sektory_page(df, vdf):
     """Vykreslí Mapu trhu a Sektory (Tab 3 Analýzy)."""
-    st.subheader("🗺️ MAPA TRHU A SEKTORY")
-    st.info("Zde by se vykreslovala Mapa Impéria a Treemap podle sektorů.")
+    st.subheader("🗺️ MAPA IMPÉRIA (Treemap)")
+    
+    if not vdf.empty:
+        # Příprava dat pro Treemap
+        tree_df = vdf.copy()
+        # Pro barvu použijeme 'Dnes' (denní změna) nebo 'Zisk' (celkový)
+        tree_df['ColorScale'] = tree_df['Dnes'] * 100 # v procentech
+        
+        fig_tree = px.treemap(
+            tree_df,
+            path=[px.Constant("PORTFOLIO"), 'Sektor', 'Ticker'],
+            values='HodnotaUSD',
+            color='ColorScale',
+            color_continuous_scale='RdYlGn',
+            color_continuous_midpoint=0,
+            hover_data={'HodnotaUSD': ':,.0f', 'Dnes': ':.2%'},
+            template="plotly_dark"
+        )
+        
+        fig_tree.update_layout(margin=dict(t=30, l=10, r=10, b=10), font_family="Roboto Mono", height=500)
+        st.plotly_chart(fig_tree, use_container_width=True)
+        
+        st.caption("🟥 Červená = Dnes klesá | 🟩 Zelená = Dnes roste | Velikost = Hodnota v USD")
+    else:
+        st.info("Nemáš žádné pozice pro zobrazení mapy.")
     # Implementace logiky (zde by byla zkopírovaná logika z web_investice.py)
 
-def render_vestec_page(df, kurzy, celk_hod_czk):
-    """Vykreslí Stroj času, DCA a Monte Carlo (Tab 4 Analýzy)."""
-    st.subheader("🔮 FINANČNÍ STROJ ČASU")
-    st.info("Obsahuje predikce, DCA backtester a kalkulačky úročení.")
+def render_vestec_page(df, kurzy, celk_hod_usd):
+    """Vykreslí Stroj času (Tab 4 Analýzy)."""
+    st.subheader("🔮 VĚŠTEC: Složené úročení")
+    
+    # Přepočet na CZK pro lepší představu
+    start_czk = celk_hod_usd * kurzy.get("CZK", 20.85)
+    
+    c1, c2, c3 = st.columns(3)
+    with c1: years = st.number_input("Počet let", 1, 40, 10)
+    with c2: monthly = st.number_input("Měsíční vklad (Kč)", 0, 100000, 5000, step=500)
+    with c3: rate = st.number_input("Očekávaný úrok (%)", 1.0, 20.0, 8.0, step=0.5) / 100
+    
+    # Výpočet
+    future_vals = []
+    total_invested = []
+    current = start_czk
+    invested = start_czk
+    
+    for i in range(years + 1):
+        future_vals.append(current)
+        total_invested.append(invested)
+        current = current * (1 + rate) + (monthly * 12)
+        invested += (monthly * 12)
+        
+    # Graf
+    df_proj = pd.DataFrame({
+        "Rok": range(datetime.now().year, datetime.now().year + years + 1),
+        "Hodnota portfolia": future_vals,
+        "Vložené peníze": total_invested
+    })
+    
+    fig_proj = go.Figure()
+    fig_proj.add_trace(go.Scatter(x=df_proj["Rok"], y=df_proj["Hodnota portfolia"], fill='tozeroy', name="Hodnota s úroky", line=dict(color="#00CC96")))
+    fig_proj.add_trace(go.Scatter(x=df_proj["Rok"], y=df_proj["Vložené peníze"], fill='tonexty', name="Jen vklady", line=dict(color="#AB63FA")))
+    
+    fig_proj.update_layout(title=f"Za {years} let budeš mít: {future_vals[-1]:,.0f} Kč", template="plotly_dark", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+    fig_proj = utils.make_plotly_cyberpunk(fig_proj)
+    st.plotly_chart(fig_proj, use_container_width=True)
+    
+    zisk_celkem = future_vals[-1] - total_invested[-1]
+    st.metric("Celkový zisk z úroků", f"{zisk_celkem:,.0f} Kč")
     # Implementace logiky (zde by byla zkopírovaná logika z web_investice.py)
 
 def render_benchmark_page(df, kurzy, calculate_sharpe_ratio):
-    """Vykreslí Srovnání s S&P 500 a Sharpe Ratio (Tab 5 Analýzy)."""
-    st.subheader("🏆 SROVNÁNÍ S TRHEM (S&P 500)")
-    st.info("Graf porovnávající portfolio s S&P 500 a výpočet Sharpe Ratio.")
-    # Implementace logiky (zde by byla zkopírovaná logika z web_investice.py)
+    """Vykreslí Srovnání s S&P 500 (Tab 5 Analýzy)."""
+    st.subheader("🏆 VS. S&P 500")
+    
+    if not df.empty:
+        my_top = df.groupby('Ticker')['Cena'].sum().sort_values(ascending=False).index[:1].tolist()
+        if not my_top: my_top = ["AAPL"] # Fallback
+        
+        tickers = my_top + ["^GSPC"] # ^GSPC je S&P 500
+        
+        try:
+            # Přidáno auto_adjust=True pro potlačení FutureWarning
+            data = yf.download(tickers, period="1y", progress=False, auto_adjust=True)['Close']
+            # Normalizace
+            norm_data = (data / data.iloc[0]) * 100
+            
+            fig = px.line(norm_data, x=norm_data.index, y=norm_data.columns, title="Tvá TOP akcie vs Trh (1 rok)", template="plotly_dark")
+            fig.update_layout(yaxis_title="Výkonnost (start=100)", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+            fig = utils.make_plotly_cyberpunk(fig)
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Sharpe Ratio (Jednoduchý odhad)
+            returns = data.pct_change().dropna()
+            sharpe_spy = calculate_sharpe_ratio(returns["^GSPC"]) if "^GSPC" in returns else 0
+            
+            # Bezpečné získání Sharpe pro mou akcii
+            my_ticker_col = my_top[0]
+            if my_ticker_col in returns:
+                sharpe_me = calculate_sharpe_ratio(returns[my_ticker_col])
+                
+                c1, c2 = st.columns(2)
+                c1.metric(f"Sharpe Ratio ({my_ticker_col})", f"{sharpe_me:.2f}")
+                c2.metric("Sharpe Ratio (S&P 500)", f"{sharpe_spy:.2f}")
+                
+                if sharpe_me > sharpe_spy: st.success("🎉 Tvá hlavní akcie má lepší rizikově očištěný výnos než trh!")
+                else: st.warning("⚠️ Trh má lepší poměr riziko/zisk.")
+                
+        except Exception as e:
+            st.error(f"Data nedostupná: {e}")
+    else:
+        st.info("Portfolio je prázdné.")
