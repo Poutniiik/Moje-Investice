@@ -12,8 +12,8 @@ import zipfile
 from datetime import datetime
 
 # Imports z root modulů - klíčové závislosti
-from  import utils
-from .. import bank_engine
+import utils
+import bank_engine
 
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
