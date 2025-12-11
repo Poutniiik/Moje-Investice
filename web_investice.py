@@ -1708,17 +1708,9 @@ def main():
     if page not in ["🎮 Gamifikace", "⚙️ Nastavení"]:
         render_ticker_tape(LIVE_DATA)
 
-    # TOTO ZMĚŇ V TVÉM web_investice.py
-
-# ... (Kde jsou ostatní importy z pages)
-from pages.dashboard import dashboard_page
-from pages.analysis_page import analysis_page # NOVÝ IMPORT
-
-# ... (v sekci def main():)
-# ... (kód před routerem)
 
     # --- 10. STRÁNKY (Refaktorovaný router) ---
-    elif if page == "🏠 Přehled":
+     if page == "🏠 Přehled":
         # VOLÁNÍ MODULU DASHBOARD (19 argumentů)
         dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, 
                        zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA, 
@@ -2228,4 +2220,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
