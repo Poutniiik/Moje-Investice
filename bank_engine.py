@@ -1,143 +1,126 @@
-import requests
-import pandas as pd
+# =========================================================================
+# SOUBOR: pages/bank_page.py
+# Cíl: Obsahuje veškerou logiku pro vykreslení stránky "🧪 Banka"
+# =========================================================================
 import streamlit as st
-from datetime import datetime, timedelta
+import pandas as pd
+import plotly.express as px
+import time
+import requests
+import io
+import zipfile
+from datetime import datetime
 
-# ==========================================
-# 👇 NASTAVENÍ PROSTŘEDÍ (Sandbox vs. Development) 👇
-# ==========================================
+# Imports z root modulů - klíčové závislosti
+from  import utils
+from .. import bank_engine
 
-# 1. Vyber prostředí: "sandbox" (testovací) nebo "development" (reálné banky, zdarma)
-PLAID_ENV = "sandbox"
 
-# 2. Nastavení URL podle prostředí
-if PLAID_ENV == "sandbox":
-    BASE_URL = "https://sandbox.plaid.com"
-    INSTITUTION_ID = "ins_109508" 
-elif PLAID_ENV == "development":
-    BASE_URL = "https://development.plaid.com"
-    INSTITUTION_ID = "ins_109508" # Zde pak bude reálná banka
+# --- HLAVNÍ FUNKCE STRÁNKY ---
+def bank_page():
+    """
+    Vykreslí stránku '🧪 Banka' (Původní render_bank_lab_page)
+    """
+    st.title("🏦 BANKOVNÍ CENTRÁLA (Verze 3.1)")
+    st.caption("Automatické propojení s bankovním účtem (Transakce + Zůstatky).")
 
-# 3. Načtení klíčů (Pokud je nemáš v secrets, doplň je sem do uvozovek pro test)
-try:
-    PLAID_CLIENT_ID = st.secrets["plaid"]["client_id"]
-    PLAID_SECRET = st.secrets["plaid"][f"secret_{PLAID_ENV}"] 
-except Exception:
-    # ⚠️ SEM SI JE MŮŽEŠ DÁT PRO RYCHLÝ TEST, POKUD JEŠTĚ NEJSOU V SECRETS
-    PLAID_CLIENT_ID = "" 
-    PLAID_SECRET = ""
-
-# ==========================================
-
-def simulace_pripojeni():
-    """Vytvoří připojení k bance."""
-    if not PLAID_CLIENT_ID or not PLAID_SECRET:
-        return "Chyba: Chybí API klíče."
-
-    if PLAID_ENV == "development":
-        return "⚠️ Pro Development režim je potřeba Plaid Link (Frontend)."
-
-    try:
-        # 1. Vytvoření veřejného tokenu
-        url_pt = f"{BASE_URL}/sandbox/public_token/create"
-        payload_pt = {
-            "client_id": PLAID_CLIENT_ID,
-            "secret": PLAID_SECRET,
-            "institution_id": INSTITUTION_ID, 
-            "initial_products": ["transactions"]
-        }
+    # 1. PŘIPOJENÍ (Pokud nemáme token)
+    if 'bank_token' not in st.session_state:
+        st.info("Zatím není připojena žádná banka.")
         
-        r_pt = requests.post(url_pt, json=payload_pt)
-        if r_pt.status_code != 200: return f"Chyba Public Token: {r_pt.text}"
-        
-        public_token = r_pt.json()['public_token']
-        
-        # 2. Výměna za Access Token
-        url_ex = f"{BASE_URL}/item/public_token/exchange"
-        payload_ex = {
-            "client_id": PLAID_CLIENT_ID,
-            "secret": PLAID_SECRET,
-            "public_token": public_token
-        }
-        
-        r_ex = requests.post(url_ex, json=payload_ex)
-        if r_ex.status_code != 200: return f"Chyba Access Token: {r_ex.text}"
-        
-        return r_ex.json()['access_token']
+        if st.button("🔌 PŘIPOJIT BANKU (Sandbox)", type="primary"):
+            with st.spinner("Volám bankovní motor..."):
+                token = bank_engine.simulace_pripojeni()
+                
+                if "Chyba" in str(token):
+                    st.error(token)
+                else:
+                    st.session_state['bank_token'] = token
+                    st.balloons()
+                    st.success("✅ Banka úspěšně připojena! Token uložen.")
+                    time.sleep(1)
+                    st.rerun()
+    
+    # 2. PRÁCE S DATY (Když už jsme připojeni)
+    else:
+        c1, c2 = st.columns([3, 1])
+        with c1: st.success("🟢 Spojení aktivní: Test Bank (Sandbox)")
+        with c2: 
+            if st.button("Odpojit"):
+                del st.session_state['bank_token']
+                if 'bank_data' in st.session_state: del st.session_state['bank_data']
+                if 'bank_balance' in st.session_state: del st.session_state['bank_balance']
+                st.rerun()
 
-    except Exception as e:
-        return f"Kritická chyba: {str(e)}"
+        st.divider()
+        
+        # --- OVLÁDACÍ PANEL (Dvě tlačítka vedle sebe) ---
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            if st.button("💰 ZOBRAZIT ZŮSTATKY", use_container_width=True):
+                with st.spinner("Ptám se banky na stav konta..."):
+                    df_bal = bank_engine.stahni_zustatky(st.session_state['bank_token'])
+                    if df_bal is not None:
+                        st.session_state['bank_balance'] = df_bal
+                    else:
+                        st.error("Chyba při stahování zůstatků.")
 
-def stahni_data(access_token):
-    """Stáhne transakce (Historii)."""
-    if not PLAID_CLIENT_ID or not PLAID_SECRET: return None
+        with col_btn2:
+            if st.button("📥 STÁHNOUT TRANSAKCE", use_container_width=True):
+                with st.spinner("Stahuji výpis..."):
+                    df_trans = bank_engine.stahni_data(st.session_state['bank_token'])
+                    if df_trans is not None:
+                        st.session_state['bank_data'] = df_trans
+                    else:
+                        st.error("Chyba při stahování transakcí.")
 
-    try:
-        start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        
-        url_tr = f"{BASE_URL}/transactions/get"
-        payload_tr = {
-            "client_id": PLAID_CLIENT_ID,
-            "secret": PLAID_SECRET,
-            "access_token": access_token,
-            "start_date": start_date,
-            "end_date": end_date,
-            "options": {"count": 100}
-        }
-        
-        r = requests.post(url_tr, json=payload_tr)
-        if r.status_code != 200: return None
-        
-        data_json = r.json()
-        data_list = []
-        for t in data_json['transactions']:
-            amount = -t['amount'] 
-            cat = t['category'][0] if 'category' in t and t['category'] else "Ostatní"
-            data_list.append({
-                "Datum": t['date'],
-                "Obchodník": t['name'],
-                "Částka": amount,
-                "Měna": t['iso_currency_code'],
-                "Kategorie": cat,
-                "Druh": "Výdaj" if amount < 0 else "Příjem"
-            })
-        return pd.DataFrame(data_list)
-    except Exception as e:
-        return None
-
-# --- NOVÁ FUNKCE: ZŮSTATKY 💰 ---
-def stahni_zustatky(access_token):
-    """Zjistí aktuální zůstatek na účtech."""
-    if not PLAID_CLIENT_ID or not PLAID_SECRET: return None
-
-    try:
-        url_bal = f"{BASE_URL}/accounts/balance/get"
-        payload_bal = {
-            "client_id": PLAID_CLIENT_ID,
-            "secret": PLAID_SECRET,
-            "access_token": access_token
-        }
-        
-        r = requests.post(url_bal, json=payload_bal)
-        if r.status_code != 200: return None
-        
-        accounts = r.json()['accounts']
-        results = []
-        
-        for acc in accounts:
-            # Plaid vrací "available" (disponibilní) a "current" (účetní) zůstatek
-            # Bereme available, pokud existuje, jinak current
-            bal = acc['balances']['available'] if acc['balances']['available'] is not None else acc['balances']['current']
+        # --- SEKCE 1: ZŮSTATKY (Nové!) ---
+        if 'bank_balance' in st.session_state:
+            st.write("")
+            st.subheader("💳 Aktuální stav účtů")
+            df_b = st.session_state['bank_balance']
             
-            results.append({
-                "Název účtu": acc['name'],
-                "Zůstatek": bal,
-                "Měna": acc['balances']['iso_currency_code'],
-                "Typ": acc['subtype']
-            })
+            # Vykreslíme jako kartičky vedle sebe
+            cols = st.columns(len(df_b))
+            for index, row in df_b.iterrows():
+                col_idx = index % len(cols)
+                with cols[col_idx]:
+                    st.metric(
+                        label=row['Název účtu'], 
+                        value=f"{row['Zůstatek']:,.2f} {row['Měna']}", 
+                        delta="Aktuální"
+                    )
+            st.divider()
+
+        # --- SEKCE 2: TRANSAKCE ---
+        if 'bank_data' in st.session_state:
+            df_t = st.session_state['bank_data']
             
-        return pd.DataFrame(results)
-        
-    except Exception as e:
-        return None
+            # Cashflow (Příjmy vs Výdaje za stažené období)
+            total_spend = df_t[df_t['Částka'] < 0]['Částka'].sum()
+            total_income = df_t[df_t['Částka'] > 0]['Částka'].sum()
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Příjmy (90 dní)", f"{total_income:,.0f}")
+            m2.metric("Výdaje (90 dní)", f"{total_spend:,.0f}")
+            m3.metric("Cashflow", f"{total_income + total_spend:,.0f}")
+            
+            st.subheader("📜 Historie transakcí")
+            st.dataframe(
+                df_t, 
+                column_config={
+                    "Částka": st.column_config.NumberColumn("Částka", format="%.2f"),
+                    "Kategorie": st.column_config.TextColumn("Druh"),
+                },
+                use_container_width=True
+            )
+            
+            # Graf výdajů
+            st.subheader("📊 Analýza výdajů")
+            expenses = df_t[df_t['Částka'] < 0].copy()
+            expenses['Částka'] = expenses['Částka'].abs() 
+            
+            if not expenses.empty:
+                fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
+                st.plotly_chart(fig_exp, use_container_width=True)
