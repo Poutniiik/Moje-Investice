@@ -1079,76 +1079,9 @@ def main():
         # --- VLOŽIT DO SIDEBARU (web_investice.py) ---
        # --- VLOŽIT DO SIDEBARU (web_investice.py) - LEVEL 2 DEBUGGER ---
         st.divider()
-        if st.toggle("🐞 DEBUG MÓD (Level 2)"):
-            st.markdown("### 🧬 Hloubková diagnostika")
-            
-            # 1. RAW DATA (Co je fyzicky v paměti z CSV)
-            if 'df' in st.session_state:
-                raw_len = len(st.session_state['df'])
-                last_raw_date = st.session_state['df']['Datum'].max() if not st.session_state['df'].empty else "N/A"
-            else:
-                raw_len = 0
-                last_raw_date = "N/A"
-
-            # 2. CORE DATA (Co vidí grafy a tabulky)
-            if 'data_core' in st.session_state and 'vdf' in st.session_state['data_core']:
-                core_len = len(st.session_state['data_core']['vdf'])
-                # Timestamp jádra (kdy naposledy se počítalo)
-                core_time = st.session_state['data_core'].get('timestamp', datetime.min)
-            else:
-                core_len = 0
-                core_time = "Nikdy"
-
-            # 3. POROVNÁNÍ (Je tam zpoždění?)
-            c1, c2 = st.columns(2)
-            c1.metric("💾 Raw (CSV)", f"{raw_len} řádků")
-            c2.metric("📊 Core (Grafy)", f"{core_len} řádků")
-
-            if raw_len != core_len:
-                st.error("⚠️ ROZCHOD DAT! (Jádro je pozadu)")
-                st.info("Příčina: Akce proběhla, ale stránka se neobnovila.")
-            else:
-                st.success("✅ Synchronizováno")
-
-            st.write(f"🕒 Poslední výpočet jádra: {core_time}")
-            
-            # 4. MANUÁLNÍ NÁSTROJE
-            st.markdown("---")
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                if st.button("🔥 Hard Reset Cache"):
-                    st.cache_data.clear()
-                    if 'data_core' in st.session_state: del st.session_state['data_core']
-                    st.rerun()
-            with col_btn2:
-                if st.button("🛠️ Test zápisu (GitHub)"):
-                    try:
-                        from data_manager import get_repo
-                        repo = get_repo()
-                        repo.create_file("test_ping.txt", "ping", "pong", branch="main")
-                        contents = repo.get_contents("test_ping.txt")
-                        repo.delete_file(contents.path, "del", contents.sha)
-                        st.toast("✅ GitHub Zápis OK!", icon="🟢")
-                    except Exception as e:
-                        st.error(f"❌ Chyba: {e}")
-
-            # TEST 4: Kontrola Datových typů (Proč nejdou dividendy)
-            st.markdown("---")
-            st.write("**Stav dat v paměti:**")
-            
-            if 'df' in st.session_state:
-                df_debug = st.session_state['df']
-                st.write(f"📊 Portfolio: {len(df_debug)} řádků")
-                # Vypíše typy sloupců - hledejte 'object' u čísel, to je špatně
-                st.json(df_debug.dtypes.astype(str).to_dict()) 
-                
-            if 'df_div' in st.session_state:
-                div_debug = st.session_state['df_div']
-                st.write(f"💰 Dividendy: {len(div_debug)} řádků")
-                st.json(div_debug.dtypes.astype(str).to_dict())
+        
 
         # --- 3. INFORMACE (ZABALENO DO EXPANDERŮ PRO ÚSPORU MÍSTA) ---
-        
         # A. Světové trhy
         with st.expander("🌍 SVĚTOVÉ TRHY", expanded=False):
             ny_time, ny_open = zjisti_stav_trhu("America/New_York", 9, 16)
@@ -1314,6 +1247,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
