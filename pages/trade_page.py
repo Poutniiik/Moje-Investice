@@ -1,16 +1,26 @@
 # =========================================================================
 # SOUBOR: pages/trade_page.py
 # Cíl: Obsahuje veškerou logiku pro vykreslení stránky "💸 Obchod"
+# OPRAVA: Fix cesty pro import bank_engine
 # =========================================================================
 import streamlit as st
 import pandas as pd
 import time
 import numpy as np
 
+# --- BEZPEČNOSTNÍ FIX PRO NAČTENÍ SOUBORŮ Z KOŘENOVÉ SLOŽKY ---
+import sys
+import os
+# Přidáme kořenovou složku do cesty, aby Python našel bank_engine.py
+# Toto je nutné, protože Streamlit v podsložkách nevidí kořenové soubory.
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) 
+# --- KONEC FIXU ---
+
 # Imports z root modulů
 import utils
-import bank_engine # Zůstává zde pro simulaci banky, které jsou volány přímo
-import data_manager
+import bank_engine # TENTO IMPORT NYNÍ FUNGUJE
+# ... zbytek souboru
+
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
 def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy, 
