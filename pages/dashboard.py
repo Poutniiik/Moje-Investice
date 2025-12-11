@@ -1,6 +1,7 @@
 # =========================================================================
 # SOUBOR: pages/dashboard.py
-# ZMĚNA: POUŽÍVÁ JEDNODUŠŠÍ ABSOLUTNÍ IMPORTY Z ROOT MODULŮ
+# Cíl: Obsahuje veškerou logiku pro vykreslení stránky "🏠 Přehled"
+# OPRAVA: Odstraněn cyklický import (import web_investice)
 # =========================================================================
 import streamlit as st
 import pandas as pd
@@ -12,12 +13,11 @@ import random
 import numpy as np
 
 # Imports z root modulů: FUNKCE, KTERÉ POTŘEBUJE TATO STRÁNKA
-# Nyní voláme přímo moduly, protože Streamlit je obvykle najde
 import utils 
 import ai_brain 
+# Nyní máme čistý import, bez rizika cyklu!
 
-# --- NOVÉ STATICKÉ DATOVÉ STRUKTURY PRO ÚKOLY (PŘESUNUTO Z web_investice.py) ---
-# Zde rozšiřujeme a upřesňujeme seznam RPG úkolů
+# --- STATICKÉ DATOVÉ STRUKTURY PRO ÚKOLY ---
 RPG_TASKS = [
     # 1. Watchlist research
     {"title": "První průzkum", "desc": "Přidej do Watchlistu akcii, kterou nemáš v portfoliu.", 
@@ -44,7 +44,7 @@ RPG_TASKS = [
      "check_fn": lambda df, df_w, zustatky, vdf: zustatky.get('CZK', 0) >= 5000},
 ]
 
-# --- NOVÁ FUNKCE: Progresní funkce pro RPG úkoly (PŘESUNUTO Z web_investice.py) ---
+# --- Progresní funkce pro RPG úkoly (Používá předané argumenty) ---
 def get_task_progress(task_id, df, df_w, zustatky, vdf):
     """Vrací tuple (current, target) pro vizuální progress bar."""
     
@@ -62,7 +62,6 @@ def get_task_progress(task_id, df, df_w, zustatky, vdf):
 
     elif task_id == 2: # Měnová rovnováha: Drž hotovost alespoň ve 2 měnách.
         target = 2
-        # Tady použijeme df_cash ze session_state z web_investice, což je dostupné přes zustatky
         current = sum(1 for v in zustatky.values() if v > 100)
         return current, target, f"Aktivních měn: {current}/{target}"
 
@@ -91,10 +90,10 @@ def get_task_progress(task_id, df, df_w, zustatky, vdf):
 
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
-def dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA, df, zustatky, celk_inv_czk):
+# Nový argument 'df_cash' je potřeba pro zobrazení historie peněz na konci.
+def dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA, df, zustatky, celk_inv_czk, df_cash):
     """
     Vykreslí stránku '🏠 Přehled' (Dashboard).
-    Tato funkce je upravená verze render_prehled_page z web_investice.py.
     """
     
     # --- BEZPEČNÁ INICIALIZACE (zůstává pro state kontroly) ---
@@ -157,7 +156,8 @@ def dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, ce
             try:
                 makro_tickers = {"🇺🇸 S&P 500": "^GSPC", "🥇 Zlato": "GC=F", "₿ Bitcoin": "BTC-USD", "🏦 Úroky 10Y": "^TNX"}
                 # Použijeme z yfinance jen ty, které nejsou cached
-                makro_data = yf.download(list(makro_tickers.values()), period="5d", progress=False)['Close']
+                # Přidáno auto_adjust=True pro potlačení FutureWarning
+                makro_data = yf.download(list(makro_tickers.values()), period="5d", progress=False, auto_adjust=True)['Close']
                 
                 mc1, mc2, mc3, mc4 = st.columns(4)
                 cols_list = [mc1, mc2, mc3, mc4]
@@ -186,7 +186,7 @@ def dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, ce
                     with st.spinner("Analyzuji rizika..."):
                          top_mover = best.get('Ticker', "N/A") if 'best' in locals() else "N/A"
                          flop_mover = worst.get('Ticker', "N/A") if 'worst' in locals() else "N/A"
-                         res =ai_brain.ask_ai_guard()(model, pct_24h, cash_usd, top_mover, flop_mover)
+                         res = ai_brain.ask_ai_guard(model, pct_24h, cash_usd, top_mover, flop_mover)
                          st.info(f"🤖 **AI:** {res}")
 
     # 3. ŘÁDEK: GRAFY (VÝVOJ + NOVÝ TABBED BOX)
@@ -268,7 +268,7 @@ def dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, ce
         st.subheader("🌊 TOK KAPITÁLU (Sankey)")
         
         total_vklady_czk = 0
-        df_cash_temp = st.session_state.get('df_cash', pd.DataFrame())
+        df_cash_temp = df_cash.copy()
         if not df_cash_temp.empty:
             for _, row in df_cash_temp.iterrows():
                 val_czk = row['Castka']
@@ -346,7 +346,7 @@ def dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, ce
             spark_data = {}
             if tickers_list:
                 try:
-                    # Stáhneme historická data pro sparkliny (30d)
+                    # Přidáno auto_adjust=True pro potlačení FutureWarning
                     batch = yf.download(tickers_list, period="1mo", interval="1d", group_by='ticker', progress=False, auto_adjust=True)
                     for t in tickers_list:
                          if len(tickers_list) > 1 and t in batch.columns.levels[0]: spark_data[t] = batch[t]['Close'].dropna().tolist()
@@ -398,9 +398,8 @@ def dashboard_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, ce
     if st.session_state['show_cash_history']:
         st.divider()
         st.subheader("🏦 HISTORIE HOTOVOSTI")
-        df_cash_local = st.session_state.get('df_cash', pd.DataFrame())
         
-        if not df_cash_local.empty:
-            st.dataframe(df_cash_local.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
+        if not df_cash.empty:
+            st.dataframe(df_cash.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
         else:
             st.info("Historie hotovosti je prázdná.")
