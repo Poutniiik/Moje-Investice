@@ -16,7 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Root moduly
 import utils
 import bank_engine
-import data_manager
+
 
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
