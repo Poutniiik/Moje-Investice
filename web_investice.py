@@ -177,7 +177,7 @@ def pridat_dividendu(ticker, castka, mena, user):
         "Ticker": ticker, 
         "Castka": float(castka), 
         "Mena": mena, 
-        "Datum": datetime.now(), 
+        "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
         "Owner": user
     }])
     
@@ -1216,6 +1216,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
