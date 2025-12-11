@@ -15,7 +15,6 @@ import numpy as np
 # Nyní voláme přímo moduly, protože Streamlit je obvykle najde
 import utils 
 import ai_brain 
-import web_investice # Kvůli volání get_zustatky/get_task_progress, atd.
 
 # --- NOVÉ STATICKÉ DATOVÉ STRUKTURY PRO ÚKOLY (PŘESUNUTO Z web_investice.py) ---
 # Zde rozšiřujeme a upřesňujeme seznam RPG úkolů
