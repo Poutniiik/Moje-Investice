@@ -1694,8 +1694,8 @@ def main():
     # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
     elif page == "⚙️ Nastavení":
         # NOVÉ VOLÁNÍ MODULÁRNÍ FUNKCE PRO NASTAVENÍ
-        # Předáváme dataframes a potřebné funkce pro ukládání/invalidaci
-        settings_page(USER, df, st.session_state['df_hist'], df_cash, df_div, df_watch, data_manager.uloz_data_uzivatele, invalidate_data_core)
+        # Předáváme funkci uloz_data_uzivatele přímo, protože tak je importována.
+        settings_page(USER, df, st.session_state['df_hist'], df_cash, df_div, df_watch, uloz_data_uzivatele, invalidate_data_core)
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
     elif page == "🧪 Banka":
@@ -1852,11 +1852,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
