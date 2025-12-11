@@ -8,10 +8,8 @@ import pandas as pd
 import time
 import numpy as np
 
-# Imports z root modulů - STANDARDNÍ VERZE, ktere funguji po inicializaci __init__.py
-# Zde se spoléháme na to, že web_investice.py nastavil cestu a __init__.py existuje.
-import data_manager
-import utils 
+# Imports z root modulů
+import utils
 import bank_engine
 
 
