@@ -10,6 +10,7 @@ import numpy as np
 # Imports z root modulů
 import utils
 import bank_engine # Zůstává zde pro simulaci banky, které jsou volány přímo
+import data_manager
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
 def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy, 
@@ -165,20 +166,22 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
             v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
             
             if st.button(f"Provést {op}", use_container_width=True):
-                sign = 1 if op == "Vklad" else -1
-                if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
-                    st.error("Nedostatek prostředků")
-                else:
-                    # Tady voláme atomickou funkci, která musí být definována v web_investice.py
-                    # Pro zachování principu modularizace PŘEDÁME FUNKCI POHYBU A FUNKCI UKLÁDÁNÍ
-                    
-                    df_cash_new = pohyb_penez_fn(v_a * sign, v_m, op, "Manual", USER, df_cash)
-                    
-                    # Protože funkce ukládání potřebuje data_manager, musíme ji nechat v main
-                    # Zde jen vrátíme výsledek
-                    st.session_state['df_cash'] = df_cash_new # Aktualizujeme state
-                    invalidate_data_core_fn() # Invalidujeme cache
-                    st.success("Hotovo"); time.sleep(1); st.rerun()
+                    sign = 1 if op == "Vklad" else -1
+                    if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
+                        st.error("Nedostatek prostředků")
+                    else:
+                        # 1. Lokální úprava DF
+                        df_cash_new = pohyb_penez_fn(v_a * sign, v_m, op, "Manual", USER, df_cash.copy())
+                        
+                        # 2. Uložení (Tato logika patří do main, ale musíme ji provést)
+                        # Budeme simulovat uložení přímo zde pro jednoduchost (je nutné importovat data_manager)
+                        import data_manager # Přidej tento import do pages/trade_page.py nahoře!
+                        data_manager.uloz_data_uzivatele(df_cash_new, USER, data_manager.SOUBOR_CASH)
+
+                        # 3. Aktualizace stavu a rerunu
+                        st.session_state['df_cash'] = df_cash_new
+                        invalidate_data_core_fn()
+                        st.success("Hotovo"); time.sleep(1); st.rerun()
 
     # Historie transakcí
     if not df_cash.empty:
