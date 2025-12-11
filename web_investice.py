@@ -148,7 +148,7 @@ def get_zustatky(user):
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
 # Najdi původní definici pohyb_penez a nahraď ji touto (je to stejné jako v tvém kódu, jen pro jistotu):
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
-ddef pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
+def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
     """
     Provede pohyb peněz s datem jako TEXTEM (řeší problémy s řazením).
     """
@@ -1217,6 +1217,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
