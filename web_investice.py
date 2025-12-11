@@ -148,66 +148,64 @@ def get_zustatky(user):
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
 # Najdi původní definici pohyb_penez a nahraď ji touto (je to stejné jako v tvém kódu, jen pro jistotu):
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
-def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
+ddef pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
     """
-    Provede pohyb peněz a vrátí upravený DataFrame. 
-    ULOŽENÍ do souboru se DĚJE VŽDY AŽ PO ÚSPĚŠNÉ TRANSAKCI.
+    Provede pohyb peněz s datem jako TEXTEM (řeší problémy s řazením).
     """
-    # Používáme datetime.now() pro aktuální timestamp transakce
-    novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
+    datum_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S") # <--- Důležitá změna
+    
+    novy = pd.DataFrame([{
+        "Typ": typ, 
+        "Castka": float(castka), 
+        "Mena": mena, 
+        "Poznamka": poznamka, 
+        "Datum": datum_str, 
+        "Owner": user
+    }])
     df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
-    
-    # NOVINKA: Abychom to zjednodušili, necháme funkci jen vracet dataframe,
-    # a ulozeni (data_manager.uloz_data_uzivatele) provedeme v Trade Page
-    
-    # Původní kód v Trade Page dělá uložení v main. Použijeme tvůj vzorec:
-    # Uložení se děje v hlavním routeru hned po volání Trade Page.
-    
     return df_cash_temp
-
 # V souboru web_investice.py
 
 def pridat_dividendu(ticker, castka, mena, user):
     """
-    Přidá dividendu do historie a připíše peníze do hotovosti.
+    Přidá dividendu a peníze - verze s OPRAVENÝM DATEM (String).
     """
-    # 1. Načtení aktuálního stavu
+    # 1. Načtení stavu
     df_div = st.session_state['df_div']
     df_cash_temp = st.session_state['df_cash'].copy()
     
-    # 2. Vytvoření nového řádku (S OPRAVOU DATA NA STRING)
+    # 2. Vytvoření řádku (Datum jako text!)
+    datum_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
     novy = pd.DataFrame([{
         "Ticker": ticker, 
         "Castka": float(castka), 
         "Mena": mena, 
-        "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # <--- TADY JE ZMĚNA
+        "Datum": datum_str, 
         "Owner": user
     }])
     
-    # 3. Spojení starých dat a nového řádku
+    # 3. Spojení
     updated_div = pd.concat([df_div, novy], ignore_index=True)
     
-    # 4. Pohyb peněz (přičtení hotovosti)
+    # 4. Pohyb peněz (zavolá naši opravenou funkci)
     df_cash_temp = pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user, df_cash_temp)
     
-    # 5. Uložení a AKTUALIZACE STAVU
+    # 5. Uložení a propsání do systému
     try:
-        # Zápis na disk
         uloz_data_uzivatele(updated_div, user, SOUBOR_DIVIDENDY)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
-        # Aktualizace paměti (session_state)
+        # DŮLEŽITÉ: Aktualizace paměti aplikace
         st.session_state['df_div'] = updated_div
         st.session_state['df_cash'] = df_cash_temp
         
-        # Vynucení přepočtu (volitelné, pokud používáš data_core)
-        try:
-             del st.session_state['data_core']
-        except: pass
+        # Reset cache výpočtů, aby se změna projevila hned
+        invalidate_data_core()
         
         return True, f"✅ Připsáno {castka:,.2f} {mena} od {ticker}"
     except Exception as e:
-        return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
+        return False, f"❌ Chyba zápisu: {e}"
 
 
 
@@ -1219,6 +1217,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
