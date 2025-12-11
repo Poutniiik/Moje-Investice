@@ -92,54 +92,82 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
     # --- B) NAČÍTÁNÍ LOKÁLNÍCH CSV SOUBORŮ ---
 
     # 1. PORTFOLIO DATA (portfolio_data.csv)
-    portfolio_path = "portfolio_data.csv"
-    try:
-        df_portfolio = pd.read_csv(portfolio_path)
+portfolio_path = "portfolio_data.csv"
+nejvetsi_vitez = "N/A"
+nejvetsi_propadak = "N/A"
+max_zisk_pct = -1000 # Nastaveno extrémně nízko
+max_propad_pct = 1000 # Nastaveno extrémně vysoko
+
+try:
+    df_portfolio = pd.read_csv(portfolio_path)
+    
+    # PŘÍPRAVA: Kontrola a převod na číselné hodnoty
+    if 'Pocet' in df_portfolio.columns and 'Cena' in df_portfolio.columns and 'Ticker' in df_portfolio.columns:
         
-        if 'Pocet' in df_portfolio.columns and 'Cena' in df_portfolio.columns:
+        df_portfolio['Pocet'] = pd.to_numeric(df_portfolio['Pocet'], errors='coerce').fillna(0)
+        df_portfolio['Cena'] = pd.to_numeric(df_portfolio['Cena'], errors='coerce').fillna(0)
+        
+        # AGREGACE: Předpokládáme, že 'Cena' je průměrná nákupní cena.
+        # Nyní seskupíme data podle Tickeru pro čisté pozice
+        df_agregovano = df_portfolio[df_portfolio['Pocet'] > 0].groupby('Ticker').agg(
+            Pocet=('Pocet', 'sum'),
+            Nakupni_Cena=('Cena', 'mean') # Bereme průměrnou nákupní cenu
+        ).reset_index()
+
+        # Přidáme sloupce pro aktuální hodnotu a výkonnost
+        df_agregovano['Aktualni_Cena'] = 0.0
+        df_agregovano['Vykonnost_PCT'] = 0.0
+        
+        # VÝPOČET: Iterace přes tikery pro získání aktuální ceny
+        for index, row in df_agregovano.iterrows():
+            ticker = row['Ticker']
+            nakupni_cena = row['Nakupni_Cena']
             
-            df_portfolio['Pocet'] = pd.to_numeric(df_portfolio['Pocet'], errors='coerce').fillna(0)
-            df_portfolio['Cena'] = pd.to_numeric(df_portfolio['Cena'], errors='coerce').fillna(0)
-            
-            df_portfolio['Hodnota'] = df_portfolio['Pocet'] * df_portfolio['Cena']
-            
-            celkova_hodnota = df_portfolio['Hodnota'].sum()
-            pocet_pozic = len(df_portfolio[df_portfolio['Pocet'] > 0])
-            
-            status_portf = f"Status: Zpracováno {len(df_portfolio)} záznamů."
-            
-        else:
-            celkova_hodnota = "CHYBA SLOUPCŮ"
-            pocet_pozic = "N/A"
-            status_portf = "CHYBA: Chybí sloupce Pocet/Cena."
-            
-    except Exception as e:
-        celkova_hodnota = "N/A"
+            try:
+                # Načtení aktuální ceny z Yahoo
+                cena_data = yf.download(ticker, period="1d", interval="1m", progress=False)
+                if not cena_data.empty:
+                    aktualni_cena = cena_data['Close'].iloc[-1]
+                else:
+                    aktualni_cena = nakupni_cena # Pokud selže, použijeme nákupní cenu (nulová změna)
+                
+                # Výpočet výkonnosti
+                vykonnost_pct = ((aktualni_cena / nakupni_cena) - 1) * 100
+                
+                df_agregovano.loc[index, 'Aktualni_Cena'] = aktualni_cena
+                df_agregovano.loc[index, 'Vykonnost_PCT'] = vykonnost_pct
+                
+                # IDENTIFIKACE VÍTĚZŮ A PROPADÁKŮ
+                if vykonnost_pct > max_zisk_pct:
+                    max_zisk_pct = vykonnost_pct
+                    nejvetsi_vitez = f"{ticker} ({max_zisk_pct:,.2f}%)"
+                
+                if vykonnost_pct < max_propad_pct:
+                    max_propad_pct = vykonnost_pct
+                    nejvetsi_propadak = f"{ticker} ({max_propad_pct:,.2f}%)"
+
+            except Exception as e:
+                # Chyba při stahování jednoho tickeru, ignorujeme a pokračujeme
+                print(f"Chyba při stahování {ticker}: {e}")
+
+
+        # FINÁLNÍ SOUHRN: Celková hodnota portfolia
+        df_agregovano['Aktualni_Hodnota'] = df_agregovano['Pocet'] * df_agregovano['Aktualni_Cena']
+        celkova_hodnota = df_agregovano['Aktualni_Hodnota'].sum()
+        pocet_pozic = len(df_agregovano)
+        
+        status_portf = f"Status: Zpracováno {len(df_portfolio)} záznamů."
+        
+    else:
+        # Původní chybová hlášení
+        celkova_hodnota = "CHYBA SLOUPCŮ"
         pocet_pozic = "N/A"
-        status_portf = f"CHYBA čtení PORTFOLIA: {e}"
-
-    # 2. HISTORY DATA (history_data.csv)
-    history_path = "history_data.csv"
-    try:
-        df_history = pd.read_csv(history_path)
-        pocet_history = len(df_history)
-        status_history = f"Status: Načteno {pocet_history} historických záznamů."
+        status_portf = "CHYBA: Chybí klíčové sloupce Ticker/Pocet/Cena."
         
-    except Exception as e:
-        pocet_history = "N/A"
-        status_history = f"CHYBA čtení HISTORIE: {e}"
-
-
-    # 3. CASH DATA (cash_data.csv)
-    cash_path = "cash_data.csv"
-    try:
-        df_cash = pd.read_csv(cash_path)
-        pocet_cash = len(df_cash)
-        status_cash = f"Status: Načteno {pocet_cash} cash záznamů."
-        
-    except Exception as e:
-        pocet_cash = "N/A"
-        status_cash = f"CHYBA čtení CASH: {e}"
+except Exception as e:
+    celkova_hodnota = "N/A"
+    pocet_pozic = "N/A"
+    status_portf = f"KRITICKÁ CHYBA čtení PORTFOLIA: {e}"
 
 
     # --- C) TVORBA STRUKTUROVANÉHO TEXTOVÉHO REPORTU ---
@@ -149,6 +177,8 @@ def generate_report_content() -> Tuple[str, Optional[str]]:
         hodnota_str = f"{celkova_hodnota:,.2f} CZK"
     else:
         hodnota_str = str(celkova_hodnota) 
+
+    # ... (Zbytek kódu sekce 3.C) ...
 
     report_text = f"""
 ======================================
@@ -160,6 +190,13 @@ Datum: {current_time}
 - Poslední cena: {cena_str}
 - Změna za den: {zmena_str}
 - Status: {yahoo_status}
+
+======================================
+
+📈 ANALÝZA PORTFOLIA
+
+| NEJVĚTŠÍ VÍTĚZ: {nejvetsi_vitez}
+| NEJVĚTŠÍ PROPADÁK: {nejvetsi_propadak}
 
 ======================================
 
@@ -181,8 +218,6 @@ Datum: {current_time}
 ======================================
 Odkaz na aplikaci: https://moje-investice-pesalikcistokrevnimamlas.streamlit.app/
 """
-
-    # TENTO ŘÁDEK JE KLÍČOVÝ A NYNÍ SPRÁVNĚ ODSZEN
     return report_text, None 
 
 
