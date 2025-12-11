@@ -54,6 +54,7 @@ from pages.analysis_page import analysis_page
 from pages.news_page import news_page
 from pages.trade_page import trade_page
 from pages.dividends_page import dividends_page
+from pages.gamification_page import gamification_page
 # from pages.dashboard import RPG_TASKS, get_task_progress # Tyto jsou teď volány pouze v render_gamifikace_page
 
 # --- KONFIGURACE ---
@@ -1753,8 +1754,9 @@ def main():
 
 
     elif page == "🎮 Gamifikace":
-        # NOVĚ: Voláme refaktorovanou funkci
-        render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky)
+        # NOVÉ VOLÁNÍ MODULÁRNÍ FUNKCE PRO GAMIFIKACI
+        # Používáme level_name a level_progress, které jsou definovány v sidebar logice výše.
+        gamification_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky)
 
 
     # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
@@ -1980,6 +1982,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
