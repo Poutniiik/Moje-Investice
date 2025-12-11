@@ -39,7 +39,9 @@ from data_manager import (
 from utils import (
     ziskej_fear_greed, ziskej_zpravy, ziskej_yield, ziskej_earnings_datum,
     ziskej_detail_akcie, zjisti_stav_trhu, vytvor_pdf_report, odeslat_email,
-    ziskej_ceny_hromadne, ziskej_kurzy, ziskej_info, calculate_sharpe_ratio
+    ziskej_ceny_hromadne, ziskej_kurzy, ziskej_info, calculate_sharpe_ratio,
+    # TOTO JSOU NOVÉ IMPORTY PŘESUNUTÉ Z GLOBAL DEFINICE DO utils.py:
+    cached_detail_akcie, cached_fear_greed, cached_zpravy, cached_ceny_hromadne, cached_kurzy 
 )
 from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis,
@@ -97,30 +99,7 @@ def load_lottieurl(url: str):
     if r.status_code != 200: return None
     return r.json()
 
-# --- TURBO CACHE WRAPPERS (ZRYCHLENÍ APLIKACE) ---
-# Tyto funkce obalují původní funkce do cache, aby se nevolaly zbytečně často.
 
-@st.cache_data(ttl=3600) # 1 hodina cache pro detaily (fundamenty se mění pomalu)
-def cached_detail_akcie(ticker):
-    return ziskej_detail_akcie(ticker)
-
-@st.cache_data(ttl=1800) # 30 minut cache pro Fear & Greed
-def cached_fear_greed():
-    return ziskej_fear_greed()
-
-@st.cache_data(ttl=3600) # 1 hodina pro zprávy
-def cached_zpravy():
-    return ziskej_zpravy()
-
-@st.cache_data(ttl=300) # 5 minut cache pro hromadné ceny (Live data)
-def cached_ceny_hromadne(tickers_list):
-    return ziskej_ceny_hromadne(tickers_list)
-
-@st.cache_data(ttl=3600) # 1 hodina cache pro kurzy
-def cached_kurzy():
-    return ziskej_kurzy()
-
-# -----------------------------------------------------
 
 # --- NÁSTROJ PRO ŘÍZENÍ STAVU: ZNEHODNOCENÍ DAT ---
 def invalidate_data_core():
@@ -3084,3 +3063,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
