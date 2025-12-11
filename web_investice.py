@@ -165,26 +165,43 @@ def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
     
     return df_cash_temp
 
+# V souboru web_investice.py
+
 def pridat_dividendu(ticker, castka, mena, user):
+    # 1. Načtení aktuálního stavu
     df_div = st.session_state['df_div']
     df_cash_temp = st.session_state['df_cash'].copy()
     
-    # Krok 1: Záznam dividendy
-    novy = pd.DataFrame([{"Ticker": ticker, "Castka": float(castka), "Mena": mena, "Datum": datetime.now(), "Owner": user}])
-    df_div = pd.concat([df_div, novy], ignore_index=True)
+    # 2. Vytvoření nového řádku
+    novy = pd.DataFrame([{
+        "Ticker": ticker, 
+        "Castka": float(castka), 
+        "Mena": mena, 
+        "Datum": datetime.now(), 
+        "Owner": user
+    }])
     
-    # Krok 2: Pohyb peněz (Atomický)
+    # 3. Spojení starých dat a nového řádku
+    # POZOR: Toto vytvoří nový DataFrame 'updated_div', ale nezmění session_state samo o sobě!
+    updated_div = pd.concat([df_div, novy], ignore_index=True)
+    
+    # 4. Pohyb peněz (přičtení hotovosti)
     df_cash_temp = pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user, df_cash_temp)
     
-    # Krok 3: Uložení obou změn a invalidace
+    # 5. Uložení a AKTUALIZACE STAVU
     try:
-        uloz_data_uzivatele(df_div, user, SOUBOR_DIVIDENDY)
+        # Zápis na disk
+        uloz_data_uzivatele(updated_div, user, SOUBOR_DIVIDENDY)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
-        # Aktualizace Session State AŽ PO ÚSPĚCHU
-        st.session_state['df_div'] = df_div
+        # --- TOTO JE TA ČÁST, KTERÁ ASI CHYBĚLA ---
+        # Musíme říct Streamlitu: "Hele, tady jsou nová data, přepiš ta stará v paměti!"
+        st.session_state['df_div'] = updated_div
         st.session_state['df_cash'] = df_cash_temp
+        
+        # Donutíme přepočítat metriky (pokud používáš data_core)
         invalidate_data_core()
+        
         return True, f"✅ Připsáno {castka:,.2f} {mena} od {ticker}"
     except Exception as e:
         return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
@@ -1199,5 +1216,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
