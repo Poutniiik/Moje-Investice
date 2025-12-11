@@ -1,17 +1,29 @@
 import streamlit as st
 import requests
+import os # NOVÝ IMPORT
 
 def init_telegram():
-    """Načte klíče pro Telegram ze secrets.toml."""
+    """Načte klíče pro Telegram ze secrets.toml nebo z ENV (pro GitHub Actions)."""
+    
+    # 1. Zkusíme Streamlit Secrets (pro Streamlit app)
     try:
-        if "telegram" not in st.secrets:
-            return None, None
-        
-        token = st.secrets["telegram"]["bot_token"]
-        chat_id = st.secrets["telegram"]["chat_id"]
-        return token, chat_id
+        if "telegram" in st.secrets:
+            token = st.secrets["telegram"]["bot_token"]
+            chat_id = st.secrets["telegram"]["chat_id"]
+            return token, chat_id
     except Exception:
-        return None, None
+        pass # Pokračujeme na ENV
+        
+    # 2. Zkusíme Environment Variables (pro GitHub Actions)
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    
+    if token and chat_id:
+        return token, chat_id
+    
+    return None, None
+
+# ... zbytek souboru (poslat_zpravu a otestovat_tlacitko) zůstane stejný.
 
 def poslat_zpravu(text):
     """
