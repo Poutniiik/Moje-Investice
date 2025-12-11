@@ -1067,6 +1067,62 @@ def main():
         st.caption(f"Úroveň: **{level_name}**")
         st.progress(level_progress)
 
+        # --- VLOŽIT DO SIDEBARU (web_investice.py) ---
+        st.divider()
+        if st.toggle("🐞 DEBUG MÓD (Diagnostika)"):
+            st.markdown("### 🕵️ Průběh testu:")
+            
+            # TEST 1: Kontrola Secrets
+            if "github" in st.secrets:
+                st.success("✅ Secrets nalezeny")
+            else:
+                st.error("❌ CHYBÍ 'github' v secrets.toml!")
+            
+            # TEST 2: Spojení s GitHubem
+            from data_manager import get_repo # Import pro jistotu
+            repo = None
+            try:
+                repo = get_repo()
+                if repo:
+                    st.success(f"✅ Připojeno k repu: {repo.full_name}")
+                else:
+                    st.error("❌ GitHub vrátil None (chybný token?)")
+            except Exception as e:
+                st.error(f"❌ Chyba spojení: {e}")
+
+            # TEST 3: Pokus o ZÁPIS (Klíčový test!)
+            if repo:
+                if st.button("🛠️ TEST ZÁPISU (Vytvoří debug.txt)"):
+                    try:
+                        repo.create_file("debug_test.txt", "Debug test", "Test zápisu", branch="main")
+                        st.success("✅ ZÁPIS FUNGUJE! (Token má práva)")
+                        # Hned ho zase smažeme, ať tam nestraší
+                        contents = repo.get_contents("debug_test.txt")
+                        repo.delete_file(contents.path, "Delete debug", contents.sha)
+                    except Exception as e:
+                        if "422" in str(e) or "already exists" in str(e):
+                             st.warning("⚠️ Soubor už existoval (Zápis asi funguje).")
+                        elif "403" in str(e) or "404" in str(e):
+                            st.error(f"❌ CHYBA PRÁV: Token nemůže zapisovat! ({e})")
+                            st.info("💡 Řešení: Přegeneruj Token a zaškrtni 'repo' (Full control).")
+                        else:
+                            st.error(f"❌ Jiná chyba zápisu: {e}")
+
+            # TEST 4: Kontrola Datových typů (Proč nejdou dividendy)
+            st.markdown("---")
+            st.write("**Stav dat v paměti:**")
+            
+            if 'df' in st.session_state:
+                df_debug = st.session_state['df']
+                st.write(f"📊 Portfolio: {len(df_debug)} řádků")
+                # Vypíše typy sloupců - hledejte 'object' u čísel, to je špatně
+                st.json(df_debug.dtypes.astype(str).to_dict()) 
+                
+            if 'df_div' in st.session_state:
+                div_debug = st.session_state['df_div']
+                st.write(f"💰 Dividendy: {len(div_debug)} řádků")
+                st.json(div_debug.dtypes.astype(str).to_dict())
+
         # --- 3. INFORMACE (ZABALENO DO EXPANDERŮ PRO ÚSPORU MÍSTA) ---
         
         # A. Světové trhy
@@ -1234,6 +1290,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
