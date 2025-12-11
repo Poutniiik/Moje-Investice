@@ -113,8 +113,15 @@ def calculate_all_data(user, df, df_watch, zustatky, kurzy):
                     "Průměr": float(avg_cena),
                     "Cena": float(curr_price),
                     "Měna": str(curr_currency),
+                    
+                    # NOVÝ STANDARD
                     "HodnotaUSD": float(aktualni_hodnota_usd),
                     "InvesticeUSD": float(investovano_usd),
+                    
+                    # ZPĚTNÁ KOMPATIBILITA (Aby nepadal Dashboard a Analýza)
+                    "Hodnota": float(aktualni_hodnota_usd),
+                    "Investice": float(investovano_usd),
+                    
                     "Zisk": float(zisk_usd),
                     "Zisk%": float(zisk_pct),
                     "Sektor": str(group.iloc[0]['Sektor']),
