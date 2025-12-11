@@ -52,6 +52,7 @@ from ai_brain import (
 from pages.dashboard import dashboard_page
 from pages.analysis_page import analysis_page
 from pages.news_page import news_page
+from pages.trade_page import trade_page
 # from pages.dashboard import RPG_TASKS, get_task_progress # Tyto jsou teď volány pouze v render_gamifikace_page
 
 # --- KONFIGURACE ---
@@ -143,13 +144,23 @@ def get_zustatky(user):
     return df_cash.groupby('Mena')['Castka'].sum().to_dict()
 
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
+# Najdi původní definici pohyb_penez a nahraď ji touto (je to stejné jako v tvém kódu, jen pro jistotu):
+# --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
 def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
     """
     Provede pohyb peněz a vrátí upravený DataFrame. 
     ULOŽENÍ do souboru se DĚJE VŽDY AŽ PO ÚSPĚŠNÉ TRANSAKCI.
     """
+    # Používáme datetime.now() pro aktuální timestamp transakce
     novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
     df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
+    
+    # NOVINKA: Abychom to zjednodušili, necháme funkci jen vracet dataframe,
+    # a ulozeni (data_manager.uloz_data_uzivatele) provedeme v Trade Page
+    
+    # Původní kód v Trade Page dělá uložení v main. Použijeme tvůj vzorec:
+    # Uložení se děje v hlavním routeru hned po volání Trade Page.
+    
     return df_cash_temp
 
 def pridat_dividendu(ticker, castka, mena, user):
@@ -2120,4 +2131,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
