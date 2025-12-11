@@ -54,7 +54,6 @@ from pages.trade_page import trade_page
 from pages.dividends_page import dividends_page
 from pages.gamification_page import gamification_page
 from pages.settings_page import settings_page
-from pages.bank_page import bank_page
 # from pages.dashboard import RPG_TASKS, get_task_progress # Tyto jsou teď volány pouze v render_gamifikace_page
 
 # --- KONFIGURACE ---
@@ -1247,6 +1246,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
