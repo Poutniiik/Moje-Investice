@@ -94,18 +94,19 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
    # SOUBOR: pages/dividends_page.py
 # (Najdi řádek "with t_div1:" a nahraď jeho obsah tímto)
 
+    # SOUBOR: pages/dividends_page.py (sekce with t_div1:)
+
     with t_div1:
         if not df_div.empty:
             # --- ZÁCHRANNÁ BRZDA: Vyčistíme data pro zobrazení ---
-            # Toto udělá to samé co F5 - sjednotí formát data v paměti
             df_view = df_div.copy()
+            # Převedeme na datum a chyby (texty) změníme na NaT (neplatné), aby to nespadlo
             df_view['Datum'] = pd.to_datetime(df_view['Datum'], errors='coerce')
             # -----------------------------------------------------
 
-            # Graf - používáme už čistý df_view
+            # Graf
             plot_df = df_view.copy()
-            # Odstraníme případné nesmyslné řádky (NaT), aby graf nespadl
-            plot_df = plot_df.dropna(subset=['Datum']) 
+            plot_df = plot_df.dropna(subset=['Datum']) # Vyhodíme případné chyby
             plot_df['Datum_Den'] = plot_df['Datum'].dt.strftime('%Y-%m-%d')
 
             plot_df_grouped = plot_df.groupby(['Datum_Den', 'Ticker'])['Castka'].sum().reset_index()
@@ -121,7 +122,7 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
             st.plotly_chart(fig_div, use_container_width=True)
 
             # Tabulka - ZDE BYL PROBLÉM
-            # Řadíme už opravená data, takže to nespadne a zobrazí se i ten nový řádek
+            # Řadíme už opravená data (df_view)
             st.dataframe(df_view.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
         else:
             st.info("Zatím žádné dividendy.")
