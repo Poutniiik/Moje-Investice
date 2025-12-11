@@ -1105,6 +1105,16 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     return data_core
 
 
+# --- Skrytí automatické navigace Streamlitu ---
+st.markdown("""
+    <style>
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+
 # --- HLAVNÍ FUNKCE (Router) ---
 def main():
     # --- 1. BEZPEČNÁ INICIALIZACE AI (Fix 1: Použití cache wrapperu) ---
@@ -1740,6 +1750,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
