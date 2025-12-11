@@ -1,6 +1,7 @@
 # =========================================================================
 # SOUBOR: pages/settings_page.py
 # Cíl: Obsahuje veškerou logiku pro vykreslení stránky "⚙️ Nastavení"
+# OPRAVA: Import celého modulu data_manager pro přístup ke konstantám SOUBOR_...
 # =========================================================================
 import streamlit as st
 import pandas as pd
@@ -9,12 +10,14 @@ import time
 import zipfile
 import io
 import extra_streamlit_components as stx
+from datetime import datetime
 
 # Imports z root modulů - klíčové závislosti
-import data_manager
+import data_manager # KLÍČOVÁ ZMĚNA
 import notification_engine as notify
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
+# Uloz_data_fn je nyní atomická funkce (uloz_data_uzivatele)
 def settings_page(USER, df, df_hist, df_cash, df_div, df_watch, uloz_data_fn, invalidate_core_fn):
     """
     Vykreslí stránku '⚙️ Nastavení'
@@ -26,8 +29,6 @@ def settings_page(USER, df, df_hist, df_cash, df_div, df_watch, uloz_data_fn, in
         st.subheader("🤖 AI Jádro & Osobnost")
         c_stat1, c_stat2 = st.columns([1, 3])
         with c_stat1:
-            # AI_AVAILABLE je globalní proměnná, která se musí načíst v main
-            # Zde budeme jen předpokládat její stav, nebo ji přeneseme jako argument (Nejčistší)
             if st.session_state.get('AI_AVAILABLE', False): st.success("API: ONLINE")
             else: st.error("API: OFFLINE")
         
@@ -65,6 +66,7 @@ def settings_page(USER, df, df_hist, df_cash, df_div, df_watch, uloz_data_fn, in
         new_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
         if st.button("Uložit Portfolio", key="btn_save_df"): 
             st.session_state['df'] = new_df
+            # Používáme data_manager.SOUBOR_DATA
             uloz_data_fn(new_df, USER, data_manager.SOUBOR_DATA)
             invalidate_core_fn()
             st.success("Uloženo"); time.sleep(1); st.rerun()
@@ -74,6 +76,7 @@ def settings_page(USER, df, df_hist, df_cash, df_div, df_watch, uloz_data_fn, in
         new_h = st.data_editor(df_hist, num_rows="dynamic", use_container_width=True)
         if st.button("Uložit Historii", key="btn_save_hist"): 
             st.session_state['df_hist'] = new_h
+            # Používáme data_manager.SOUBOR_HISTORIE
             uloz_data_fn(new_h, USER, data_manager.SOUBOR_HISTORIE)
             invalidate_core_fn()
             st.success("Uloženo"); time.sleep(1); st.rerun()
@@ -83,6 +86,7 @@ def settings_page(USER, df, df_hist, df_cash, df_div, df_watch, uloz_data_fn, in
         new_cash = st.data_editor(df_cash, num_rows="dynamic", use_container_width=True)
         if st.button("Uložit Hotovost", key="btn_save_cash"):
             st.session_state['df_cash'] = new_cash
+            # Používáme data_manager.SOUBOR_CASH
             uloz_data_fn(new_cash, USER, data_manager.SOUBOR_CASH)
             invalidate_core_fn()
             st.success("Uloženo"); time.sleep(1); st.rerun()
@@ -92,6 +96,7 @@ def settings_page(USER, df, df_hist, df_cash, df_div, df_watch, uloz_data_fn, in
         new_watch = st.data_editor(df_watch, num_rows="dynamic", use_container_width=True)
         if st.button("Uložit Sledování", key="btn_save_watch"):
             st.session_state['df_watch'] = new_watch
+            # Používáme data_manager.SOUBOR_WATCHLIST
             uloz_data_fn(new_watch, USER, data_manager.SOUBOR_WATCHLIST)
             invalidate_core_fn()
             st.success("Uloženo"); time.sleep(1); st.rerun()
