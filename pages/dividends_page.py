@@ -175,27 +175,33 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
 
     with t_div3:
         st.caption("Peníze se automaticky připíší do peněženky.")
+        
+        # Formulář musí být ucelený blok
         with st.form("add_div"):
-            # Používáme df k výběru Tickeru, pokud existuje
-            dt_ticker = st.selectbox("Ticker", df['Ticker'].unique() if not df.empty else ["Jiny"])
+            # Používáme df k výběru Tickeru
+            # Pokud df chybí, dáme tam aspoň placeholder, aby to nespadlo
+            ticker_list = df['Ticker'].unique() if not df.empty else ["Jiny"]
+            
+            dt_ticker = st.selectbox("Ticker", ticker_list)
             dt_amount = st.number_input("Částka (Netto)", 0.0, step=0.1)
             dt_curr = st.selectbox("Měna", ["USD", "CZK", "EUR"])
             
-            # Tlačítko uvnitř formuláře
+            # Tlačítko JE UVNITŘ formuláře
             submitted = st.form_submit_button("💰 PŘIPSAT DIVIDENDU")
             
+            # Logika po stisknutí JE TAKÉ UVNITŘ bloku 'with st.form' (nebo těsně pod ním, ale vázaná na 'submitted')
             if submitted:
+                # 1. Rychlá kontrola vstupu
                 if dt_amount > 0:
-                    # 1. Voláme funkci, která nám přišla jako argument (pridat_dividendu_fn)
-                    # POZOR: Musíme použít správné názvy proměnných z formuláře výše
+                    # 2. Volání funkce (pridat_dividendu_fn přišla jako argument z hlavního souboru)
                     ok, msg = pridat_dividendu_fn(dt_ticker, dt_amount, dt_curr, USER)
     
                     if ok:
                         st.success(msg)
                         import time
-                        time.sleep(1)      # Krátká pauza pro přečtení
-                        st.rerun()         # <--- TADY JE TEN FIX (Restart)
+                        time.sleep(1)
+                        st.rerun()  # <--- TOTO MUSÍ BÝT ODSAZENÉ POD 'if ok:'
                     else:
                         st.error(msg)
                 else:
-                    st.warning("Zadej částku větší než 0.")
+                    st.warning("⚠️ Zadej částku vyšší než 0.")
