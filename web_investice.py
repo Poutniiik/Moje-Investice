@@ -53,6 +53,7 @@ from pages.dashboard import dashboard_page
 from pages.analysis_page import analysis_page
 from pages.news_page import news_page
 from pages.trade_page import trade_page
+from pages.dividends_page import
 # from pages.dashboard import RPG_TASKS, get_task_progress # Tyto jsou teď volány pouze v render_gamifikace_page
 
 # --- KONFIGURACE ---
@@ -1747,8 +1748,8 @@ def main():
                    pohyb_penez, invalidate_data_core)
 
     elif page == "💎 Dividendy":
-        # NOVĚ: Voláme refaktorovanou funkci
-        render_dividendy_page(USER, df, df_div, kurzy, viz_data_list)
+        # NOVÉ VOLÁNÍ MODULÁRNÍ FUNKCE PRO DIVIDENDY
+        dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu)
 
 
     elif page == "🎮 Gamifikace":
@@ -1979,6 +1980,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
