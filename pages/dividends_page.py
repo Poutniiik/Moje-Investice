@@ -207,10 +207,10 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
                 ok, msg = pridat_dividendu_fn(d_tick, d_amt, d_curr, USER)
                 
                 if ok:
-                    st.success(f"✅ HOTOVO: {msg}")
-                    import time
-                    time.sleep(1)
-                    st.rerun()
+                    #st.success(f"✅ HOTOVO: {msg}")
+                    #import time
+                    #time.sleep(1)
+                    #st.rerun()
                 else:
                     st.error(f"❌ CHYBA FUNKCE: {msg}")
                     
