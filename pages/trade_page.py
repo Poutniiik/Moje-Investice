@@ -81,8 +81,14 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
                     if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
                         # VOLÁNÍ PŘEDANÉ FUNKCE
                         ok, msg = proved_nakup_fn(ticker_input, qty, limit_price, USER)
-                        if ok: st.balloons(); st.success(msg); time.sleep(2); st.rerun()
-                        else: st.error(msg)
+                        
+                        if ok: 
+                            st.balloons()          # Balónky pro radost
+                            st.success(msg)        # Zelená hláška
+                            time.sleep(1)          # Čekáme jen 1 vteřinu (2 je moc dlouho)
+                            st.rerun()             # RESTART APLIKACE
+                        else: 
+                            st.error(msg)
                 else:
                     c_info2.error(f"Chybí: {total_est - zustatek:,.2f} {menu}")
                     st.button("🚫 Nedostatek prostředků", disabled=True, use_container_width=True)
@@ -101,8 +107,13 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
                     if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True):
                         # VOLÁNÍ PŘEDANÉ FUNKCE
                         ok, msg = proved_prodej_fn(ticker_input, qty, limit_price, USER, menu)
-                        if ok: st.success(msg); time.sleep(2); st.rerun()
-                        else: st.error(msg)
+                        
+                        if ok: 
+                            st.success(msg)
+                            time.sleep(1)          # Pauza na přečtení
+                            st.rerun()             # RESTART APLIKACE
+                        else: 
+                            st.error(msg)
                 else:
                     c_info2.error(f"Máš jen: {curr_qty} ks")
                     st.button("🚫 Nedostatek akcií", disabled=True, use_container_width=True)
