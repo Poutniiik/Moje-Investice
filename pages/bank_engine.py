@@ -12,7 +12,9 @@ import zipfile
 from datetime import datetime
 
 # Imports z root modulů - klíčové závislosti
-import bank_engine # Pro simulaci propojení s bankou
+from .. import utils
+from .. import bank_engine
+
 
 # --- HLAVNÍ FUNKCE STRÁNKY ---
 def bank_page():
