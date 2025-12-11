@@ -7,16 +7,12 @@ import streamlit as st
 import pandas as pd
 import time
 import numpy as np
-import sys
-import os
 
-# Přidání root cesty
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-# Root moduly
-import utils
+# Imports z root modulů - STANDARDNÍ VERZE, ktere funguji po inicializaci __init__.py
+# Zde se spoléháme na to, že web_investice.py nastavil cestu a __init__.py existuje.
+import data_manager
+import utils 
 import bank_engine
-import .. data_manager
 
 
 
