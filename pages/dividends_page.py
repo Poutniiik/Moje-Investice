@@ -94,11 +94,12 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
     with t_div1:
         if not df_div.empty:
             # Graf - OPRAVA VIZUALIZACE
-            plot_df = df_div.copy()
-            # Převedeme přesný čas jen na datum (string YYYY-MM-DD), aby měly sloupce šířku "1 den" a byly vidět
-            plot_df['Datum_Den'] = pd.to_datetime(plot_df['Datum']).dt.strftime('%Y-%m-%d')
+            df_div_view = df_div.copy()
+            df_div_view['Datum'] = pd.to_datetime(df_div_view['Datum'], errors='coerce')
 
-            # Seskupíme podle dne a tickeru (aby se v jednom dni sloupce sečetly/navrstvily)
+            plot_df = df_div_view.copy()
+            plot_df['Datum_Den'] = plot_df['Datum'].dt.strftime('%Y-%m-%d')
+            
             plot_df_grouped = plot_df.groupby(['Datum_Den', 'Ticker'])['Castka'].sum().reset_index()
             plot_df_grouped = plot_df_grouped.sort_values('Datum_Den')
 
@@ -115,7 +116,7 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
             st.plotly_chart(fig_div, use_container_width=True)
 
             # Tabulka - tu necháme s původními detailními daty
-            st.dataframe(df_div.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
+            st.dataframe(df_div_view.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
         else:
             st.info("Zatím žádné dividendy.")
 
