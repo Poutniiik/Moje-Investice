@@ -11,17 +11,21 @@ import notification_engine as notify
 import bank_engine as bank
 from styles import get_css
 from ai_brain import init_ai, get_chat_response
+
+# DATA MANAGER: Importujeme přímo z databáze
 from data_manager import (
     SOUBOR_DATA, SOUBOR_UZIVATELE, SOUBOR_HISTORIE, SOUBOR_CASH, 
-    SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY, nacti_csv, nacti_uzivatele, zasifruj, uloz_csv
+    SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY, nacti_csv, nacti_uzivatele, zasifruj, uloz_csv, uloz_data_uzivatele
 )
+
 from utils import ziskej_info, ziskej_fear_greed, cached_ceny_hromadne, cached_kurzy, cached_detail_akcie, zjisti_stav_trhu, vytvor_pdf_report
 
-# Import logiky a renderování
+# LOGIC PORTFOLIO: Importujeme jen logiku, ne data funkce (abychom se vyhnuli zmatkům)
 from logic_portfolio import (
     calculate_all_data, send_daily_telegram_report, get_zustatky, 
-    pohyb_penez, uloz_data_uzivatele, invalidate_data_core, proved_smenu
+    pohyb_penez, invalidate_data_core, proved_smenu, aktualizuj_graf_vyvoje
 )
+
 from render_engine import (
     render_ticker_tape, render_prehled_page, render_sledovani_page, 
     render_dividendy_page, render_gamifikace_page, render_obchod_page
@@ -77,12 +81,11 @@ def main():
         st.session_state['df_cash'] = nacti_csv(SOUBOR_CASH).query(f"Owner=='{USER}'").copy()
         st.session_state['df_div'] = nacti_csv(SOUBOR_DIVIDENDY).query(f"Owner=='{USER}'").copy()
         st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
-        from logic_portfolio import aktualizuj_graf_vyvoje
         st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
 
     # 3. VÝPOČTY (JÁDRO)
     df = st.session_state['df']; df_watch = st.session_state['df_watch']; zustatky = get_zustatky(USER)
-    kurzy = cached_kurzy() # Placeholder, upřesní se v jádru
+    kurzy = cached_kurzy() # Placeholder
     
     if 'data_core' not in st.session_state or (datetime.now() - st.session_state['data_core']['timestamp']) > timedelta(minutes=5):
         data_core = calculate_all_data(USER, df, df_watch, zustatky, kurzy)
