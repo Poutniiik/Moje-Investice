@@ -1,18 +1,11 @@
+# Market data service
 import streamlit as st
 import pandas as pd
-import numpy as np
 import yfinance as yf
 import requests
 import feedparser
-import smtplib
-from email.mime.text import MIMEText
-from fpdf import FPDF
 from datetime import datetime
 import pytz
-import plotly.graph_objects as go
-import matplotlib.pyplot as plt
-# Importujeme konstantu z data_manageru, abychom ji nemuseli definovat znovu
-from data_manager import RISK_FREE_RATE 
 
 # --- ZDROJE ZPRÁV ---
 RSS_ZDROJE = [
@@ -161,66 +154,6 @@ def zjisti_stav_trhu(timezone_str, open_hour, close_hour):
     except:
         return "N/A", False
 
-# --- PDF GENERATOR ---
-def clean_text(text):
-    replacements = {
-        'á': 'a', 'č': 'c', 'ď': 'd', 'é': 'e', 'ě': 'e', 'í': 'i', 'ň': 'n', 'ó': 'o', 'ř': 'r', 'š': 's', 'ť': 't', 'ú': 'u', 'ů': 'u', 'ý': 'y', 'ž': 'z',
-        'Á': 'A', 'Č': 'C', 'Ď': 'D', 'É': 'E', 'Ě': 'E', 'Í': 'I', 'Ň': 'N', 'Ó': 'O', 'Ř': 'R', 'Š': 'S', 'Ť': 'T', 'Ú': 'U', 'Ů': 'U', 'Ý': 'Y', 'Ž': 'Z'
-    }
-    for k, v in replacements.items():
-        text = text.replace(k, v)
-    return text
-
-def vytvor_pdf_report(user, total_czk, cash_usd, profit_czk, data_list):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, clean_text(f"INVESTICNI REPORT: {user}"), ln=True, align='C')
-    
-    pdf.set_font("Arial", size=10)
-    pdf.cell(0, 10, f"Generated: {datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=True, align='C')
-    pdf.ln(10)
-    
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "SOUHRN", ln=True)
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 10, clean_text(f"Celkove jmeni: {total_czk:,.0f} CZK"), ln=True)
-    pdf.cell(0, 10, clean_text(f"Hotovost: {cash_usd:,.0f} USD"), ln=True)
-    pdf.cell(0, 10, clean_text(f"Celkovy zisk/ztrata: {profit_czk:,.0f} CZK"), ln=True)
-    pdf.ln(10)
-    
-    pdf.set_font("Arial", 'B', 10)
-    pdf.set_fill_color(200, 220, 255)
-    pdf.cell(30, 10, "Ticker", 1, 0, 'C', 1)
-    pdf.cell(30, 10, "Kusy", 1, 0, 'C', 1)
-    pdf.cell(40, 10, "Cena (Avg)", 1, 0, 'C', 1)
-    pdf.cell(40, 10, "Hodnota (USD)", 1, 0, 'C', 1)
-    pdf.cell(40, 10, "Zisk (USD)", 1, 1, 'C', 1)
-    
-    pdf.set_font("Arial", size=10)
-    for item in data_list:
-        pdf.cell(30, 10, str(item['Ticker']), 1)
-        pdf.cell(30, 10, f"{item['Kusy']:.2f}", 1)
-        pdf.cell(40, 10, f"{item['Průměr']:.2f}", 1)
-        pdf.cell(40, 10, f"{item['HodnotaUSD']:.0f}", 1)
-        pdf.cell(40, 10, f"{item['Zisk']:.0f}", 1, 1)
-        
-    return pdf.output(dest='S').encode('latin-1', 'replace')
-
-def odeslat_email(prijemce, predmet, telo):
-    try:
-        sender_email = st.secrets["email"]["sender"]
-        sender_password = st.secrets["email"]["password"]
-        msg = MIMEText(telo, 'html')
-        msg['Subject'] = predmet
-        msg['From'] = sender_email
-        msg['To'] = prijemce
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, prijemce, msg.as_string())
-        return True
-    except Exception as e: return f"Chyba: {e}"
-
 @st.cache_data(ttl=3600)
 def ziskej_ceny_hromadne(tickers):
     data = {}
@@ -258,96 +191,3 @@ def ziskej_info(ticker):
         if api_curr and api_curr != "N/A": mena = api_curr
         return price, mena, zmena
     except Exception: return None, mena, 0
-
-# --- FINANČNÍ FUNKCE ---
-def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_year=252):
-    if returns.empty or returns.std() == 0:
-        return 0.0
-    daily_risk_free_rate = risk_free_rate / periods_per_year
-    excess_returns = returns - daily_risk_free_rate
-    sharpe_ratio = np.sqrt(periods_per_year) * (excess_returns.mean() / returns.std())
-    return sharpe_ratio
-
-# --- 1. STYLOVÁNÍ PRO PLOTLY (Interaktivní) ---
-def make_plotly_cyberpunk(fig):
-    """Aplikuje Cyberpunk skin na Plotly graf bezpečně podle typu trace."""
-    neon_green = "#00FF99"
-    dark_bg = "rgba(0,0,0,0)"
-    grid_color = "#30363D"
-
-    # Layout styling (bezpečné, univerzální)
-    try:
-        fig.update_layout(
-            paper_bgcolor=dark_bg,
-            plot_bgcolor=dark_bg,
-            font=dict(color=neon_green, family="Courier New"),
-            xaxis=dict(gridcolor=grid_color, zerolinecolor=grid_color, showline=True, linecolor=grid_color),
-            yaxis=dict(gridcolor=grid_color, zerolinecolor=grid_color, showline=True, linecolor=grid_color),
-            legend=dict(bgcolor=dark_bg, bordercolor=grid_color, borderwidth=1),
-            hovermode="x unified"
-        )
-    except Exception:
-        pass
-
-    # Aplikuj styl selektivně podle typu trace
-    try:
-        for t in fig.data:
-            t_type = getattr(t, "type", None)
-
-            # PIE: obrys se nastavuje přes marker.line
-            if t_type == "pie":
-                try:
-                    current_marker = dict(t.marker) if getattr(t, "marker", None) is not None else {}
-                    current_marker["line"] = dict(width=3, color=neon_green)
-                    t.marker = current_marker
-                except Exception:
-                    try:
-                        t.marker = {"line": dict(width=3, color=neon_green)}
-                    except Exception:
-                        pass
-
-            # Trace, které běžně podporují line
-            elif t_type in ("scatter", "bar", "line", "ohlc", "candlestick"):
-                try:
-                    t.line = dict(width=3, color=neon_green)
-                except Exception:
-                    pass
-
-            # Fallback: pokud má trace marker, pokusíme se nastavit marker.line
-            else:
-                try:
-                    if hasattr(t, "marker"):
-                        m = dict(t.marker) if getattr(t, "marker", None) is not None else {}
-                        m["line"] = dict(width=3, color=neon_green)
-                        t.marker = m
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    return fig
-
-# --- 2. STYLOVÁNÍ PRO MATPLOTLIB (Statické) ---
-def make_matplotlib_cyberpunk(fig, ax):
-    """Aplikuje Cyberpunk skin na Matplotlib Figure a Axes."""
-    neon_green = "#00FF99"
-    dark_bg = "#0E1117"
-    text_color = "#00FF99"
-    grid_color = "#30363D"
-
-    fig.patch.set_facecolor(dark_bg)
-    ax.set_facecolor(dark_bg)
-
-    ax.xaxis.label.set_color(text_color)
-    ax.yaxis.label.set_color(text_color)
-    ax.title.set_color(text_color)
-    
-    ax.tick_params(axis='x', colors=text_color)
-    ax.tick_params(axis='y', colors=text_color)
-
-    for spine in ax.spines.values():
-        spine.set_edgecolor(grid_color)
-
-    ax.grid(True, color=grid_color, linestyle='--', linewidth=0.5, alpha=0.5)
-    
-    return fig

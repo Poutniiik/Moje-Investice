@@ -8,11 +8,11 @@ import yfinance as yf
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from utils import make_plotly_cyberpunk
+from src.ui.components.charts import make_plotly_cyberpunk
 from github import Github
 from io import StringIO
 from datetime import datetime, timedelta
-from utils import make_matplotlib_cyberpunk
+from src.ui.components.charts import make_matplotlib_cyberpunk
 import matplotlib.pyplot as plt
 import hashlib
 import time
@@ -29,18 +29,22 @@ import extra_streamlit_components as stx
 import random
 import pytz
 from styles import get_css
-from data_manager import (
+from src.config import (
     REPO_NAZEV, SOUBOR_DATA, SOUBOR_UZIVATELE, SOUBOR_HISTORIE,
     SOUBOR_CASH, SOUBOR_VYVOJ, SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY,
-    RISK_FREE_RATE,
+    RISK_FREE_RATE
+)
+from data_manager import (
     get_repo, zasifruj, uloz_csv, uloz_csv_bezpecne, nacti_csv,
     uloz_data_uzivatele, nacti_uzivatele
 )
-from utils import (
+from src.services.market_data import (
     ziskej_fear_greed, ziskej_zpravy, ziskej_yield, ziskej_earnings_datum,
-    ziskej_detail_akcie, zjisti_stav_trhu, vytvor_pdf_report, odeslat_email,
-    ziskej_ceny_hromadne, ziskej_kurzy, ziskej_info, calculate_sharpe_ratio
+    ziskej_detail_akcie, zjisti_stav_trhu,
+    ziskej_ceny_hromadne, ziskej_kurzy, ziskej_info
 )
+from src.services.reporting import vytvor_pdf_report
+from src.utils.helpers import odeslat_email, calculate_sharpe_ratio
 from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis,
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
