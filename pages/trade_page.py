@@ -17,15 +17,15 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
     
     # --- 1. HLAVNÍ OBCHODNÍ KARTA ---
     with st.container(border=True):
-        mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
+        mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed", key="trade_mode_radio")
         st.divider()
         
         c1, c2 = st.columns([1, 1])
         with c1:
             if mode == "🔴 PRODEJ" and not df.empty:
-                ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
+                ticker_input = st.selectbox("Ticker", df['Ticker'].unique(), key="ticker_select_sell")
             else:
-                ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
+                ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR", key="ticker_input_buy").upper()
         
         # Live Data
         current_price, menu, denni_zmena = 0, "USD", 0
@@ -48,10 +48,14 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
 
         st.write("")
         col_qty, col_price = st.columns(2)
+        
+        # Použijeme klíč závislý na tickeru, aby se cena resetovala při změně akcie
+        widget_key_suffix = f"{ticker_input}_{mode}"
+        
         with col_qty:
-            qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f")
+            qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f", key=f"qty_{widget_key_suffix}")
         with col_price:
-            limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1)
+            limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1, key=f"price_{widget_key_suffix}")
 
         total_est = qty * limit_price
         zustatek = zustatky.get(menu, 0)
@@ -65,15 +69,20 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
                 
                 if zustatek >= total_est:
                     c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
-                    if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
+                    
+                    # Unikátní klíč pro tlačítko, aby se nemíchalo s jinými stavy
+                    if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True, key=f"btn_buy_{widget_key_suffix}"):
                         # Voláme funkci - ta zajistí restart při úspěchu (v hlavním souboru)
-                        ok, msg = proved_nakup_fn(ticker_input, qty, limit_price, USER)
-                        if not ok: st.error(msg)
+                        res = proved_nakup_fn(ticker_input, qty, limit_price, USER)
+                        # Ošetření návratové hodnoty (pokud by se náhodou nerestartovalo)
+                        if res and isinstance(res, tuple):
+                            ok, msg = res
+                            if not ok: st.error(msg)
                 else:
                     c_info2.error(f"Chybí: {total_est - zustatek:,.2f} {menu}")
-                    st.button("🚫 Nedostatek prostředků", disabled=True, use_container_width=True)
+                    st.button("🚫 Nedostatek prostředků", disabled=True, use_container_width=True, key="btn_no_funds")
             else:
-                st.button("Zadej množství", disabled=True, use_container_width=True)
+                st.button("Zadej množství", disabled=True, use_container_width=True, key="btn_enter_qty")
 
         else: # PRODEJ
             if total_est > 0:
@@ -83,15 +92,16 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
                 
                 if curr_qty >= qty:
                     c_info2.success(f"Máš: {curr_qty} ks")
-                    if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True):
-                        # Voláme funkci - ta zajistí restart při úspěchu (v hlavním souboru)
-                        ok, msg = proved_prodej_fn(ticker_input, qty, limit_price, USER, menu)
-                        if not ok: st.error(msg)
+                    if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True, key=f"btn_sell_{widget_key_suffix}"):
+                        res = proved_prodej_fn(ticker_input, qty, limit_price, USER, menu)
+                        if res and isinstance(res, tuple):
+                            ok, msg = res
+                            if not ok: st.error(msg)
                 else:
                     c_info2.error(f"Máš jen: {curr_qty} ks")
-                    st.button("🚫 Nedostatek akcií", disabled=True, use_container_width=True)
+                    st.button("🚫 Nedostatek akcií", disabled=True, use_container_width=True, key="btn_no_stock")
             else:
-                st.button("Zadej množství", disabled=True, use_container_width=True)
+                st.button("Zadej množství", disabled=True, use_container_width=True, key="btn_enter_qty_sell")
 
     # --- 2. SEKCE PRO SPRÁVU PENĚZ ---
     st.write("")
@@ -100,15 +110,18 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
     # SMĚNÁRNA 
     with c_ex1:
         with st.expander("💱 SMĚNÁRNA", expanded=False):
-            am = st.number_input("Částka", 0.0, step=100.0)
+            am = st.number_input("Částka", 0.0, step=100.0, key="exchange_amount")
             fr = st.selectbox("Z", ["CZK", "USD", "EUR"], key="s_z")
             to = st.selectbox("Do", ["USD", "CZK", "EUR"], key="s_do")
             
-            if st.button("💱 Směnit", use_container_width=True):
-                if zustatky.get(fr, 0) >= am:
-                    # Voláme funkci - ta zajistí restart při úspěchu (v hlavním souboru)
-                    ok, msg = proved_smenu_fn(am, fr, to, USER)
-                    if not ok: st.error(msg)
+            if st.button("💱 Směnit", use_container_width=True, key="btn_exchange"):
+                if zustatky.get(fr, 0) >= am and am > 0:
+                    res = proved_smenu_fn(am, fr, to, USER)
+                    if res and isinstance(res, tuple):
+                        ok, msg = res
+                        if not ok: st.error(msg)
+                elif am <= 0:
+                    st.warning("Zadej částku.")
                 else:
                     st.error("Chybí prostředky")
 
@@ -116,11 +129,11 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
     with c_ex2:
         with st.expander("💰 VKLAD & VÝBĚR (Peněženka)", expanded=False):
             st.info("Zde si můžeš ručně dobít nebo vybrat virtuální hotovost.")
-            op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
-            v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
-            v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
+            op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed", key="manual_op")
+            v_a = st.number_input("Částka", 0.0, step=500.0, key="manual_amount")
+            v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="manual_currency")
             
-            if st.button(f"Provést {op}", use_container_width=True):
+            if st.button(f"Provést {op}", use_container_width=True, key="btn_manual_exec"):
                 sign = 1 if op == "Vklad" else -1
                 if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
                     st.error("Nedostatek prostředků")
