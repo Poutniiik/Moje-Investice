@@ -11,10 +11,9 @@ from datetime import datetime
 import pytz
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
-# Importujeme konstantu z data_manageru
-from data_manager import RISK_FREE_RATE 
 
-# --- ZDE BYL PROBLÉM (Smazali jsme řádek 'from utils import...') ---
+# --- ODSTRANĚN IMPORT Z DATA_MANAGER (Abychom předešli kruhové chybě) ---
+# RISK_FREE_RATE si načteme lokálně uvnitř funkce, která ho potřebuje.
 
 # --- ZDROJE ZPRÁV ---
 RSS_ZDROJE = [
@@ -262,8 +261,16 @@ def ziskej_info(ticker):
         return price, mena, zmena
     except Exception: return None, mena, 0
 
-# --- FINANČNÍ FUNKCE ---
-def calculate_sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, periods_per_year=252):
+# --- FINANČNÍ FUNKCE (Zde jsme upravili import) ---
+def calculate_sharpe_ratio(returns, risk_free_rate=None, periods_per_year=252):
+    # Bezpečný import uvnitř funkce, aby se soubory nehádaly na začátku
+    if risk_free_rate is None:
+        try:
+            from data_manager import RISK_FREE_RATE
+            risk_free_rate = RISK_FREE_RATE
+        except ImportError:
+            risk_free_rate = 0.04 # Fallback, kdyby import selhal
+            
     if returns.empty or returns.std() == 0:
         return 0.0
     daily_risk_free_rate = risk_free_rate / periods_per_year
@@ -304,7 +311,7 @@ def make_matplotlib_cyberpunk(fig, ax):
     return fig
 
 # =========================================================
-# 👇 BRIDGE (MŮSTEK): PROPOJENÍ STARÝCH NÁZVŮ S NOVÝMI 👇
+# 👇 BRIDGE (MŮSTEK) - ZAJIŠTĚNÍ FUNKČNOSTI 👇
 # =========================================================
 cached_ceny_hromadne = ziskej_ceny_hromadne
 cached_kurzy = ziskej_kurzy
