@@ -135,10 +135,16 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
     if not user_df.empty:
         user_df['Owner'] = str(username)
         full_df = pd.concat([full_df, user_df], ignore_index=True)
-    uloz_csv(full_df, nazev_souboru, f"Update {username}")
+    
+    # --- ZDE BYLA CHYBA ---
+    # Musíš napsat "uspech =", aby se výsledek uložil do proměnné!
+    uspech = uloz_csv(full_df, nazev_souboru, f"Update {username}")
+    
+    # Teď už proměnná 'uspech' existuje a můžeš ji zkontrolovat
     if not uspech:
-        # Tímto donutíme funkci proved_nakup/pridat_dividendu, aby spadla do "except" bloku
+        # Tímto vyvoláme chybu, kterou uvidíš v aplikaci
         raise Exception(f"CRITICAL: Selhal zápis do souboru {nazev_souboru}! Zkontroluj GitHub Token.")
+        
     st.cache_data.clear()
 
 def nacti_uzivatele(): 
