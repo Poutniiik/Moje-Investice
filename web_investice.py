@@ -108,6 +108,19 @@ def invalidate_data_core():
         # Nastavíme timestamp do minulosti, čímž vyprší 5minutový limit
         st.session_state['data_core']['timestamp'] = datetime.now() - timedelta(minutes=6)
 
+def force_reload_from_disk():
+    """
+    Kritická funkce pro opravu chyby s aktualizací.
+    Smaže DataFramy ze session_state, čímž donutí aplikaci 
+    načíst čerstvá data ze souboru (po uložení) při příštím rerun().
+    """
+    keys_to_clear = ['df', 'df_cash', 'df_div', 'df_hist', 'df_watch', 'data_core']
+    for k in keys_to_clear:
+        if k in st.session_state:
+            del st.session_state[k]
+    
+    st.cache_data.clear()
+
 # --- OPRAVA 1: CACHOVANÁ INICIALIZACE AI (Aby se nevolala pořád dokola) ---
 @st.cache_resource(show_spinner="Připojuji neurální sítě...")
 def get_cached_ai_connection():
@@ -170,7 +183,7 @@ def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
 
 def pridat_dividendu(ticker, castka, mena, user):
     """
-    OPRAVENÁ FUNKCE: Přidání dividendy s vynuceným REFRESH (F5).
+    OPRAVENÁ FUNKCE: Přidání dividendy s FORCE RELOAD z disku.
     """
     # 1. Načteme aktuální stav (vždy pracujeme s kopií)
     df_div = st.session_state['df_div'].copy()
@@ -203,24 +216,21 @@ def pridat_dividendu(ticker, castka, mena, user):
     
     # 6. Ukládání s kontrolou
     try:
-        # A) Uložit do souboru (GitHub)
+        # A) Uložit do souboru (GitHub/Disk)
         uloz_data_uzivatele(updated_div, user, SOUBOR_DIVIDENDY)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
-        # B) Aktualizovat paměť (Session State)
-        st.session_state['df_div'] = updated_div
-        st.session_state['df_cash'] = df_cash_temp
+        # B) UPDATE STATE STRATEGIE: "VYMAZAT A ZNOVU NAČÍST"
+        # Místo abychom ručně aktualizovali st.session_state (což může být chybové),
+        # prostě ho smažeme. Hlavní smyčka v main() pak zjistí, že chybí, a načte
+        # čerstvá data přímo z disku (která jsme právě uložili).
+        force_reload_from_disk()
         
-        # C) Reset cache výpočtů
-        invalidate_data_core()
-        st.cache_data.clear() 
-        
-        # D) VYNUCENÝ RERUN (Automatické F5)
-        # Zobrazíme notifikaci a restartujeme
+        # C) VYNUCENÝ RERUN (Automatické F5)
         msg = f"✅ ÚSPĚCH: Připsáno {castka:,.2f} {mena} od {ticker}!"
         st.toast(msg, icon="💰")
-        time.sleep(0.8) # Krátká pauza, aby si uživatel všiml toastu
-        st.rerun() # <--- TOTO JE TA KLÍČOVÁ OPRAVA
+        time.sleep(1.0) # Dáme chvíli na zobrazení toastu
+        st.rerun() 
         
         return True, msg
     except Exception as e:
@@ -248,16 +258,14 @@ def proved_nakup(ticker, kusy, cena, user):
             uloz_data_uzivatele(df_p, user, SOUBOR_DATA)
             uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
             
-            # Aktualizace Session State AŽ PO ÚSPĚCHU
-            st.session_state['df'] = df_p
-            st.session_state['df_cash'] = df_cash_temp
-            invalidate_data_core()
+            # Strategie: Vymazat paměť a vynutit načtení z disku
+            force_reload_from_disk()
             
             # D) VYNUCENÝ RERUN
             msg = f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
             st.toast(msg, icon="🛒")
-            time.sleep(0.8)
-            st.rerun() # <--- RESTART APLIKACE PRO OKAMŽITOU AKTUALIZACI
+            time.sleep(1.0)
+            st.rerun() 
             
             return True, msg
         except Exception as e:
@@ -318,17 +326,14 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
         uloz_data_uzivatele(df_h, user, SOUBOR_HISTORIE)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
-        # Aktualizace Session State AŽ PO ÚSPĚCHU
-        st.session_state['df'] = df_p_novy
-        st.session_state['df_hist'] = df_h
-        st.session_state['df_cash'] = df_cash_temp
-        invalidate_data_core()
+        # Strategie: Vymazat paměť a vynutit načtení z disku
+        force_reload_from_disk()
         
         # D) VYNUCENÝ RERUN
         msg = f"Prodáno! +{trzba:,.2f} {final_mena} (Zisk: {zisk:,.2f})"
         st.toast(msg, icon="💸")
-        time.sleep(0.8)
-        st.rerun() # <--- RESTART
+        time.sleep(1.0)
+        st.rerun() 
         
         return True, msg
     except Exception as e:
@@ -370,14 +375,15 @@ def proved_smenu(castka, z_meny, do_meny, user):
     # 5. Uložení
     try:
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
-        st.session_state['df_cash'] = df_cash_temp
-        invalidate_data_core()
+        
+        # Strategie: Vymazat paměť a vynutit načtení z disku
+        force_reload_from_disk()
         
         # D) VYNUCENÝ RERUN
         msg = f"✅ Směněno: {castka} {z_meny} -> {vysledna:,.2f} {do_meny}"
         st.toast(msg, icon="💱")
-        time.sleep(0.8)
-        st.rerun() # <--- RESTART
+        time.sleep(1.0)
+        st.rerun() 
         
         return True, msg
     except Exception as e:
