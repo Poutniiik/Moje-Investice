@@ -284,7 +284,7 @@ def main():
         st.metric("Celkové jmění", f"{celk_hod_czk:,.0f} CZK", delta=None)
         
         st.markdown("---")
-        menu = stx.option_menu(None, ["Přehled", "Analýza", "Zprávy", "Obchod & Peníze", "Dividendy", "Gamifikace", "Nastavení"], 
+        menu = option_menu(None, ["Přehled", "Analýza", "Zprávy", "Obchod & Peníze", "Dividendy", "Gamifikace", "Nastavení"], 
             icons=["house", "graph-up", "newspaper", "wallet", "gem", "controller", "gear"], 
             default_index=0, orientation="vertical")
         
@@ -333,6 +333,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
