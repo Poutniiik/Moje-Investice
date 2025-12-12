@@ -10,5 +10,3 @@ disableWidgetStateDuplicationWarning = true
 headless = true
 enableCORS = false
 enableXsrfProtection = false
-[github]
-token = "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"
