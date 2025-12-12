@@ -13,16 +13,13 @@ from utils import (
     cached_fear_greed, cached_zpravy, ziskej_info, zjisti_stav_trhu
 )
 from ai_brain import ask_ai_guard, generate_rpg_story, get_chat_response
-from logic_portfolio import (
-    pridat_do_watchlistu, odebrat_z_watchlistu, pridat_dividendu, 
-    proved_nakup, proved_prodej, proved_smenu, pohyb_penez, 
-    get_task_progress, RPG_TASKS, get_zustatky
-)
 import bank_engine
 import notification_engine as notify
 from data_manager import SOUBOR_DATA, SOUBOR_HISTORIE, SOUBOR_CASH, SOUBOR_DIVIDENDY, SOUBOR_WATCHLIST, uloz_data_uzivatele, nacti_csv, nacti_uzivatele, zasifruj, uloz_csv, SOUBOR_UZIVATELE
 import io
 import zipfile
+
+# --- ZDE JSME SMAZALI IMPORT Z LOGIC_PORTFOLIO (bude uvnitř funkcí) ---
 
 # --- UI HELPERY ---
 def render_ticker_tape(data_dict):
@@ -145,22 +142,17 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
 
     st.write("")
     with st.container(border=True):
-        st.subheader("🌊 TOK KAPITÁLU (Sankey)")
-        # ... (Sankey logika zkrácena pro čitelnost, logika zůstává stejná jako v původním) ...
-        st.info("Zobrazení toku kapitálu vyžaduje více místa, prozatím zjednodušeno.")
-        # Zde by se vložil původní Sankey kód, pokud je potřeba
-
-    st.write("")
-    with st.container(border=True):
         c_head, c_check = st.columns([4, 1])
         c_head.subheader("📋 PORTFOLIO LIVE")
         st.session_state['show_portfolio_live'] = c_check.checkbox("Zobrazit", value=st.session_state['show_portfolio_live'])
-        
         if st.session_state['show_portfolio_live'] and not vdf.empty:
             st.dataframe(vdf, use_container_width=True, hide_index=True)
         elif vdf.empty: st.info("Portfolio je prázdné.")
 
 def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST):
+    # LOCAL IMPORT (Abychom se vyhnuli kruhové závislosti)
+    from logic_portfolio import pridat_do_watchlistu, odebrat_z_watchlistu
+
     st.title("👀 WATCHLIST (Hlídač) – Cenové zóny")
     with st.expander("➕ Přidat novou akcii", expanded=False):
         with st.form("add_w", clear_on_submit=True):
@@ -182,8 +174,10 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST
     else: st.info("Zatím nic nesleduješ.")
 
 def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
+    # LOCAL IMPORT
+    from logic_portfolio import pridat_dividendu
+
     st.title("💎 DIVIDENDOVÝ KALENDÁŘ")
-    # ... (Zkrácená verze pro logiku výpočtu, UI zůstává) ...
     st.metric("CELKEM VYPLACENO (CZK)", f"{df_div['Castka'].sum():,.0f} (Hrubý odhad)" if not df_div.empty else "0")
     
     t_div1, t_div2, t_div3 = st.tabs(["HISTORIE VÝPLAT", "❄️ EFEKT SNĚHOVÉ KOULE", "PŘIDAT DIVIDENDU"])
@@ -202,6 +196,9 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
                 st.success("Připsáno!"); time.sleep(1); st.rerun()
 
 def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
+    # LOCAL IMPORT
+    from logic_portfolio import get_task_progress, RPG_TASKS
+
     st.title("🎮 INVESTIČNÍ ARÉNA")
     with st.container(border=True):
         c_lev1, c_lev2 = st.columns([3, 1])
@@ -223,27 +220,4 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
         current, target, progress_text = get_task_progress(task_state['id'], df, df_w, zustatky, vdf)
         with st.container(border=True):
              st.write(f"**{original_task['title']}** - {progress_text}")
-             st.progress(min(current/target, 1.0))
-
-    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
-        st.divider(); st.subheader("🎲 DENNÍ ZÁPIS")
-        if st.button("🎲 GENEROVAT PŘÍBĚH"):
-             st.info("AI píše příběh...")
-
-def render_obchod_page(USER, df, zustatky, LIVE_DATA, kurzy):
-    st.title("💸 OBCHODNÍ PULT")
-    with st.container(border=True):
-        mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True)
-        ticker_input = st.selectbox("Ticker", df['Ticker'].unique()) if mode == "🔴 PRODEJ" and not df.empty else st.text_input("Ticker").upper()
-        
-        c1, c2 = st.columns(2)
-        qty = c1.number_input("Počet kusů", min_value=0.0, step=1.0)
-        price = c2.number_input("Cena za kus", min_value=0.0, step=0.1)
-        
-        if st.button("PROVÉST TRANSAKCI", type="primary", use_container_width=True):
-             if mode == "🟢 NÁKUP": 
-                 ok, msg = proved_nakup(ticker_input, qty, price, USER)
-             else: 
-                 ok, msg = proved_prodej(ticker_input, qty, price, USER, "USD") # Zjednodušeno
-             if ok: st.success(msg); time.sleep(1); st.rerun()
-             else: st.error(msg)
+             st.progress
