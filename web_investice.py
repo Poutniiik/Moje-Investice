@@ -220,16 +220,13 @@ def pridat_dividendu(ticker, castka, mena, user):
         uloz_data_uzivatele(updated_div, user, SOUBOR_DIVIDENDY)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
-        # B) UPDATE STATE STRATEGIE: "VYMAZAT A ZNOVU NAČÍST"
-        # Místo abychom ručně aktualizovali st.session_state (což může být chybové),
-        # prostě ho smažeme. Hlavní smyčka v main() pak zjistí, že chybí, a načte
-        # čerstvá data přímo z disku (která jsme právě uložili).
+        # B) UPDATE STATE STRATEGIE
         force_reload_from_disk()
         
-        # C) VYNUCENÝ RERUN (Automatické F5)
+        # C) VYNUCENÝ RERUN (Dividendy necháme s Rerun, protože v dividends_page nemají počítadlo)
         msg = f"✅ ÚSPĚCH: Připsáno {castka:,.2f} {mena} od {ticker}!"
         st.toast(msg, icon="💰")
-        time.sleep(1.0) # Dáme chvíli na zobrazení toastu
+        time.sleep(1.0)
         st.rerun() 
         
         return True, msg
@@ -238,6 +235,10 @@ def pridat_dividendu(ticker, castka, mena, user):
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ NÁKUPU ---
 def proved_nakup(ticker, kusy, cena, user):
+    """
+    FIX: Tato funkce již NEVOLÁ st.rerun(), pouze vrací výsledek.
+    Řízení přebírá stránka (trade_page.py), která navýší počítadlo a provede rerun.
+    """
     df_p = st.session_state['df'].copy()
     df_cash_temp = st.session_state['df_cash'].copy()
     
@@ -261,11 +262,9 @@ def proved_nakup(ticker, kusy, cena, user):
             # Strategie: Vymazat paměť a vynutit načtení z disku
             force_reload_from_disk()
             
-            # D) VYNUCENÝ RERUN
+            # OPRAVA: Pouze vrátíme True a zprávu. ŽÁDNÝ RERUN ZDE!
             msg = f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
             st.toast(msg, icon="🛒")
-            time.sleep(1.0)
-            st.rerun() 
             
             return True, msg
         except Exception as e:
@@ -275,6 +274,9 @@ def proved_nakup(ticker, kusy, cena, user):
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ PRODEJE ---
 def proved_prodej(ticker, kusy, cena, user, mena_input):
+    """
+    FIX: Tato funkce již NEVOLÁ st.rerun(), pouze vrací výsledek.
+    """
     df_p = st.session_state['df'].copy()
     df_h = st.session_state['df_hist'].copy()
     df_cash_temp = st.session_state['df_cash'].copy()
@@ -329,11 +331,9 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
         # Strategie: Vymazat paměť a vynutit načtení z disku
         force_reload_from_disk()
         
-        # D) VYNUCENÝ RERUN
+        # OPRAVA: Pouze vrátíme True a zprávu. ŽÁDNÝ RERUN ZDE!
         msg = f"Prodáno! +{trzba:,.2f} {final_mena} (Zisk: {zisk:,.2f})"
         st.toast(msg, icon="💸")
-        time.sleep(1.0)
-        st.rerun() 
         
         return True, msg
     except Exception as e:
@@ -341,6 +341,9 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ SMĚNY ---
 def proved_smenu(castka, z_meny, do_meny, user):
+    """
+    FIX: Tato funkce již NEVOLÁ st.rerun(), pouze vrací výsledek.
+    """
     # 1. Získání kurzů (Bezpečnější metoda s pojistkou)
     if 'data_core' in st.session_state and 'kurzy' in st.session_state['data_core']:
         kurzy = st.session_state['data_core']['kurzy']
@@ -379,11 +382,9 @@ def proved_smenu(castka, z_meny, do_meny, user):
         # Strategie: Vymazat paměť a vynutit načtení z disku
         force_reload_from_disk()
         
-        # D) VYNUCENÝ RERUN
+        # OPRAVA: Pouze vrátíme True a zprávu. ŽÁDNÝ RERUN ZDE!
         msg = f"✅ Směněno: {castka} {z_meny} -> {vysledna:,.2f} {do_meny}"
         st.toast(msg, icon="💱")
-        time.sleep(1.0)
-        st.rerun() 
         
         return True, msg
     except Exception as e:
@@ -920,9 +921,14 @@ def main():
                 k_cli = float(cmd_parts[2])
                 p_cli, m_cli, _ = ziskej_info(t_cli)
                 if p_cli:
+                    # FIX: Zde proved_nakup NEVOLÁ rerun, musíme to udělat my (CLI logika)
                     ok, msg = proved_nakup(t_cli, k_cli, p_cli, USER)
                     msg_text = msg
                     msg_icon = "✅" if ok else "❌"
+                    # Pro CLI můžeme udělat invalidate + rerun
+                    invalidate_data_core()
+                    st.session_state['cli_msg'] = (msg_text, msg_icon)
+                    st.rerun() # CLI vyžaduje rerun
                 else:
                     msg_text = "❌ Chyba ceny"
                     msg_icon = "⚠️"
@@ -932,9 +938,13 @@ def main():
                 k_cli = float(cmd_parts[2])
                 p_cli, m_cli, _ = ziskej_info(t_cli)
                 if p_cli:
+                    # FIX: Zde proved_prodej NEVOLÁ rerun, musíme to udělat my
                     ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m_cli)
                     msg_text = msg
                     msg_icon = "✅" if ok else "❌"
+                    invalidate_data_core()
+                    st.session_state['cli_msg'] = (msg_text, msg_icon)
+                    st.rerun()
                 else:
                     msg_text = "❌ Chyba ceny"
                     msg_icon = "⚠️"
