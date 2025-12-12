@@ -8,9 +8,7 @@ from data_manager import (
     SOUBOR_DATA, SOUBOR_CASH, SOUBOR_HISTORIE, SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY, SOUBOR_VYVOJ,
     uloz_data_uzivatele, nacti_csv, uloz_csv
 )
-# (Odstranili jsme "pohyb_penez as dm_pohyb_penez", protože to v data_manageru není)
 
-from utils import ziskej_info, cached_ceny_hromadne, cached_detail_akcie, cached_kurzy, ziskej_yield, ziskej_fear_greed
 
 # --- POMOCNÉ FUNKCE PRO CACHE ---
 def invalidate_data_core():
