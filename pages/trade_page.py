@@ -1,5 +1,5 @@
 # =========================================================================
-# SOUBOR: pages/trade_page.py
+# SOUBOR: pages/trade_page.py (Verze: Callback Stable Fix)
 # =========================================================================
 import streamlit as st
 import pandas as pd
@@ -13,22 +13,75 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
     
     st.title("💸 OBCHODNÍ PULT")
     
-    # 1. Získání ID transakce (Pokud neexistuje, založíme ho)
+    # 1. Inicializace počítadla transakcí (State)
     if 'tx_counter' not in st.session_state:
         st.session_state['tx_counter'] = 0
         
     tx_id = st.session_state['tx_counter']
-    
+
+    # --- CALLBACK FUNKCE (Spouští se PŘED překreslením stránky) ---
+    # Tyto funkce se zavolají, když uživatel klikne na tlačítko.
+    # Zajistí provedení obchodu a OKAMŽITOU inkrementaci počítadla.
+
+    def callback_nakup(ticker, qty, limit):
+        # 1. Volání logiky obchodu
+        ok, msg = proved_nakup_fn(ticker, qty, limit, USER)
+        if ok:
+            # 2. Inkrementace = Reset formuláře pro příště
+            st.session_state['tx_counter'] += 1
+            # 3. Invalidace dat
+            if invalidate_data_core_fn: invalidate_data_core_fn()
+        else:
+            # Pokud chyba, uložíme si zprávu do session state, abychom ji zobrazili
+            st.session_state['trade_error'] = msg
+
+    def callback_prodej(ticker, qty, limit, curr):
+        ok, msg = proved_prodej_fn(ticker, qty, limit, USER, curr)
+        if ok:
+            st.session_state['tx_counter'] += 1
+            if invalidate_data_core_fn: invalidate_data_core_fn()
+        else:
+            st.session_state['trade_error'] = msg
+
+    def callback_smena(amt, fr, to):
+        res = proved_smenu_fn(amt, fr, to, USER)
+        # Ošetření návratu (funkce vrací tuple nebo bool?)
+        if isinstance(res, tuple): ok, msg = res
+        else: ok, msg = res, "Info"
+        
+        if ok:
+            st.session_state['tx_counter'] += 1
+            if invalidate_data_core_fn: invalidate_data_core_fn()
+        else:
+            st.session_state['trade_error'] = msg
+
+    def callback_vklad(amt, cur, op):
+        sign = 1 if op == "Vklad" else -1
+        # Tady musíme volat přímo, funkce vklad/vyber vrací DF
+        # Ale pozor: nemůžeme měnit df_cash přímo v callbacku bez vrácení
+        # Proto zde uděláme logiku přímo v callbacku
+        
+        # Toto je trochu hack, protože pohyb_penez_fn vrací nový DF.
+        # Pro čistotu to uděláme v hlavním těle, ale reset counteru zde.
+        pass # Vklad necháme postaru, ten fungoval, nebo ho přepíšeme níže
+
+
+    # --- ZOBRAZENÍ CHYB Z CALLBACKU ---
+    if 'trade_error' in st.session_state and st.session_state['trade_error']:
+        st.error(st.session_state['trade_error'])
+        st.session_state['trade_error'] = None # Vymazat po zobrazení
+
+
+    # --- UI ---
     with st.container(border=True):
-        # Používáme tx_id v klíči, aby se při nové transakci resetoval i výběr režimu, 
-        # nebo můžeme nechat statický klíč, pokud chceme zachovat volbu. 
-        # Zde nechávám statický pro plynulost, dynamické jsou inputy dole.
         mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed", key="mode_selection")
         st.divider()
         
         c1, c2 = st.columns([1, 1])
         with c1:
-            # Dynamické klíče (f"..._{tx_id}") zajistí vyčištění pole po transakci
+            # Používáme statický klíč pro výběr (aby se neměnil při psaní),
+            # ale hodnotu můžeme resetovat v session_state, pokud chceme.
+            # Zde necháme inputy, ať si žijí, resetuje je až tx_counter v jejich klíči.
             if mode == "🔴 PRODEJ" and not df.empty:
                 ticker_input = st.selectbox("Ticker", df['Ticker'].unique(), key=f"sel_{tx_id}")
             else:
@@ -49,6 +102,7 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
         
         c_q, c_p = st.columns(2)
         with c_q: 
+            # Klíče obsahují tx_id -> po změně counteru se vytvoří nové inputy (čisté)
             qty = st.number_input("Kusy", min_value=0.0, step=1.0, key=f"qty_{tx_id}")
         with c_p: 
             limit = st.number_input("Cena/ks", value=float(price), key=f"lim_{tx_id}")
@@ -58,49 +112,41 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
         
         st.info(f"Celkem: {total:,.2f} {curr} | Máš: {balance:,.2f} {curr}")
         
-        # --- LOGIKA TLAČÍTEK S FIXEM PRO REFRESH ---
+        # --- TLAČÍTKA (S POUŽITÍM CALLBACKŮ) ---
         if mode == "🟢 NÁKUP":
-            if total > 0 and balance >= total:
-                if st.button(f"KOUPIT {ticker_input}", type="primary", use_container_width=True, key=f"btn_buy_{tx_id}"):
-                    # 1. Volání funkce (předpokládáme, že funkce vrátí výsledek a neudělá hned rerun)
-                    proved_nakup_fn(ticker_input, qty, limit, USER)
-                    
-                    # 2. Inkrementace counteru = RESET FORMULÁŘE
-                    st.session_state['tx_counter'] += 1
-                    
-                    # 3. Invalidace dat (načtení nových zůstatků)
-                    if invalidate_data_core_fn:
-                        invalidate_data_core_fn()
-                        
-                    # 4. Rerun pro update UI
-                    st.success(f"Koupeno {qty} ks {ticker_input}")
-                    time.sleep(0.5) # Malá pauza pro efekt
-                    st.rerun()
-                    
-            elif total > 0:
-                st.error("Nedostatek prostředků")
-                
+            btn_disabled = False
+            if total <= 0: btn_disabled = True
+            
+            # Tlačítko nyní volá 'on_click' místo aby vracelo True/False
+            st.button(
+                f"KOUPIT {ticker_input}", 
+                type="primary", 
+                use_container_width=True, 
+                key=f"btn_buy_{tx_id}",
+                disabled=btn_disabled,
+                on_click=callback_nakup,
+                args=(ticker_input, qty, limit) # Předáme aktuální hodnoty do callbacku
+            )
+            
+            if total > 0 and balance < total:
+                st.warning(f"⚠️ Pozor: Nedostatek prostředků (Chybí {total-balance:,.2f})")
+
         else: # PRODEJ
             held = df[df['Ticker']==ticker_input]['Pocet'].sum() if not df.empty else 0
             st.caption(f"Držíš: {held} ks")
-            if total > 0 and held >= qty:
-                if st.button(f"PRODAT {ticker_input}", type="primary", use_container_width=True, key=f"btn_sell_{tx_id}"):
-                    proved_prodej_fn(ticker_input, qty, limit, USER, curr)
-                    
-                    # STEJNÁ LOGIKA JAKO U NÁKUPU
-                    st.session_state['tx_counter'] += 1
-                    
-                    if invalidate_data_core_fn:
-                        invalidate_data_core_fn()
-                        
-                    st.success(f"Prodáno {qty} ks {ticker_input}")
-                    time.sleep(0.5)
-                    st.rerun()
-                    
-            elif total > 0:
-                st.error("Nedostatek akcií")
-            else:
-                st.button("Zadej množství", disabled=True, use_container_width=True, key="btn_disabled_qty_sell")
+            
+            btn_sell_disabled = False
+            if total <= 0 or held < qty: btn_sell_disabled = True
+            
+            st.button(
+                f"PRODAT {ticker_input}", 
+                type="primary", 
+                use_container_width=True, 
+                key=f"btn_sell_{tx_id}",
+                disabled=btn_sell_disabled,
+                on_click=callback_prodej,
+                args=(ticker_input, qty, limit, curr)
+            )
 
     # --- 2. SEKCE PRO SPRÁVU PENĚZ ---
     st.write("")
@@ -109,48 +155,40 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
     # SMĚNÁRNA 
     with c_ex1:
         with st.expander("💱 SMĚNÁRNA", expanded=False):
-            # I zde přidáme tx_id pro jistotu, aby se inputy čistily
             am = st.number_input("Částka", 0.0, step=100.0, key=f"exch_amt_{tx_id}")
             fr = st.selectbox("Z", ["CZK", "USD", "EUR"], key=f"exch_fr_{tx_id}")
             to = st.selectbox("Do", ["USD", "CZK", "EUR"], key=f"exch_to_{tx_id}")
             
-            if st.button("💱 Směnit", use_container_width=True, key=f"btn_exch_{tx_id}"):
-                if zustatky.get(fr, 0) >= am and am > 0:
-                    res = proved_smenu_fn(am, fr, to, USER)
-                    # Ošetření návratové hodnoty
-                    if res and isinstance(res, tuple):
-                        ok, msg = res
-                    else:
-                        ok, msg = True, "Provedeno" # Fallback
-                        
-                    if ok:
-                        st.session_state['tx_counter'] += 1
-                        if invalidate_data_core_fn: invalidate_data_core_fn()
-                        st.success("Směna OK")
-                        st.rerun()
-                    else:
-                        st.error(msg)
-                elif am <= 0:
-                    st.warning("Zadej částku.")
-                else:
-                    st.error("Chybí prostředky")
+            st.button(
+                "💱 Směnit", 
+                use_container_width=True, 
+                key=f"btn_exch_{tx_id}",
+                on_click=callback_smena,
+                args=(am, fr, to)
+            )
 
-    # MANUÁLNÍ VKLAD
+    # MANUÁLNÍ VKLAD (Zde necháme starší logiku, pokud fungovala, nebo mírně upravíme)
     with st.expander("💰 PENĚŽENKA (Vklad/Výběr)"):
         m_op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, key=f"m_op_{tx_id}")
         m_amt = st.number_input("Částka", 0.0, step=500.0, key=f"m_amt_{tx_id}")
         m_cur = st.selectbox("Měna", ["CZK", "USD", "EUR"], key=f"m_cur_{tx_id}")
         
+        # Zde použijeme přímou logiku, protože funkce 'pohyb_penez_fn' vrací DataFrame
+        # a to se hůře cpe do callbacku bez přístupu ke globálním proměnným.
         if st.button("Provést", key=f"m_btn_{tx_id}"):
             sign = 1 if m_op == "Vklad" else -1
             df_new = pohyb_penez_fn(m_amt * sign, m_cur, m_op, "Manual", USER, df_cash)
             
-            # Manuální update
+            # Manuální update Session State
             st.session_state['df_cash'] = df_new
+            # Uložení (musíme importovat konstanty, pokud nejsou v kontextu, 
+            # ale 'uloz_data_uzivatele' není v args... moment, data_manager import)
+            
+            # Hack: uložíme to přes session state a rerun to vyřeší v main() nebo zde
             from data_manager import SOUBOR_CASH, uloz_data_uzivatele
             uloz_data_uzivatele(df_new, USER, SOUBOR_CASH)
             
-            # Inkrementace counteru a rerun
             st.session_state['tx_counter'] += 1
             if invalidate_data_core_fn: invalidate_data_core_fn()
+            st.success("Hotovo")
             st.rerun()
