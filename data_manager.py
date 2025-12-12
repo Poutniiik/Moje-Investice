@@ -5,17 +5,10 @@ from io import StringIO
 import hashlib
 import time
 from datetime import datetime
-
-# --- KONSTANTY (Databáze) ---
-REPO_NAZEV = "Poutniiik/Moje-Investice" 
-SOUBOR_DATA = "portfolio_data.csv"
-SOUBOR_UZIVATELE = "users_db.csv"
-SOUBOR_HISTORIE = "history_data.csv"
-SOUBOR_CASH = "cash_data.csv"
-SOUBOR_VYVOJ = "value_history.csv"
-SOUBOR_WATCHLIST = "watchlist.csv"
-SOUBOR_DIVIDENDY = "dividends.csv"
-RISK_FREE_RATE = 0.04 # <--- PŘIDÁNO: Bezriziková úroková míra (např. 4%)
+from src.config import (
+    REPO_NAZEV, SOUBOR_DATA, SOUBOR_UZIVATELE, SOUBOR_HISTORIE,
+    SOUBOR_CASH, SOUBOR_VYVOJ, SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY
+)
 
 # --- PŘIPOJENÍ (GitHub) ---
 # Logika se přesunula sem, aby neznečišťovala main.py
