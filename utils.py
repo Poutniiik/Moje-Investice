@@ -304,9 +304,14 @@ def make_matplotlib_cyberpunk(fig, ax):
 # =========================================================
 # 👇 BRIDGE (MŮSTEK): PROPOJENÍ STARÝCH NÁZVŮ S NOVÝMI 👇
 # =========================================================
-# Tyto aliasy zajistí, že když aplikace volá 'cached_...', 
-# dostane správnou funkci, i když se jmenuje jinak.
+# Zde byla chyba - ujisti se, že máš tento konec souboru přesně takto:
 
 cached_ceny_hromadne = ziskej_ceny_hromadne
 cached_kurzy = ziskej_kurzy
-cached_fear_greed = ziskej
+cached_fear_greed = ziskej_fear_greed
+cached_zpravy = ziskej_zpravy
+
+# Specialita pro detail akcie
+@st.cache_data(ttl=3600)
+def cached_detail_akcie(ticker):
+    return ziskej_detail_akcie(ticker)
