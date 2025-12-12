@@ -1,10 +1,11 @@
 # =========================================================================
-# SOUBOR: pages/trade_page.py (VERZE: STABILNÍ FORMULÁŘ)
+# SOUBOR: pages/trade_page.py
 # =========================================================================
 import streamlit as st
 import pandas as pd
 import time
 import utils
+from data_manager import SOUBOR_HISTORIE, uloz_data_uzivatele
 
 def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy, 
                proved_nakup_fn, proved_prodej_fn, proved_smenu_fn, 
@@ -12,118 +13,88 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
     
     st.title("💸 OBCHODNÍ PULT")
 
-    # 1. Čítač transakcí (Pro kompletní reset formuláře po odeslání)
+    # 1. Čítač transakcí
     if 'tx_counter' not in st.session_state:
         st.session_state['tx_counter'] = 0
     
-    # Tento klíč se změní po každé úspěšné transakci -> vyčistí formulář
     form_key = f"trade_form_{st.session_state['tx_counter']}"
 
-    # --- HORNÍ ČÁST (Výběr Tickeru - MUSÍ BÝT MIMO FORMULÁŘ PRO LIVE UPDATE) ---
+    # --- HORNÍ ČÁST ---
     with st.container(border=True):
         mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, key="main_mode")
         st.divider()
         
-        # Ticker a Cena jsou mimo formulář, aby se cena aktualizovala hned, jak napíšeš ticker
         c1, c2 = st.columns([1, 1])
         with c1:
-            if mode == "🔴 PRODEJ" and not df.empty:
-                ticker_input = st.selectbox("Ticker", df['Ticker'].unique(), key="global_ticker_select")
-            else:
-                ticker_input = st.text_input("Ticker", placeholder="např. AAPL", key="global_ticker_input").upper()
-        
-        # Live Cena Logic
-        price, curr = 0, "USD"
-        if ticker_input:
-            info = LIVE_DATA.get(ticker_input, {})
-            price = info.get('price', 0)
-            curr = info.get('curr', 'USD')
-            if price == 0:
-                with st.spinner(f"Hledám cenu pro {ticker_input}..."):
-                    p, m, _ = utils.ziskej_info(ticker_input)
-                    if p: price, curr = p, m
-        
-        if price > 0:
-            with c2: 
-                st.markdown(f"### {price:,.2f} {curr}")
-                st.caption("Aktuální tržní cena")
-        
-        st.divider()
+            ticker_input = st.text_input("Ticker (např. AAPL)", key="t_input").upper().strip()
+        with c2:
+            current_price = 0.0
+            if ticker_input:
+                with st.spinner("Hledám cenu..."):
+                    info, _ = utils.cached_detail_akcie(ticker_input)
+                    if info:
+                        current_price = info.get('currentPrice', 0)
+                        st.metric("Aktuální cena", f"${current_price}")
+                    else:
+                        st.warning("Nenalezeno")
 
-        # --- FORMULÁŘ PRO ZADÁNÍ MNOŽSTVÍ A POTVRZENÍ ---
-        # Tady začíná "bezpečná zóna". Nic se neodešle samo.
-        with st.form(key=form_key, clear_on_submit=True):
-            st.write(f"Zadání objednávky ({mode}):")
-            
-            c_q, c_p = st.columns(2)
-            with c_q: 
-                qty = st.number_input("Počet kusů", min_value=0.0, step=1.0)
-            with c_p: 
-                limit = st.number_input("Cena za kus", value=float(price) if price > 0 else 0.0)
-            
-            # Info o celkové ceně (v rámci formu se neaktualizuje dynamicky, 
-            # ale uživatel to vidí odhadem, přesná kalkulace proběhne po stisku)
-            st.caption("Poznámka: Celková cena se vypočte při odeslání.")
+    # --- FORMULÁŘ OBCHODU ---
+    with st.form(key=form_key):
+        c_f1, c_f2 = st.columns(2)
+        with c_f1:
+            qty = st.number_input("Počet kusů", min_value=0.01, step=1.0)
+        with c_f2:
+            manual_price = st.number_input("Cena za kus (USD)", value=float(current_price), min_value=0.0)
+        
+        note = st.text_input("Poznámka / Strategie")
+        sector = st.selectbox("Sektor", ["Tech", "Finance", "Energy", "Health", "Cons. Disc", "Cons. Stap", "Real Estate", "Utility", "Materials", "Industrial", "Comms", "ETF/Index", "Crypto", "Jiny"])
 
-            # Tlačítko uvnitř formuláře
-            submit_label = f"POTVRDIT {mode.split()[1]}"
-            submitted = st.form_submit_button(submit_label, type="primary", use_container_width=True)
+        submit = st.form_submit_button("✅ POTVRDIT OBCHOD")
+
+        if submit:
+            cost = qty * manual_price
             
-            if submitted:
-                # --- TADY SE DĚJE AKCE PO KLIKNUTÍ ---
-                if qty <= 0:
-                    st.error("Musíš zadat počet kusů větší než 0.")
-                elif limit <= 0:
-                    st.error("Cena musí být větší než 0.")
+            if mode == "🟢 NÁKUP":
+                # Kontrola zůstatku
+                dostupne_usd = zustatky.get("USD", 0) + (zustatky.get("CZK", 0) / kurzy["CZK"])
+                if cost > dostupne_usd:
+                    st.error(f"❌ Nedostatek prostředků! Potřebuješ ${cost:.2f}, máš ${dostupne_usd:.2f}")
                 else:
-                    # Rozcestník Nákup/Prodej
-                    success = False
-                    msg = ""
+                    # 1. STRHNOUT PENÍZE (Optimistic)
+                    # Vytvoříme řádek pro cash
+                    cash_row = {
+                        "Typ": "Nákup",
+                        "Castka": -float(cost),
+                        "Mena": "USD",
+                        "Poznamka": f"{ticker_input}",
+                        "Datum": str(pd.Timestamp.now()),
+                        "Owner": USER
+                    }
+                    # Voláme callback pro změnu peněz
+                    if proved_smenu_fn:
+                        proved_smenu_fn(cash_row, USER)
                     
-                    if mode == "🟢 NÁKUP":
-                        success, msg = proved_nakup_fn(ticker_input, qty, limit, USER)
-                    else:
-                        success, msg = proved_prodej_fn(ticker_input, qty, limit, USER, curr)
+                    # 2. PŘIDAT AKCII (Optimistic)
+                    stock_row = {
+                        "Ticker": ticker_input,
+                        "Pocet": float(qty),
+                        "Cena": float(manual_price),
+                        "Datum": str(pd.Timestamp.now()),
+                        "Owner": USER,
+                        "Sektor": sector,
+                        "Poznamka": note
+                    }
                     
-                    # Vyhodnocení
-                    if success:
-                        st.success(msg)
-                        # DŮLEŽITÉ: Zvýšíme counter -> Při příštím načtení bude mít formulář 
-                        # nový klíč a bude PRÁZDNÝ.
-                        st.session_state['tx_counter'] += 1
-                        
-                        # Invalidace cache dat
-                        if invalidate_data_core_fn: 
-                            invalidate_data_core_fn()
-                        
-                        time.sleep(1) # Krátká pauza pro přečtení zprávy
-                        st.rerun()    # Restart stránky
-                    else:
-                        st.error(msg)
-
-    # --- SMĚNÁRNA (Taky do formuláře pro jistotu) ---
-    with st.expander("💱 SMĚNÁRNA"):
-        with st.form(key=f"exchange_form_{st.session_state['tx_counter']}"):
-            c_ex1, c_ex2, c_ex3 = st.columns(3)
-            with c_ex1: am = st.number_input("Částka", 0.0, step=100.0)
-            with c_ex2: fr = st.selectbox("Z měny", ["CZK", "USD", "EUR"])
-            with c_ex3: to = st.selectbox("Do měny", ["USD", "CZK", "EUR"])
-            
-            ex_submit = st.form_submit_button("Směnit", use_container_width=True)
-            
-            if ex_submit:
-                res = proved_smenu_fn(am, fr, to, USER)
-                if isinstance(res, tuple): ok, msg = res
-                else: ok, msg = res, "Info"
-                
-                if ok:
-                    st.success(msg)
                     st.session_state['tx_counter'] += 1
-                    if invalidate_data_core_fn: invalidate_data_core_fn()
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error(msg)
+                    
+                    # Voláme callback pro nákup (ten provede update a rerun)
+                    if proved_nakup_fn:
+                        proved_nakup_fn(stock_row, USER)
+
+            else: # PRODEJ
+                st.info("Prodej je zatím ve vývoji pro novou architekturu.")
+                # Zde by byla logika prodeje, která je složitější na update session_state,
+                # protože se musí modifikovat existující řádky.
 
     # --- MANUÁLNÍ VKLAD (Formulář) ---
     with st.expander("💰 PENĚŽENKA (Vklad/Výběr)"):
@@ -137,16 +108,16 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
             
             if w_submit:
                 sign = 1 if m_op == "Vklad" else -1
-                df_new = pohyb_penez_fn(m_amt * sign, m_cur, m_op, "Manual", USER, df_cash)
                 
-                # Manuální uložení (protože nemáme wrapper funkci ve web_investice pro vklad)
-                # Tohle je bezpečné, protože se děje jen po submitu
-                st.session_state['df_cash'] = df_new
-                from data_manager import SOUBOR_CASH, uloz_data_uzivatele
-                uloz_data_uzivatele(df_new, USER, SOUBOR_CASH)
+                cash_row = {
+                    "Typ": m_op,
+                    "Castka": float(m_amt * sign),
+                    "Mena": m_cur,
+                    "Poznamka": "Manual",
+                    "Datum": str(pd.Timestamp.now()),
+                    "Owner": USER
+                }
                 
-                st.success("Hotovo")
                 st.session_state['tx_counter'] += 1
-                if invalidate_data_core_fn: invalidate_data_core_fn()
-                time.sleep(1)
-                st.rerun()
+                if proved_smenu_fn:
+                    proved_smenu_fn(cash_row, USER)
