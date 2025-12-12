@@ -39,66 +39,20 @@ def get_repo():
 def zasifruj(text): 
     return hashlib.sha256(str(text).encode()).hexdigest()
 
-# --- DATABÁZOVÉ FUNKCE (CRUD) ---
-
-def uloz_csv_bezpecne(df, nazev_souboru, zprava):
-    repo = get_repo()
-    if not repo:
-        st.error("❌ CRITICAL: Nelze se připojit ke GitHubu. Data NEULOŽENA! Zkontroluj token.")
-        return False
-
-    csv_content = df.to_csv(index=False)
-    
-    pokusy = 3
-    for i in range(pokusy):
-        try:
-            contents = repo.get_contents(nazev_souboru)
-            repo.update_file(contents.path, zprava, csv_content, contents.sha)
-            return True 
-        except Exception as e:
-            if "404" in str(e):
-                try:
-                    repo.create_file(nazev_souboru, zprava, csv_content)
-                    return True
-                except Exception as create_err:
-                    st.warning(f"⚠️ Pokus {i+1}/{pokusy}: Chyba vytvoření: {create_err}")
-            else:
-                st.warning(f"⚠️ Pokus {i+1}/{pokusy}: GitHub neodpovídá... ({e})")
-                time.sleep(1)
-    
-    st.error(f"❌ CHYBA UKLÁDÁNÍ: Soubor {nazev_souboru} se nepodařilo uložit.")
-    return False
-
-def uloz_csv(df, nazev_souboru, zprava):
-    return uloz_csv_bezpecne(df, nazev_souboru, zprava)
-
+# --- ČTENÍ DAT ---
+# Odstranili jsme @st.cache_data, protože cachování řešíme nyní v session_state ve web_investice.py
 def nacti_csv(nazev_souboru):
+    repo = get_repo()
+    if not repo: return pd.DataFrame()
+    
     try:
-        repo = get_repo()
-        if not repo: raise Exception("No repo")
-        file = repo.get_contents(nazev_souboru)
-        df = pd.read_csv(StringIO(file.decoded_content.decode("utf-8")))
-        
-        for col in ['Datum', 'Date']:
-            if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
-        for col in ['Pocet', 'Cena', 'Castka', 'Kusu', 'Prodejka', 'Zisk', 'TotalUSD', 'Investice', 'Target', 'TargetBuy', 'TargetSell']:
-            if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
-            
-        if nazev_souboru == SOUBOR_WATCHLIST:
-             if 'Target' in df.columns and 'TargetBuy' not in df.columns: df['TargetBuy'] = df['Target']
-             if 'TargetBuy' not in df.columns: df['TargetBuy'] = 0.0
-             if 'TargetSell' not in df.columns: df['TargetSell'] = 0.0
-             if 'Target' in df.columns: df = df.drop(columns=['Target'])
-             cols = ["Ticker", "TargetBuy", "TargetSell", "Owner"]
-        
-        if nazev_souboru == SOUBOR_DATA:
-            if 'Sektor' not in df.columns: df['Sektor'] = "Doplnit"
-            if 'Poznamka' not in df.columns: df['Poznamka'] = ""
-        
-        if 'Owner' not in df.columns: df['Owner'] = "admin"
-        df['Owner'] = df['Owner'].astype(str)
+        content = repo.get_contents(nazev_souboru)
+        csv_data = content.decoded_content.decode("utf-8")
+        df = pd.read_csv(StringIO(csv_data))
+        if 'Owner' in df.columns: df['Owner'] = df['Owner'].astype(str)
         return df
     except Exception:
+        # Definice sloupců pro prázdné soubory
         cols = ["Ticker", "Pocet", "Cena", "Datum", "Owner", "Sektor", "Poznamka"]
         if nazev_souboru == SOUBOR_HISTORIE: cols = ["Ticker", "Kusu", "Prodejka", "Zisk", "Mena", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_CASH: cols = ["Typ", "Castka", "Mena", "Poznamka", "Datum", "Owner"]
@@ -109,21 +63,39 @@ def nacti_csv(nazev_souboru):
         return pd.DataFrame(columns=cols)
 
 def uloz_data_uzivatele(user_df, username, nazev_souboru):
+    """
+    Stáhne aktuální CSV z GitHubu, odstraní stará data uživatele,
+    připojí nová data uživatele a nahraje zpět.
+    """
     full_df = nacti_csv(nazev_souboru)
-    full_df = full_df[full_df['Owner'] != str(username)]
+    
+    # Odstraníme stará data uživatele (aby nedošlo k duplicitám při celkovém přepsání, 
+    # NEBO pokud appendujeme jen jeden řádek, musíme to dělat jinak. 
+    # V naší logice "df" v appce držíme všechna data uživatele. 
+    # Takže bezpečné je: vzít full_df, vymazat usera, a přidat jeho aktuální verzi.)
+    
+    # POZOR: Pokud user_df obsahuje jen JEDEN NOVÝ řádek (při optimalizaci),
+    # tak bychom neměli mazat všechna jeho data.
+    # Ale naše "web_investice" callbacky posílají jen ten jeden řádek.
+    # Takže musíme APPENDOVAT.
     
     if not user_df.empty:
         user_df['Owner'] = str(username)
+        # Zde je změna pro efektivitu - prostě připojíme na konec
         full_df = pd.concat([full_df, user_df], ignore_index=True)
     
-    uspech = uloz_csv(full_df, nazev_souboru, f"Update {username}")
-    
-    if not uspech:
-        raise Exception(f"CRITICAL: Selhal zápis do souboru {nazev_souboru}!")
-        
-    # --- ZDE BYLA CHYBA: MAZÁNÍ CACHE ZPOMALUJE APLIKACI ---
-    # st.cache_data.clear()  <-- SMAZÁNO PRO RYCHLOST
-    # Spoléháme na Session State pro okamžité zobrazení
+    uloz_csv(full_df, nazev_souboru)
 
-def nacti_uzivatele(): 
-    return nacti_csv(SOUBOR_UZIVATELE)
+def uloz_csv(df, nazev_souboru):
+    repo = get_repo()
+    if not repo: return
+    try:
+        content = repo.get_contents(nazev_souboru)
+        repo.update_file(content.path, f"Update {nazev_souboru}", df.to_csv(index=False), content.sha)
+    except Exception:
+        repo.create_file(nazev_souboru, f"Create {nazev_souboru}", df.to_csv(index=False))
+
+def nacti_uzivatele():
+    df = nacti_csv(SOUBOR_UZIVATELE)
+    if df.empty: return {}
+    return df.set_index("username").T.to_dict()
