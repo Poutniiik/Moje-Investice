@@ -1,1 +1,2 @@
-
+# Ignoruj složku s tajemstvím
+.streamlit/secrets.toml
