@@ -1,5 +1,3 @@
-# Ignoruj složku s tajemstvím
-.streamlit/secrets.toml
-
 # Ignoruj pomocné soubory Pythonu (nepotřebujeme je na webu)
+
 __pycache__/
