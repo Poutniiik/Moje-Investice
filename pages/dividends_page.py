@@ -49,16 +49,11 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
         d_amt = st.number_input("Částka (Netto)", min_value=0.0, step=0.1)
     with c2:
         d_curr = st.selectbox("Měna", ["USD", "CZK", "EUR"])
-        st.write("")
-        st.write("")
+        d_date = st.date_input("Datum připsání")
         
-        # Tlačítko
-        if st.button("💾 ULOŽIT", type="primary", use_container_width=True):
-            if d_amt > 0:
-                # Voláme funkci. Pokud vrátí True, sama provede restart.
-                # Pokud vrátí False, vypíšeme chybu zde.
-                ok, msg = pridat_dividendu_fn(d_tick, d_amt, d_curr, USER)
-                if not ok:
-                    st.error(f"Chyba: {msg}")
-            else:
-                st.warning("Zadej částku.")
+    if st.button("💾 Uložit Dividendu", type="primary", use_container_width=True):
+        if d_amt > 0:
+            # VOLÁME CALLBACK z web_investice.py
+            pridat_dividendu_fn(d_tick, d_amt, d_curr, d_date, USER)
+        else:
+            st.error("Částka musí být > 0")
