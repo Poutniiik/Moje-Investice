@@ -104,22 +104,13 @@ def proved_nakup_callback(new_row_dict, user):
     uloz_data_uzivatele(df_new_row, user, SOUBOR_DATA)
     
     # 3. Záznam do historie (volitelné, ale dobré)
-    # (Zde zjednodušujeme, historie se ukládá v rámci trade_page logiky do souboru historie,
-    # ale pokud chceme čistotu, měli bychom historii taky řešit přes state)
-    
     st.toast(f"✅ Akcie {new_row_dict['Ticker']} přidána do portfolia (Lokální update).")
     time.sleep(0.5)
     st.rerun()
 
 def proved_prodej_callback(ticker, kusy_k_prodeji, user):
-    """Callback pro prodej akcie."""
-    df = st.session_state['df']
-    
-    # Logika prodeje (najít řádky, odečíst kusy)
-    # Zde musíme být opatrní, protože logika prodeje je složitější (FIFO).
-    # Pro jednoduchost zavoláme přeuložení celého DF, které upraví trade_page.
-    # Ale trade_page musí vrátit NOVÝ dataframe.
-    pass # Logika je implementována přímo v trade_page, zde jen placeholder
+    """Callback pro prodej akcie (Placeholder - logika je v trade_page)."""
+    pass 
 
 def update_cash_callback(new_cash_row, user):
     """Callback pro změnu hotovosti."""
@@ -150,7 +141,7 @@ def pridat_dividendu_callback(ticker, castka, mena, datum, user):
     time.sleep(0.5)
     st.rerun()
 
-# --- 3. PŘIHLÁŠENÍ ---
+# --- 3. PŘIHLÁŠENÍ A REGISTRACE ---
 def login_screen():
     st.markdown("""
     <style>
@@ -163,20 +154,66 @@ def login_screen():
     with c2:
         st.markdown("<div class='login-container'>", unsafe_allow_html=True)
         st.title("🔐 TERMINAL PRO")
-        st.markdown("Invstiční systém v2.5")
+        st.markdown("Invstiční systém v2.6")
         
-        username = st.text_input("Identifikátor", placeholder="Zadej své jméno...")
-        password = st.text_input("Přístupový kód", type="password", placeholder="••••••")
+        # Taby pro Přihlášení / Registraci
+        tab_login, tab_register = st.tabs(["Přihlášení", "Nová Registrace"])
         
-        if st.button("AUTORIZOVAT PŘÍSTUP"):
-            users_db = nacti_uzivatele()
-            if username in users_db and users_db[username]["password"] == hashlib.sha256(password.encode()).hexdigest():
-                st.session_state['user'] = username
-                st.success(f"Vítej zpět, {username}!")
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.error("❌ Přístup zamítnut.")
+        with tab_login:
+            username = st.text_input("Identifikátor", placeholder="Zadej své jméno...", key="login_user")
+            password = st.text_input("Přístupový kód", type="password", placeholder="••••••", key="login_pass")
+            
+            if st.button("AUTORIZOVAT PŘÍSTUP", key="btn_login"):
+                with st.spinner("Ověřuji biometrická data..."):
+                    users_db = nacti_uzivatele()
+                    # Fallback pro případ prázdné DB - pokud je DB prázdná a uživatel je 'admin', pustíme ho, aby si mohl založit data
+                    if not users_db and username == "admin" and password == "admin":
+                        st.session_state['user'] = username
+                        st.success("⚠️ Nouzový režim aktivován (Prázdná DB).")
+                        time.sleep(1)
+                        st.rerun()
+                    
+                    elif username in users_db and users_db[username]["password"] == hashlib.sha256(password.encode()).hexdigest():
+                        st.session_state['user'] = username
+                        st.success(f"Vítej zpět, {username}!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Přístup zamítnut.")
+
+        with tab_register:
+            st.info("Vytvoř si nový profil pro přístup do systému.")
+            reg_user = st.text_input("Nové jméno", key="reg_user")
+            reg_pass = st.text_input("Nové heslo", type="password", key="reg_pass")
+            reg_key = st.text_input("Recovery klíč (nepovinné)", key="reg_key")
+            
+            if st.button("VYTVOŘIT ÚČET", key="btn_reg"):
+                if reg_user and reg_pass:
+                    with st.spinner("Zapisuji do blockchainu..."):
+                        # 1. Načíst existující uživatele (DataFrame formát)
+                        current_users_df = nacti_csv(SOUBOR_UZIVATELE)
+                        
+                        # 2. Kontrola duplicity
+                        if not current_users_df.empty and reg_user in current_users_df['username'].values:
+                            st.error("❌ Tento uživatel již existuje.")
+                        else:
+                            # 3. Vytvoření hashe a nového řádku
+                            hashed_pw = hashlib.sha256(reg_pass.encode()).hexdigest()
+                            new_user_data = {
+                                "username": reg_user,
+                                "password": hashed_pw,
+                                "recovery_key": reg_key if reg_key else "0000"
+                            }
+                            
+                            new_row = pd.DataFrame([new_user_data])
+                            updated_df = pd.concat([current_users_df, new_row], ignore_index=True)
+                            
+                            # 4. Uložení
+                            uloz_csv(updated_df, SOUBOR_UZIVATELE)
+                            st.success(f"✅ Účet {reg_user} vytvořen! Nyní se přihlas.")
+                else:
+                    st.warning("Vyplň jméno a heslo.")
+
         st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 4. HLAVNÍ APLIKACE ---
@@ -195,8 +232,6 @@ def main():
     init_data_state()
     
     # Vytáhnutí dat ze session_state pro použití v appce
-    # (Filtrujeme pro aktuálního usera, aby se mu nepletla data ostatních,
-    # ale stále pracujeme nad session_state DataFramy při zápisu)
     df_raw = st.session_state['df']
     df_cash_raw = st.session_state['df_cash']
     df_watch_raw = st.session_state['df_watch']
