@@ -15,7 +15,6 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
     if data_to_use:
         for item in data_to_use:
             yld = float(item.get('Divi', 0) or 0)
-            # Podpora pro 'Hodnota' i 'HodnotaUSD'
             val = float(item.get('HodnotaUSD', item.get('Hodnota', 0)) or 0)
             if yld > 0 and val > 0:
                 est_annual_income_czk += (val * yld) * kurzy.get("CZK", 20.85)
@@ -39,10 +38,9 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
 
     st.divider()
 
-    # --- 3. PŘIDAT DIVIDENDU (Finální verze) ---
+    # --- 3. PŘIDAT DIVIDENDU ---
     st.header("💰 PŘIPSAT DIVIDENDU")
     
-    # Seznam tickerů
     t_list = df['Ticker'].unique().tolist() if not df.empty else ["Jiny"]
     
     c1, c2 = st.columns(2)
@@ -57,14 +55,10 @@ def dividends_page(USER, df, df_div, kurzy, viz_data_list, pridat_dividendu_fn):
         # Tlačítko
         if st.button("💾 ULOŽIT", type="primary", use_container_width=True):
             if d_amt > 0:
-                # Volání funkce přes opravený kabel
+                # Voláme funkci. Pokud vrátí True, sama provede restart.
+                # Pokud vrátí False, vypíšeme chybu zde.
                 ok, msg = pridat_dividendu_fn(d_tick, d_amt, d_curr, USER)
-                
-                if ok:
-                    st.success("✅ ULOŽENO!")
-                    time.sleep(1)
-                    st.rerun() # Restart, aby se data hned ukázala v tabulce nahoře
-                else:
+                if not ok:
                     st.error(f"Chyba: {msg}")
             else:
                 st.warning("Zadej částku.")
