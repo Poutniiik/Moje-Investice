@@ -122,7 +122,7 @@ def get_cached_ai_connection():
         print(f"Chyba init_ai: {e}")
         return None, False
 
-# --- DATABÁZE A TRANSAKČNÍ FUNKCE (Zachovány) ---
+# --- DATABÁZE A TRANSAKČNÍ FUNKCE ---
 def pridat_do_watchlistu(ticker, target_buy, target_sell, user):
     df_w = st.session_state['df_watch']
     if ticker not in df_w['Ticker'].values:
@@ -144,11 +144,7 @@ def get_zustatky(user):
     if df_cash.empty: return {}
     return df_cash.groupby('Mena')['Castka'].sum().to_dict()
 
-# --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
-# Najdi původní definici pohyb_penez a nahraď ji touto (je to stejné jako v tvém kódu, jen pro jistotu):
-# --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
-# SOUBOR: web_investice.py
-
+# --- ATOMICKÁ FUNKCE: POHYB PENĚZ ---
 def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
     """
     Provede pohyb peněz - OPRAVENO: Bezpečný zápis data.
@@ -174,7 +170,7 @@ def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
 
 def pridat_dividendu(ticker, castka, mena, user):
     """
-    OPRAVENÁ FUNKCE: Přidání dividendy s vynucením formátů pro prázdné tabulky.
+    OPRAVENÁ FUNKCE: Přidání dividendy s vynuceným REFRESH (F5).
     """
     # 1. Načteme aktuální stav (vždy pracujeme s kopií)
     df_div = st.session_state['df_div'].copy()
@@ -199,18 +195,15 @@ def pridat_dividendu(ticker, castka, mena, user):
         updated_div = pd.concat([df_div, novy], ignore_index=True)
 
     # 4. KLÍČOVÁ OPRAVA: Vynucení formátu DATA po spojení
-    # Bez tohoto kroku se datum v prázdné tabulce změní na text a filtr roku ho nenajde.
     updated_div['Datum'] = pd.to_datetime(updated_div['Datum'], errors='coerce')
     
     # 5. Provedeme pohyb peněz (připsání do peněženky)
-    # Vytvoříme popisek
     poznamka = f"Divi {ticker}"
     df_cash_temp = pohyb_penez(castka, mena, "Dividenda", poznamka, user, df_cash_temp)
     
     # 6. Ukládání s kontrolou
     try:
         # A) Uložit do souboru (GitHub)
-        # Použijeme funkci z data_manageru, která provede merge s ostatními uživateli
         uloz_data_uzivatele(updated_div, user, SOUBOR_DIVIDENDY)
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         
@@ -218,11 +211,18 @@ def pridat_dividendu(ticker, castka, mena, user):
         st.session_state['df_div'] = updated_div
         st.session_state['df_cash'] = df_cash_temp
         
-        # C) Reset cache výpočtů (aby se to projevilo v grafech)
+        # C) Reset cache výpočtů
         invalidate_data_core()
-        st.cache_data.clear() # Pro jistotu vyčistíme i globální cache
+        st.cache_data.clear() 
         
-        return True, f"✅ ÚSPĚCH: Připsáno {castka:,.2f} {mena} od {ticker}!"
+        # D) VYNUCENÝ RERUN (Automatické F5)
+        # Zobrazíme notifikaci a restartujeme
+        msg = f"✅ ÚSPĚCH: Připsáno {castka:,.2f} {mena} od {ticker}!"
+        st.toast(msg, icon="💰")
+        time.sleep(0.8) # Krátká pauza, aby si uživatel všiml toastu
+        st.rerun() # <--- TOTO JE TA KLÍČOVÁ OPRAVA
+        
+        return True, msg
     except Exception as e:
         return False, f"❌ CHYBA ZÁPISU: {str(e)}"
 
@@ -252,9 +252,15 @@ def proved_nakup(ticker, kusy, cena, user):
             st.session_state['df'] = df_p
             st.session_state['df_cash'] = df_cash_temp
             invalidate_data_core()
-            return True, f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
+            
+            # D) VYNUCENÝ RERUN
+            msg = f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
+            st.toast(msg, icon="🛒")
+            time.sleep(0.8)
+            st.rerun() # <--- RESTART APLIKACE PRO OKAMŽITOU AKTUALIZACI
+            
+            return True, msg
         except Exception as e:
-            # Selhal zápis, stav v Session State zůstává starý, nic není poškozen
             return False, f"❌ Chyba zápisu transakce (NÁKUP): {e}"
     else:
         return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
@@ -317,7 +323,14 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
         st.session_state['df_hist'] = df_h
         st.session_state['df_cash'] = df_cash_temp
         invalidate_data_core()
-        return True, f"Prodáno! +{trzba:,.2f} {final_mena} (Zisk: {zisk:,.2f})"
+        
+        # D) VYNUCENÝ RERUN
+        msg = f"Prodáno! +{trzba:,.2f} {final_mena} (Zisk: {zisk:,.2f})"
+        st.toast(msg, icon="💸")
+        time.sleep(0.8)
+        st.rerun() # <--- RESTART
+        
+        return True, msg
     except Exception as e:
         return False, f"❌ Chyba zápisu transakce (PRODEJ): {e}"
 
@@ -359,7 +372,14 @@ def proved_smenu(castka, z_meny, do_meny, user):
         uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
         st.session_state['df_cash'] = df_cash_temp
         invalidate_data_core()
-        return True, f"✅ Směněno: {castka} {z_meny} -> {vysledna:,.2f} {do_meny}"
+        
+        # D) VYNUCENÝ RERUN
+        msg = f"✅ Směněno: {castka} {z_meny} -> {vysledna:,.2f} {do_meny}"
+        st.toast(msg, icon="💱")
+        time.sleep(0.8)
+        st.rerun() # <--- RESTART
+        
+        return True, msg
     except Exception as e:
         return False, f"❌ Chyba zápisu transakce (SMĚNA): {str(e)}"
 
@@ -1076,7 +1096,7 @@ def main():
         st.progress(level_progress)
 
         # --- VLOŽIT DO SIDEBARU (web_investice.py) ---
-       # --- VLOŽIT DO SIDEBARU (web_investice.py) - LEVEL 2 DEBUGGER ---
+        # --- VLOŽIT DO SIDEBARU (web_investice.py) - LEVEL 2 DEBUGGER ---
         st.divider()
         
 
@@ -1243,22 +1263,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
