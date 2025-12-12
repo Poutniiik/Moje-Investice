@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from utils import make_matplotlib_cyberpunk
 import matplotlib.pyplot as plt
 import hashlib
-import option-menu
+from streamlit_option_menu import option_menu
 import time
 import zipfile
 import io
@@ -333,5 +333,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
