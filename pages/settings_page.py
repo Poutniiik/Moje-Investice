@@ -8,7 +8,7 @@ import hashlib
 import time
 import zipfile
 import io
-import extra_streamlit_components as stx
+# ODSTRANĚNO: import extra_streamlit_components as stx (již nepoužíváme, způsobovalo zmatek)
 from datetime import datetime
 
 # Imports z root modulů
@@ -96,7 +96,7 @@ def settings_page(USER, df, df_hist, df_cash, df_div, df_watch, uloz_data_fn, in
             if st.button("Uložit Hotovost", type="primary", key="save_cash"):
                 uloz_data_fn(edited_cash, USER, data_manager.SOUBOR_CASH)
                 invalidate_core_fn()
-                st.toast("Hotovost uložena!")
+                st.success("✅ Hotovost uložena!") # Sjednoceno na success banner
                 time.sleep(1)
                 st.rerun()
 
