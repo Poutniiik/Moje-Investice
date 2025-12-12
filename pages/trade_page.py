@@ -66,7 +66,7 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
                 if zustatek >= total_est:
                     c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
                     if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
-                        # Voláme funkci - ta zajistí restart při úspěchu
+                        # Voláme funkci - ta zajistí restart při úspěchu (v hlavním souboru)
                         ok, msg = proved_nakup_fn(ticker_input, qty, limit_price, USER)
                         if not ok: st.error(msg)
                 else:
@@ -84,6 +84,7 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
                 if curr_qty >= qty:
                     c_info2.success(f"Máš: {curr_qty} ks")
                     if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True):
+                        # Voláme funkci - ta zajistí restart při úspěchu (v hlavním souboru)
                         ok, msg = proved_prodej_fn(ticker_input, qty, limit_price, USER, menu)
                         if not ok: st.error(msg)
                 else:
@@ -105,6 +106,7 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
             
             if st.button("💱 Směnit", use_container_width=True):
                 if zustatky.get(fr, 0) >= am:
+                    # Voláme funkci - ta zajistí restart při úspěchu (v hlavním souboru)
                     ok, msg = proved_smenu_fn(am, fr, to, USER)
                     if not ok: st.error(msg)
                 else:
@@ -125,15 +127,18 @@ def trade_page(USER, df, df_cash, zustatky, LIVE_DATA, kurzy,
                 elif v_a <= 0:
                     st.warning("Zadej částku vyšší než 0")
                 else:
+                    # Zde používáme "optimistickou aktualizaci" lokálně
                     df_cash_new = pohyb_penez_fn(v_a * sign, v_m, op, "Manual", USER, df_cash)
-                    # Manuální update
+                    
+                    # 1. Aktualizace paměti
                     st.session_state['df_cash'] = df_cash_new
                     invalidate_data_core_fn()
                     
-                    # Uložení (manuálně, protože tady nemáme atomickou funkci pro Vklad)
+                    # 2. Uložení (importujeme lokálně, aby to nebylo závislé na vnějšku)
                     from data_manager import SOUBOR_CASH, uloz_data_uzivatele
                     uloz_data_uzivatele(df_cash_new, USER, SOUBOR_CASH)
                     
+                    # 3. Restart
                     st.success("Hotovo")
                     time.sleep(1)
                     st.rerun()
