@@ -129,22 +129,29 @@ def nacti_csv(nazev_souboru):
         if nazev_souboru == SOUBOR_UZIVATELE: cols = ["username", "password", "recovery_key"]
         return pd.DataFrame(columns=cols)
 
+# Soubor: data_manager.py
+
 def uloz_data_uzivatele(user_df, username, nazev_souboru):
+    # 1. Načtení existujících dat
     full_df = nacti_csv(nazev_souboru)
+    
+    # 2. Odstranění starých dat uživatele (aby se nezdvojila)
     full_df = full_df[full_df['Owner'] != str(username)]
+    
+    # 3. Přidání nových dat uživatele
     if not user_df.empty:
         user_df['Owner'] = str(username)
         full_df = pd.concat([full_df, user_df], ignore_index=True)
     
-    # --- ZDE BYLA CHYBA ---
-    # Musíš napsat "uspech =", aby se výsledek uložil do proměnné!
+    # 4. ULOŽENÍ A KONTROLA (Zde byla chyba)
+    # Důležité: Musí tu být "uspech =", jinak Python neví, co kontrolovat
     uspech = uloz_csv(full_df, nazev_souboru, f"Update {username}")
     
-    # Teď už proměnná 'uspech' existuje a můžeš ji zkontrolovat
+    # 5. Pokud se uložení nepovedlo, vyhodíme chybu (aby to aplikace věděla)
     if not uspech:
-        # Tímto vyvoláme chybu, kterou uvidíš v aplikaci
         raise Exception(f"CRITICAL: Selhal zápis do souboru {nazev_souboru}! Zkontroluj GitHub Token.")
         
+    # 6. Vyčištění cache, aby se změny projevily hned
     st.cache_data.clear()
 
 def nacti_uzivatele(): 
