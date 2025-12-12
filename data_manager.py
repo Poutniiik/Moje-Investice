@@ -136,6 +136,9 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
         user_df['Owner'] = str(username)
         full_df = pd.concat([full_df, user_df], ignore_index=True)
     uloz_csv(full_df, nazev_souboru, f"Update {username}")
+    if not uspech:
+        # Tímto donutíme funkci proved_nakup/pridat_dividendu, aby spadla do "except" bloku
+        raise Exception(f"CRITICAL: Selhal zápis do souboru {nazev_souboru}! Zkontroluj GitHub Token.")
     st.cache_data.clear()
 
 def nacti_uzivatele(): 
