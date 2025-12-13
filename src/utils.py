@@ -12,7 +12,7 @@ import pytz
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 # Importujeme konstantu z data_manageru, abychom ji nemuseli definovat znovu
-from data_manager import RISK_FREE_RATE 
+from src.data_manager import RISK_FREE_RATE
 
 # --- ZDROJE ZPRÁV ---
 RSS_ZDROJE = [
@@ -71,6 +71,55 @@ def ziskej_earnings_datum(ticker):
     except Exception:
         pass
     return None
+
+# --- NOVÉ CACHED FUNKCE PRO PERFORMANCE OPTIMALIZACI ---
+
+@st.cache_data(ttl=1800)
+def ziskej_historicka_data(tickers, period, interval="1d"):
+    """
+    Cached wrapper pro stažení historických dat (Close prices).
+    Použito v: Analýza (Srovnání, Korelace, Efficient Frontier)
+    """
+    try:
+        data = yf.download(tickers, period=period, interval=interval, progress=False)['Close']
+        return data
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=3600)
+def ziskej_benchmark_data(ticker, start_date):
+    """
+    Cached wrapper pro stažení benchmarku (např. S&P 500).
+    Použito v: Analýza (Benchmark)
+    """
+    try:
+        data = yf.download(ticker, start=start_date, progress=False)
+        return data
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=3600)
+def ziskej_data_pro_predikci(ticker, period="2y"):
+    """
+    Cached wrapper pro Prophet model (stažení historie).
+    Použito v: Analýza (Věštec)
+    """
+    try:
+        data = yf.download(ticker, period=period, progress=False)
+        return data
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=3600)
+def ziskej_dca_data(ticker, start_date, interval="1mo"):
+    """
+    Cached wrapper pro DCA Backtester.
+    """
+    try:
+        data = yf.download(ticker, start=start_date, interval=interval, progress=False)['Close']
+        return data
+    except Exception:
+        return pd.Series()
 
 # --- POKROČILÉ CACHING FUNKCE PRO RENTGEN ---
 
