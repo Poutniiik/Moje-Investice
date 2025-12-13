@@ -2,7 +2,9 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-from src.services.portfolio_service import cached_fear_greed, ask_ai_guard
+from src.services.portfolio_service import cached_fear_greed
+from src.ai_brain import ask_ai_guard
+from src.utils import ziskej_historicka_data
 import yfinance as yf
 
 def render_ticker_tape(data_dict):
@@ -81,17 +83,19 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
             st.caption("🧭 GLOBÁLNÍ KOMPAS")
             try:
                 makro_tickers = {"🇺🇸 S&P 500": "^GSPC", "🥇 Zlato": "GC=F", "₿ Bitcoin": "BTC-USD", "🏦 Úroky 10Y": "^TNX"}
-                makro_data = yf.download(list(makro_tickers.values()), period="5d", progress=False, auto_adjust=False)['Close']
+                makro_data = ziskej_historicka_data(list(makro_tickers.values()), period="5d")
 
                 mc1, mc2, mc3, mc4 = st.columns(4)
                 cols_list = [mc1, mc2, mc3, mc4]
 
                 for i, (name, ticker) in enumerate(makro_tickers.items()):
                     with cols_list[i]:
-                        if isinstance(makro_data.columns, pd.MultiIndex):
-                            series = makro_data[ticker].dropna() if ticker in makro_data.columns.levels[0] else pd.Series()
-                        else:
-                            series = makro_data[ticker].dropna() if ticker in makro_data.columns else pd.Series()
+                        series = pd.Series()
+                        if not makro_data.empty:
+                            if isinstance(makro_data, pd.DataFrame) and ticker in makro_data.columns:
+                                series = makro_data[ticker].dropna()
+                            elif isinstance(makro_data, pd.Series):
+                                series = makro_data.dropna()
 
                         if not series.empty:
                             last = series.iloc[-1]; prev = series.iloc[-2] if len(series) > 1 else last
@@ -102,7 +106,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                             fig_spark = go.Figure(go.Scatter(y=series.values, mode='lines', line=dict(color=line_color, width=2), fill='tozeroy', fillcolor=f"rgba({'35, 134, 54' if delta >= 0 else '218, 54, 51'}, 0.1)"))
                             fig_spark.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=35, xaxis=dict(visible=False), yaxis=dict(visible=False), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                             st.plotly_chart(fig_spark, use_container_width=True, config={'displayModeBar': False})
-            except Exception: st.error("Chyba kompasu")
+            except Exception as e: st.error(f"Chyba kompasu: {e}")
 
         if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
              with st.container(border=True):
@@ -270,11 +274,25 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
             spark_data = {}
             if tickers_list:
                 try:
-                    batch = yf.download(tickers_list, period="1mo", interval="1d", group_by='ticker', progress=False, auto_adjust=False)
+                    # PŮVODNÍ: batch = yf.download(tickers_list, period="1mo", interval="1d", group_by='ticker', progress=False, auto_adjust=False)
+                    # OPTIMALIZACE:
+                    batch_close = ziskej_historicka_data(tickers_list, period="1mo", interval="1d")
+
                     for t in tickers_list:
-                         if len(tickers_list) > 1 and t in batch.columns.levels[0]: spark_data[t] = batch[t]['Close'].dropna().tolist()
-                         elif len(tickers_list) == 1: spark_data[t] = batch['Close'].dropna().tolist()
-                         else: spark_data[t] = []
+                        # Sparkline logic for ziskej_historicka_data result
+                        if isinstance(batch_close, pd.DataFrame) and t in batch_close.columns:
+                             spark_data[t] = batch_close[t].dropna().tolist()
+                        elif isinstance(batch_close, pd.Series) and batch_close.name == t:
+                             spark_data[t] = batch_close.dropna().tolist()
+                        elif len(tickers_list) == 1 and isinstance(batch_close, pd.Series):
+                             spark_data[t] = batch_close.dropna().tolist()
+                        elif len(tickers_list) == 1 and isinstance(batch_close, pd.DataFrame) and not batch_close.empty:
+                             if t in batch_close.columns:
+                                 spark_data[t] = batch_close[t].dropna().tolist()
+                             else:
+                                 spark_data[t] = batch_close.iloc[:, 0].dropna().tolist()
+                        else:
+                             spark_data[t] = []
                 except: pass
 
             vdf['Trend 30d'] = vdf['Ticker'].map(spark_data)
