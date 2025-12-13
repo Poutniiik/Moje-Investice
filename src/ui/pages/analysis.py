@@ -5,7 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import yfinance as yf
 from datetime import datetime, timedelta
-from src.utils import make_plotly_cyberpunk, ziskej_detail_akcie, ziskej_earnings_datum, calculate_sharpe_ratio
+from src.utils import make_plotly_cyberpunk, ziskej_detail_akcie, ziskej_earnings_datum, calculate_sharpe_ratio, download_stock_history, download_stock_history_from_start
 from src.services.portfolio_service import cached_detail_akcie
 
 def add_download_button(fig, filename):
@@ -196,7 +196,7 @@ def render_analýza_korelace_page(df, kurzy):
         if len(tickers_list) > 1:
             try:
                 with st.spinner("Počítám korelace..."):
-                    hist_data = yf.download(tickers_list, period="1y")['Close']
+                    hist_data = download_stock_history(tickers_list, period="1y")['Close']
                     returns = hist_data.pct_change().dropna()
                     corr_matrix = returns.corr()
 
@@ -404,7 +404,7 @@ def render_analýza_page(df, df_watch, vdf, model, AI_AVAILABLE, kurzy, celk_hod
         if tickers_to_compare:
             try:
                 with st.spinner(f"Stahuji historická data pro {len(tickers_to_compare)} tickerů..."):
-                    raw_data = yf.download(tickers_to_compare, period="1y", interval="1d", progress=False)['Close']
+                    raw_data = download_stock_history(tickers_to_compare, period="1y", interval="1d")['Close']
 
                 if raw_data.empty:
                     st.warning("Nepodařilo se načíst historická data pro vybrané tickery.")
@@ -596,7 +596,7 @@ def render_analýza_page(df, df_watch, vdf, model, AI_AVAILABLE, kurzy, celk_hod
                 try:
                     from prophet import Prophet
                     with st.spinner(f"Trénuji model na datech {pred_ticker}..."):
-                        hist_train = yf.download(pred_ticker, period="2y", progress=False)
+                        hist_train = download_stock_history(pred_ticker, period="2y")
 
                         if not hist_train.empty:
                             if isinstance(hist_train.columns, pd.MultiIndex):
@@ -648,7 +648,8 @@ def render_analýza_page(df, df_watch, vdf, model, AI_AVAILABLE, kurzy, celk_hod
                 with st.spinner("Počítám..."):
                     try:
                         start = datetime.now() - timedelta(days=dca_years*365)
-                        hist = yf.download(dca_ticker, start=start, interval="1mo", progress=False)['Close']
+                        start_str = start.strftime('%Y-%m-%d')
+                        hist = download_stock_history_from_start(dca_ticker, start_date=start_str, interval="1mo")['Close']
                         if isinstance(hist, pd.DataFrame): hist = hist.iloc[:, 0]
                         hist = hist.dropna()
 
@@ -685,7 +686,7 @@ def render_analýza_page(df, df_watch, vdf, model, AI_AVAILABLE, kurzy, celk_hod
                 if st.button("📈 Vypočítat optimální portfolio"):
                     with st.spinner("Simuluji 5000 portfolií..."):
                         try:
-                            data = yf.download(tickers_ef, period="2y", progress=False)['Close']
+                            data = download_stock_history(tickers_ef, period="2y")['Close']
                             returns = np.log(data / data.shift(1)).dropna()
                             results = np.zeros((3, 5000))
                             for i in range(5000):
@@ -806,7 +807,7 @@ def render_analýza_page(df, df_watch, vdf, model, AI_AVAILABLE, kurzy, celk_hod
             if pd.isna(my_sharpe) or np.isinf(my_sharpe): my_sharpe = 0.0
 
             try:
-                sp500 = yf.download("^GSPC", start=start_date, progress=False)
+                sp500 = download_stock_history_from_start("^GSPC", start_date=start_date)
                 if not sp500.empty:
                     if isinstance(sp500.columns, pd.MultiIndex): close_col = sp500['Close'].iloc[:, 0]
                     else: close_col = sp500['Close']
