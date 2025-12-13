@@ -74,7 +74,7 @@ def ziskej_earnings_datum(ticker):
 
 # --- NOVÉ CACHED FUNKCE PRO PERFORMANCE OPTIMALIZACI ---
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=86400)
 def ziskej_historicka_data(tickers, period, interval="1d"):
     """
     Cached wrapper pro stažení historických dat (Close prices).
@@ -86,7 +86,7 @@ def ziskej_historicka_data(tickers, period, interval="1d"):
     except Exception:
         return pd.DataFrame()
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=86400)
 def ziskej_benchmark_data(ticker, start_date):
     """
     Cached wrapper pro stažení benchmarku (např. S&P 500).
@@ -98,7 +98,7 @@ def ziskej_benchmark_data(ticker, start_date):
     except Exception:
         return pd.DataFrame()
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=86400)
 def ziskej_data_pro_predikci(ticker, period="2y"):
     """
     Cached wrapper pro Prophet model (stažení historie).
@@ -110,7 +110,7 @@ def ziskej_data_pro_predikci(ticker, period="2y"):
     except Exception:
         return pd.DataFrame()
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=86400)
 def ziskej_dca_data(ticker, start_date, interval="1mo"):
     """
     Cached wrapper pro DCA Backtester.
