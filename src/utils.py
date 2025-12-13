@@ -103,13 +103,34 @@ def _ziskej_info_cached(ticker):
     }
     return required_info
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=1800, show_spinner=False)
 def _ziskej_historii_cached(ticker):
     try:
         t = yf.Ticker(str(ticker))
         return t.history(period="1y")
     except:
         return None
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def download_stock_history(tickers, period="1y", interval="1d"):
+    """
+    Cached wrapper for yf.download to fetch stock history by period.
+    """
+    try:
+        return yf.download(tickers, period=period, interval=interval, progress=False)
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def download_stock_history_from_start(tickers, start_date, interval="1d"):
+    """
+    Cached wrapper for yf.download to fetch stock history from a start date.
+    start_date must be a string (YYYY-MM-DD) or hashable.
+    """
+    try:
+        return yf.download(tickers, start=start_date, interval=interval, progress=False)
+    except Exception:
+        return pd.DataFrame()
 
 def ziskej_detail_akcie(ticker):
     info = {}
