@@ -81,7 +81,7 @@ def ziskej_historicka_data(tickers, period, interval="1d"):
     Použito v: Analýza (Srovnání, Korelace, Efficient Frontier)
     """
     try:
-        data = yf.download(tickers, period=period, interval=interval, progress=False)['Close']
+        data = yf.download(tickers, period=period, interval=interval, progress=False, auto_adjust=False)['Close']
         return data
     except Exception:
         return pd.DataFrame()
@@ -93,7 +93,7 @@ def ziskej_benchmark_data(ticker, start_date):
     Použito v: Analýza (Benchmark)
     """
     try:
-        data = yf.download(ticker, start=start_date, progress=False)
+        data = yf.download(ticker, start=start_date, progress=False, auto_adjust=False)
         return data
     except Exception:
         return pd.DataFrame()
@@ -105,7 +105,7 @@ def ziskej_data_pro_predikci(ticker, period="2y"):
     Použito v: Analýza (Věštec)
     """
     try:
-        data = yf.download(ticker, period=period, progress=False)
+        data = yf.download(ticker, period=period, progress=False, auto_adjust=False)
         return data
     except Exception:
         return pd.DataFrame()
@@ -116,14 +116,14 @@ def ziskej_dca_data(ticker, start_date, interval="1mo"):
     Cached wrapper pro DCA Backtester.
     """
     try:
-        data = yf.download(ticker, start=start_date, interval=interval, progress=False)['Close']
+        data = yf.download(ticker, start=start_date, interval=interval, progress=False, auto_adjust=False)['Close']
         return data
     except Exception:
         return pd.Series()
 
 # --- POKROČILÉ CACHING FUNKCE PRO RENTGEN ---
 
-@st.cache_data(ttl=86400, show_spinner=False, persist="disk")
+@st.cache_data(ttl=86400, show_spinner=False)
 def _ziskej_info_cached(ticker):
     t = yf.Ticker(str(ticker))
     info = t.info
@@ -276,7 +276,7 @@ def ziskej_ceny_hromadne(tickers):
     if not tickers: return data
     try:
         ts = list(set(tickers + ["CZK=X", "EURUSD=X"]))
-        df_y = yf.download(ts, period="1d", group_by='ticker', progress=False)
+        df_y = yf.download(ts, period="1d", group_by='ticker', progress=False, auto_adjust=False)
         for t in ts:
             try:
                 if isinstance(df_y.columns, pd.MultiIndex): price = df_y[t]['Close'].iloc[-1]

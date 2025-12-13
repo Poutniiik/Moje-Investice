@@ -2,8 +2,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-from src.services.portfolio_service import cached_fear_greed
-from src.ai_brain import ask_ai_guard
+from src.services.portfolio_service import cached_fear_greed, ask_ai_guard
 import yfinance as yf
 
 def render_ticker_tape(data_dict):
@@ -82,7 +81,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
             st.caption("🧭 GLOBÁLNÍ KOMPAS")
             try:
                 makro_tickers = {"🇺🇸 S&P 500": "^GSPC", "🥇 Zlato": "GC=F", "₿ Bitcoin": "BTC-USD", "🏦 Úroky 10Y": "^TNX"}
-                makro_data = yf.download(list(makro_tickers.values()), period="5d", progress=False)['Close']
+                makro_data = yf.download(list(makro_tickers.values()), period="5d", progress=False, auto_adjust=False)['Close']
 
                 mc1, mc2, mc3, mc4 = st.columns(4)
                 cols_list = [mc1, mc2, mc3, mc4]
@@ -156,7 +155,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                             "Podíl": st.column_config.ProgressColumn("%", format="%.1f%%", min_value=0, max_value=100),
                             "HodnotaUSD": st.column_config.NumberColumn("$ USD", format="$%.0f")
                         },
-                        column_order=["Sektor", "Podíl", "HodnotaUSD"], use_container_width=True, hide_index=True
+                        column_order=["Sektor", "Podíl", "HodnotaUSD"], width='stretch', hide_index=True
                     )
                 else: st.info("Žádná data")
 
@@ -182,7 +181,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                             "Podíl": st.column_config.ProgressColumn("%", format="%.1f%%", min_value=0, max_value=100),
                             "HodnotaUSD": st.column_config.NumberColumn("Hodnota (v USD)", format="$%.0f")
                         },
-                        column_order=["Měna", "Podíl", "HodnotaUSD"], use_container_width=True, hide_index=True
+                        column_order=["Měna", "Podíl", "HodnotaUSD"], width='stretch', hide_index=True
                     )
                 else: st.info("Žádná data")
     # --------------------------------------------------------
@@ -271,7 +270,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
             spark_data = {}
             if tickers_list:
                 try:
-                    batch = yf.download(tickers_list, period="1mo", interval="1d", group_by='ticker', progress=False)
+                    batch = yf.download(tickers_list, period="1mo", interval="1d", group_by='ticker', progress=False, auto_adjust=False)
                     for t in tickers_list:
                          if len(tickers_list) > 1 and t in batch.columns.levels[0]: spark_data[t] = batch[t]['Close'].dropna().tolist()
                          elif len(tickers_list) == 1: spark_data[t] = batch['Close'].dropna().tolist()
@@ -290,7 +289,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                     "Zisk": st.column_config.NumberColumn("Zisk ($)", format="%.0f"),
                 },
                 column_order=["Ticker", "Trend 30d", "HodnotaUSD", "Dnes", "Zisk"],
-                use_container_width=True, hide_index=True
+                width='stretch', hide_index=True
             )
 
             with st.expander("🔍 Zobrazit detailní tabulku"):
@@ -307,7 +306,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                         "Trend 30d": st.column_config.LineChartColumn("Trend", width="medium")
                     },
                     column_order=["Ticker", "Trend 30d", "Sektor", "Měna", "Kusy", "Průměr", "Cena", "Dnes", "HodnotaUSD", "Zisk", "Divi", "P/E"],
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True
                 )
         elif vdf.empty:
@@ -323,6 +322,6 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         df_cash_local = st.session_state.get('df_cash', pd.DataFrame())
 
         if not df_cash_local.empty:
-            st.dataframe(df_cash_local.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
+            st.dataframe(df_cash_local.sort_values('Datum', ascending=False), width='stretch', hide_index=True)
         else:
             st.info("Historie hotovosti je prázdná.")

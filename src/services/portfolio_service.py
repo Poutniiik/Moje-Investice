@@ -372,8 +372,12 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     celk_inv_usd = 0
 
     if not df.empty:
+        # OPTIMIZACE: Vyřešení FutureWarning: DataFrameGroupBy.apply
+        # Původně: df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
+        # Nově: explicitní výběr sloupců
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
-        df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
+        investice_series = df.groupby('Ticker')[['Pocet', 'Cena']].apply(lambda x: (x['Pocet'] * x['Cena']).sum())
+        df_g['Investice'] = investice_series.values
         df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
 
         for i, (idx, row) in enumerate(df_g.iterrows()):
