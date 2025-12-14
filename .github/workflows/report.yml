@@ -2,34 +2,42 @@ name: Denní Report Portfolia
 
 on:
   schedule:
-    # Spustit v 17:00 UTC (cca 18:00 CZ) každý všední den (Monday-Friday)
-    - cron: '0 17 * * 1-5'
-  # Možnost spustit ručně tlačítkem na GitHubu (pro testování)
+    - cron: '0 17 * * 1-5' # Všední dny v 18:00
   workflow_dispatch:
+
+# TOTO JE NOVÉ: Dáváme robotovi právo zapisovat do souborů
+permissions:
+  contents: write
 
 jobs:
   run-report:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Stáhni kód repozitáře
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. Nastav Python
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    # 3. Nainstaluj knihovny
     - name: Install libraries
       run: |
         pip install pandas yfinance requests
 
-    # 4. Spusť robota (a předej mu tajná hesla)
     - name: Run Robot
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: python daily_bot.py
+
+    # TOTO JE NOVÉ: Uložíme změny v CSV zpět na GitHub
+    - name: Commit and Push changes
+      run: |
+        git config --global user.name 'Investicni Robot'
+        git config --global user.email 'robot@github.com'
+        git add value_history.csv
+        # Zkusíme commitnout, pokud nejsou změny (např. chyba), nevadí (|| exit 0)
+        git commit -m "💾 Auto-save: Historie portfolia" || exit 0
+        git push
