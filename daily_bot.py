@@ -5,9 +5,11 @@ import os
 import datetime
 import time
 import json
+import google.generativeai as genai  # <--- NOVINKA: Mozek AI
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") # Robot čeká jméno GEMINI_API_KEY
 
 def send_telegram(message):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -18,6 +20,30 @@ def send_telegram(message):
         print("📨 Telegram odeslán.")
     except Exception as e:
         print(f"❌ Chyba Telegram: {e}")
+
+def get_ai_comment(portfolio_text, total_val, change_today):
+    """Zeptá se Gemini na názor."""
+    if not GEMINI_API_KEY:
+        print("⚠️ Nemám AI klíč, přeskakuji analýzu.")
+        return "AI klíč nenalezen."
+    
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash') # Rychlý model
+        
+        prompt = (
+            f"Jsi zkušený investiční analytik. Zhodnoť stručně (max 3 věty) dnešní stav portfolia.\n"
+            f"Celková hodnota: {total_val:,.0f} CZK.\n"
+            f"Dnešní pohyby akcií:\n{portfolio_text}\n"
+            f"Napiš to vtipně nebo povzbudivě pro investora jménem Attis. "
+            f"Nepoužívej formátování jako tučné písmo, jen čistý text."
+        )
+        
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"❌ Chyba AI: {e}")
+        return "Dnes jsem bez nálady (chyba spojení)."
 
 def get_data_safe(ticker):
     try:
@@ -50,7 +76,7 @@ def save_history(total_czk, usd_czk):
         print(f"❌ Chyba historie: {e}")
 
 def main():
-    print("🏎️ ROBOT ZRYCHLOVAČ STARTUJE...")
+    print("🧠 ROBOT 'AI ANALYTIK' STARTUJE...")
 
     try:
         df = pd.read_csv("portfolio_data.csv")
@@ -61,28 +87,23 @@ def main():
 
     if df.empty: return
 
-    # 1. Stáhneme kurzy
+    # 1. Kurzy
     usd_czk, _ = get_data_safe("CZK=X")
     if usd_czk == 0: usd_czk = 24.0
     eur_usd, _ = get_data_safe("EURUSD=X")
     if eur_usd == 0: eur_usd = 1.08
 
-    # 2. Stáhneme akcie a připravíme CACHE
+    # 2. Akcie + Cache
     portfolio_items = []
     total_val_czk = 0
+    cache_data = {"updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "usd_czk": usd_czk, "eur_usd": eur_usd, "prices": {}}
     
-    cache_data = {
-        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "usd_czk": usd_czk,
-        "eur_usd": eur_usd,
-        "prices": {}
-    }
+    ai_text_input = "" # Text pro AI
 
     print("--- Stahuji data ---")
     for index, row in df.iterrows():
         ticker = row['Ticker']
         kusy = row['Pocet']
-        
         price, change = get_data_safe(ticker)
         time.sleep(0.2)
         
@@ -96,30 +117,40 @@ def main():
             
             total_val_czk += val_czk
             portfolio_items.append({"ticker": ticker, "value_czk": val_czk, "change": change})
-            # Tady jsem vrátil výpis procent i do logu:
-            print(f"✅ {ticker}: {change:+.2f}% | {val_czk:,.0f} CZK")
+            print(f"✅ {ticker}: {change:+.2f}%")
+            
+            # Přidáme do textu pro AI
+            ai_text_input += f"{ticker}: {change:+.1f}%\n"
 
-    # 3. ULOŽENÍ CACHE
+    # 3. Uložení Cache
     try:
-        with open("market_cache.json", "w") as f:
-            json.dump(cache_data, f)
-        print("📦 Cache uložena.")
-    except Exception as e:
-        print(f"❌ Chyba cache: {e}")
+        with open("market_cache.json", "w") as f: json.dump(cache_data, f)
+    except: pass
 
-    # 4. Uložení historie a Telegram
+    # 4. Historie
     save_history(total_val_czk, usd_czk)
     
-    sorted_items = sorted(portfolio_items, key=lambda x: x['change'], reverse=True)
+    # 5. AI ANALÝZA 🧠
+    print("🤖 Ptám se AI na názor...")
+    ai_comment = get_ai_comment(ai_text_input, total_val_czk, 0)
+    print(f"💡 AI říká: {ai_comment}")
     
-    # Sestavení zprávy
+    # Uložíme AI názor do souboru pro Aplikaci
+    with open("ai_report.md", "w") as f:
+        f.write(f"### 🧠 AI Analýza ({datetime.datetime.now().strftime('%d.%m.')})\n")
+        f.write(ai_comment)
+
+    # 6. Telegram
+    sorted_items = sorted(portfolio_items, key=lambda x: x['change'], reverse=True)
     msg = f"<b>📊 DENNÍ UPDATE</b>\n📅 {datetime.datetime.now().strftime('%d.%m.%Y')}\n----------------\n🤑 <b>CELKEM: {total_val_czk:,.0f} Kč</b>\n💵 Kurz USD: {usd_czk:.2f} Kč\n\n"
     
-    # Tady je ta část, která ti chyběla (vrátil jsem ji zpět):
     msg += "<b>📋 Detail:</b>\n"
     for item in sorted_items:
         icon = "🟢" if item['change'] >= 0 else "🔴"
         msg += f"{icon} <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
+    
+    # Přidáme AI komentář i do Telegramu
+    msg += f"\n💡 <b>AI Komentář:</b>\n<i>{ai_comment}</i>"
 
     send_telegram(msg)
 
