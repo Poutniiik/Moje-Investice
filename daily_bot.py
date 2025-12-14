@@ -4,14 +4,13 @@ import requests
 import os
 import datetime
 
-# --- KONFIGURACE (Načte se z GitHub Secrets) ---
-# Pokud testuješ lokálně, dosaď si sem hodnoty ručně, ale na GitHub nahrávej prázdné nebo os.environ
+# --- KONFIGURACE ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 def send_telegram(message):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        print("❌ Chybí Telegram Token nebo Chat ID")
+        print("❌ CHYBA: Chybí Telegram Token nebo Chat ID v Secrets!")
         return
     
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -23,22 +22,24 @@ def send_telegram(message):
     try:
         r = requests.post(url, json=payload)
         if r.status_code == 200:
-            print("✅ Zpráva odeslána!")
+            print("✅ Zpráva odeslána na Telegram.")
         else:
-            print(f"❌ Chyba odeslání: {r.text}")
+            print(f"❌ Chyba odeslání Telegramu: {r.text}")
     except Exception as e:
-        print(f"❌ Chyba spojení: {e}")
+        print(f"❌ Chyba spojení s Telegramem: {e}")
 
 def main():
     print("🤖 Robot startuje...")
     
-    # 1. Načtení portfolia (lokálně, protože GitHub si repo stáhne k sobě)
+    # 1. Načtení portfolia
     try:
         df = pd.read_csv("portfolio_data.csv")
-        # Filtruj jen 'admin' nebo svého uživatele, pokud chceš
-        # df = df[df['Owner'] == 'admin'] 
+        # OPRAVA NAN: Převedeme sloupce na čísla násilím, chyby nahradíme nulou
+        df['Pocet'] = pd.to_numeric(df['Pocet'], errors='coerce').fillna(0)
+        print(f"📂 Načteno {len(df)} pozic z CSV.")
     except FileNotFoundError:
-        print("⚠️ Soubor portfolio_data.csv nenalezen.")
+        print("⚠️ Soubor portfolio_data.csv nenalezen. Končím.")
+        send_telegram("⚠️ <b>Chyba robota:</b> Nenalezen soubor s daty.")
         return
 
     if df.empty:
@@ -47,60 +48,83 @@ def main():
 
     # 2. Získání aktuálních cen
     tickers = df['Ticker'].unique().tolist()
-    print(f"🔍 Stahuji data pro: {tickers}")
+    # Přidáme měny pro jistotu
+    tickers_all = list(set(tickers + ["CZK=X", "EURUSD=X"]))
     
-    # Hromadné stažení (rychlejší)
-    live_data = yf.download(tickers, period="1d", progress=False)['Close']
+    print(f"🔍 Stahuji data pro: {tickers_all}")
     
-    # Získání kurzů (zjednodušeně)
-    kurzy = yf.download(["CZK=X", "EURUSD=X"], period="1d", progress=False)['Close']
     try:
-        usd_czk = kurzy['CZK=X'].iloc[-1]
-        eur_usd = kurzy['EURUSD=X'].iloc[-1]
+        # Přidáno auto_adjust=True pro opravu chyb YFinance
+        downloaded = yf.download(tickers_all, period="1d", progress=False, auto_adjust=True)
+        
+        # Ošetření, zda je to MultiIndex (nový yfinance) nebo ne
+        if isinstance(downloaded.columns, pd.MultiIndex):
+            live_data = downloaded['Close'].iloc[-1]
+        else:
+            live_data = downloaded['Close'].iloc[-1]
+            
+    except Exception as e:
+        print(f"❌ Chyba stahování dat: {e}")
+        send_telegram(f"⚠️ <b>Chyba robota:</b> Selhalo stahování dat ({e})")
+        return
+
+    # Získání kurzů s fallbackem
+    try:
+        usd_czk = float(live_data.get("CZK=X", 24.0))
+        eur_usd = float(live_data.get("EURUSD=X", 1.08))
     except:
-        usd_czk = 23.50 # Fallback
+        usd_czk = 24.0
         eur_usd = 1.08
+    
+    print(f"💱 Kurzy: USD/CZK={usd_czk:.2f}, EUR/USD={eur_usd:.2f}")
 
     # 3. Výpočet hodnoty
     total_val_czk = 0
-    total_invested_czk = 0 # Pokud máš sloupec 'Investice' nebo počítáš nákupní ceny
     
-    top_mover = {"ticker": "", "change": -999}
-    
+    print("--- Detailní výpočet ---")
     for index, row in df.iterrows():
         ticker = row['Ticker']
         kusy = row['Pocet']
         
-        # Získání aktuální ceny
+        # Získání ceny (ošetření NaN)
         try:
-            if len(tickers) == 1:
-                price = live_data.iloc[-1]
-            else:
-                price = live_data[ticker].iloc[-1]
+            # .get() vrátí hodnotu nebo 0, pokud ticker v datech není
+            price = float(live_data.get(ticker, 0))
         except:
             price = 0
             
-        # Přepočet měny (zjednodušený detektor)
-        if ".PR" in ticker: 
+        if price == 0 or pd.isna(price):
+            print(f"⚠️ {ticker}: Cena nenalezena nebo 0.")
+            continue
+
+        # Přepočet měny
+        val_czk = 0
+        ticker_str = str(ticker).upper()
+        
+        if ticker_str.endswith(".PR"): # CZK akcie
             val_czk = price * kusy
-        elif ".DE" in ticker:
+        elif ticker_str.endswith(".DE"): # EUR akcie
             val_czk = price * kusy * eur_usd * usd_czk
-        else: # USD
+        else: # USD akcie (default)
             val_czk = price * kusy * usd_czk
             
+        print(f"📈 {ticker}: {kusy} ks * {price:.2f} = {val_czk:.0f} CZK")
         total_val_czk += val_czk
 
+    print(f"💰 Celkem: {total_val_czk:,.0f} CZK")
+
     # 4. Sestavení zprávy
-    emoji = "🟢" if total_val_czk > 0 else "🔴" # Tady by to chtělo porovnání se včerejškem, ale pro jednoduchost stačí stav
+    # Emoji podle toho, jestli tam vůbec něco je
+    emoji = "🤑" if total_val_czk > 0 else "🤔"
     
     msg = f"""
-<b>🤖 DENNÍ REPORT (GitHub Bot)</b>
-📅 {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}
+<b>🤖 DENNÍ REPORT</b>
+📅 {datetime.datetime.now().strftime('%d.%m.%Y')}
 -----------------------------
-💰 <b>Celková hodnota:</b> {total_val_czk:,.0f} Kč
-💵 <b>Kurz USD/CZK:</b> {usd_czk:.2f}
+{emoji} <b>Celková hodnota:</b> {total_val_czk:,.0f} Kč
+💵 <b>Kurz USD:</b> {usd_czk:.2f} Kč
 
-<i>Data vygenerována automaticky z GitHub Actions.</i>
+<i>(Data z GitHub Actions)</i>
     """
     
     # 5. Odeslání
