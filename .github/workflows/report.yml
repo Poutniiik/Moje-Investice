@@ -38,6 +38,7 @@ jobs:
         git config --global user.name 'Investicni Robot'
         git config --global user.email 'robot@github.com'
         git add value_history.csv
+        git add market_cache.json
         # Zkusíme commitnout, pokud nejsou změny (např. chyba), nevadí (|| exit 0)
         git commit -m "💾 Auto-save: Historie portfolia" || exit 0
         git push
