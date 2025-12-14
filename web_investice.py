@@ -3244,7 +3244,7 @@ def main():
         st.subheader("📲 NOTIFIKACE(Telegram)")
         st.caption("Otestuj spojení s tvým mobilem.")
 
-            if st.button("🔔 Otestovat Telegram notifikaci", key="btn_test_notify", use_container_width=True):
+        if st.button("🔔 Otestovat Telegram notifikaci", key="btn_test_notify", use_container_width=True):
             # Tato funkce by měla být definována v notification_engine.py a posílat testovací zprávu
             ok, msg = notify.poslat_zpravu("🤖 [Terminal PRO] Testovací zpráva: Spojení je OK!")
             if ok:
@@ -3407,4 +3407,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
