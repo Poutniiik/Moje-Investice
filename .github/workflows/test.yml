@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         # Potřebujeme knihovny pro testy (pytest) A pro kód (pandas, yfinance, google-generativeai)
         run: |
-          pip install pandas yfinance pytest google-generativeai
+          pip install pandas yfinance pytest google-generativeai matplotlib
 
       - name: Run Pytest
         run: |
