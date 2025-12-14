@@ -56,7 +56,7 @@ def run_alert_bot():
     # Předpokládáme, že bot spouštíš pro konkrétního uživatele (např. 'default' nebo tvoje jméno)
     # Tuto hodnotu je nutné nahradit TVÝM OWNEREM, pro kterého reporty běží!
     # Pokud používáš 'default' (jako ve většině ukázek), ponech.
-    TARGET_OWNER = os.environ.get('GITHUB_ACTOR', 'default') 
+    TARGET_OWNER = 'Attis' 
     
     # Načtení dat
     try:
