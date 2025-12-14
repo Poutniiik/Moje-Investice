@@ -221,23 +221,54 @@ def odeslat_email(prijemce, predmet, telo):
         return True
     except Exception as e: return f"Chyba: {e}"
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300) # Cache 5 minut, ať to nenačítá pořád
 def ziskej_ceny_hromadne(tickers):
+    """
+    Verze CHAMELEON: Stahuje ceny po jedné s malou pauzou, aby obešla blokaci Yahoo.
+    """
     data = {}
     if not tickers: return data
-    try:
-        ts = list(set(tickers + ["CZK=X", "EURUSD=X"]))
-        df_y = yf.download(ts, period="1d", group_by='ticker', progress=False)
-        for t in ts:
+    
+    # Přidáme měny do seznamu
+    search_list = list(set(tickers + ["CZK=X", "EURUSD=X"]))
+    
+    for t in search_list:
+        try:
+            # Maskování za "jednoho uživatele"
+            stock = yf.Ticker(t)
+            price = 0.0
+            
+            # 1. Zkusíme Fast Info (rychlejší)
             try:
-                if isinstance(df_y.columns, pd.MultiIndex): price = df_y[t]['Close'].iloc[-1]
-                else: price = df_y['Close'].iloc[-1]
-                curr = "USD"
-                if ".PR" in t: curr = "CZK"
-                elif ".DE" in t: curr = "EUR"
-                if pd.notnull(price): data[t] = {"price": float(price), "curr": curr}
-            except Exception: pass
-    except Exception: pass
+                # Yahoo vrací různé klíče, zkusíme 'last_price'
+                price = float(stock.fast_info.last_price)
+            except: pass
+            
+            # 2. Pokud selže, zkusíme Historii (pomalejší, ale spolehlivější)
+            if not price or price == 0 or pd.isna(price):
+                try:
+                    # auto_adjust=True je důležité pro nové verze yfinance
+                    hist = stock.history(period="5d", auto_adjust=True)
+                    if not hist.empty:
+                        price = float(hist['Close'].iloc[-1])
+                except: pass
+            
+            # Určení měny
+            curr = "USD"
+            t_str = str(t).upper()
+            if ".PR" in t_str: curr = "CZK"
+            elif ".DE" in t_str: curr = "EUR"
+            
+            # Uložení, pokud máme cenu
+            if price > 0:
+                data[t] = {"price": price, "curr": curr}
+                
+            # 🛑 ZÁCHOD, POLYKEJ POMALU (Anti-spam pauza)
+            time.sleep(0.1) 
+            
+        except Exception: 
+            pass
+            
     return data
 
 @st.cache_data(ttl=3600)
