@@ -2,6 +2,7 @@ import pandas as pd
 import yfinance as yf
 import requests
 import os
+import random
 import datetime
 import time
 import json
