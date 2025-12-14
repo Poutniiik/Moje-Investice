@@ -3179,7 +3179,6 @@ def main():
         render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky)
 
 
-    # --- OPRAVA 2: BEZPEČNÁ STRÁNKA NASTAVENÍ (Zabraňuje zacyklení) ---
     elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
         
@@ -3240,13 +3239,12 @@ def main():
             for n, d in [(SOUBOR_DATA, 'df'), (SOUBOR_HISTORIE, 'df_hist'), (SOUBOR_CASH, 'df_cash'), (SOUBOR_DIVIDENDY, 'df_div'), (SOUBOR_WATCHLIST, 'df_watch')]:
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
-        
         st.divider()
         st.subheader("📲 NOTIFIKACE(Telegram)")
         st.caption("Otestuj spojení s tvým mobilem.")
 
         if st.button("🔔 Otestovat Telegram notifikaci", key="btn_test_notify", use_container_width=True):
-            # Tady byla ta neviditelná mezera U+00A0
+            # Tady už není žádný U+00A0
             ok, msg = notify.poslat_zpravu("🤖 [Terminal PRO] Testovací zpráva: Spojení je OK!")
 
             if ok:
@@ -3254,49 +3252,11 @@ def main():
             else:
                 st.error(f"Chyba: {msg}. Zkontroluj TELEGRAM_BOT_TOKEN.")
                 
-        # Tady končí kód pro Nastavení, následuje další elif
-        
     # --- BANKOVNÍ TESTER (Stránka) ---
     elif page == "🧪 Banka":
         render_bank_lab_page()
-        
-    # --- AI CHATBOT (Vždy dole) ---
-    with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
-        st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
-        c_clear, _ = st.columns([1, 2])
-        with c_clear:
-            if st.button("🧹 Nová konverzace", key="clear_chat"):
-                st.session_state["chat_messages"] = [{"role": "assistant", "content": "Paměť vymazána. O čem se chceš bavit teď? 🧠"}]
-                st.rerun()
 
-        if "chat_messages" not in st.session_state: 
-            st.session_state["chat_messages"] = [{"role": "assistant", "content": "Ahoj! Jsem tvůj AI průvodce. Co pro tebe mohu udělat?"}]
-        
-        for msg in st.session_state["chat_messages"]: 
-            st.chat_message(msg["role"]).write(msg["content"])
-            
-        if prompt := st.chat_input("Zeptej se..."):
-            if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
-                st.error("AI je neaktivní.")
-            else: 
-                st.session_state["chat_messages"].append({"role": "user", "content": prompt})
-                st.rerun()
-
-        if st.session_state["chat_messages"][-1]["role"] == "user":
-            if not st.session_state.get('ai_enabled', False): st.info("AI vypnuta.")
-            else:
-                with st.spinner("Přemýšlím..."):
-                    last_user_msg = st.session_state["chat_messages"][-1]["content"]
-                    portfolio_context = f"Jmění: {celk_hod_czk:,.0f} CZK. "
-                    if viz_data_list: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
-                    
-                    try:
-                        ai_reply = get_chat_response(model, last_user_msg, portfolio_context)
-                    except Exception as e:
-                        ai_reply = "🛑 Došla mi energie (Quota)." if "429" in str(e) else f"⚠️ Chyba: {e}"
-                    
-                    st.session_state["chat_messages"].append({"role": "assistant", "content": ai_reply})
-                    st.rerun()
+    # ... pokračování elif routeru
 
 # ==========================================
 # 👇 FINÁLNÍ BANKOVNÍ CENTRÁLA (VERZE 3.1 - I SE ZŮSTATKY) 👇
@@ -3411,6 +3371,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
