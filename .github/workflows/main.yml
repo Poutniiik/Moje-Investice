@@ -1,12 +1,68 @@
-# ... (Zde je konec jobů pro alert_bot a daily_bot)
+name: Terminal PRO Bots Scheduler
 
-  # --- TŘETÍ JOB: EARNINGS CALENDAR BOT (TÝDENÍ SPUŠTĚNÍ) ---
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Povoluje ruční spuštění z GitHubu
+
+jobs:
+  # 1. PRICE ALERT BOT (Hodinově)
+  price_alert:
+    runs-on: ubuntu-latest
+    
+    # Spouštění každou hodinu, 15 minut po celé (např. v 0:15, 1:15, 2:15 UTC)
+    schedule:
+      - cron: '15 * * * *' 
+      
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          pip install pandas yfinance requests
+      - name: Run Price Alert Bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # TARGET_OWNER: Attis je natvrdo v kódu alert_bot.py
+        run: python alert_bot.py
+
+  # 2. DAILY REPORT BOT (3x denně)
+  daily_report:
+    runs-on: ubuntu-latest
+    
+    # Spouštění v 5:00, 15:00 a 21:00 UTC (Což je 6:00, 16:00 a 22:00 CET/SEČ)
+    schedule:
+      - cron: '0 5,15,21 * * *' 
+      
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          pip install pandas yfinance requests
+      - name: Run Daily Report Bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python daily_bot.py
+
+  # 3. EARNINGS CALENDAR BOT (Týdně)
   earnings_calendar:
     runs-on: ubuntu-latest
     
-    # Spuštění KAŽDOU NEDĚLI ve 20:00 UTC (21:00 nebo 22:00 CET)
+    # Spuštění KAŽDOU NEDĚLI ve 20:00 UTC (21:00 nebo 22:00 CET/SEČ)
     schedule:
-      - cron: '0 20 * * 0' # 0 20 * * 0 = 20:00 UTC každou neděli
+      - cron: '0 20 * * 0' # 0 = Neděle
       
     steps:
       - uses: actions/checkout@v4
@@ -22,5 +78,4 @@
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # TARGET_OWNER se nenačítá, je natvrdo 'Attis' v kódu
         run: python earnings_bot.py
