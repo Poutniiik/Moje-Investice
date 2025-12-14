@@ -1897,18 +1897,31 @@ def main():
                             uloz_csv(pd.concat([df_u, new], ignore_index=True), SOUBOR_UZIVATELE, "New user")
                             st.toast("Účet vytvořen!", icon="✅")
             with t3:
-                st.caption("Zapomněl jsi heslo?")
-                with st.form("recovery"):
-                    ru = st.text_input("Jméno")
-                    rk = st.text_input("Záchranný kód")
-                    rnp = st.text_input("Nové heslo", type="password")
-                    if st.form_submit_button("OBNOVIT"):
-                        df_u = nacti_uzivatele(); row = df_u[df_u['username'] == u]
-                        if not row.empty and row.iloc[0]['password'] == zasifruj(old):
-                            if new == conf and len(new) > 0:
-                                df_u.at[row.index[0], 'password'] = zasifruj(new); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}"); st.success("Hotovo!")
-                            else: st.error("Chyba v novém hesle.")
-                        else: st.error("Staré heslo nesedí.")
+            st.caption("Zapomněl jsi heslo?")
+            with st.form("recovery"):
+                ru = st.text_input("Jméno")
+                rk = st.text_input("Záchranný kód")
+                rnp = st.text_input("Nové heslo", type="password")
+                
+                if st.form_submit_button("OBNOVIT"):
+                    df_u = nacti_uzivatele()
+                    # 1. Oprava: Používáme 'ru' místo 'u'
+                    row = df_u[df_u['username'] == ru] 
+                    
+                    # 2. Oprava: Kontrolujeme Záchranný kód, ne staré heslo 'old'
+                    # POZOR: Ujisti se, že sloupec v CSV se jmenuje 'recovery_code'
+                    # Pokud se jmenuje jinak (třeba 'kod'), přepiš to v závorce níže.
+                    if not row.empty and str(row.iloc[0]['recovery_code']) == str(rk):
+                        
+                        # 3. Oprava: Používáme 'rnp' místo 'new' a 'conf' (potvrzení tu nemáš)
+                        if len(rnp) > 0:
+                             df_u.at[row.index[0], 'password'] = zasifruj(rnp)
+                             uloz_csv(df_u, SOUBOR_UZIVATELE, f"Rec {ru}")
+                             st.success("Hotovo! Heslo obnoveno.")
+                        else: 
+                             st.error("Heslo nesmí být prázdné.")
+                    else: 
+                        st.error("Chybné jméno nebo záchranný kód.")
         return
 
     # =========================================================================
@@ -3389,3 +3402,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
