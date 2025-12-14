@@ -25,7 +25,7 @@ jobs:
 
     - name: Install libraries
       run: |
-        pip install pandas yfinance requests google-generativeai
+        pip install pandas yfinance requests google-generativeai matplotlib
 
     - name: Run Robot
       env:
