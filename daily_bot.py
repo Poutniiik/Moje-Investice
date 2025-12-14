@@ -6,19 +6,19 @@ import random
 import datetime
 import time
 import json
-import google.generativeai as genai  # <--- NOVINKA: Mozek AI
-import matplotlib       # <--- NOVÉ
+import google.generativeai as genai
+import matplotlib
 import matplotlib.pyplot as plt
-# Nastavíme backend pro servery bez monitoru (aby to nepadalo na GitHubu)
+
+# Nastavíme backend pro servery bez monitoru
 matplotlib.use('Agg')
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") # Robot čeká jméno GEMINI_API_KEY
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 def send_telegram(message):
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        return
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
         requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"})
@@ -27,43 +27,31 @@ def send_telegram(message):
         print(f"❌ Chyba Telegram: {e}")
 
 def send_telegram_photo(photo_path):
-    """Pošle obrázek na Telegram."""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     try:
         with open(photo_path, 'rb') as photo:
-            # Telegram API chce 'multipart/form-data' pro soubory
             requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID}, files={"photo": photo})
         print("📸 Telegram (graf) odeslán.")
     except Exception as e:
         print(f"❌ Chyba Telegram Foto: {e}")
 
-# --- NOVÁ FUNKCE PRO TVORBU GRAFU ---
 def create_chart():
-    """Vytvoří graf z value_history.csv a uloží ho jako chart.png"""
     try:
         if not os.path.exists("value_history.csv"): return None
-        
-        # Načteme data
         df = pd.read_csv("value_history.csv")
-        if len(df) < 2: return None # Nemá smysl kreslit graf z jednoho bodu
-        
-        # Převedeme sloupec Date na datum
+        if len(df) < 2: return None
         df['Date'] = pd.to_datetime(df['Date'])
         
-        # Vykreslení
-        plt.figure(figsize=(10, 5)) # Velikost obrázku
+        plt.figure(figsize=(10, 5))
         plt.plot(df['Date'], df['TotalUSD'], marker='o', linestyle='-', color='#007acc', linewidth=2)
-        
-        # Kosmetika grafu
         plt.title("Vývoj hodnoty portfolia (USD)", fontsize=14)
         plt.grid(True, which='both', linestyle='--', alpha=0.5)
         plt.tight_layout()
         
-        # Uložení
         filename = "chart.png"
         plt.savefig(filename)
-        plt.close() # Důležité: uklidit po sobě paměť
+        plt.close()
         print("🎨 Graf vytvořen.")
         return filename
     except Exception as e:
@@ -71,34 +59,27 @@ def create_chart():
         return None
 
 def get_ai_comment(portfolio_text, total_val, change_today):
-    if not GEMINI_API_KEY:
-        return "AI klíč nenalezen."
+    if not GEMINI_API_KEY: return "AI klíč nenalezen."
     
-    # 🎭 SEZNAM OSOBNOSTÍ
     personas = [
         "Jsi sarkastický robot, který si dělá legraci z lidských peněz.",
         "Jsi nadšený fotbalový komentátor, který komentuje vývoj akcií jako napínavý zápas.",
         "Jsi moudrý mistr Yoda. Mluvíš v hádankách a obracíš slovosled.",
         "Jsi pirát, který hlídá svůj poklad. Používej pirátský slang.",
-        "Jsi, konzervativní britský komorník. Jsi velmi zdvořilý a formální."
+        "Jsi velmi formální britský komorník."
     ]
-    
-    # Vybereme náhodně jednu
     selected_persona = random.choice(personas)
 
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        
-        # Upravený prompt s dynamickou osobností
+        model = genai.GenerativeModel('gemini-2.5-flash') # Pokud to spadne, zkus 'gemini-1.5-flash'
         prompt = (
-            f"{selected_persona}\n"  # <--- Tady se vloží náhodná role
+            f"{selected_persona}\n"
             f"Zhodnoť stručně (max 3 věty) dnešní stav portfolia pro investora jménem Attis.\n"
             f"Celková hodnota: {total_val:,.0f} CZK.\n"
             f"Dnešní pohyby akcií:\n{portfolio_text}\n"
             f"Nepoužívej formátování textu."
         )
-        
         response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
@@ -125,12 +106,12 @@ def save_history(total_czk, usd_czk):
         total_usd = total_czk / usd_czk if usd_czk > 0 else 0
         filename = "value_history.csv"
         today = datetime.datetime.now().strftime("%Y-%m-%d")
-
-        write_header = not os.path.exists(filename)
         
         if not os.path.exists(filename):
             with open(filename, "w") as f: f.write("Date,TotalUSD,Owner\n")
         
+        # Jednoduchá ochrana proti duplicitám ve stejný den není v původním kódu, 
+        # ale pro jistotu jen appendujeme, jak jsi to měl.
         with open(filename, "a") as f:
             f.write(f"{today},{total_usd:.2f},Attis\n")
         print("💾 Historie uložena.")
@@ -149,18 +130,23 @@ def main():
 
     if df.empty: return
 
-    # 1. Kurzy
+    # 1. Kurzy měn
     usd_czk, _ = get_data_safe("CZK=X")
     if usd_czk == 0: usd_czk = 24.0
     eur_usd, _ = get_data_safe("EURUSD=X")
     if eur_usd == 0: eur_usd = 1.08
 
-    # 2. Akcie + Cache
+    # --- NOVÉ: Stahujeme S&P 500 pro porovnání ---
+    sp500_price, sp500_change = get_data_safe("^GSPC")
+    print(f"🌎 Trh (S&P 500) změna: {sp500_change:+.2f}%")
+
+    # 2. Akcie + Cache + Výpočty
     portfolio_items = []
     total_val_czk = 0
-    cache_data = {"updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "usd_czk": usd_czk, "eur_usd": eur_usd, "prices": {}}
+    weighted_sum_change = 0 # Proměnná pro výpočet tvého průměrného % zisku
     
-    ai_text_input = "" # Text pro AI
+    cache_data = {"updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "usd_czk": usd_czk, "eur_usd": eur_usd, "prices": {}}
+    ai_text_input = "" 
 
     print("--- Stahuji data ---")
     for index, row in df.iterrows():
@@ -178,18 +164,25 @@ def main():
             else: val_czk = price * kusy * usd_czk
             
             total_val_czk += val_czk
+            
+            # Přičítáme váhu pro výpočet (Hodnota * změna)
+            weighted_sum_change += val_czk * change
+            
             portfolio_items.append({"ticker": ticker, "value_czk": val_czk, "change": change})
             print(f"✅ {ticker}: {change:+.2f}%")
-            
-            # Přidáme do textu pro AI
             ai_text_input += f"{ticker}: {change:+.1f}%\n"
 
-    # 3. Uložení Cache
+    # --- VÝPOČET: O kolik % se pohlo tvé portfolio celkem ---
+    my_portfolio_change = 0.0
+    if total_val_czk > 0:
+        my_portfolio_change = weighted_sum_change / total_val_czk
+
+    # 3. Uložení Cache (Původní logika)
     try:
         with open("market_cache.json", "w") as f: json.dump(cache_data, f)
     except: pass
 
-    # 4. Historie
+    # 4. Historie (Původní logika)
     save_history(total_val_czk, usd_czk)
     
     # 5. AI ANALÝZA 🧠
@@ -202,20 +195,37 @@ def main():
         f.write(f"### 🧠 AI Analýza ({datetime.datetime.now().strftime('%d.%m.')})\n")
         f.write(ai_comment)
 
-    # 6. Telegram
+    # 6. Telegram (S NOVÝM POROVNÁNÍM)
+    market_icon = "🟢" if sp500_change >= 0 else "🔴"
+    my_icon = "🟢" if my_portfolio_change >= 0 else "🔴"
+    
+    # Kdo vyhrál?
+    diff = my_portfolio_change - sp500_change
+    if diff > 0:
+        battle_result = f"🏆 <b>Porazil jsi trh o {diff:.1f}%!</b>"
+    else:
+        battle_result = f"🐢 <b>Trh byl dnes rychlejší o {abs(diff):.1f}%.</b>"
+
     sorted_items = sorted(portfolio_items, key=lambda x: x['change'], reverse=True)
-    msg = f"<b>📊 DENNÍ UPDATE</b>\n📅 {datetime.datetime.now().strftime('%d.%m.%Y')}\n----------------\n🤑 <b>CELKEM: {total_val_czk:,.0f} Kč</b>\n💵 Kurz USD: {usd_czk:.2f} Kč\n\n"
+    
+    msg = f"<b>📊 DENNÍ UPDATE</b>\n📅 {datetime.datetime.now().strftime('%d.%m.%Y')}\n"
+    msg += f"----------------\n"
+    msg += f"🤑 <b>CELKEM: {total_val_czk:,.0f} Kč</b>\n"
+    msg += f"{my_icon} Tvůj výkon: <b>{my_portfolio_change:+.2f}%</b>\n"
+    msg += f"{market_icon} S&P 500: <b>{sp500_change:+.2f}%</b>\n"
+    msg += f"{battle_result}\n\n"
+    msg += f"💵 Kurz USD: {usd_czk:.2f} Kč\n\n"
     
     msg += "<b>📋 Detail:</b>\n"
     for item in sorted_items:
         icon = "🟢" if item['change'] >= 0 else "🔴"
         msg += f"{icon} <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
     
-    # Přidáme AI komentář i do Telegramu
     msg += f"\n💡 <b>AI Komentář:</b>\n<i>{ai_comment}</i>"
 
     send_telegram(msg)
 
+    # 7. Graf (Původní logika)
     chart_file = create_chart()
     if chart_file:
         send_telegram_photo(chart_file)
