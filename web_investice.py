@@ -3240,23 +3240,26 @@ def main():
             for n, d in [(SOUBOR_DATA, 'df'), (SOUBOR_HISTORIE, 'df_hist'), (SOUBOR_CASH, 'df_cash'), (SOUBOR_DIVIDENDY, 'df_div'), (SOUBOR_WATCHLIST, 'df_watch')]:
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
+        
         st.divider()
-st.subheader("📲 NOTIFIKACE(Telegram)")
-st.caption("Otestuj spojení s tvým mobilem.")
+        st.subheader("📲 NOTIFIKACE(Telegram)")
+        st.caption("Otestuj spojení s tvým mobilem.")
 
-if st.button("🔔 Otestovat Telegram notifikaci", key="btn_test_notify", use_container_width=True):
-    # Odsazení 6. úrovně (4 mezery od if)
-    ok, msg = notify.poslat_zpravu("🤖 [Terminal PRO] Testovací zpráva: Spojení je OK!")
+        if st.button("🔔 Otestovat Telegram notifikaci", key="btn_test_notify", use_container_width=True):
+            # Tady byla ta neviditelná mezera U+00A0
+            ok, msg = notify.poslat_zpravu("🤖 [Terminal PRO] Testovací zpráva: Spojení je OK!")
 
-    if ok:
-        st.success("Testovací zpráva odeslána!")
-    else:
-        st.error(f"Chyba: {msg}. Zkontroluj TELEGRAM_BOT_TOKEN.")
+            if ok:
+                st.success("Testovací zpráva odeslána!")
+            else:
+                st.error(f"Chyba: {msg}. Zkontroluj TELEGRAM_BOT_TOKEN.")
                 
+        # Tady končí kód pro Nastavení, následuje další elif
+        
     # --- BANKOVNÍ TESTER (Stránka) ---
-elif page == "🧪 Banka":
+    elif page == "🧪 Banka":
         render_bank_lab_page()
-
+        
     # --- AI CHATBOT (Vždy dole) ---
     with st.expander("🤖 AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
         st.markdown('<span id="floating-bot-anchor"></span>', unsafe_allow_html=True)
@@ -3408,6 +3411,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
