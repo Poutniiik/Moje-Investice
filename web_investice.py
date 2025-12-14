@@ -3241,17 +3241,17 @@ def main():
                 if d in st.session_state: zf.writestr(n, st.session_state[d].to_csv(index=False))
         st.download_button("Stáhnout Data", buf.getvalue(), f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip")
         st.divider()
-        st.subheader("📲 NOTIFIKACE(Telegram)")
-        st.caption("Otestuj spojení s tvým mobilem.")
+st.subheader("📲 NOTIFIKACE(Telegram)")
+st.caption("Otestuj spojení s tvým mobilem.")
 
-        if st.button("🔔 Otestovat Telegram notifikaci", key="btn_test_notify", use_container_width=True):
-            # Odsazení 6. úrovně (4 mezery od if)
-            ok, msg = notify.poslat_zpravu("🤖 [Terminal PRO] Testovací zpráva: Spojení je OK!")
-            
-            if ok:
-                st.success("Testovací zpráva odeslána!")
-            else:
-                st.error(f"Chyba: {msg}. Zkontroluj TELEGRAM_BOT_TOKEN.")
+if st.button("🔔 Otestovat Telegram notifikaci", key="btn_test_notify", use_container_width=True):
+    # Odsazení 6. úrovně (4 mezery od if)
+    ok, msg = notify.poslat_zpravu("🤖 [Terminal PRO] Testovací zpráva: Spojení je OK!")
+
+    if ok:
+        st.success("Testovací zpráva odeslána!")
+    else:
+        st.error(f"Chyba: {msg}. Zkontroluj TELEGRAM_BOT_TOKEN.")
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
     elif page == "🧪 Banka":
@@ -3408,6 +3408,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
