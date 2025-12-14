@@ -14,34 +14,40 @@ def send_telegram(message):
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
+        # Povolíme HTML pro tučné písmo
         requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"})
     except Exception as e:
         print(f"❌ Chyba Telegram: {e}")
 
-def get_price_safe(ticker):
-    """Stáhne cenu pro jeden ticker s maskováním za prohlížeč."""
+def get_data_safe(ticker):
+    """
+    Stáhne cenu A TAKÉ denní změnu v procentech.
+    Vrací: (cena, zmena_procent)
+    """
     try:
-        # Trik: Vytvoříme 'Ticker' objekt
         t = yf.Ticker(ticker)
         
-        # 1. Pokus: Rychlé info
-        try:
-            price = t.fast_info.last_price
-            if price and price > 0: return float(price)
-        except: pass
-        
-        # 2. Pokus: Historie (poslední zavírací cena)
+        # Zkusíme historii za 5 dní (abychom měli předchozí zavírací cenu)
         hist = t.history(period="5d", auto_adjust=True)
-        if not hist.empty:
-            return float(hist['Close'].iloc[-1])
+        
+        if not hist.empty and len(hist) >= 1:
+            price = float(hist['Close'].iloc[-1])
+            
+            # Výpočet změny oproti předchozímu dni (pokud máme data)
+            change = 0.0
+            if len(hist) >= 2:
+                prev_close = float(hist['Close'].iloc[-2])
+                change = ((price - prev_close) / prev_close) * 100
+            
+            return price, change
             
     except Exception as e:
         print(f"   ⚠️ Chyba u {ticker}: {e}")
     
-    return 0.0
+    return 0.0, 0.0
 
 def main():
-    print("🦎 ROBOT CHAMELEON STARTUJE...")
+    print("🦎 ROBOT REPORTÉR STARTUJE...")
 
     # 1. NAČTENÍ CSV
     try:
@@ -54,61 +60,81 @@ def main():
 
     if df.empty: return
 
-    # 2. SEZNAM TICKERŮ
-    tickers = df['Ticker'].unique().tolist()
-    
-    # 3. STAHOVÁNÍ PO JEDNOM (Abychom nebyli nápadní)
-    print(f"📥 Stahuji ceny postupně pro: {tickers}")
-    
-    # Stáhneme kurzy
-    usd_czk = get_price_safe("CZK=X")
+    # 2. KURZY (Stáhneme bezpečně)
+    print("💱 Stahuji kurzy...")
+    usd_czk, _ = get_data_safe("CZK=X")
     if usd_czk == 0: usd_czk = 24.0 # Fallback
     
-    eur_usd = get_price_safe("EURUSD=X")
+    eur_usd, _ = get_data_safe("EURUSD=X")
     if eur_usd == 0: eur_usd = 1.08 # Fallback
     
-    print(f"💱 Kurzy: USD/CZK={usd_czk:.2f}, EUR/USD={eur_usd:.2f}")
+    print(f"   USD/CZK={usd_czk:.2f}, EUR/USD={eur_usd:.2f}")
 
-    # 4. VÝPOČET
+    # 3. VÝPOČET PORTFOLIA
+    portfolio_items = [] # Sem si uložíme výsledky pro seřazení
     total_val_czk = 0
     
-    print("--- Start výpočtu ---")
+    print("--- Start výpočtu akcií ---")
     for index, row in df.iterrows():
         ticker = row['Ticker']
         kusy = row['Pocet']
         
-        # Stáhneme cenu pro konkrétní akcii
-        price = get_price_safe(ticker)
+        # Stáhneme cenu a změnu
+        price, change = get_data_safe(ticker)
+        time.sleep(0.2) # Malá pauza pro Yahoo
         
-        # Debug výpis
-        if price == 0:
-            print(f"❌ {ticker}: Yahoo blokuje nebo data nejsou.")
-        else:
-            # Přepočet
+        if price > 0:
+            # Přepočet na CZK
             val_czk = 0
             if ticker.endswith(".PR"): val_czk = price * kusy
             elif ticker.endswith(".DE"): val_czk = price * kusy * eur_usd * usd_czk
             else: val_czk = price * kusy * usd_czk
             
-            print(f"✅ {ticker}: {price:.2f} (Hodnota: {val_czk:,.0f} CZK)")
             total_val_czk += val_czk
             
-        # Malá pauza, abychom nezahltili server (anti-spam)
-        time.sleep(0.5)
+            # Uložíme si data pro report
+            portfolio_items.append({
+                "ticker": ticker,
+                "value_czk": val_czk,
+                "change": change
+            })
+            print(f"✅ {ticker}: {change:+.2f}% | {val_czk:,.0f} CZK")
+        else:
+            print(f"❌ {ticker}: Data nedostupná")
 
-    print(f"💰 Celkem: {total_val_czk:,.0f} CZK")
+    # 4. SESTAVENÍ REPORTU
+    # Seřadíme podle denní změny (nejlepší nahoře)
+    sorted_items = sorted(portfolio_items, key=lambda x: x['change'], reverse=True)
+    
+    # Najdeme vítěze a poraženého
+    best = sorted_items[0] if sorted_items else None
+    worst = sorted_items[-1] if sorted_items else None
+    
+    # Hlavička zprávy
+    emoji_total = "🤑" if total_val_czk > 0 else "🤷‍♂️"
+    msg = f"<b>📊 DENNÍ UPDATE</b>\n"
+    msg += f"📅 {datetime.datetime.now().strftime('%d.%m.%Y')}\n"
+    msg += f"--------------------------------\n"
+    msg += f"{emoji_total} <b>CELKEM: {total_val_czk:,.0f} Kč</b>\n"
+    msg += f"💵 Kurz USD: {usd_czk:.2f} Kč\n\n"
+    
+    # Sekce Top/Flop (jen pokud máme aspoň 2 akcie)
+    if len(sorted_items) >= 2:
+        msg += f"🚀 <b>Top:</b> {best['ticker']} ({best['change']:+.2f}%)\n"
+        msg += f"💀 <b>Flop:</b> {worst['ticker']} ({worst['change']:+.2f}%)\n"
+        msg += f"--------------------------------\n"
+    
+    # Sekce Detail (Seznam)
+    msg += "<b>📋 Detail portfolia:</b>\n"
+    for item in sorted_items:
+        # Vybereme ikonku podle změny
+        icon = "🟢" if item['change'] >= 0 else "🔴"
+        # Zarovnáme text, aby to vypadalo hezky
+        msg += f"{icon} <b>{item['ticker']}</b>: {item['change']:+.1f}%  ({item['value_czk']/1000:.1f}k)\n"
+    
+    msg += f"\n<i>(Chameleon V2 🦎)</i>"
 
     # 5. ODESLÁNÍ
-    emoji = "🤑" if total_val_czk > 0 else "🔧"
-    msg = f"""
-<b>🤖 DENNÍ REPORT</b>
-📅 {datetime.datetime.now().strftime('%d.%m.%Y')}
------------------------------
-{emoji} <b>Celková hodnota:</b> {total_val_czk:,.0f} Kč
-💵 <b>Kurz USD:</b> {usd_czk:.2f} Kč
-
-<i>(Chameleon Mode 🦎)</i>
-    """
     send_telegram(msg)
 
 if __name__ == "__main__":
