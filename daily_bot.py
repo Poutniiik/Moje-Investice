@@ -51,7 +51,7 @@ def save_history(total_czk, usd_czk):
         
         # Připíšeme řádek
         with open(filename, "a") as f:
-            f.write(f"{today},{total_usd:.2f},admin\n")
+            f.write(f"{today},{total_usd:.2f},Attis\n")
             
         print(f"💾 ULOŽENO DO HISTORIE: {today} | ${total_usd:.2f} (kurz {usd_czk:.2f})")
         return True
