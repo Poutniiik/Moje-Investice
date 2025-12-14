@@ -4,7 +4,7 @@ import requests
 import os
 import datetime
 import time
-import json # <--- NOVINKA
+import json
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -43,7 +43,6 @@ def save_history(total_czk, usd_czk):
         if not os.path.exists(filename):
             with open(filename, "w") as f: f.write("Date,TotalUSD,Owner\n")
         
-        # ZDE JSME OPRAVILI JMENO NA 'Attis'
         with open(filename, "a") as f:
             f.write(f"{today},{total_usd:.2f},Attis\n")
         print("💾 Historie uložena.")
@@ -72,7 +71,6 @@ def main():
     portfolio_items = []
     total_val_czk = 0
     
-    # TOTO JE NOVÉ: Slovník pro "Mrtvou schránku"
     cache_data = {
         "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "usd_czk": usd_czk,
@@ -88,7 +86,6 @@ def main():
         price, change = get_data_safe(ticker)
         time.sleep(0.2)
         
-        # Uložíme do cache (i když je 0, ať apka ví, že jsme to zkoušeli)
         cache_data["prices"][ticker] = {"price": price, "change": change}
 
         if price > 0:
@@ -99,21 +96,31 @@ def main():
             
             total_val_czk += val_czk
             portfolio_items.append({"ticker": ticker, "value_czk": val_czk, "change": change})
-            print(f"✅ {ticker}: {val_czk:,.0f} CZK")
+            # Tady jsem vrátil výpis procent i do logu:
+            print(f"✅ {ticker}: {change:+.2f}% | {val_czk:,.0f} CZK")
 
-    # 3. ULOŽENÍ CACHE SOUBORU (Mrtvá schránka)
+    # 3. ULOŽENÍ CACHE
     try:
         with open("market_cache.json", "w") as f:
             json.dump(cache_data, f)
-        print("📦 Cache (zrychlovač) uložena do souboru.")
+        print("📦 Cache uložena.")
     except Exception as e:
-        print(f"❌ Chyba ukládání cache: {e}")
+        print(f"❌ Chyba cache: {e}")
 
-    # 4. Uložení historie a Telegram (Klasika)
+    # 4. Uložení historie a Telegram
     save_history(total_val_czk, usd_czk)
     
     sorted_items = sorted(portfolio_items, key=lambda x: x['change'], reverse=True)
-    msg = f"<b>📊 DENNÍ UPDATE</b>\n📅 {datetime.datetime.now().strftime('%d.%m.%Y')}\n----------------\n🤑 <b>CELKEM: {total_val_czk:,.0f} Kč</b>\n💵 Kurz USD: {usd_czk:.2f} Kč"
+    
+    # Sestavení zprávy
+    msg = f"<b>📊 DENNÍ UPDATE</b>\n📅 {datetime.datetime.now().strftime('%d.%m.%Y')}\n----------------\n🤑 <b>CELKEM: {total_val_czk:,.0f} Kč</b>\n💵 Kurz USD: {usd_czk:.2f} Kč\n\n"
+    
+    # Tady je ta část, která ti chyběla (vrátil jsem ji zpět):
+    msg += "<b>📋 Detail:</b>\n"
+    for item in sorted_items:
+        icon = "🟢" if item['change'] >= 0 else "🔴"
+        msg += f"{icon} <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
+
     send_telegram(msg)
 
 if __name__ == "__main__":
