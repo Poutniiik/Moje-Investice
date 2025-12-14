@@ -5,6 +5,7 @@ import os
 
 # --- TELEGRAM FUNKCE ---
 def send_telegram_message(message):
+    # ... (tahle funkce je stejná, nech ji beze změny) ...
     TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
     CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
     
@@ -30,7 +31,6 @@ def send_telegram_message(message):
 def get_data_safe(ticker):
     try:
         t = yf.Ticker(ticker)
-        # Používáme fast_info, je nejrychlejší a nejspolehlivější pro aktuální cenu
         price = t.fast_info.last_price
         currency = t.fast_info.currency
         return price, currency
@@ -39,50 +39,51 @@ def get_data_safe(ticker):
 
 # --- HLAVNÍ LOGIKA HLÍDAČE ---
 def run_alert_bot():
-    print("🔔 Spouštím Price Alert Bota...")
+    print("🔔 Spouštím Price Alert Bota z targets.csv...")
     
-    # Předpoklad: portfolio_data.csv je v kořenové složce
+    # NOVÉ: Čteme POUZE price_targets.csv
+    TARGETS_FILE = "price_targets.csv"
     try:
-        df = pd.read_csv("portfolio_data.csv")
+        df_targets = pd.read_csv(TARGETS_FILE)
+        # Odstraníme řádky, kde chybí TARGET_PRICE nebo je 0
+        df_targets = df_targets.dropna(subset=['TARGET_PRICE'])
+        df_targets = df_targets[df_targets['TARGET_PRICE'] > 0]
+        if df_targets.empty:
+            print("V price_targets.csv nejsou žádné aktivní cíle.")
+            return
+
     except FileNotFoundError:
-        print("Chyba: Soubor portfolio_data.csv nenalezen.")
+        print(f"Chyba: Soubor {TARGETS_FILE} nenalezen. Vytvořte ho.")
+        return
+    except Exception as e:
+        print(f"Chyba při čtení cílů: {e}")
         return
 
     alerts = []
     
-    # 1. Získáme všechny unikátní tikery, které musíme zkontrolovat
-    tickers_to_check = df['TICKER'].unique().tolist()
+    # Používáme iteraci přes řádky nového DataFrame s cíli
+    for index, row in df_targets.iterrows():
+        ticker = row['TICKER']
+        target_price = row['TARGET_PRICE']
+        direction = str(row.get('DIRECTION', 'BUY')).upper() # default BUY
 
-    # 2. Iterujeme přes všechny tikery a kontrolujeme TARGET_PRICE
-    for ticker in tickers_to_check:
-        
-        # Získáme řádek pro daný ticker (zde je target cena)
-        ticker_data = df[df['TICKER'] == ticker].iloc[0]
-        target_price = ticker_data.get('TARGET_PRICE', 0.0)
-        
-        # Ignorujeme, pokud není nastaven TARGET_PRICE
-        if target_price == 0.0:
-            continue
-        
-        # Získáme aktuální cenu
         current_price, currency = get_data_safe(ticker)
         
         if current_price is None:
-            alerts.append(f"⚠️ **{ticker}**: Cena nedostupná (skip).")
+            print(f"⚠️ Cena pro {ticker} nedostupná.")
             continue
         
         # Logika pro spuštění alarmu:
-        # A) Cílová cena je vyšší než nákupní cena (Chceme prodat!)
-        if target_price > ticker_data['AVG_PRICE']:
-            # Pokud AKTUALNÍ CENA VYSTOUPLA NAD CÍL
-            if current_price >= target_price:
-                alerts.append(f"🟢 **SELL ALERT!** {ticker} dosáhlo cíle! {current_price:.2f} {currency} (Cíl: {target_price:.2f})")
         
-        # B) Cílová cena je nižší než nákupní cena (Chceme nakoupit!)
-        elif target_price < ticker_data['AVG_PRICE']:
-             # Pokud AKTUALNÍ CENA KLESLA POD CÍL
-             if current_price <= target_price:
-                alerts.append(f"🔴 **BUY ALERT!** {ticker} je na slevě! {current_price:.2f} {currency} (Cíl: {target_price:.2f})")
+        # BUY ALARM: Cíl je NÍŽE než aktuální cena
+        if direction == 'BUY':
+            if current_price <= target_price:
+                alerts.append(f"🔴 **BUY ALERT!** {ticker} je na slevě! Nyní {current_price:.2f} {currency} (Cíl: {target_price:.2f})")
+        
+        # SELL ALARM: Cíl je VÝŠE než aktuální cena
+        elif direction == 'SELL':
+            if current_price >= target_price:
+                alerts.append(f"🟢 **SELL ALERT!** {ticker} dosáhlo cíle! Nyní {current_price:.2f} {currency} (Cíl: {target_price:.2f})")
 
     # 3. Odeslání zprávy
     if alerts:
