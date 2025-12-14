@@ -226,54 +226,65 @@ import json # Přidej nahoru k importům, pokud tam není
 
 # ... (ostatní kód) ...
 
-@st.cache_data(ttl=3600) # Cache může být delší, protože čteme soubor
+@st.cache_data(ttl=3600)
 def ziskej_ceny_hromadne(tickers):
     """
-    Verze TURBO: Nejdřív zkusí načíst soubor od robota. 
-    Když ho najde, nevolá Yahoo a je to bleskové.
+    Verze TURBO (Opravená): Načte i kurzy měn z JSONu od robota.
     """
     data = {}
-    if not tickers: return data
     
-    # 1. ZKUSÍME NAČÍST DATA OD ROBOTA (Mrtvá schránka) 📦
+    # 1. ZKUSÍME NAČÍST DATA OD ROBOTA (z cache souboru)
     try:
+        # Použijeme absolutní cestu nebo relativní - záleží kde běží appka, 
+        # ale 'market_cache.json' by měl být ve stejné složce.
         with open("market_cache.json", "r") as f:
             cache = json.load(f)
-            # Zkontrolujeme, jestli data nejsou starší než 2 dny (volitelné)
-            # Ale pro teď stačí, že prostě existují.
-            
             cached_prices = cache.get("prices", {})
-            print("🚀 Používám TURBO data od robota!")
             
-            for t in tickers:
-                if t in cached_prices:
-                    p_info = cached_prices[t]
-                    price = p_info.get("price", 0)
-                    
-                    # Určení měny
-                    curr = "USD"
-                    if ".PR" in str(t): curr = "CZK"
-                    elif ".DE" in str(t): curr = "EUR"
-                    
-                    if price > 0:
-                        data[t] = {"price": price, "curr": curr}
+            # --- TADY JE TA OPRAVA PRO LIŠTU ---
+            # Vytáhneme kurzy, které leží v JSONu mimo složku "prices"
+            usd_czk = cache.get("usd_czk")
+            if usd_czk:
+                data["USD/CZK"] = {"price": usd_czk, "curr": "CZK"}
             
-            # Pokud se podařilo načíst většinu věcí, vrátíme to a končíme.
+            eur_usd = cache.get("eur_usd")
+            if eur_usd:
+                data["EUR/USD"] = {"price": eur_usd, "curr": "USD"}
+            # -----------------------------------
+            
+            # Teď načteme klasické akcie
+            if tickers:
+                for t in tickers:
+                    if t in cached_prices:
+                        p_info = cached_prices[t]
+                        price = p_info.get("price", 0)
+                        
+                        # Určení měny
+                        curr = "USD"
+                        if ".PR" in str(t): curr = "CZK"
+                        elif ".DE" in str(t): curr = "EUR"
+                        
+                        if price > 0:
+                            data[t] = {"price": price, "curr": curr}
+            
+            # Pokud máme data (aspoň něco), vracíme je a končíme.
             if len(data) > 0:
+                print("🚀 Použita TURBO cache (včetně měn).")
                 return data
 
     except Exception as e:
-        print(f"⚠️ Cache nenalezena, jedu postaru: {e}")
+        print(f"⚠️ Cache cache nenalezena, jedu postaru: {e}")
 
-    # 2. POKUD SOUBOR NENÍ, JEDEME POSTARU (Chameleon 🦎)
-    # (Tady zůstává ten kód z minula jako záloha)
-    search_list = list(set(tickers + ["CZK=X", "EURUSD=X"]))
+    # 2. POKUD SOUBOR NENÍ, JEDEME POSTARU (Záloha přes Yahoo)
+    # (Tohle se spustí jen když selže načtení JSONu)
+    search_list = list(set((tickers if tickers else []) + ["CZK=X", "EURUSD=X"]))
     for t in search_list:
         try:
             stock = yf.Ticker(t)
             price = 0.0
             try: price = float(stock.fast_info.last_price)
             except: pass
+            
             if not price:
                 try: 
                     hist = stock.history(period="5d", auto_adjust=True)
@@ -281,16 +292,22 @@ def ziskej_ceny_hromadne(tickers):
                 except: pass
             
             curr = "USD"
+            label = t 
+            
             if ".PR" in str(t): curr = "CZK"
             elif ".DE" in str(t): curr = "EUR"
+            elif "CZK=X" in str(t): 
+                curr = "CZK"
+                label = "USD/CZK"
+            elif "EURUSD=X" in str(t): 
+                curr = "USD"
+                label = "EUR/USD"
             
             if price > 0:
-                data[t] = {"price": price, "curr": curr}
-            time.sleep(0.1)
+                data[label] = {"price": price, "curr": curr}
         except: pass
             
     return data
-
 @st.cache_data(ttl=3600)
 def ziskej_kurzy(): 
     return {"USD": 1.0, "CZK": 20.85, "EUR": 1.16}
