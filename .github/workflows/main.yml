@@ -1,0 +1,26 @@
+# ... (Zde je konec jobů pro alert_bot a daily_bot)
+
+  # --- TŘETÍ JOB: EARNINGS CALENDAR BOT (TÝDENÍ SPUŠTĚNÍ) ---
+  earnings_calendar:
+    runs-on: ubuntu-latest
+    
+    # Spuštění KAŽDOU NEDĚLI ve 20:00 UTC (21:00 nebo 22:00 CET)
+    schedule:
+      - cron: '0 20 * * 0' # 0 20 * * 0 = 20:00 UTC každou neděli
+      
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          pip install pandas yfinance requests
+      - name: Run Earnings Calendar Bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # TARGET_OWNER se nenačítá, je natvrdo 'Attis' v kódu
+        run: python earnings_bot.py
