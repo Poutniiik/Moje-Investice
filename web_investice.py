@@ -3254,7 +3254,7 @@ if st.button("🔔 Otestovat Telegram notifikaci", key="btn_test_notify", use_co
         st.error(f"Chyba: {msg}. Zkontroluj TELEGRAM_BOT_TOKEN.")
                 
     # --- BANKOVNÍ TESTER (Stránka) ---
-    elif page == "🧪 Banka":
+elif page == "🧪 Banka":
         render_bank_lab_page()
 
     # --- AI CHATBOT (Vždy dole) ---
@@ -3408,6 +3408,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
