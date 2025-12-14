@@ -2,7 +2,8 @@ name: Denní Report Portfolia
 
 on:
   schedule:
-    - cron: '0 17 * * 1-5' # Všední dny v 18:00
+    # 6:00, 16:00, 22:00 (v našem čase)
+    - cron: '0 5,15,21 * * 1-5'
   workflow_dispatch:
 
 # TOTO JE NOVÉ: Dáváme robotovi právo zapisovat do souborů
@@ -24,12 +25,13 @@ jobs:
 
     - name: Install libraries
       run: |
-        pip install pandas yfinance requests
+        pip install pandas yfinance requests google-generativeai
 
     - name: Run Robot
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        GEMINI_API_KEY: ${{ secrets.api_key }}
       run: python daily_bot.py
 
     # TOTO JE NOVÉ: Uložíme změny v CSV zpět na GitHub
