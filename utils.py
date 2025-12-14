@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import requests
+import json
 import feedparser
 import smtplib
 from email.mime.text import MIMEText
@@ -221,53 +222,72 @@ def odeslat_email(prijemce, predmet, telo):
         return True
     except Exception as e: return f"Chyba: {e}"
 
-@st.cache_data(ttl=300) # Cache 5 minut, ať to nenačítá pořád
+import json # Přidej nahoru k importům, pokud tam není
+
+# ... (ostatní kód) ...
+
+@st.cache_data(ttl=3600) # Cache může být delší, protože čteme soubor
 def ziskej_ceny_hromadne(tickers):
     """
-    Verze CHAMELEON: Stahuje ceny po jedné s malou pauzou, aby obešla blokaci Yahoo.
+    Verze TURBO: Nejdřív zkusí načíst soubor od robota. 
+    Když ho najde, nevolá Yahoo a je to bleskové.
     """
     data = {}
     if not tickers: return data
     
-    # Přidáme měny do seznamu
+    # 1. ZKUSÍME NAČÍST DATA OD ROBOTA (Mrtvá schránka) 📦
+    try:
+        with open("market_cache.json", "r") as f:
+            cache = json.load(f)
+            # Zkontrolujeme, jestli data nejsou starší než 2 dny (volitelné)
+            # Ale pro teď stačí, že prostě existují.
+            
+            cached_prices = cache.get("prices", {})
+            print("🚀 Používám TURBO data od robota!")
+            
+            for t in tickers:
+                if t in cached_prices:
+                    p_info = cached_prices[t]
+                    price = p_info.get("price", 0)
+                    
+                    # Určení měny
+                    curr = "USD"
+                    if ".PR" in str(t): curr = "CZK"
+                    elif ".DE" in str(t): curr = "EUR"
+                    
+                    if price > 0:
+                        data[t] = {"price": price, "curr": curr}
+            
+            # Pokud se podařilo načíst většinu věcí, vrátíme to a končíme.
+            if len(data) > 0:
+                return data
+
+    except Exception as e:
+        print(f"⚠️ Cache nenalezena, jedu postaru: {e}")
+
+    # 2. POKUD SOUBOR NENÍ, JEDEME POSTARU (Chameleon 🦎)
+    # (Tady zůstává ten kód z minula jako záloha)
     search_list = list(set(tickers + ["CZK=X", "EURUSD=X"]))
-    
     for t in search_list:
         try:
-            # Maskování za "jednoho uživatele"
             stock = yf.Ticker(t)
             price = 0.0
-            
-            # 1. Zkusíme Fast Info (rychlejší)
-            try:
-                # Yahoo vrací různé klíče, zkusíme 'last_price'
-                price = float(stock.fast_info.last_price)
+            try: price = float(stock.fast_info.last_price)
             except: pass
-            
-            # 2. Pokud selže, zkusíme Historii (pomalejší, ale spolehlivější)
-            if not price or price == 0 or pd.isna(price):
-                try:
-                    # auto_adjust=True je důležité pro nové verze yfinance
+            if not price:
+                try: 
                     hist = stock.history(period="5d", auto_adjust=True)
-                    if not hist.empty:
-                        price = float(hist['Close'].iloc[-1])
+                    price = float(hist['Close'].iloc[-1])
                 except: pass
             
-            # Určení měny
             curr = "USD"
-            t_str = str(t).upper()
-            if ".PR" in t_str: curr = "CZK"
-            elif ".DE" in t_str: curr = "EUR"
+            if ".PR" in str(t): curr = "CZK"
+            elif ".DE" in str(t): curr = "EUR"
             
-            # Uložení, pokud máme cenu
             if price > 0:
                 data[t] = {"price": price, "curr": curr}
-                
-            # 🛑 ZÁCHOD, POLYKEJ POMALU (Anti-spam pauza)
-            time.sleep(0.1) 
-            
-        except Exception: 
-            pass
+            time.sleep(0.1)
+        except: pass
             
     return data
 
