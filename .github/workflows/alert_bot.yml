@@ -23,9 +23,9 @@ jobs:
         # Potřebujeme jen ty, které používá alert_bot.py
         run: pip install pandas yfinance requests
 
-      - name: Run Alert Bot
+      - name: Run Alert Bot (S klíči)
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python alert_bot.py
