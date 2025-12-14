@@ -1903,7 +1903,7 @@ def main():
                     rk = st.text_input("Záchranný kód")
                     rnp = st.text_input("Nové heslo", type="password")
                 
-                    if st.form_submit_button("OBNOVIT"):
+                if st.form_submit_button("OBNOVIT"):
                     df_u = nacti_uzivatele()
                     # 1. Oprava: Používáme 'ru' místo 'u'
                     row = df_u[df_u['username'] == ru] 
@@ -3402,5 +3402,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
