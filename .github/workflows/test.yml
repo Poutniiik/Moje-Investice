@@ -14,9 +14,9 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        # Potřebujeme pandas, yfinance a pytest!
+        # Potřebujeme knihovny pro testy (pytest) A pro kód (pandas, yfinance, google-generativeai)
         run: |
-          pip install pandas yfinance pytest
+          pip install pandas yfinance pytest google-generativeai
 
       - name: Run Pytest
         run: |
