@@ -7,6 +7,10 @@ import datetime
 import time
 import json
 import google.generativeai as genai  # <--- NOVINKA: Mozek AI
+import matplotlib       # <--- NOVÉ
+import matplotlib.pyplot as plt
+# Nastavíme backend pro servery bez monitoru (aby to nepadalo na GitHubu)
+matplotlib.use('Agg')
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -21,6 +25,50 @@ def send_telegram(message):
         print("📨 Telegram odeslán.")
     except Exception as e:
         print(f"❌ Chyba Telegram: {e}")
+
+def send_telegram_photo(photo_path):
+    """Pošle obrázek na Telegram."""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    try:
+        with open(photo_path, 'rb') as photo:
+            # Telegram API chce 'multipart/form-data' pro soubory
+            requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID}, files={"photo": photo})
+        print("📸 Telegram (graf) odeslán.")
+    except Exception as e:
+        print(f"❌ Chyba Telegram Foto: {e}")
+
+# --- NOVÁ FUNKCE PRO TVORBU GRAFU ---
+def create_chart():
+    """Vytvoří graf z value_history.csv a uloží ho jako chart.png"""
+    try:
+        if not os.path.exists("value_history.csv"): return None
+        
+        # Načteme data
+        df = pd.read_csv("value_history.csv")
+        if len(df) < 2: return None # Nemá smysl kreslit graf z jednoho bodu
+        
+        # Převedeme sloupec Date na datum
+        df['Date'] = pd.to_datetime(df['Date'])
+        
+        # Vykreslení
+        plt.figure(figsize=(10, 5)) # Velikost obrázku
+        plt.plot(df['Date'], df['TotalUSD'], marker='o', linestyle='-', color='#007acc', linewidth=2)
+        
+        # Kosmetika grafu
+        plt.title("Vývoj hodnoty portfolia (USD)", fontsize=14)
+        plt.grid(True, which='both', linestyle='--', alpha=0.5)
+        plt.tight_layout()
+        
+        # Uložení
+        filename = "chart.png"
+        plt.savefig(filename)
+        plt.close() # Důležité: uklidit po sobě paměť
+        print("🎨 Graf vytvořen.")
+        return filename
+    except Exception as e:
+        print(f"⚠️ Chyba při tvorbě grafu: {e}")
+        return None
 
 def get_ai_comment(portfolio_text, total_val, change_today):
     if not GEMINI_API_KEY:
@@ -77,6 +125,8 @@ def save_history(total_czk, usd_czk):
         total_usd = total_czk / usd_czk if usd_czk > 0 else 0
         filename = "value_history.csv"
         today = datetime.datetime.now().strftime("%Y-%m-%d")
+
+        write_header = not os.path.exists(filename)
         
         if not os.path.exists(filename):
             with open(filename, "w") as f: f.write("Date,TotalUSD,Owner\n")
@@ -165,6 +215,12 @@ def main():
     msg += f"\n💡 <b>AI Komentář:</b>\n<i>{ai_comment}</i>"
 
     send_telegram(msg)
+
+    chart_file = create_chart()
+    if chart_file:
+        send_telegram_photo(chart_file)
+    else:
+        print("⚠️ Graf zatím nelze vytvořit (asi málo dat v historii).")
 
 if __name__ == "__main__":
     main()
