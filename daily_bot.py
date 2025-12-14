@@ -23,28 +23,39 @@ def send_telegram(message):
         print(f"❌ Chyba Telegram: {e}")
 
 def get_ai_comment(portfolio_text, total_val, change_today):
-    """Zeptá se Gemini na názor."""
     if not GEMINI_API_KEY:
-        print("⚠️ Nemám AI klíč, přeskakuji analýzu.")
         return "AI klíč nenalezen."
     
+    # 🎭 SEZNAM OSOBNOSTÍ
+    personas = [
+        "Jsi sarkastický robot, který si dělá legraci z lidských peněz.",
+        "Jsi nadšený fotbalový komentátor, který komentuje vývoj akcií jako napínavý zápas.",
+        "Jsi moudrý mistr Yoda. Mluvíš v hádankách a obracíš slovosled.",
+        "Jsi pirát, který hlídá svůj poklad. Používej pirátský slang.",
+        "Jsi, konzervativní britský komorník. Jsi velmi zdvořilý a formální."
+    ]
+    
+    # Vybereme náhodně jednu
+    selected_persona = random.choice(personas)
+
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash') # Rychlý model
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
+        # Upravený prompt s dynamickou osobností
         prompt = (
-            f"Jsi zkušený investiční analytik. Zhodnoť stručně (max 3 věty) dnešní stav portfolia.\n"
+            f"{selected_persona}\n"  # <--- Tady se vloží náhodná role
+            f"Zhodnoť stručně (max 3 věty) dnešní stav portfolia pro investora jménem Attis.\n"
             f"Celková hodnota: {total_val:,.0f} CZK.\n"
             f"Dnešní pohyby akcií:\n{portfolio_text}\n"
-            f"Napiš to vtipně nebo povzbudivě pro investora jménem Attis. "
-            f"Nepoužívej formátování jako tučné písmo, jen čistý text."
+            f"Nepoužívej formátování textu."
         )
         
         response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
         print(f"❌ Chyba AI: {e}")
-        return "Dnes jsem bez nálady (chyba spojení)."
+        return "Dnes nemám slov."
 
 def get_data_safe(ticker):
     try:
