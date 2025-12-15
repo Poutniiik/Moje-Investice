@@ -86,7 +86,7 @@ def get_ai_comment(portfolio_text, total_val, change_today):
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         # Použijeme model, který máš dostupný (1.5 nebo 2.0)
-        model = genai.GenerativeModel('gemini-1.5-flash') 
+        model = genai.GenerativeModel('gemini-2.5-flash') 
         prompt = (
             f"{selected_persona}\n"
             f"Zhodnoť stručně (max 3 věty) dnešní stav portfolia pro investora jménem {TARGET_OWNER}.\n"
