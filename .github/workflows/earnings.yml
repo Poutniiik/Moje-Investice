@@ -1,0 +1,28 @@
+name: Earnings Calendar Bot
+
+on:
+  schedule:
+    - cron: '0 20 * * 0' # Spustí se každou Neděli ve 20:00 UTC
+  workflow_dispatch: # Povoluje ruční spuštění tlačítkem
+
+jobs:
+  run_earnings:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: pip install pandas yfinance requests
+        
+      - name: Run Earnings Bot
+        env:
+          # Vlevo je to, co čeká Python skript. Vpravo je to, co máš v Secrets.
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python earnings_bot.py
