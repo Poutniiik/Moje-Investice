@@ -36,7 +36,6 @@ def get_earnings_in_range(ticker, start_date, end_date):
         if cal is None:
             return None
 
-        # Získání seznamu dat (yfinance vrací různé formáty, zkusíme univerzalitu)
         dates = []
         
         # Varianta 1: Dictionary
@@ -48,10 +47,16 @@ def get_earnings_in_range(ticker, start_date, end_date):
             
         # Projdeme data a hledáme shodu s příštím týdnem
         for d in dates:
-            # Převedeme na date objekt (bez času)
-            d_date = d.date()
-            if start_date <= d_date <= end_date:
-                return d_date # Našli jsme datum v příštím týdnu!
+            try:
+                # --- OPRAVA ZDE ---
+                # Univerzální převod: Ať je to cokoliv, pandas z toho udělá Timestamp
+                # a my si z něj vezmeme .date()
+                d_date = pd.to_datetime(d).date()
+                
+                if start_date <= d_date <= end_date:
+                    return d_date 
+            except Exception:
+                continue # Kdyby bylo jedno datum vadné, zkusíme další
                 
     except Exception as e:
         print(f"⚠️ Chyba u {ticker}: {e}")
