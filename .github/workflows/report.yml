@@ -6,7 +6,7 @@ on:
     - cron: '0 5,15,21 * * 1-5'
   workflow_dispatch:
 
-# TOTO JE NOVÉ: Dáváme robotovi právo zapisovat do souborů
+# Dáváme robotovi právo zapisovat do souborů (Commit & Push)
 permissions:
   contents: write
 
@@ -23,24 +23,29 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install libraries
+    - name: Install dependencies
+      # OPRAVA: Instalace všech závislostí včetně PyGithub a matplotlib
       run: |
-        pip install pandas yfinance requests google-generativeai matplotlib
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
 
     - name: Run Robot
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        # Token pro stahování a nahrávání dat
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: python daily_bot.py
 
-    # TOTO JE NOVÉ: Uložíme změny v CSV zpět na GitHub
+    # Uložíme změny v CSV (Historie) a JSON (Cache) zpět na GitHub
     - name: Commit and Push changes
       run: |
         git config --global user.name 'Investicni Robot'
         git config --global user.email 'robot@github.com'
-        git add value_history.csv
-        git add market_cache.json
-        # Zkusíme commitnout, pokud nejsou změny (např. chyba), nevadí (|| exit 0)
-        git commit -m "💾 Auto-save: Historie portfolia" || exit 0
+        # Přidáme soubory, pokud existují/změnily se
+        git add value_history.csv || echo "value_history.csv nenalezen"
+        git add market_cache.json || echo "market_cache.json nenalezen"
+        # Zkusíme commitnout, pokud nejsou změny, nevadí (|| exit 0)
+        git commit -m "💾 Auto-save: Historie a Cache" || exit 0
         git push
