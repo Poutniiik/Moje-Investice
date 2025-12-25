@@ -3,21 +3,24 @@ import google.generativeai as genai
 
 # --- KONSTANTY & MANUÁL ---
 APP_MANUAL = """
-Jsi asistent v aplikaci 'Terminal Pro'.
-Tvá role: Radit s investicemi, pomáhat s ovládáním a analyzovat zprávy z trhu.
+Jsi inteligentní asistent v aplikaci 'Terminal Pro'.
+Tvá role: Radit s investicemi, vysvětlovat finanční pojmy a analyzovat portfolio uživatele.
+
+PRAVIDLA CHOVÁNÍ:
+1. Odpovídej stručně a k věci (jsi burzovní nástroj, ne spisovatel).
+2. Pokud se uživatel ptá na jeho data, použij poskytnutý KONTEXT.
+3. Pokud data nemáš, řekni to na rovinu.
+4. Udržuj kontext konverzace (pamatuj si, o čem jsme mluvili).
 
 MAPA APLIKACE:
-1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy, Detailní tabulka.
-2. '📈 Analýza': Rentgen akcie, Mapa trhu, Měnové riziko, Srovnání s S&P 500, Věštec, Crash Test.
-3. '📰 Zprávy': Čtečka novinek z trhu + AI shrnutí.
-4. '💸 Obchod & Peníze': Nákup/Prodej akcií, Vklady, Směnárna.
-5. '💎 Dividendy': Historie a graf dividend.
-6. ⚙️ Správa Dat': Zálohy a editace.
+1. '🏠 Přehled': Dashboard, Jmění, Hotovost, Síň slávy.
+2. '📈 Analýza': Rentgen akcie, Mapa trhu, Srovnání s S&P 500.
+3. '📰 Zprávy': Čtečka novinek + AI analýza.
+4. '💸 Obchod': Nákup/Prodej, Banka.
+5. '💎 Dividendy': Kalendář a grafy.
 """
 
 # --- INICIALIZACE ---
-# soubor: ai_brain.py
-
 def init_ai():
     """
     Pokusí se připojit k Google Gemini.
@@ -33,9 +36,6 @@ def init_ai():
             return None, False
     except Exception:
         return None, False
-
-# Tady uvnitř funkce init_ai UŽ NIC DALŠÍHO NEBUDE.
-# A na konci souboru taky nic nespouštěj.
 
 # --- FUNKCE PRO JEDNOTLIVÉ ÚKOLY ---
 
@@ -135,9 +135,23 @@ def analyze_headlines_sentiment(model, headlines_list):
         return model.generate_content(prompt).text
     except Exception as e: return ""
 
-def get_chat_response(model, user_msg, context_data):
-    """Generuje odpověď pro chatbota s kontextem."""
-    full_prompt = f"{APP_MANUAL}\n\nDATA A TRŽNÍ KONTEXT:\n{context_data}\n\nDOTAZ UŽIVATELE: {user_msg}"
+# --- NOVINKA: CHATBOT S PAMĚTÍ ---
+def get_chat_response(model, history_messages, context_data):
+    """
+    Generuje odpověď chatbota s využitím historie konverzace.
+    history_messages: list slovníků [{'role': 'user', 'parts': ['text']}, ...]
+    """
     try:
-        return model.generate_content(full_prompt).text
-    except Exception as e: return f"Omlouvám se, došlo k chybě: {e}"
+        # 1. Start chatu s historií
+        chat = model.start_chat(history=history_messages[:-1]) # Poslední zprávu pošleme zvlášť
+        
+        # 2. Příprava aktuální zprávy s kontextem
+        last_user_msg = history_messages[-1]['parts'][0]
+        full_msg_with_context = f"KONTEXT APLIKACE:\n{context_data}\n\nDOTAZ UŽIVATELE: {last_user_msg}"
+        
+        # 3. Odeslání
+        response = chat.send_message(full_msg_with_context)
+        return response.text
+        
+    except Exception as e:
+        return f"Omlouvám se, došlo k chybě spojení: {e}"
