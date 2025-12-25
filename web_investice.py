@@ -1837,6 +1837,70 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     return data_core
 
 
+def render_ai_chat_widget(model, data_core):
+    """
+    Vykreslí plovoucí chatovací okno vpravo dole.
+    Propojuje CSS styl #floating-bot-anchor s logikou AI.
+    """
+    # 1. Inicializace historie chatu
+    if "chat_messages" not in st.session_state:
+        st.session_state["chat_messages"] = [
+            {"role": "model", "parts": ["Ahoj! Jsem tvůj investiční asistent. Vidím tvé portfolio. Co tě zajímá?"]}
+        ]
+
+    # 2. Kotva pro CSS (Tohle způsobí, že následující Expander bude "létat")
+    st.markdown('<div id="floating-bot-anchor"></div>', unsafe_allow_html=True)
+
+    # 3. Samotné okno chatu (Expander)
+    # Díky CSS ve styles.py se tento expander změní na kulatou ikonku, která se po kliknutí rozbalí
+    with st.expander("💬 AI ASISTENT"):
+        
+        # Kontejner pro zprávy (aby se dalo scrollovat)
+        chat_container = st.container()
+        
+        # Vykreslení historie
+        with chat_container:
+            for msg in st.session_state["chat_messages"]:
+                role = "user" if msg["role"] == "user" else "assistant"
+                with st.chat_message(role):
+                    st.write(msg["parts"][0])
+
+        # 4. Vstupní pole
+        # Používáme formulář, aby se stránka přenačetla až po odeslání
+        with st.form(key="chat_form", clear_on_submit=True):
+            user_input = st.text_input("Napiš dotaz...", placeholder="Např: Je moje portfolio rizikové?")
+            submit_button = st.form_submit_button("Odeslat 🚀")
+
+        if submit_button and user_input:
+            # A) Přidat dotaz uživatele do historie
+            st.session_state["chat_messages"].append({"role": "user", "parts": [user_input]})
+            
+            # B) Příprava kontextu (Data, která AI "vidí")
+            # Vytáhneme data z data_core, pokud existují
+            context_text = "AKTUÁLNÍ DATA PORTFOLIA:\n"
+            if data_core:
+                context_text += f"Celková hodnota: {data_core.get('celk_hod_usd', 0):,.0f} USD\n"
+                context_text += f"Hotovost: {data_core.get('cash_usd', 0):,.0f} USD\n"
+                context_text += f"Denní změna: {data_core.get('pct_24h', 0):.2f}%\n"
+                
+                # Přidáme seznam akcií pro kontext
+                vdf = data_core.get('vdf', pd.DataFrame())
+                if not vdf.empty:
+                    stocks_list = ", ".join([f"{r['Ticker']} ({r['Zisk']:.0f}$)" for _, r in vdf.iterrows()])
+                    context_text += f"Držené akcie: {stocks_list}\n"
+            else:
+                context_text += "Data nejsou momentálně dostupná.\n"
+
+            # C) Získání odpovědi z Mozku (ai_brain.py)
+            with st.spinner("Přemýšlím..."):
+                response_text = get_chat_response(model, st.session_state["chat_messages"], context_text)
+            
+            # D) Uložení odpovědi
+            st.session_state["chat_messages"].append({"role": "model", "parts": [response_text]})
+            
+            # E) Rerun pro zobrazení nové zprávy
+            st.rerun()
+
 # --- HLAVNÍ FUNKCE (Router) ---
 def main():
     # --- 1. BEZPEČNÁ INICIALIZACE AI (Fix 1: Použití cache wrapperu) ---
@@ -3343,9 +3407,16 @@ def render_bank_lab_page():
             if not expenses.empty:
                 fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
                 st.plotly_chart(fig_exp, use_container_width=True)
+
+            if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
+        # Data core už máme vypočítané v proměnné 'data_core' uvnitř main()
+        # Pokud by 'data_core' nebylo definováno (např. na Login stránce), ošetříme to:
+        current_data = locals().get('data_core', None)
+        render_ai_chat_widget(model, current_data)
                 
 if __name__ == "__main__":
     main()
+
 
 
 
