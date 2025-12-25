@@ -3408,7 +3408,7 @@ def render_bank_lab_page():
                 fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
                 st.plotly_chart(fig_exp, use_container_width=True)
 
-            if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
+                if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
         # Data core už máme vypočítané v proměnné 'data_core' uvnitř main()
         # Pokud by 'data_core' nebylo definováno (např. na Login stránce), ošetříme to:
         current_data = locals().get('data_core', None)
@@ -3416,6 +3416,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
