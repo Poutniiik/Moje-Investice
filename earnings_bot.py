@@ -4,11 +4,40 @@ import requests
 import os
 import datetime
 from datetime import timedelta
+from io import StringIO
+from github import Github # Přidáno pro cloudovou synchronizaci
 
 # --- KONFIGURACE ---
 TARGET_OWNER = 'Attis'
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+REPO_NAZEV = "Poutniiik/Moje-Investice" # Zde doplň svůj přesný název repozitáře!
+
+# --- FUNKCE PRO GITHUB (Cloud Sync) ---
+def download_csv_from_github(filename):
+    """
+    Stáhne aktuální CSV data přímo z GitHubu.
+    """
+    if not GITHUB_TOKEN:
+        print("⚠️ GITHUB_TOKEN chybí. Zkouším číst lokální soubor.")
+        if os.path.exists(filename):
+            return pd.read_csv(filename)
+        else:
+            return None
+
+    try:
+        g = Github(GITHUB_TOKEN)
+        repo = g.get_repo(REPO_NAZEV)
+        contents = repo.get_contents(filename)
+        csv_data = contents.decoded_content.decode("utf-8")
+        return pd.read_csv(StringIO(csv_data))
+    except Exception as e:
+        print(f"❌ Chyba stahování z GitHubu ({filename}): {e}")
+        if os.path.exists(filename):
+            print("🔄 Používám lokální zálohu.")
+            return pd.read_csv(filename)
+        return None
 
 def send_telegram(message):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -48,7 +77,6 @@ def get_earnings_in_range(ticker, start_date, end_date):
         # Projdeme data a hledáme shodu s příštím týdnem
         for d in dates:
             try:
-                # --- OPRAVA ZDE ---
                 # Univerzální převod: Ať je to cokoliv, pandas z toho udělá Timestamp
                 # a my si z něj vezmeme .date()
                 d_date = pd.to_datetime(d).date()
@@ -64,28 +92,26 @@ def get_earnings_in_range(ticker, start_date, end_date):
     return None
 
 def load_tickers():
-    """Načte unikátní tickery z portfolia i watchlistu pro Attise."""
+    """Načte unikátní tickery z portfolia i watchlistu pro Attise (z Cloudu!)."""
     tickers = set()
     
-    # 1. Portfolio
-    if os.path.exists("portfolio_data.csv"):
-        try:
-            df = pd.read_csv("portfolio_data.csv")
-            if 'Owner' in df.columns:
-                df = df[df['Owner'] == TARGET_OWNER]
+    # 1. Portfolio (CLOUD)
+    try:
+        df = download_csv_from_github("portfolio_data.csv")
+        if df is not None and 'Owner' in df.columns:
+            df = df[df['Owner'] == TARGET_OWNER]
             tickers.update(df['Ticker'].dropna().unique())
-        except Exception as e:
-            print(f"Chyba portfolio: {e}")
+    except Exception as e:
+        print(f"Chyba portfolio: {e}")
 
-    # 2. Watchlist
-    if os.path.exists("watchlist.csv"):
-        try:
-            df = pd.read_csv("watchlist.csv")
-            if 'Owner' in df.columns:
-                df = df[df['Owner'] == TARGET_OWNER]
+    # 2. Watchlist (CLOUD)
+    try:
+        df = download_csv_from_github("watchlist.csv")
+        if df is not None and 'Owner' in df.columns:
+            df = df[df['Owner'] == TARGET_OWNER]
             tickers.update(df['Ticker'].dropna().unique())
-        except Exception as e:
-            print(f"Chyba watchlist: {e}")
+    except Exception as e:
+        print(f"Chyba watchlist: {e}")
             
     # Očista tickerů (velká písmena, strip)
     return {str(t).strip().upper() for t in tickers}
