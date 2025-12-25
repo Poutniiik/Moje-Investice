@@ -208,22 +208,56 @@ def save_market_cache(prices_dict, usd_czk, eur_usd):
     except Exception as e:
         print(f"⚠️ Chyba ukládání cache: {e}")
 
+# --- NOVINKA: TIME MACHINE (ZÁLOHY) 🛡️ ---
+def perform_backup(df_portfolio, df_history):
+    """
+    Jednou týdně (v Neděli) vytvoří záložní kopii dat do složky 'backups'.
+    """
+    # 6 = Neděle (0 = Pondělí)
+    if datetime.datetime.now().weekday() == 6:
+        print("🛡️ Neděle -> Spouštím Time Machine (Zálohování)...")
+        backup_dir = "backups"
+        
+        # Vytvoříme složku, pokud neexistuje
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+            
+        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        # Záloha portfolia
+        if df_portfolio is not None and not df_portfolio.empty:
+            p_name = f"{backup_dir}/portfolio_data_{date_str}.csv"
+            df_portfolio.to_csv(p_name, index=False)
+            print(f"📦 Záloha vytvořena: {p_name}")
+            
+        # Záloha historie
+        if df_history is not None and not df_history.empty:
+            h_name = f"{backup_dir}/value_history_{date_str}.csv"
+            df_history.to_csv(h_name, index=False)
+            print(f"📦 Záloha vytvořena: {h_name}")
+    else:
+        print("📅 Dnes není neděle, zálohu přeskakuji.")
+
 def main():
     print("🧠 ROBOT 'AI ANALYTIK' STARTUJE...")
 
     # 1. Načtení portfolia (z GitHubu nebo lokálně)
-    df = download_csv_from_github("portfolio_data.csv")
+    # Stahujeme CELÉ portfolio pro zálohu, filtrovat budeme až pak
+    df_full_portfolio = download_csv_from_github("portfolio_data.csv")
     
-    if df is None or df.empty:
+    if df_full_portfolio is None or df_full_portfolio.empty:
         print(f"❌ Kritická chyba: Nelze načíst portfolio data.")
         return
 
-    # Filtr vlastníka
+    # Filtr vlastníka pro výpočty
+    df = df_full_portfolio.copy()
     if 'Owner' in df.columns:
          df = df[df['Owner'] == TARGET_OWNER]
     
     if df.empty:
         print(f"Žádná data pro uživatele {TARGET_OWNER}.")
+        # I když uživatel nemá data, zálohu celého souboru bychom udělat mohli,
+        # ale raději počkáme, až tam data budou.
         return
 
     # Seskupení
@@ -297,6 +331,10 @@ def main():
 
     # 4. Historie
     df_hist_new = save_history(total_val_usd)
+    
+    # --- ZÁLOHA (TIME MACHINE) ---
+    # Posíláme tam kompletní data (nejen filtrovaná), aby se zálohovalo vše
+    perform_backup(df_full_portfolio, df_hist_new)
     
     # 5. AI ANALÝZA
     print("🤖 Ptám se AI na názor...")
