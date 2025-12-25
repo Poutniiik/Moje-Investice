@@ -3,6 +3,37 @@ import yfinance as yf
 import requests
 import os
 import time
+from io import StringIO
+from github import Github # Přidáno pro cloudovou synchronizaci
+
+# --- KONFIGURACE ---
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+REPO_NAZEV = "Poutniiik/Moje-Investice" # Zde doplň svůj přesný název repozitáře!
+
+# --- FUNKCE PRO GITHUB (Cloud Sync) ---
+def download_csv_from_github(filename):
+    """
+    Stáhne aktuální CSV data přímo z GitHubu.
+    """
+    if not GITHUB_TOKEN:
+        print("⚠️ GITHUB_TOKEN chybí. Zkouším číst lokální soubor.")
+        if os.path.exists(filename):
+            return pd.read_csv(filename)
+        else:
+            return None
+
+    try:
+        g = Github(GITHUB_TOKEN)
+        repo = g.get_repo(REPO_NAZEV)
+        contents = repo.get_contents(filename)
+        csv_data = contents.decoded_content.decode("utf-8")
+        return pd.read_csv(StringIO(csv_data))
+    except Exception as e:
+        print(f"❌ Chyba stahování z GitHubu ({filename}): {e}")
+        if os.path.exists(filename):
+            print("🔄 Používám lokální zálohu.")
+            return pd.read_csv(filename)
+        return None
 
 # --- TELEGRAM FUNKCE (Zůstává beze změny) ---
 def send_telegram_message(message):
@@ -46,22 +77,22 @@ def get_data_safe(ticker):
         except Exception:
             return None, None
 
-# --- HLAVNÍ LOGIKA HLÍDAČE (Upraveno pro Watchlist.csv a TargetBuy/TargetSell) ---
+# --- HLAVNÍ LOGIKA HLÍDAČE (Upraveno pro Cloud) ---
 def run_alert_bot():
     print("🔔 Spouštím Price Alert Bota pro Watchlist...")
     
-    # Kde je soubor Watchlistu (musí být nahrán do repozitáře)
     WATCHLIST_FILE = "watchlist.csv"
-    
-    # Předpokládáme, že bot spouštíš pro konkrétního uživatele (např. 'default' nebo tvoje jméno)
-    # Tuto hodnotu je nutné nahradit TVÝM OWNEREM, pro kterého reporty běží!
-    # Pokud používáš 'default' (jako ve většině ukázek), ponech.
     TARGET_OWNER = 'Attis' 
     
-    # Načtení dat
+    # Načtení dat (CLOUD FIRST)
     try:
-        df_w = pd.read_csv(WATCHLIST_FILE)
+        # ZMĚNA: Použití funkce pro stažení z GitHubu
+        df_w = download_csv_from_github(WATCHLIST_FILE)
         
+        if df_w is None:
+            print(f"❌ Chyba: Nepodařilo se načíst {WATCHLIST_FILE}")
+            return
+
         # 1. Filtrování podle Ownera
         if 'Owner' in df_w.columns:
             df_targets = df_w[df_w['Owner'].astype(str) == TARGET_OWNER].copy()
@@ -85,9 +116,6 @@ def run_alert_bot():
             print(f"V {WATCHLIST_FILE} pro uživatele {TARGET_OWNER} nejsou žádné aktivní cíle.")
             return
 
-    except FileNotFoundError:
-        print(f"Chyba: Soubor {WATCHLIST_FILE} nenalezen.")
-        return
     except Exception as e:
         print(f"Chyba při čtení cílů: {e}")
         return
