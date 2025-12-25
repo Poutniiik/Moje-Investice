@@ -217,97 +217,114 @@ def odeslat_email(prijemce, predmet, telo):
         msg['From'] = sender_email
         msg['To'] = prijemce
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.login(sender_email, sender_password)
+            login = server.login(sender_email, sender_password)
             server.sendmail(sender_email, prijemce, msg.as_string())
         return True
     except Exception as e: return f"Chyba: {e}"
 
-import json # Přidej nahoru k importům, pokud tam není
-
-# ... (ostatní kód) ...
-
 @st.cache_data(ttl=3600)
 def ziskej_ceny_hromadne(tickers):
     """
-    Verze TURBO (Opravená): Načte i kurzy měn z JSONu od robota.
+    Verze TURBO HYBRID:
+    1. Zkusí načíst ceny z 'market_cache.json' (vygenerovaný botem).
+    2. Cokoliv nenajde v cache, stáhne živě z Yahoo.
     """
     data = {}
+    missing_tickers = []
     
-    # 1. ZKUSÍME NAČÍST DATA OD ROBOTA (z cache souboru)
+    # 1. ZKUSÍME NAČÍST CACHE
     try:
-        # Použijeme absolutní cestu nebo relativní - záleží kde běží appka, 
-        # ale 'market_cache.json' by měl být ve stejné složce.
         with open("market_cache.json", "r") as f:
             cache = json.load(f)
             cached_prices = cache.get("prices", {})
             
-            # --- TADY JE TA OPRAVA PRO LIŠTU ---
-            # Vytáhneme kurzy, které leží v JSONu mimo složku "prices"
+            # Kurzy měn z cache
             usd_czk = cache.get("usd_czk")
-            if usd_czk:
-                data["USD/CZK"] = {"price": usd_czk, "curr": "CZK"}
+            if usd_czk: data["USD/CZK"] = {"price": usd_czk, "curr": "CZK"}
             
             eur_usd = cache.get("eur_usd")
-            if eur_usd:
-                data["EUR/USD"] = {"price": eur_usd, "curr": "USD"}
-            # -----------------------------------
+            if eur_usd: data["EUR/USD"] = {"price": eur_usd, "curr": "USD"}
             
-            # Teď načteme klasické akcie
+            # Akcie z cache
             if tickers:
                 for t in tickers:
                     if t in cached_prices:
                         p_info = cached_prices[t]
                         price = p_info.get("price", 0)
                         
-                        # Určení měny
+                        # Měna
                         curr = "USD"
                         if ".PR" in str(t): curr = "CZK"
                         elif ".DE" in str(t): curr = "EUR"
                         
                         if price > 0:
                             data[t] = {"price": price, "curr": curr}
+                    else:
+                        missing_tickers.append(t)
             
-            # Pokud máme data (aspoň něco), vracíme je a končíme.
-            if len(data) > 0:
-                print("🚀 Použita TURBO cache (včetně měn).")
+            # Pokud cache pokryla vše, super!
+            if not missing_tickers:
+                # print("🚀 Vše načteno z TURBO cache.")
                 return data
 
-    except Exception as e:
-        print(f"⚠️ Cache cache nenalezena, jedu postaru: {e}")
+    except Exception:
+        # Cache selhala nebo neexistuje -> musíme stáhnout vše
+        missing_tickers = tickers if tickers else []
 
-    # 2. POKUD SOUBOR NENÍ, JEDEME POSTARU (Záloha přes Yahoo)
-    # (Tohle se spustí jen když selže načtení JSONu)
-    search_list = list(set((tickers if tickers else []) + ["CZK=X", "EURUSD=X"]))
-    for t in search_list:
-        try:
-            stock = yf.Ticker(t)
+    # 2. DOSTÁHNOUT CHYBĚJÍCÍ (nebo vše, pokud cache nebyla)
+    # Přidáme i měny, pokud chybí
+    if "USD/CZK" not in data: missing_tickers.append("CZK=X")
+    if "EUR/USD" not in data: missing_tickers.append("EURUSD=X")
+    
+    # Odebereme duplicity
+    missing_tickers = list(set(missing_tickers))
+    
+    if not missing_tickers: return data
+
+    try:
+        # Použijeme Yahoo download pro zbytek (batch download je rychlejší)
+        batch = yf.download(missing_tickers, period="5d", group_by='ticker', progress=False)
+        
+        for t in missing_tickers:
             price = 0.0
-            try: price = float(stock.fast_info.last_price)
+            try:
+                # Zkusíme vytáhnout Close z batche
+                if len(missing_tickers) > 1:
+                    if t in batch.columns.levels[0]:
+                        series = batch[t]['Close'].dropna()
+                        if not series.empty: price = float(series.iloc[-1])
+                else:
+                    # Pokud byl jen jeden ticker, struktura je jiná
+                    series = batch['Close'].dropna()
+                    if not series.empty: price = float(series.iloc[-1])
             except: pass
             
-            if not price:
-                try: 
-                    hist = stock.history(period="5d", auto_adjust=True)
-                    price = float(hist['Close'].iloc[-1])
+            # Pokud hromadné stažení selhalo, zkusíme individuálně (záchrana)
+            if price == 0:
+                try:
+                    s = yf.Ticker(t)
+                    price = float(s.fast_info.last_price)
                 except: pass
-            
-            curr = "USD"
-            label = t 
-            
-            if ".PR" in str(t): curr = "CZK"
-            elif ".DE" in str(t): curr = "EUR"
-            elif "CZK=X" in str(t): 
-                curr = "CZK"
-                label = "USD/CZK"
-            elif "EURUSD=X" in str(t): 
-                curr = "USD"
-                label = "EUR/USD"
-            
+
+            # Uložení
             if price > 0:
+                curr = "USD"
+                label = t
+                
+                if ".PR" in str(t): curr = "CZK"
+                elif ".DE" in str(t): curr = "EUR"
+                elif "CZK=X" in str(t): 
+                    curr = "CZK"; label = "USD/CZK"
+                elif "EURUSD=X" in str(t): 
+                    curr = "USD"; label = "EUR/USD"
+                
                 data[label] = {"price": price, "curr": curr}
-        except: pass
-            
+                
+    except Exception as e:
+        print(f"Chyba při dotahování cen: {e}")
+        
     return data
+
 @st.cache_data(ttl=3600)
 def ziskej_kurzy(): 
     return {"USD": 1.0, "CZK": 20.85, "EUR": 1.16}
