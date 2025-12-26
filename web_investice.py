@@ -2425,7 +2425,7 @@ def main():
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
         
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE", "📅 KALENDÁŘ"])
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE", "📅 KALENDÁŘ", "🎯 STRATÉG"])
 
         with tab1:
             # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
@@ -2919,6 +2919,47 @@ def main():
             # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
             render_analýza_kalendář_page(df, df_watch, LIVE_DATA)
 
+        with tab10:
+            st.subheader("🎯 AI INVESTIČNÍ STRATÉG")
+            st.info("Tento modul kombinuje tvé nákupní cíle, technickou analýzu (RSI) a AI pro návrh dalšího postupu.")
+
+            if not df_watch.empty:
+            if st.button("🚀 GENEROVAT STRATEGICKÝ PLÁN", use_container_width=True):
+            with st.spinner("Kvantové počítače počítají trajektorie..."):
+                # Příprava dat pro AI
+                strat_data = []
+                # Pro zjednodušení vezmeme RSI a ceny z LIVE_DATA, které už máš v paměti
+                for _, r in df_watch.iterrows():
+                    tk = r['Ticker']
+                    info = LIVE_DATA.get(tk, {})
+                    # Zkusíme vypočítat RSI (použijeme tvou logiku z Watchlistu)
+                    # Pro teď tam dáme aktuální cenu a cíle
+                    strat_data.append({
+                        "Ticker": tk,
+                        "Cena": info.get('price', 'N/A'),
+                        "Cíl_Nákup": r['TargetBuy'],
+                        "Cíl_Prodej": r['TargetSell']
+                    })
+                
+                # Získání sentimentu
+                score, rating = cached_fear_greed()
+                sentiment = f"{rating} ({score}/100)"
+                
+                # Sumář portfolia
+                port_sum = f"Celkem: {celk_hod_czk:,.0f} Kč, Hotovost: {cash_usd:,.0f} USD"
+
+                # Volání AI
+                advice = get_strategic_advice(model, sentiment, strat_data, port_sum)
+                
+                # Zobrazení výsledku
+                st.markdown("---")
+                st.markdown(advice)
+                
+                # Odměna XP za analýzu!
+                add_xp(USER, 20)
+    else:
+        st.warning("Tvůj Watchlist je prázdný. Přidej akcie a nákupní cíle, aby mohl stratég pracovat.")
+
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         
@@ -3388,6 +3429,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
