@@ -1,6 +1,5 @@
 import notification_engine as notify
 import bank_engine as bank
-import bank_engine
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -45,7 +44,8 @@ from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis,
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
-
+# --- NOVINKA: INTEGRACE HLASOVÉHO ASISTENTA ---
+from voice_engine import VoiceAssistant
 
 # --- KONFIGURACE ---
 # Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
@@ -534,6 +534,10 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                          flop_mover = worst.get('Ticker', "N/A") if 'worst' in locals() else "N/A"
                          res = ask_ai_guard(model, pct_24h, cash_usd, top_mover, flop_mover)
                          st.info(f"🤖 **AI:** {res}")
+                         # NOVINKA: Přečíst hlášení
+                         audio_html = VoiceAssistant.speak(res)
+                         if audio_html:
+                             st.components.v1.html(audio_html, height=0)
 
     # 3. ŘÁDEK: GRAFY (VÝVOJ + NOVÝ TABBED BOX)
     col_graf1, col_graf2 = st.columns([2, 1])
@@ -1448,7 +1452,7 @@ def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
                             color_icon = "🟡"
                         elif days_left < 0:
                             status = "Již proběhlo"
-                            color_icon = "✔️"
+                            color_icon = "🟢"
                         else:
                             status = f"Za {days_left} dní"
                             color_icon = "🟢"
@@ -2087,6 +2091,8 @@ def main():
                     
                     msg_text = f"🛡️ **HLÁŠENÍ PRO {target_ticker}:**\n{summary_text}\n🤖 **AI Verdikt:** {ai_response}"
                     msg_icon = "🔬"
+                    # NOVINKA: Přečteme to
+                    st.session_state['cli_voice_msg'] = ai_response
 
                 else:
                     # --- GLOBÁLNÍ AUDIT PORTFOLIA (Původní logika) ---
@@ -2115,6 +2121,8 @@ def main():
 
                     msg_text = f"🛡️ **HLÁŠENÍ STRÁŽCE:**\n{guard_res_text}"
                     msg_icon = "👮"
+                    # NOVINKA: Přečteme to
+                    st.session_state['cli_voice_msg'] = guard_res_text
 
             elif cmd == "/price" and len(cmd_parts) > 1:
                 t_cli = cmd_parts[1].upper()
@@ -2338,6 +2346,13 @@ def main():
                 if ic in ["🔬", "👮"]:
                     st.toast(f"{ic} Nové hlášení od AI strážce!", icon=ic)
                     st.markdown(f"<div style='font-size: 10px;'>{txt}</div>", unsafe_allow_html=True)
+                    # --- NOVINKA: HLAS ---
+                    if 'cli_voice_msg' in st.session_state and st.session_state['cli_voice_msg']:
+                        audio_html = VoiceAssistant.speak(st.session_state['cli_voice_msg'])
+                        if audio_html:
+                            st.components.v1.html(audio_html, height=0)
+                        st.session_state['cli_voice_msg'] = None # Přečteno, smazat
+
                 else:
                     st.info(f"{ic} {txt}")
                 st.session_state['cli_msg'] = None 
@@ -3346,12 +3361,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
