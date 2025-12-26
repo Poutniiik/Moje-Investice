@@ -15,4 +15,5 @@ kaleido
 wordcloud
 prophet
 plaid-python
+gTTS
 streamlit-mic-recorder
