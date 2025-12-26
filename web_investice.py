@@ -1152,35 +1152,35 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
                 st.rerun()
 
 
-def render_gamifikace_page(USER, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
-    """Vykreslí vylepšenou RPG stránku s XP systémem."""
+def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
+    """Vykreslí vylepšenou RPG stránku s XP systémem. Přijímá i původní parametry pro kompatibilitu."""
     st.title("🎮 INVESTIČNÍ ARÉNA (Profil Hráče)")
 
-    # 1. Načtení RPG dat
+    # 1. Načtení RPG dat (XP systém má přednost před starým levelováním)
     stats = get_user_stats(USER)
     total_xp = stats.get('XP', 0)
-    level = stats.get('Level', 1)
+    level_rpg = stats.get('Level', 1)
     
     # Výpočet progressu v rámci aktuálního levelu (level po 500 XP)
     xp_v_levelu = total_xp % 500
-    progress_pct = xp_v_levelu / 500
+    progress_pct_rpg = xp_v_levelu / 500
     xp_do_dalsiho = 500 - xp_v_levelu
 
     # 2. HLAVNÍ STATISTIKY (Hero Section)
     with st.container(border=True):
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.subheader(f"Level {level}: {USER.upper()}")
-            st.progress(progress_pct)
-            st.caption(f"✨ **{xp_v_levelu} / 500 XP** (Chybí {xp_do_dalsiho} XP do levelu {level + 1})")
+            st.subheader(f"Level {level_rpg}: {USER.upper()}")
+            st.progress(progress_pct_rpg)
+            st.caption(f"✨ **{xp_v_levelu} / 500 XP** (Chybí {xp_do_dalsiho} XP do levelu {level_rpg + 1})")
         with col2:
             # Dynamická ikona podle levelu
             rank_icons = {1: "🧒 Novic", 2: "🧑‍🎓 Učeň", 3: "💼 Trader", 4: "🎩 Profi", 5: "🐋 Velryba"}
-            current_rank = rank_icons.get(level if level <= 5 else 5, "🚀 Legenda")
+            current_rank = rank_icons.get(level_rpg if level_rpg <= 5 else 5, "🚀 Legenda")
             st.markdown(f"### {current_rank.split()[0]}")
             st.caption(current_rank.split()[1])
 
-    # 3. RPG ATRIBUTY (Zatím simulované z tvých dat)
+    # 3. RPG ATRIBUTY
     st.write("")
     c1, c2, c3 = st.columns(3)
     
@@ -1197,16 +1197,16 @@ def render_gamifikace_page(USER, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje,
             
     with c3:
         with st.container(border=True):
-            # Bohatství: Celkové jmění (Rank)
-            st.metric("💰 RANK", f"{level}", help="Tvůj aktuální level zkušeností.")
+            # Bohatství: Tvůj finanční rank (původní level_name z jmění)
+            st.metric("💰 RANK", f"{level_name}", help="Tvá hodnost založená na celkovém jmění.")
 
-    # 4. SÍŇ SLÁVY (Odznaky) - Ponecháme tvou skvělou logiku, jen ji učistíme
+    # 4. SÍŇ SLÁVY (Odznaky)
     st.divider()
     st.subheader("🏆 SÍŇ SLÁVY")
     
     has_first = not df.empty
     cnt = len(df['Ticker'].unique()) if not df.empty else 0
-    divi_total = df_div['Castka'].sum() if not df_div.empty else 0 # Zjednodušeno pro přehlednost
+    divi_total = df_div['Castka'].sum() if not df_div.empty else 0
 
     def badge(title, desc, cond, icon):
         opacity = "1.0" if cond else "0.3"
@@ -1225,7 +1225,7 @@ def render_gamifikace_page(USER, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje,
     with b3: badge("Boháč", "Majetek > 100k", celk_hod_czk > 100000, "🥇")
     with b4: badge("Rentiér", "Dostal jsi divi", divi_total > 0, "💎")
 
-    # 5. DENNÍ ZÁPIS (AI Narrator) - Tady už to máš super, jen to vrazíme do kontejneru
+    # 5. DENNÍ ZÁPIS (AI Narrator)
     if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
         st.write("")
         with st.container(border=True):
@@ -3333,10 +3333,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
