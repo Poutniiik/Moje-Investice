@@ -2337,7 +2337,8 @@ def main():
             st.error("🔔 CENOVÉ ALERTY!", icon="🔥")
             for a in alerts:
                 st.markdown(f"- **{a}**")
-
+        VoiceAssistant.render_voice_ui()
+        
         # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
         st.divider()
         with st.expander("💻 TERMINÁL", expanded=False):
@@ -3362,4 +3363,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
