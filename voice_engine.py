@@ -18,13 +18,20 @@ except ImportError as e:
 # --- KONFIGURACE ---
 VOICE_LANG = 'cs' 
 
+# 1. BEZPEČNOSTNÍ OPRAVA: Inicializace proměnné předem
+API_KEY = None
+
 # Pokus o načtení API klíče
 try:
-    API_KEY = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if API_KEY:
+    # Zkusíme secrets, pak environment variable
+    # Používáme .get() bezpečně, ale pro jistotu je to v try bloku
+    possible_key = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    
+    if possible_key:
+        API_KEY = possible_key
         genai.configure(api_key=API_KEY)
     else:
-        # Jen logujeme do konzole, nebudeme spamovat UI varováním hned po startu
+        # Jen logujeme do konzole
         print("⚠️ VoiceEngine: Není nastaven GOOGLE_API_KEY. AI funkce nepojedou.")
 except Exception as e:
     print(f"⚠️ VoiceEngine Config Error: {e}")
@@ -52,8 +59,10 @@ class VoiceAssistant:
             audio_b64 = base64.b64encode(audio_buffer.read()).decode()
             audio_type = "audio/mp3"
             
+            # 2. UX OPRAVA: Odstraněno display:none a přidáno 'controls'
+            # Pokud autoplay selže (blokace prohlížeče), uživatel uvidí přehrávač a může si to pustit sám.
             audio_html = f"""
-                <audio autoplay="true" style="display:none;">
+                <audio controls autoplay="true" style="width: 100%;">
                     <source src="data:{audio_type};base64,{audio_b64}" type="{audio_type}">
                 </audio>
             """
@@ -76,12 +85,12 @@ class VoiceAssistant:
             text = r.recognize_google(audio_data, language=VOICE_LANG)
             return text
         except sr.UnknownValueError:
-            return None
+            return None # Nerozuměl řeči (ticho nebo šum)
         except sr.RequestError as e:
-            st.error(f"Chyba služby Speech API: {e}")
+            st.error(f"Chyba služby Speech API (internet/quota): {e}")
             return None
         except Exception as e:
-            st.error(f"Chyba přepisu: {e}")
+            st.error(f"Neočekávaná chyba přepisu: {e}")
             return None
 
     @staticmethod
@@ -89,28 +98,29 @@ class VoiceAssistant:
         """
         Komunikace s Google Gemini.
         """
+        # Teď už je API_KEY vždy definován (buď string nebo None), takže to nespadne
         if not API_KEY:
-            return "Chybí mi API klíč, nemohu odpovídat."
+            return "Chybí mi API klíč, nemohu odpovídat. Zkontroluj .streamlit/secrets.toml"
             
         try:
             model = genai.GenerativeModel('gemini-1.5-flash')
-            full_prompt = f"Odpověz stručně, česky a k věci jako finanční asistent: {prompt}"
+            full_prompt = f"Odpověz stručně (max 2 věty), česky a k věci jako finanční asistent: {prompt}"
             response = model.generate_content(full_prompt)
             return response.text
         except Exception as e:
-            return f"Chyba AI: {e}"
+            return f"Omlouvám se, chyba AI: {e}"
 
     @staticmethod
     def render_voice_ui():
         """
         Zobrazí widget pro hlasové ovládání.
-        POZOR: Tato metoda už nepoužívá st.sidebar natvrdo.
         Vykreslí se tam, kde ji zavoláš (do aktuálního kontejneru).
         """
         st.markdown("---")
         st.subheader("🎙️ Hlasový Asistent")
         
         # Nahrávání
+        # just_once=True je důležité, aby se necyklilo nahrávání
         audio_input = mic_recorder(
             start_prompt="🎤 Mluvit",
             stop_prompt="⏹️ Stop",
@@ -119,17 +129,20 @@ class VoiceAssistant:
         )
         
         if audio_input:
-            st.info("Zpracovávám...")
+            st.info("Zpracovávám zvuk...")
             user_text = VoiceAssistant.transcribe_audio(audio_input['bytes'])
             
             if user_text:
                 st.write(f"🗣️ **Vy:** {user_text}")
                 
-                ai_response = VoiceAssistant.ask_gemini(user_text)
+                with st.spinner("AI přemýšlí..."):
+                    ai_response = VoiceAssistant.ask_gemini(user_text)
+                
                 st.write(f"🤖 **AI:** {ai_response}")
                 
                 audio_html = VoiceAssistant.speak(ai_response)
                 if audio_html:
-                    st.components.v1.html(audio_html, height=0)
+                    # Zvýšili jsme height, aby byl vidět přehrávač
+                    st.components.v1.html(audio_html, height=45)
             else:
-                st.warning("Nerozuměl jsem.")
+                st.warning("Nerozuměl jsem, zkuste to prosím znovu.")
