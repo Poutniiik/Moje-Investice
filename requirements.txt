@@ -15,4 +15,3 @@ kaleido
 wordcloud
 prophet
 plaid-python
-streamlit-mic-recorder
