@@ -103,7 +103,7 @@ class VoiceAssistant:
             return "Chybí mi API klíč."
             
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             full_prompt = f"Odpověz stručně (max 2 věty), česky a k věci jako finanční asistent na tento dotaz: {prompt}"
             response = model.generate_content(full_prompt)
             return response.text
