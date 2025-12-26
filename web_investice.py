@@ -1155,27 +1155,27 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
 
 
 def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
-    """Vykreslí vylepšenou RPG stránku s XP systémem. Quest Log je na konci."""
+    """Vykreslí vylepšenou RPG stránku s XP systémem. Quest Log je bezpečně na konci."""
     
-    # --- POJISTKA PROTI KEYERROR (Inicializace) ---
+    # Inicializace session state pro příběh a questy (pokud neexistují)
     if 'rpg_story_cache' not in st.session_state:
         st.session_state['rpg_story_cache'] = None
-    if 'completed_quests' not in st.session_state:
-        st.session_state['completed_quests'] = []
+    if 'completed_quests_session' not in st.session_state:
+        st.session_state['completed_quests_session'] = []
     
     st.title("🎮 INVESTIČNÍ ARÉNA (Profil Hráče)")
 
-    # 1. Načtení RPG dat
+    # Načtení RPG dat ze souboru (přes funkci get_user_stats)
     stats = get_user_stats(USER)
     total_xp = stats.get('XP', 0)
     level_rpg = stats.get('Level', 1)
     
-    # Výpočet progressu v rámci aktuálního levelu (level po 500 XP)
+    # Výpočet progressu v rámci aktuálního levelu
     xp_v_levelu = total_xp % 500
     progress_pct_rpg = xp_v_levelu / 500
     xp_do_dalsiho = 500 - xp_v_levelu
 
-    # 2. HLAVNÍ STATISTIKY (Hero Section)
+    # --- ZOBRAZENÍ PROFILU (Hero Section) ---
     with st.container(border=True):
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -1188,7 +1188,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             st.markdown(f"### {current_rank.split()[0]}")
             st.caption(current_rank.split()[1])
 
-    # 3. RPG ATRIBUTY
+    # --- RPG ATRIBUTY ---
     st.write("")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -1202,7 +1202,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
         with st.container(border=True):
             st.metric("💰 RANK", f"{level_name}", help="Tvá hodnost založená na celkovém jmění.")
 
-    # 4. SÍŇ SLÁVY (Odznaky)
+    # --- SÍŇ SLÁVY (Odznaky) ---
     st.divider()
     st.subheader("🏆 SÍŇ SLÁVY")
     
@@ -1223,11 +1223,11 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
 
     b1, b2, b3, b4 = st.columns(4)
     with b1: badge("Začátečník", "Kup první akcii", has_first, "🥉")
-    with b2: badge("Stratég", "3 různé firmy", cnt >= 3, "🥈")
+    with b2: badge("Stratég", "3 růzacní firmy", cnt >= 3, "🥈")
     with b3: badge("Boháč", "Majetek > 100k", celk_hod_czk > 100000, "🥇")
     with b4: badge("Rentiér", "Dostal jsi divi", divi_total > 0, "💎")
 
-    # 5. DENNÍ ZÁPIS (AI Narrator)
+    # --- AI DENNÍ ZÁPIS ---
     if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
         st.write("")
         with st.container(border=True):
@@ -1237,56 +1237,60 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
                     sc, _ = ziskej_fear_greed()
                     res = generate_rpg_story(model, current_rank, 0, celk_hod_czk, sc if sc else 50)
                     st.session_state['rpg_story_cache'] = res
-            
-            # Bezpečný přístup k cache
             if st.session_state.get('rpg_story_cache'):
                 st.info(f"_{st.session_state['rpg_story_cache']}_")
 
-    # --- 6. QUEST LOG (Perzistentní verze) ---
-st.divider()
-st.subheader("📜 QUEST LOG (Aktivní výzvy)")
+    # --- 6. QUEST LOG (OPRAVENÁ VERZE PRO PERZISTENCI) ---
+    st.divider()
+    st.subheader("📜 QUEST LOG (Aktivní výzvy)")
 
-# Načteme už uložené questy z DB (formát "0,1,2")
-saved_quests_raw = str(stats.get('CompletedQuests', ""))
-completed_list = [q.strip() for q in saved_quests_raw.split(",") if q.strip()]
+    # Načtení už uložených questů z databáze (formát "0,1,2")
+    saved_quests_raw = str(stats.get('CompletedQuests', ""))
+    completed_list = [q.strip() for q in saved_quests_raw.split(",") if q.strip()]
 
-for i, task in enumerate(RPG_TASKS):
-    is_completed = False
-    try:
-        df_w = st.session_state.get('df_watch', pd.DataFrame())
-        is_completed = task['check_fn'](df, df_w, zustatky, vdf)
-        current, target, progress_text = get_task_progress(i, df, df_w, zustatky, vdf)
-    except:
-        current, target, progress_text = 0, 1, "Chyba dat"
+    # Procházíme definované RPG úkoly
+    for i, task in enumerate(RPG_TASKS):
+        is_completed = False
+        try:
+            # Oprava F821: df_w získáme ze session_state uvnitř smyčky
+            df_w = st.session_state.get('df_watch', pd.DataFrame())
+            # Kontrola splnění úkolu
+            is_completed = task['check_fn'](df, df_w, zustatky, vdf)
+            # Získání postupu pro progress bar
+            current, target, progress_text = get_task_progress(i, df, df_w, zustatky, vdf)
+        except Exception:
+            current, target, progress_text = 0, 1, "Chyba dat"
 
-    # LOGIKA ODMĚNY S ZÁPISEM DO DB
-    if is_completed and str(i) not in completed_list:
-        # Přidáme XP
-        add_xp(USER, 100)
-        # Zapíšeme do seznamu a uložíme do CSV
-        completed_list.append(str(i))
-        new_completed_str = ",".join(completed_list)
-        
-        df_s = nacti_csv(SOUBOR_STATS)
-        if not df_s[df_s['Owner'] == str(USER)].empty:
-            idx = df_s[df_s['Owner'] == str(USER)].index[0]
-            df_s.at[idx, 'CompletedQuests'] = new_completed_str
-            uloz_csv(df_s, SOUBOR_STATS, f"Quest {i} done by {USER}")
-            st.balloons()
-            st.toast(f"🏆 Quest dokončen: {task['title']}", icon="✅")
+        # LOGIKA ODMĚNY: Pokud je splněno a ID questu (jako string) není v seznamu hotových
+        if is_completed and str(i) not in completed_list:
+            # 1. Přidáme XP přes motor
+            add_xp(USER, 100)
+            # 2. Aktualizujeme lokální seznam
+            completed_list.append(str(i))
+            new_completed_str = ",".join(completed_list)
+            
+            # 3. Zapíšeme změnu do souboru statistik
+            df_s = nacti_csv(SOUBOR_STATS)
+            if not df_s[df_s['Owner'] == str(USER)].empty:
+                idx = df_s[df_s['Owner'] == str(USER)].index[0]
+                df_s.at[idx, 'CompletedQuests'] = new_completed_str
+                uloz_csv(df_s, SOUBOR_STATS, f"Quest {i} done by {USER}")
+                st.balloons()
+                st.toast(f"🏆 Quest dokončen: {task['title']}", icon="✅")
 
-    # Vykreslení karty (zůstává stejné jako minule)
-    with st.container(border=True):
-        q_col1, q_col2 = st.columns([1, 5])
-        with q_col1:
-            st.markdown(f"<div style='font-size: 25px; text-align: center;'>{'✅' if is_completed else '📜'}</div>", unsafe_allow_html=True)
-        with q_col2:
-            st.markdown(f"**{task['title']}**")
-            st.caption(task['desc'])
-            if target > 0:
-                pct = min(current / target, 1.0)
-                st.progress(pct)
-                st.caption(f"Postup: {progress_text} ({int(pct*100)}%)")
+        # Vykreslení karty questu
+        with st.container(border=True):
+            q_col1, q_col2 = st.columns([1, 5])
+            with q_col1:
+                icon_q = '✅' if is_completed else '📜'
+                st.markdown(f"<div style='font-size: 25px; text-align: center;'>{icon_q}</div>", unsafe_allow_html=True)
+            with q_col2:
+                st.markdown(f"**{task['title']}**")
+                st.caption(task['desc'])
+                if target > 0:
+                    pct = min(current / target, 1.0)
+                    st.progress(pct)
+                    st.caption(f"Postup: {progress_text} ({int(pct*100)}%)")
 
 
         if st.session_state['rpg_story_cache']:
@@ -3384,6 +3388,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
