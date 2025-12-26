@@ -104,35 +104,32 @@ class VoiceAssistant:
     def render_voice_ui():
         """
         Zobrazí widget pro hlasové ovládání.
+        POZOR: Tato metoda už nepoužívá st.sidebar natvrdo.
+        Vykreslí se tam, kde ji zavoláš (do aktuálního kontejneru).
         """
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("🎙️ Hlasový Asistent")
+        st.markdown("---")
+        st.subheader("🎙️ Hlasový Asistent")
         
         # Nahrávání
         audio_input = mic_recorder(
             start_prompt="🎤 Mluvit",
             stop_prompt="⏹️ Stop",
             just_once=True,
-            key='recorder_sidebar'
+            key='recorder_generic'
         )
         
         if audio_input:
-            st.sidebar.info("Zpracovávám...")
+            st.info("Zpracovávám...")
             user_text = VoiceAssistant.transcribe_audio(audio_input['bytes'])
             
             if user_text:
-                st.sidebar.write(f"🗣️ **Vy:** {user_text}")
+                st.write(f"🗣️ **Vy:** {user_text}")
                 
                 ai_response = VoiceAssistant.ask_gemini(user_text)
-                st.sidebar.write(f"🤖 **AI:** {ai_response}")
+                st.write(f"🤖 **AI:** {ai_response}")
                 
                 audio_html = VoiceAssistant.speak(ai_response)
                 if audio_html:
-                    st.sidebar.components.v1.html(audio_html, height=0)
+                    st.components.v1.html(audio_html, height=0)
             else:
-                st.sidebar.warning("Nerozuměl jsem.")
-
-# Testovací blok - spustí se jen když zapneš přímo tento soubor
-if __name__ == "__main__":
-    st.title("Test Voice Engine")
-    VoiceAssistant.render_voice_ui()
+                st.warning("Nerozuměl jsem.")
