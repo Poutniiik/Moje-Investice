@@ -135,23 +135,40 @@ def analyze_headlines_sentiment(model, headlines_list):
         return model.generate_content(prompt).text
     except Exception as e: return ""
 
-# --- NOVINKA: CHATBOT S PAMĚTÍ ---
+# --- CHATBOT S PAMĚTÍ ---
 def get_chat_response(model, history_messages, context_data):
-    """
-    Generuje odpověď chatbota s využitím historie konverzace.
-    history_messages: list slovníků [{'role': 'user', 'parts': ['text']}, ...]
-    """
+    """Generuje odpověď chatbota s využitím historie."""
     try:
-        # 1. Start chatu s historií
-        chat = model.start_chat(history=history_messages[:-1]) # Poslední zprávu pošleme zvlášť
-        
-        # 2. Příprava aktuální zprávy s kontextem
+        chat = model.start_chat(history=history_messages[:-1]) 
         last_user_msg = history_messages[-1]['parts'][0]
         full_msg_with_context = f"KONTEXT APLIKACE:\n{context_data}\n\nDOTAZ UŽIVATELE: {last_user_msg}"
-        
-        # 3. Odeslání
         response = chat.send_message(full_msg_with_context)
         return response.text
-        
     except Exception as e:
         return f"Omlouvám se, došlo k chybě spojení: {e}"
+
+# --- NOVINKA: AI ROZHOČÍ (THE DUEL) ---
+def judge_stock_battle(model, t1_name, t1_data, t2_name, t2_data):
+    """Porovná dvě akcie a určí vítěze."""
+    prompt = f"""
+    Jsi nekompromisní finanční soudce v ringu "Stock Battle". Porovnej tyto dva bojovníky:
+    
+    🥊 BOJOVNÍK 1: {t1_name}
+    {t1_data}
+    
+    🥊 BOJOVNÍK 2: {t2_name}
+    {t2_data}
+    
+    INSTRUKCE:
+    1. Porovnej je v kategoriích: Ocenění (P/E), Růst, Ziskovost (Marže) a Zdraví (Dluh).
+    2. Buď tvrdý a kritický.
+    3. Na závěr VYLHAŠ VÍTĚZE a řekni hlavní důvod (KO úder).
+    
+    Formát:
+    - 📊 **Analýza kol** (stručné body)
+    - 🏆 **VÍTĚZ**: [Jméno]
+    - 💡 **Verdikt**: [Proč vyhrál]
+    """
+    try:
+        return model.generate_content(prompt).text
+    except Exception as e: return f"Rozhočí je indisponován: {e}"
