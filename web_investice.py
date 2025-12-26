@@ -348,19 +348,48 @@ def get_user_stats(user):
     return user_row.iloc[0].to_dict()
 
 def add_xp(user, amount):
-    """Přičte XP uživateli a uloží je."""
+    """
+    Přičte XP, kontroluje Level Up a posílá notifikace.
+    """
     df_s = nacti_csv(SOUBOR_STATS)
+    
+    # Inicializace nebo vyhledání uživatele
     if df_s[df_s['Owner'] == str(user)].empty:
+        old_level = 1
         new_row = pd.DataFrame([{"Owner": user, "XP": amount, "Level": 1, "LastLogin": datetime.now()}])
         df_s = pd.concat([df_s, new_row], ignore_index=True)
+        idx = df_s[df_s['Owner'] == str(user)].index[0]
     else:
         idx = df_s[df_s['Owner'] == str(user)].index[0]
+        # Výpočet starého levelu před přičtením (každých 500 XP = 1 Level)
+        old_level = int(df_s.at[idx, 'XP'] // 500) + 1
         df_s.at[idx, 'XP'] += amount
-        # Jednoduchá logika levelů: každých 500 XP nový level
-        df_s.at[idx, 'Level'] = int(df_s.at[idx, 'XP'] // 500) + 1
+
+    # Výpočet nového levelu
+    new_level = int(df_s.at[idx, 'XP'] // 500) + 1
+    df_s.at[idx, 'Level'] = new_level
     
-    uloz_csv(df_s, SOUBOR_STATS, f"XP Gain {user}")
-    st.toast(f"✨ Získal jsi {amount} XP!", icon="⭐")
+    # --- LOGIKA LEVEL UP ---
+    if new_level > old_level:
+        # 1. Efekt v aplikaci
+        st.balloons()
+        
+        # 2. Zpráva na Telegram (přes tvůj notification_engine jako 'notify')
+        msg = (
+            f"🎊 <b>LEVEL UP: {user.upper()}</b> 🎊\n"
+            f"--------------------------------\n"
+            f"Tvé investiční zkušenosti vzrostly!\n"
+            f"Aktuální úroveň: <b>{new_level}</b> 🚀\n"
+            f"<i>Jen tak dál, kapitáne!</i>"
+        )
+        notify.poslat_zpravu(msg)
+        
+        # 3. Informační box v UI
+        st.success(f"🎉 GRATULUJEME! Postoupil jsi na úroveň {new_level}!")
+
+    # Uložení dat
+    uloz_csv(df_s, SOUBOR_STATS, f"XP Update {user}")
+    st.toast(f"✨ +{amount} XP", icon="⭐")
 
 def render_ticker_tape(data_dict):
     if not data_dict: return
@@ -3386,6 +3415,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
