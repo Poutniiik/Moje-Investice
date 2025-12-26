@@ -16,6 +16,7 @@ SOUBOR_VYVOJ = "value_history.csv"
 SOUBOR_WATCHLIST = "watchlist.csv"
 SOUBOR_DIVIDENDY = "dividends.csv"
 SOUBOR_STATS = "user_stats.csv"
+SOUBOR_STRATEGIE = "strategy_history.csv"
 RISK_FREE_RATE = 0.04 # <--- PŘIDÁNO: Bezriziková úroková míra (např. 4%)
 
 # --- PŘIPOJENÍ (GitHub) ---
@@ -129,6 +130,7 @@ def nacti_csv(nazev_souboru):
         if nazev_souboru == SOUBOR_DIVIDENDY: cols = ["Ticker", "Castka", "Mena", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_UZIVATELE: cols = ["username", "password", "recovery_key"]
         if nazev_souboru == SOUBOR_STATS: cols = ["Owner", "XP", "LastLogin", "Level", "CompletedQuests"]
+        if nazev_souboru == SOUBOR_STRATEGIE: cols = ["Timestamp", "Owner", "Sentiment", "Advice"]
         return pd.DataFrame(columns=cols)
 
 def uloz_data_uzivatele(user_df, username, nazev_souboru):
