@@ -242,6 +242,7 @@ def proved_nakup(ticker, kusy, cena, user):
             st.session_state['df'] = df_p
             st.session_state['df_cash'] = df_cash_temp
             invalidate_data_core()
+            add_xp(user, 50) # Odměna za obchodní aktivitu
             return True, f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
         except Exception as e:
             # Selhal zápis, stav v Session State zůstává starý, nic není poškozen
@@ -338,6 +339,28 @@ def proved_smenu(castka, z_meny, do_meny, user):
     except Exception as e:
         return False, f"❌ Chyba zápisu transakce (SMĚNA): {e}"
 
+def get_user_stats(user):
+    """Načte nebo inicializuje statistiky hráče."""
+    df_s = nacti_csv(SOUBOR_STATS)
+    user_row = df_s[df_s['Owner'] == str(user)]
+    if user_row.empty:
+        return {"Owner": user, "XP": 0, "Level": 1}
+    return user_row.iloc[0].to_dict()
+
+def add_xp(user, amount):
+    """Přičte XP uživateli a uloží je."""
+    df_s = nacti_csv(SOUBOR_STATS)
+    if df_s[df_s['Owner'] == str(user)].empty:
+        new_row = pd.DataFrame([{"Owner": user, "XP": amount, "Level": 1, "LastLogin": datetime.now()}])
+        df_s = pd.concat([df_s, new_row], ignore_index=True)
+    else:
+        idx = df_s[df_s['Owner'] == str(user)].index[0]
+        df_s.at[idx, 'XP'] += amount
+        # Jednoduchá logika levelů: každých 500 XP nový level
+        df_s.at[idx, 'Level'] = int(df_s.at[idx, 'XP'] // 500) + 1
+    
+    uloz_csv(df_s, SOUBOR_STATS, f"XP Gain {user}")
+    st.toast(f"✨ Získal jsi {amount} XP!", icon="⭐")
 
 def render_ticker_tape(data_dict):
     if not data_dict: return
@@ -3363,5 +3386,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
