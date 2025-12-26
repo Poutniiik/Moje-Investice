@@ -2055,12 +2055,12 @@ def main():
     # --- DEFINICE CLI CALLBACKU (OPRAVA VYKONÁVÁNÍ PŘÍKAZŮ) ---
     if 'cli_msg' not in st.session_state: st.session_state['cli_msg'] = None
 
-    def process_cli_command():
-        cmd_raw = st.session_state.cli_cmd
-        if not cmd_raw: return
+def process_cli_command():
+    cmd_raw = st.session_state.cli_cmd
+    if not cmd_raw: return
 
-        # 1. Okamžitě vymažeme vstup
-        st.session_state.cli_cmd = ""
+    # 1. Okamžitě vymažeme vstup
+    st.session_state.cli_cmd = ""
 
         # A. POKUD JE TO PŘÍKAZ (začíná lomítkem /)
         if cmd_raw.startswith("/"):
@@ -3484,6 +3484,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
