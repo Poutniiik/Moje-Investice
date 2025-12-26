@@ -2919,70 +2919,108 @@ def main():
             # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
             render_analýza_kalendář_page(df, df_watch, LIVE_DATA)
 
-        with tab10:
-            st.subheader("🎯 AI INVESTIČNÍ STRATÉG")
-            st.info("Tento modul kombinuje tvé nákupní cíle, technickou analýzu (RSI) a AI pro návrh dalšího postupu.")
+        # Najdi with tab10 v souboru web_investice.py a nahraď vnitřek tímto vylepšeným kódem:
 
-            if not df_watch.empty:
-                col_gen, col_hist = st.columns([2, 1])
+with tab10:
+    st.subheader("🎯 AI INVESTIČNÍ STRATÉG")
+    st.info("Tento modul kombinuje tvé nákupní cíle, technickou analýzu (RSI) a AI pro návrh dalšího postupu.")
+
+    if not df_watch.empty:
+        # --- NOVINKA: Technický přehled radaru (Semafor) ---
+        st.write("### 📡 Technický přehled radaru")
         
-                with col_gen:
-                    if st.button("🚀 GENEROVAT STRATEGICKÝ PLÁN", use_container_width=True):
-                        with st.spinner("Kvantové počítače počítají trajektorie..."):
-                            # 1. Příprava dat
-                            strat_data = []
-                            for _, r in df_watch.iterrows():
-                                tk = r['Ticker']
-                                info = LIVE_DATA.get(tk, {})
-                                strat_data.append({
-                                    "Ticker": tk,
-                                    "Cena": info.get('price', 'N/A'),
-                                    "Cíl_Nákup": r['TargetBuy'],
-                                    "Cíl_Prodej": r['TargetSell']
-                                })
-                    
-                            # 2. Kontext
-                            score, rating = cached_fear_greed()
-                            sentiment = f"{rating} ({score}/100)"
-                            port_sum = f"Celkem: {celk_hod_czk:,.0f} Kč, Hotovost: {cash_usd:,.0f} USD"
-
-                            # 3. Volání AI
-                            advice = get_strategic_advice(model, sentiment, strat_data, port_sum)
-                    
-                            if not advice.startswith("Strategické spojení přerušeno"):
-                                # --- NOVINKA: ULOŽENÍ DO HISTORIE ---
-                                df_s = nacti_csv(SOUBOR_STRATEGIE)
-                                new_row = pd.DataFrame([{
-                                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                    "Owner": USER,
-                                    "Sentiment": sentiment,
-                                    "Advice": advice
-                                }])
-                                df_s = pd.concat([df_s, new_row], ignore_index=True)
-                                uloz_csv(df_s, SOUBOR_STRATEGIE, f"Strategy save for {USER}")
-                        
-                                st.markdown("---")
-                                st.markdown(advice)
-                                add_xp(USER, 20)
-                                st.toast("Strategie připravena a uložena! +20 XP", icon="🎯")
-                            else:
-                                st.error(f"❌ Chyba AI: {advice}")
-
-
-                with col_hist:
-                    st.write("📜 **Poslední rady**")
-                    df_h = nacti_csv(SOUBOR_STRATEGIE)
-                    if not df_h.empty:
-                        # Filtrujeme pro aktuálního uživatele a vezmeme poslední 3
-                        user_h = df_h[df_h['Owner'] == str(USER)].tail(3)[::-1]
-                        for _, row in user_h.iterrows():
-                            with st.expander(f"📅 {row['Timestamp']}"):
-                                st.caption(f"Trh: {row['Sentiment']}")
-                                st.write(row['Advice'])
-                    else:
-                        st.write("Zatím žádná historie.")
+        # Vytvoříme řadu sloupců pro malé karty (max 4 na řádek)
+        cols_rsi = st.columns(min(len(df_watch), 4))
+        
+        for i, (_, row) in enumerate(df_watch.iterrows()):
+            col_idx = i % 4
+            ticker = row['Ticker']
+            info = LIVE_DATA.get(ticker, {})
+            rsi = info.get('rsi', 50) # Pokud RSI nemáme, default je 50 (neutrál)
+            price = info.get('price', 0)
+            target = row['TargetBuy']
+            
+            # Určení barvy a textu semaforu
+            if rsi < 35:
+                color = "green"
+                status = "🔥 PŘEPRODÁNO (LEVNÉ)"
+            elif rsi > 65:
+                color = "red"
+                status = "⚠️ PŘEKOUPENO (DRAHÉ)"
             else:
-                st.warning("Tvůj Watchlist je prázdný. Přidej akcie a nákupní cíle, aby mohl stratég pracovat.")
+                color = "gray"
+                status = "⚖️ NEUTRÁLNÍ"
+                
+            # Výpočet vzdálenosti k cíli
+            dist_to_target = ((price / target) - 1) * 100 if target > 0 else 0
+            
+            with cols_rsi[col_idx]:
+                st.markdown(f"""
+                <div style="border: 1px solid {color}; border-radius: 10px; padding: 10px; background-color: rgba(0,0,0,0.1);">
+                    <div style="font-weight: bold; color: {color};">{ticker}</div>
+                    <div style="font-size: 20px;">{rsi:.1f} <span style="font-size: 12px;">RSI</span></div>
+                    <div style="font-size: 10px; color: #8B949E;">{status}</div>
+                    <div style="font-size: 10px; margin-top: 5px;">K cíli: {dist_to_target:+.1f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        st.write("---")
+        
+        # --- ZBYTEK FUNKCE (Generování a Historie) ---
+        col_gen, col_hist = st.columns([2, 1])
+        
+        with col_gen:
+            if st.button("🚀 GENEROVAT STRATEGICKÝ PLÁN", use_container_width=True):
+                with st.spinner("Kvantové počítače počítají trajektorie..."):
+                    strat_data = []
+                    for _, r in df_watch.iterrows():
+                        tk = r['Ticker']
+                        info = LIVE_DATA.get(tk, {})
+                        strat_data.append({
+                            "Ticker": tk,
+                            "Cena": info.get('price', 'N/A'),
+                            "RSI": info.get('rsi', 'N/A'), # Přidali jsme RSI i pro AI!
+                            "Cíl_Nákup": r['TargetBuy'],
+                            "Cíl_Prodej": r['TargetSell']
+                        })
+                    
+                    score, rating = cached_fear_greed()
+                    sentiment = f"{rating} ({score}/100)"
+                    port_sum = f"Celkem: {celk_hod_czk:,.0f} Kč, Hotovost: {cash_usd:,.0f} USD"
+
+                    advice = get_strategic_advice(model, sentiment, strat_data, port_sum)
+                    
+                    if not advice.startswith("Strategické spojení přerušeno"):
+                        df_s = nacti_csv(SOUBOR_STRATEGIE)
+                        new_row = pd.DataFrame([{
+                            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "Owner": USER,
+                            "Sentiment": sentiment,
+                            "Advice": advice
+                        }])
+                        df_s = pd.concat([df_s, new_row], ignore_index=True)
+                        uloz_csv(df_s, SOUBOR_STRATEGIE, f"Strategy save for {USER}")
+                        
+                        st.markdown("---")
+                        st.markdown(advice)
+                        add_xp(USER, 20)
+                        st.toast("Strategie připravena a uložena! +20 XP", icon="🎯")
+                    else:
+                        st.error(f"❌ Chyba AI: {advice}")
+
+        with col_hist:
+            st.write("📜 **Poslední rady**")
+            df_h = nacti_csv(SOUBOR_STRATEGIE)
+            if not df_h.empty:
+                user_h = df_h[df_h['Owner'] == str(USER)].tail(3)[::-1]
+                for _, row in user_h.iterrows():
+                    with st.expander(f"📅 {row['Timestamp']}"):
+                        st.caption(f"Trh: {row['Sentiment']}")
+                        st.write(row['Advice'])
+            else:
+                st.write("Zatím žádná historie.")
+    else:
+        st.warning("Tvůj Watchlist je prázdný. Přidej akcie a nákupní cíle, aby mohl stratég pracovat.")
 
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
@@ -3453,6 +3491,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
