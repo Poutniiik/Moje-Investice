@@ -2921,57 +2921,61 @@ def main():
 
         # Najdi with tab10 v souboru web_investice.py a nahraď vnitřek tímto vylepšeným kódem:
 
-with tab10:
-    st.subheader("🎯 AI INVESTIČNÍ STRATÉG")
-    st.info("Tento modul kombinuje tvé nákupní cíle, technickou analýzu (RSI) a AI pro návrh dalšího postupu.")
+        with tab10:
+            st.subheader("🎯 AI INVESTIČNÍ STRATÉG")
+            st.info("Tento modul kombinuje tvé nákupní cíle, technickou analýzu (RSI) a AI pro návrh dalšího postupu.")
 
-    if not df_watch.empty:
-        # --- NOVINKA: Technický přehled radaru (Semafor) ---
+            if not df_watch.empty:
+        # --- 📡 Technický přehled radaru (Semafor) ---
         st.write("### 📡 Technický přehled radaru")
         
-        # Vytvoříme řadu sloupců pro malé karty (max 4 na řádek)
+        # Vytvoření responzivních sloupců pro karty (max 4 na řádek)
         cols_rsi = st.columns(min(len(df_watch), 4))
         
         for i, (_, row) in enumerate(df_watch.iterrows()):
             col_idx = i % 4
             ticker = row['Ticker']
+            # Získání živých dat (cena, rsi)
             info = LIVE_DATA.get(ticker, {})
-            rsi = info.get('rsi', 50) # Pokud RSI nemáme, default je 50 (neutrál)
+            rsi = info.get('rsi', 50)  # Výchozí hodnota 50, pokud data chybí
             price = info.get('price', 0)
             target = row['TargetBuy']
             
-            # Určení barvy a textu semaforu
+            # Logika barevného semaforu
             if rsi < 35:
-                color = "green"
+                color = "#2ecc71" # Zelená
                 status = "🔥 PŘEPRODÁNO (LEVNÉ)"
             elif rsi > 65:
-                color = "red"
+                color = "#e74c3c" # Červená
                 status = "⚠️ PŘEKOUPENO (DRAHÉ)"
             else:
-                color = "gray"
+                color = "#95a5a6" # Šedá
                 status = "⚖️ NEUTRÁLNÍ"
                 
-            # Výpočet vzdálenosti k cíli
+            # Výpočet procentuální vzdálenosti k nákupnímu cíli
             dist_to_target = ((price / target) - 1) * 100 if target > 0 else 0
             
             with cols_rsi[col_idx]:
                 st.markdown(f"""
-                <div style="border: 1px solid {color}; border-radius: 10px; padding: 10px; background-color: rgba(0,0,0,0.1);">
-                    <div style="font-weight: bold; color: {color};">{ticker}</div>
-                    <div style="font-size: 20px;">{rsi:.1f} <span style="font-size: 12px;">RSI</span></div>
-                    <div style="font-size: 10px; color: #8B949E;">{status}</div>
-                    <div style="font-size: 10px; margin-top: 5px;">K cíli: {dist_to_target:+.1f}%</div>
+                <div style="border: 2px solid {color}; border-radius: 12px; padding: 12px; background-color: rgba(0,0,0,0.2); margin-bottom: 10px;">
+                    <div style="font-weight: bold; color: {color}; font-size: 16px;">{ticker}</div>
+                    <div style="font-size: 24px; font-weight: bold;">{rsi:.1f} <span style="font-size: 12px; color: #8B949E;">RSI</span></div>
+                    <div style="font-size: 11px; color: {color}; font-weight: bold;">{status}</div>
+                    <div style="font-size: 11px; margin-top: 8px; color: #8B949E;">
+                        K cíli: <span style="color: {'#2ecc71' if dist_to_target < 5 else 'white'}">{dist_to_target:+.1f}%</span>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
 
         st.write("---")
         
-        # --- ZBYTEK FUNKCE (Generování a Historie) ---
+        # --- 🎮 Ovládání a Historie ---
         col_gen, col_hist = st.columns([2, 1])
         
         with col_gen:
             if st.button("🚀 GENEROVAT STRATEGICKÝ PLÁN", use_container_width=True):
                 with st.spinner("Kvantové počítače počítají trajektorie..."):
+                    # Příprava dat pro AI (posíláme i RSI pro lepší analýzu)
                     strat_data = []
                     for _, r in df_watch.iterrows():
                         tk = r['Ticker']
@@ -2979,18 +2983,21 @@ with tab10:
                         strat_data.append({
                             "Ticker": tk,
                             "Cena": info.get('price', 'N/A'),
-                            "RSI": info.get('rsi', 'N/A'), # Přidali jsme RSI i pro AI!
+                            "RSI": info.get('rsi', 'N/A'),
                             "Cíl_Nákup": r['TargetBuy'],
                             "Cíl_Prodej": r['TargetSell']
                         })
                     
+                    # Získání sentimentu a kontextu portfolia
                     score, rating = cached_fear_greed()
                     sentiment = f"{rating} ({score}/100)"
                     port_sum = f"Celkem: {celk_hod_czk:,.0f} Kč, Hotovost: {cash_usd:,.0f} USD"
 
+                    # Volání AI mozku
                     advice = get_strategic_advice(model, sentiment, strat_data, port_sum)
                     
                     if not advice.startswith("Strategické spojení přerušeno"):
+                        # ULOŽENÍ DO HISTORIE
                         df_s = nacti_csv(SOUBOR_STRATEGIE)
                         new_row = pd.DataFrame([{
                             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -3003,15 +3010,18 @@ with tab10:
                         
                         st.markdown("---")
                         st.markdown(advice)
+                        # Odměna XP
                         add_xp(USER, 20)
                         st.toast("Strategie připravena a uložena! +20 XP", icon="🎯")
                     else:
-                        st.error(f"❌ Chyba AI: {advice}")
+                        # Ošetření limitu Gemini API (Error 429)
+                        st.error(f"❌ {advice}")
 
         with col_hist:
             st.write("📜 **Poslední rady**")
             df_h = nacti_csv(SOUBOR_STRATEGIE)
             if not df_h.empty:
+                # Zobrazení posledních 3 rad pro aktuálního uživatele
                 user_h = df_h[df_h['Owner'] == str(USER)].tail(3)[::-1]
                 for _, row in user_h.iterrows():
                     with st.expander(f"📅 {row['Timestamp']}"):
@@ -3491,6 +3501,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
