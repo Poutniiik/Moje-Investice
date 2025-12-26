@@ -3342,14 +3342,12 @@ def render_bank_lab_page():
 
         st.divider()
         
-        # --- OVLÁDACÍ PANEL (Dvě tlačítka vedle sebe) ---
+        # --- OVLÁDACÍ PANEL ---
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
-            # TOTO JE TO NOVÉ TLAČÍTKO PRO ZŮSTATKY 👇
             if st.button("💰 ZOBRAZIT ZŮSTATKY", use_container_width=True):
                 with st.spinner("Ptám se banky na stav konta..."):
-                    # Voláme novou funkci z motoru
                     df_bal = bank_engine.stahni_zustatky(st.session_state['bank_token'])
                     if df_bal is not None:
                         st.session_state['bank_balance'] = df_bal
@@ -3365,30 +3363,23 @@ def render_bank_lab_page():
                     else:
                         st.error("Chyba při stahování transakcí.")
 
-        # --- SEKCE 1: ZŮSTATKY (Nové!) ---
+        # --- SEKCE 1: ZŮSTATKY ---
         if 'bank_balance' in st.session_state:
             st.write("")
             st.subheader("💳 Aktuální stav účtů")
             df_b = st.session_state['bank_balance']
-            
-            # Vykreslíme jako kartičky vedle sebe
             cols = st.columns(len(df_b))
             for index, row in df_b.iterrows():
-                # Aby to nepadalo u více účtů, použijeme modulo
                 col_idx = index % len(cols)
                 with cols[col_idx]:
-                    st.metric(
-                        label=row['Název účtu'], 
-                        value=f"{row['Zůstatek']:,.2f} {row['Měna']}", 
-                        delta="Aktuální"
-                    )
+                    st.metric(label=row['Název účtu'], value=f"{row['Zůstatek']:,.2f} {row['Měna']}", delta="Aktuální")
             st.divider()
 
         # --- SEKCE 2: TRANSAKCE ---
         if 'bank_data' in st.session_state:
             df_t = st.session_state['bank_data']
             
-            # Cashflow (Příjmy vs Výdaje za stažené období)
+            # Cashflow
             total_spend = df_t[df_t['Částka'] < 0]['Částka'].sum()
             total_income = df_t[df_t['Částka'] > 0]['Částka'].sum()
             
@@ -3398,33 +3389,19 @@ def render_bank_lab_page():
             m3.metric("Cashflow", f"{total_income + total_spend:,.0f}")
             
             st.subheader("📜 Historie transakcí")
-            st.dataframe(
-                df_t, 
-                column_config={
-                    "Částka": st.column_config.NumberColumn("Částka", format="%.2f"),
-                    "Kategorie": st.column_config.TextColumn("Druh"),
-                },
-                use_container_width=True
-            )
+            st.dataframe(df_t, column_config={"Částka": st.column_config.NumberColumn("Částka", format="%.2f"), "Kategorie": st.column_config.TextColumn("Druh")}, use_container_width=True)
             
             # Graf výdajů
             st.subheader("📊 Analýza výdajů")
             expenses = df_t[df_t['Částka'] < 0].copy()
-            expenses['Částka'] = expenses['Částka'].abs() # Pro koláčový graf chceme kladná čísla
+            expenses['Částka'] = expenses['Částka'].abs()
             
             if not expenses.empty:
                 fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
                 st.plotly_chart(fig_exp, use_container_width=True)
 
-if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
-                    Data core už máme vypočítané v proměnné 'data_core' uvnitř main()
-                    Pokud by 'data_core' nebylo definováno (např. na Login stránce), ošetříme to:
-                    current_data = locals().get('data_core', None)
-                    render_ai_chat_widget(model, current_data)
-                
+# ==========================================
+# 👇 SPUŠTĚNÍ APLIKACE (ÚPLNĚ DOLE) 👇
+# ==========================================
 if __name__ == "__main__":
     main()
-
-
-
-
