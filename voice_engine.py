@@ -4,31 +4,27 @@ import io
 import base64
 
 # --- KONFIGURACE ---
-# Jazyk hlasu (cs = čeština, en = angličtina)
+# Můžeš změnit jazyk na 'en' pro angličtinu, 'sk' pro slovenštinu atd.
 VOICE_LANG = 'cs' 
 
 class VoiceAssistant:
     """
     Třída pro správu hlasových funkcí aplikace.
-    Navržena tak, aby byla odolná proti chybám na serverech bez zvukové karty (GitHub Actions, Streamlit Cloud).
-    Používá gTTS (Google Text-to-Speech) pro generování MP3, které se přehrají v prohlížeči.
+    Navržena tak, aby byla odolná proti chybám na serverech bez zvukové karty (Streamlit Cloud).
     """
     
     @staticmethod
     def speak(text):
         """
-        Převede text na řeč a vrátí HTML audio přehrávač s autoplay.
+        Převede text na řeč a vrátí HTML audio přehrávač (autoplay).
+        Používá Google TTS (online API).
         """
-        # Kontrola, zda je hlas povolen v session_state (pokud existuje)
-        if 'voice_enabled' in st.session_state and not st.session_state['voice_enabled']:
-            return None
-
         if not text:
             return None
             
         try:
-            # 1. Generování zvuku do paměti (neukládáme soubory na disk)
-            # slow=False znamená normální rychlost
+            # 1. Generování zvuku do paměti (neukládáme soubory na disk, abychom nezasvinili server)
+            # slow=False znamená, že mluví normální rychlostí
             tts = gTTS(text=text, lang=VOICE_LANG, slow=False)
             
             # Použijeme BytesIO jako virtuální soubor v RAM
@@ -37,52 +33,44 @@ class VoiceAssistant:
             audio_buffer.seek(0)
             
             # 2. Kódování do Base64 pro HTML přehrávač
-            # Prohlížeč potřebuje data v textové podobě
+            # Prohlížeč neumí přečíst BytesIO přímo, musí to dostat jako textový řetězec
             audio_b64 = base64.b64encode(audio_buffer.read()).decode()
             audio_type = "audio/mp3"
             
             # 3. Vytvoření neviditelného přehrávače s autoplay
-            # Používáme HTML5 <audio> tag s atributem autoplay
+            # Pozor: Moderní prohlížeče blokují autoplay, pokud uživatel neinteragoval se stránkou.
+            # Proto je dobré to spouštět až po stisku tlačítka.
             audio_html = f"""
                 <audio autoplay="true" style="display:none;">
                     <source src="data:{audio_type};base64,{audio_b64}" type="{audio_type}">
                 </audio>
-                <div style="
-                    padding: 10px; 
-                    background-color: rgba(0, 255, 153, 0.1); 
-                    border-left: 3px solid #00FF99; 
-                    border-radius: 5px; 
-                    margin-bottom: 10px;
-                    color: #00FF99;
-                    font-size: 0.8em;">
-                    🔊 Přehrávám audio...
-                </div>
             """
             return audio_html
             
         except Exception as e:
-            # Nevypisujeme chybu uživateli příliš agresivně, jen do konzole/logu
-            print(f"⚠️ Hlasový modul (TTS) narazil na chybu: {e}")
+            # Pokud Google API selže nebo není net, aplikace nespadne, jen vypíše varování
+            st.warning(f"⚠️ Hlasový modul (TTS) narazil na chybu: {e}")
             return None
 
     @staticmethod
-    def render_settings_toggle():
+    def render_voice_ui():
         """
-        Vykreslí přepínač v nastavení.
+        Zobrazí UI prvky pro ovládání hlasem (např. tlačítko mikrofonu).
+        Zatím placeholder pro budoucí integraci STT (Speech-to-Text).
         """
-        if 'voice_enabled' not in st.session_state:
-            st.session_state['voice_enabled'] = True
-            
-        is_on = st.toggle("🔊 Povolit hlasový výstup", value=st.session_state['voice_enabled'])
-        if is_on != st.session_state['voice_enabled']:
-            st.session_state['voice_enabled'] = is_on
-            st.rerun()
+        st.markdown("---")
+        st.caption("🎙️ Hlasové ovládání (Beta)")
+        # Zde později přidáme 'streamlit-mic-recorder'
+        pass
 
-# --- TEST (Pokud spustíme soubor přímo) ---
+# --- TEST (Pokud spustíme soubor přímo jako skript) ---
 if __name__ == "__main__":
     st.write("Testování Voice Engine...")
-    st.session_state['voice_enabled'] = True # Force enable pro test
-    html = VoiceAssistant.speak("Zdravím, veliteli. Zkouška hlasového modulu jedna dva tři.")
-    if html:
-        st.components.v1.html(html, height=100)
-        st.success("Audio odesláno.")
+    text = "Zdravím, veliteli. Systém je plně funkční a připraven k rozkazům."
+    
+    if st.button("🔊 Otestovat hlas"):
+        html = VoiceAssistant.speak(text)
+        if html:
+            st.components.v1.html(html, height=0)
+            st.success("Zvuk odeslán do prohlížeče.")
+            st.write(f"Testovací text: {text}")
