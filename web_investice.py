@@ -1230,45 +1230,6 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
         st.write("")
         with st.container(border=True):
             st.subheader("🎲 DENNÍ ZÁPIS (AI Narrator)")
-
-            st.divider()
-            st.subheader("📜 QUEST LOG (Aktivní výzvy)")
-    
-    if 'completed_quests' not in st.session_state:
-        # Tady si budeme v rámci jedné session pamatovat, co jsme už odměnili
-        st.session_state['completed_quests'] = []
-
-    # Procházíme definované RPG úkoly
-    for i, task in enumerate(RPG_TASKS):
-        # Kontrola splnění pomocí check_fn
-        is_completed = False
-        try:
-            is_completed = task['check_fn'](df, df_watch, zustatky, vdf)
-            current, target, progress_text = get_task_progress(i, df, df_watch, zustatky, vdf)
-        except:
-            current, target, progress_text = 0, 1, "Chyba dat"
-
-        # LOGIKA ODMĚNY: Pokud je splněno a ještě jsme za to v této session nedali XP
-        if is_completed and i not in st.session_state['completed_quests']:
-            add_xp(USER, 100) # Každý quest je za krásných 100 XP!
-            st.session_state['completed_quests'].append(i)
-            st.balloons()
-            st.toast(f"🏆 Quest dokončen: {task['title']}", icon="✅")
-
-        # Vykreslení karty questu
-        with st.container(border=True):
-            q_col1, q_col2 = st.columns([1, 5])
-            with q_col1:
-                st.markdown(f"<div style='font-size: 25px; text-align: center;'>{'✅' if is_completed else '📜'}</div>", unsafe_allow_html=True)
-            with q_col2:
-                st.markdown(f"**{task['title']}**")
-                st.caption(task['desc'])
-                
-                if target > 0:
-                    pct = min(current / target, 1.0)
-                    st.progress(pct)
-                    st.caption(f"Postup: {progress_text} ({int(pct*100)}%)")
-                    
             if st.button("🎲 GENEROVAT PŘÍBĚH DNE", use_container_width=True):
                 with st.spinner("Vypravěč píše kapitolu..."):
                     sc, _ = ziskej_fear_greed()
@@ -3372,4 +3333,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
