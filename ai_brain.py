@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+import bank_engine
 
 # --- KONSTANTY & MANUÁL ---
 APP_MANUAL = """
