@@ -2430,7 +2430,22 @@ def main():
                     st.info(f"{ic} {txt}")
                 st.session_state['cli_msg'] = None 
 
-            st.text_input(">", key="cli_cmd", placeholder="/help", on_change=process_cli_command)
+            # --- HLASOVÉ OVLÁDÁNÍ ---
+            col_mic, col_input = st.columns([1, 5])
+            
+            with col_mic:
+                # Tlačítko mikrofonu - nahrává česky ('cs')
+                text_from_mic = speech_to_text(language='cs', start_prompt="🎤", stop_prompt="⏹️", just_once=True, key='STT')
+            
+            with col_input:
+                # Textové pole (zůstává stejné)
+                st.text_input(">", key="cli_cmd", placeholder="/help", on_change=process_cli_command, label_visibility="collapsed")
+
+            # Pokud mikrofon něco zachytil, pošleme to do terminálu jako příkaz
+            if text_from_mic:
+                st.session_state.cli_cmd = text_from_mic
+                process_cli_command()
+                st.rerun()
 
         # --- AKCE (Tlačítka dole) ---
         st.divider()
@@ -3432,4 +3447,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
