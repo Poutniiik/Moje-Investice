@@ -2925,7 +2925,7 @@ def main():
 
             if not df_watch.empty:
                 if st.button("🚀 GENEROVAT STRATEGICKÝ PLÁN", use_container_width=True):
-                    with st.spinner("Kvantové počítače počítají trajektorie..."):
+                with st.spinner("Kvantové počítače počítají trajektorie..."):
                     # Příprava dat pro AI
                     strat_data = []
                     # Pro zjednodušení vezmeme RSI a ceny z LIVE_DATA, které už máš v paměti
@@ -3429,6 +3429,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
