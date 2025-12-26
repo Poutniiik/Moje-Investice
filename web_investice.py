@@ -2968,21 +2968,6 @@ def main():
                             else:
                                 st.error(f"❌ Chyba AI: {advice}")
 
-                    st.write("---")
-                    if st.button("🧪 TESTOVAT HISTORII (Simulace)", use_container_width=True):
-                        test_advice = "Toto je testovací strategie. AI ti radí: Pij víc kávy a kupuj akcie ve slevě! ☕📈"
-                        test_sentiment = "Testovací nálada (100/100)"
-                
-                        df_s = nacti_csv(SOUBOR_STRATEGIE)
-                        new_row = pd.DataFrame([{
-                            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "Owner": USER,
-                            "Sentiment": test_sentiment,
-                            "Advice": test_advice
-                        }])
-                        df_s = pd.concat([df_s, new_row], ignore_index=True)
-                        uloz_csv(df_s, SOUBOR_STRATEGIE, f"Test save for {USER}")
-                        st.success("Testovací data uložena! Zkus přepnout záložku nebo počkat na refresh.")
 
                 with col_hist:
                     st.write("📜 **Poslední rady**")
@@ -3468,6 +3453,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
