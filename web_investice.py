@@ -1153,7 +1153,14 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
 
 
 def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
-    """Vykreslí vylepšenou RPG stránku s XP systémem. Quest Log je nyní na konci."""
+    """Vykreslí vylepšenou RPG stránku s XP systémem. Quest Log je na konci."""
+    
+    # --- POJISTKA PROTI KEYERROR (Inicializace) ---
+    if 'rpg_story_cache' not in st.session_state:
+        st.session_state['rpg_story_cache'] = None
+    if 'completed_quests' not in st.session_state:
+        st.session_state['completed_quests'] = []
+    
     st.title("🎮 INVESTIČNÍ ARÉNA (Profil Hráče)")
 
     # 1. Načtení RPG dat
@@ -1229,21 +1236,18 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
                     res = generate_rpg_story(model, current_rank, 0, celk_hod_czk, sc if sc else 50)
                     st.session_state['rpg_story_cache'] = res
             
-            if 'rpg_story_cache' in st.session_state and st.session_state['rpg_story_cache']:
+            # Bezpečný přístup k cache
+            if st.session_state.get('rpg_story_cache'):
                 st.info(f"_{st.session_state['rpg_story_cache']}_")
 
-    # --- 6. QUEST LOG (Přesunuto na konec) ---
+    # --- 6. QUEST LOG ---
     st.divider()
     st.subheader("📜 QUEST LOG (Aktivní výzvy)")
     
-    if 'completed_quests' not in st.session_state:
-        st.session_state['completed_quests'] = []
-
     # Procházíme definované RPG úkoly
     for i, task in enumerate(RPG_TASKS):
         is_completed = False
         try:
-            # Předpokládáme, že df_watch je v session_state nebo dostupný globálně
             df_w = st.session_state.get('df_watch', pd.DataFrame())
             is_completed = task['check_fn'](df, df_w, zustatky, vdf)
             current, target, progress_text = get_task_progress(i, df, df_w, zustatky, vdf)
@@ -3364,6 +3368,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
