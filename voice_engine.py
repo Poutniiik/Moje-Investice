@@ -2,75 +2,137 @@ import streamlit as st
 from gtts import gTTS
 import io
 import base64
+import os
+
+# --- NOVÉ IMPORTY PRO AI A MIKROFON ---
+# Zabaleno do try-except pro stabilitu, kdyby chyběly knihovny
+try:
+    import google.generativeai as genai
+    from streamlit_mic_recorder import mic_recorder
+    import speech_recognition as sr
+except ImportError as e:
+    st.error(f"⚠️ Chybí kritické moduly v voice_engine.py! ({e})")
+    st.info("💡 Řešení: Spusť v terminálu: pip install google-generativeai streamlit-mic-recorder SpeechRecognition")
+    st.stop()
 
 # --- KONFIGURACE ---
-# Můžeš změnit jazyk na 'en' pro angličtinu, 'sk' pro slovenštinu atd.
 VOICE_LANG = 'cs' 
+
+# Pokus o načtení API klíče
+try:
+    API_KEY = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if API_KEY:
+        genai.configure(api_key=API_KEY)
+    else:
+        # Jen logujeme do konzole, nebudeme spamovat UI varováním hned po startu
+        print("⚠️ VoiceEngine: Není nastaven GOOGLE_API_KEY. AI funkce nepojedou.")
+except Exception as e:
+    print(f"⚠️ VoiceEngine Config Error: {e}")
 
 class VoiceAssistant:
     """
     Třída pro správu hlasových funkcí aplikace.
-    Navržena tak, aby byla odolná proti chybám na serverech bez zvukové karty (Streamlit Cloud).
+    Obsahuje: TTS (Mluvení), STT (Poslouchání), LLM (Gemini).
     """
     
     @staticmethod
     def speak(text):
         """
-        Převede text na řeč a vrátí HTML audio přehrávač (autoplay).
-        Používá Google TTS (online API).
+        Převede text na řeč a vrátí HTML audio přehrávač.
         """
         if not text:
             return None
             
         try:
-            # 1. Generování zvuku do paměti (neukládáme soubory na disk, abychom nezasvinili server)
-            # slow=False znamená, že mluví normální rychlostí
             tts = gTTS(text=text, lang=VOICE_LANG, slow=False)
-            
-            # Použijeme BytesIO jako virtuální soubor v RAM
             audio_buffer = io.BytesIO()
             tts.write_to_fp(audio_buffer)
             audio_buffer.seek(0)
             
-            # 2. Kódování do Base64 pro HTML přehrávač
-            # Prohlížeč neumí přečíst BytesIO přímo, musí to dostat jako textový řetězec
             audio_b64 = base64.b64encode(audio_buffer.read()).decode()
             audio_type = "audio/mp3"
             
-            # 3. Vytvoření neviditelného přehrávače s autoplay
-            # Pozor: Moderní prohlížeče blokují autoplay, pokud uživatel neinteragoval se stránkou.
-            # Proto je dobré to spouštět až po stisku tlačítka.
             audio_html = f"""
                 <audio autoplay="true" style="display:none;">
                     <source src="data:{audio_type};base64,{audio_b64}" type="{audio_type}">
                 </audio>
             """
             return audio_html
-            
         except Exception as e:
-            # Pokud Google API selže nebo není net, aplikace nespadne, jen vypíše varování
-            st.warning(f"⚠️ Hlasový modul (TTS) narazil na chybu: {e}")
+            st.warning(f"⚠️ Chyba TTS: {e}")
             return None
+
+    @staticmethod
+    def transcribe_audio(audio_bytes):
+        """
+        Převede audio bytes na text.
+        """
+        r = sr.Recognizer()
+        audio_file = io.BytesIO(audio_bytes)
+        
+        try:
+            with sr.AudioFile(audio_file) as source:
+                audio_data = r.record(source)
+            text = r.recognize_google(audio_data, language=VOICE_LANG)
+            return text
+        except sr.UnknownValueError:
+            return None
+        except sr.RequestError as e:
+            st.error(f"Chyba služby Speech API: {e}")
+            return None
+        except Exception as e:
+            st.error(f"Chyba přepisu: {e}")
+            return None
+
+    @staticmethod
+    def ask_gemini(prompt):
+        """
+        Komunikace s Google Gemini.
+        """
+        if not API_KEY:
+            return "Chybí mi API klíč, nemohu odpovídat."
+            
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            full_prompt = f"Odpověz stručně, česky a k věci jako finanční asistent: {prompt}"
+            response = model.generate_content(full_prompt)
+            return response.text
+        except Exception as e:
+            return f"Chyba AI: {e}"
 
     @staticmethod
     def render_voice_ui():
         """
-        Zobrazí UI prvky pro ovládání hlasem (např. tlačítko mikrofonu).
-        Zatím placeholder pro budoucí integraci STT (Speech-to-Text).
+        Zobrazí widget pro hlasové ovládání.
         """
-        st.markdown("---")
-        st.caption("🎙️ Hlasové ovládání (Beta)")
-        # Zde později přidáme 'streamlit-mic-recorder'
-        pass
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🎙️ Hlasový Asistent")
+        
+        # Nahrávání
+        audio_input = mic_recorder(
+            start_prompt="🎤 Mluvit",
+            stop_prompt="⏹️ Stop",
+            just_once=True,
+            key='recorder_sidebar'
+        )
+        
+        if audio_input:
+            st.sidebar.info("Zpracovávám...")
+            user_text = VoiceAssistant.transcribe_audio(audio_input['bytes'])
+            
+            if user_text:
+                st.sidebar.write(f"🗣️ **Vy:** {user_text}")
+                
+                ai_response = VoiceAssistant.ask_gemini(user_text)
+                st.sidebar.write(f"🤖 **AI:** {ai_response}")
+                
+                audio_html = VoiceAssistant.speak(ai_response)
+                if audio_html:
+                    st.sidebar.components.v1.html(audio_html, height=0)
+            else:
+                st.sidebar.warning("Nerozuměl jsem.")
 
-# --- TEST (Pokud spustíme soubor přímo jako skript) ---
+# Testovací blok - spustí se jen když zapneš přímo tento soubor
 if __name__ == "__main__":
-    st.write("Testování Voice Engine...")
-    text = "Zdravím, veliteli. Systém je plně funkční a připraven k rozkazům."
-    
-    if st.button("🔊 Otestovat hlas"):
-        html = VoiceAssistant.speak(text)
-        if html:
-            st.components.v1.html(html, height=0)
-            st.success("Zvuk odeslán do prohlížeče.")
-            st.write(f"Testovací text: {text}")
+    st.title("Test Voice Engine")
+    VoiceAssistant.render_voice_ui()
