@@ -49,7 +49,7 @@ from ai_brain import (
     
     # --- KONFIGURACE ---
     # Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
-    st.set_page_config(
+        st.set_page_config(
         page_title="Terminal Pro",
         layout="wide",
         page_icon="💹",
@@ -3409,11 +3409,12 @@ from ai_brain import (
                     st.plotly_chart(fig_exp, use_container_width=True)
     
                 if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
-            # Data core už máme vypočítané v proměnné 'data_core' uvnitř main()
-            # Pokud by 'data_core' nebylo definováno (např. na Login stránce), ošetříme to:
-            current_data = locals().get('data_core', None)
-            render_ai_chat_widget(model, current_data)
+                    # Data core už máme vypočítané v proměnné 'data_core' uvnitř main()
+                    # Pokud by 'data_core' nebylo definováno (např. na Login stránce), ošetříme to:
+                    current_data = locals().get('data_core', None)
+                    render_ai_chat_widget(model, current_data)
                     
     if __name__ == "__main__":
         main()
+
 
