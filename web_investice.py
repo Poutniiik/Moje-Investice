@@ -2058,11 +2058,11 @@ def main():
 def process_cli_command():
     cmd_raw = st.session_state.cli_cmd
     if not cmd_raw: return
-
-    # 1. Okamžitě vymažeme vstup
+    
+    # Vymazat vstup
     st.session_state.cli_cmd = ""
 
-    # A. POKUD JE TO PŘÍKAZ (začíná lomítkem /)
+    # --- ČÁST A: PŘÍKAZY S LOMÍTKEM ---
     if cmd_raw.startswith("/"):
         cmd_parts = cmd_raw.strip().split()
         cmd = cmd_parts[0].lower()
@@ -2071,135 +2071,97 @@ def process_cli_command():
 
         try:
             if cmd == "/help":
-                    msg_text = "Příkazy:\n/price [TICKER]\n/buy [TICKER] [KUSY]\n/sell [TICKER] [KUSY]\n/cash\n/ai_audit [TICKER]"
-                    msg_icon = "ℹ️"
+                msg_text = "Příkazy:\n/price [TICKER]\n/cash\n/ai_audit [TICKER]"
+                msg_icon = "ℹ️"
 
-                # --- TVOJE FUNKCE AI AUDIT ---
             elif cmd == "/ai_audit":
-                    # Krok 1: Kontrola AI a Data Core
-                if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
-                        msg_text = "❌ AI je neaktivní."
-                        msg_icon = "⚠️"
-                    elif 'data_core' not in st.session_state:
-                        msg_text = "❌ Datové jádro není inicializováno."
-                        msg_icon = "⚠️"
-                    else:
-                        core = st.session_state['data_core']
-                        LIVE_DATA = st.session_state.get('LIVE_DATA', {}) 
-                        
-                        if len(cmd_parts) > 1:
-                            target_ticker = cmd_parts[1].upper()
-                            fund_info = core['fundament_data'].get(target_ticker, {})
-                            
-                            # Pokud fundamenty chybí, zkusíme je stáhnout
-                            if not fund_info:
-                                try:
-                                    t_info, _ = cached_detail_akcie(target_ticker) 
-                                    if t_info:
-                                        fund_info = t_info
-                                        core['fundament_data'][target_ticker] = t_info
-                                    else:
-                                        msg_text = f"❌ Data pro {target_ticker} nenalezena."
-                                        msg_icon = "⚠️"
-                                except:
-                                    msg_text = f"❌ Chyba dat pro {target_ticker}."
-                                    msg_icon = "⚠️"
-
-                            # Pokud máme data, jedeme analýzu
-                            if not msg_text and fund_info:
-                                pe_ratio = fund_info.get('trailingPE', 'N/A')
-                                divi_yield_raw = fund_info.get('dividendYield', 'N/A')
-                                
-                                # Prompt pro AI
-                                ai_prompt = (
-                                    f"Analyzuj akcii {target_ticker}. P/E: {pe_ratio}, Divi Yield: {divi_yield_raw}. "
-                                    "Je drahá nebo levná? Stručně česky."
-                                )
-                                try:
-                                    with st.spinner(f"AI analyzuje {target_ticker}..."):
-                                        ai_response = model.generate_content(ai_prompt).text
-                                    st.session_state['cli_msg'] = (ai_response, "🤖")
-                                    return # Ukončíme, aby se nepřeuložilo dole
-                                except Exception as e:
-                                    msg_text = f"❌ Chyba AI: {e}"
-                                    msg_icon = "⚠️"
-                        else:
-                            msg_text = "Napiš ticker, např: /ai_audit AAPL"
-                            msg_icon = "ℹ️"
-
-                # --- KLASICKÉ PŘÍKAZY ---
-                elif cmd == "/price" and len(cmd_parts) > 1:
-                    t_cli = cmd_parts[1].upper()
-                    p_cli, m_cli, z_cli = ziskej_info(t_cli)
-                    if p_cli:
-                        msg_text = f"💰 {t_cli}: {p_cli:,.2f} {m_cli} ({z_cli*100:+.2f}%)"
-                        msg_icon = "📈"
-                    else:
-                        msg_text = f"❌ Ticker {t_cli} nenalezen."
-                        msg_icon = "⚠️"
-
-                elif cmd == "/cash":
-                    bals = get_zustatky(USER)
-                    txt = " | ".join([f"{k}: {v:,.0f}" for k,v in bals.items()])
-                    msg_text = f"🏦 {txt}"
-                    msg_icon = "💵"
-
-                elif cmd == "/buy" and len(cmd_parts) >= 3:
-                    t_cli = cmd_parts[1].upper()
-                    k_cli = float(cmd_parts[2])
-                    p_cli, m_cli, _ = ziskej_info(t_cli)
-                    if p_cli:
-                        ok, msg = proved_nakup(t_cli, k_cli, p_cli, USER)
-                        msg_text = msg
-                        msg_icon = "✅" if ok else "❌"
-
-                elif cmd == "/sell" and len(cmd_parts) >= 3:
-                    t_cli = cmd_parts[1].upper()
-                    k_cli = float(cmd_parts[2])
-                    p_cli, m_cli, _ = ziskej_info(t_cli)
-                    if p_cli:
-                        ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m_cli)
-                        msg_text = msg
-                        msg_icon = "✅" if ok else "❌"
-
+                # Kontrola existence AI
+                if 'ai_enabled' in st.session_state and not st.session_state.ai_enabled:
+                     msg_text = "AI vypnuta."
+                     msg_icon = "⚠️"
                 else:
-                    if not msg_text: # Pokud ještě nemáme zprávu z audit sekce
-                        msg_text = "❌ Neznámý příkaz"
-                        msg_icon = "❓"
+                    core = st.session_state.get('data_core', {})
+                    if len(cmd_parts) > 1:
+                        target = cmd_parts[1].upper()
+                        fund = core.get('fundament_data', {}).get(target, {})
+                        
+                        if not fund:
+                             # Zkusíme data stáhnout, pokud chybí
+                             try:
+                                 t_info, _ = cached_detail_akcie(target)
+                                 if t_info: fund = t_info
+                             except: pass
 
-            except Exception as e:
-                msg_text = f"❌ Chyba: {str(e)}"
-                msg_icon = "⚠️"
+                        if not fund:
+                            msg_text = f"Nenalezena data: {target}"
+                            msg_icon = "⚠️"
+                        else:
+                            # Máme data, voláme AI
+                            try:
+                                pe = fund.get('trailingPE', 'N/A')
+                                div = fund.get('dividendYield', 'N/A')
+                                prompt = f"Analyzuj akcii {target}. P/E={pe}, Divi={div}. Levná/Drahá? Stručně."
+                                with st.spinner("AI analyzuje..."):
+                                    resp = model.generate_content(prompt).text
+                                st.session_state['cli_msg'] = (resp, "🤖")
+                                return
+                            except Exception as e:
+                                msg_text = f"Chyba AI: {e}"
+                                msg_icon = "⚠️"
+                    else:
+                        msg_text = "Napiš: /ai_audit AAPL"
+                        msg_icon = "ℹ️"
 
-            if msg_text:
-                st.session_state['cli_msg'] = (msg_text, msg_icon)
+            elif cmd == "/price" and len(cmd_parts) > 1:
+                t = cmd_parts[1].upper()
+                p, m, z = ziskej_info(t)
+                msg_text = f"{t}: {p} {m}" if p else "Nenalezeno"
+                msg_icon = "📈" if p else "⚠️"
 
-        # B. POKUD TO NENÍ PŘÍKAZ -> POSÍLÁME TO AI (HLASOVÝ CHAT)
-        else:
-            if not AI_AVAILABLE or not model:
-                st.session_state['cli_msg'] = ("AI není připojena.", "🔌")
-                return
-
-            # Kontext pro AI (aby věděla, kolik máš peněz)
-            core = st.session_state.get('data_core', {})
-            total_czk = core.get('celk_hod_usd', 0) * core.get('kurzy', {}).get('CZK', 21)
-            cash = core.get('cash_usd', 0)
+            elif cmd == "/cash":
+                bals = get_zustatky(USER)
+                msg_text = " | ".join([f"{k}: {v:,.0f}" for k,v in bals.items()])
+                msg_icon = "💵"
             
-            context = f"""
-            Jsi asistent v aplikaci Terminal Pro.
-            UŽIVATEL: {USER}
-            MAJETEK: {total_czk:,.0f} CZK
-            HOTOVOST: {cash:,.0f} USD
-            DOTAZ UŽIVATELE: "{cmd_raw}"
-            Odpověz stručně, česky a k věci (max 2 věty).
-            """
-            
-            try:
-                with st.spinner("🤖 AI přemýšlí..."):
-                    response = model.generate_content(context).text
-                st.session_state['cli_msg'] = (response, "🤖")
-            except Exception as e:
-                st.session_state['cli_msg'] = (f"Chyba AI: {e}", "⚠️")
+            elif cmd == "/buy" and len(cmd_parts) >= 3:
+                t = cmd_parts[1].upper()
+                k = float(cmd_parts[2])
+                p, m, _ = ziskej_info(t)
+                if p:
+                    ok, msg = proved_nakup(t, k, p, USER)
+                    msg_text = msg
+                    msg_icon = "✅" if ok else "❌"
+
+            elif cmd == "/sell" and len(cmd_parts) >= 3:
+                t = cmd_parts[1].upper()
+                k = float(cmd_parts[2])
+                p, m, _ = ziskej_info(t)
+                if p:
+                    ok, msg = proved_prodej(t, k, p, USER, m)
+                    msg_text = msg
+                    msg_icon = "✅" if ok else "❌"
+
+            else:
+                msg_text = "Neznámý příkaz"
+                msg_icon = "❓"
+
+        except Exception as e:
+            msg_text = f"Chyba: {e}"
+            msg_icon = "⚠️"
+        
+        if msg_text: st.session_state['cli_msg'] = (msg_text, msg_icon)
+
+    # --- ČÁST B: HLASOVÝ CHAT (BEZ LOMÍTKA) ---
+    else:
+        try:
+            with st.spinner("🤖 AI přemýšlí..."):
+                core = st.session_state.get('data_core', {})
+                cash = core.get('cash_usd', 0)
+                ctx = f"Jsi asistent tradera. Uživatel má {cash} USD hotovost. Dotaz: {cmd_raw}"
+                resp = model.generate_content(ctx).text
+            st.session_state['cli_msg'] = (resp, "🤖")
+        except Exception as e:
+            st.session_state['cli_msg'] = (f"Chyba chatu: {e}", "⚠️")
 
                     # Zobrazení výsledku (OPRAVENO FORMÁTOVÁNÍ PRO ČITELNOST)
                     summary_text = (
@@ -3484,6 +3446,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
