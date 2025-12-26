@@ -155,3 +155,31 @@ def get_chat_response(model, history_messages, context_data):
         
     except Exception as e:
         return f"Omlouvám se, došlo k chybě spojení: {e}"
+
+def get_strategic_advice(model, market_sentiment, watchlist_data, portfolio_summary):
+    """
+    Generuje proaktivní investiční strategii.
+    watchlist_data: Seznam slovníků s Tickerem, RSI, Cenou a Cílem.
+    """
+    prompt = f"""
+    Jsi špičkový hedge-fund stratég. Tvým úkolem je analyzovat situaci a navrhnout konkrétní kroky.
+    
+    TRŽNÍ NÁLADA: {market_sentiment}
+    
+    MOJE AKTIVNÍ CÍLE A TECHNIKA (RSI):
+    {watchlist_data}
+    
+    SHRNUTÍ PORTFOLIA:
+    {portfolio_summary}
+    
+    ÚKOL:
+    1. Identifikuj 1-2 nejžhavější příležitosti (kde je cena blízko cíli a RSI naznačuje odraz/přeprodanost).
+    2. Pokud je trh v extrémním strachu, povzbuď mě k odvaze. Pokud v chamtivosti, varuj před euforií.
+    3. Navrhni konkrétní akci (např. "Zvaž nákup 5ks Apple, RSI 32 potvrzuje dno").
+    
+    Mluv stručně, jasně, jako profík z Wall Street. Používej tučné písmo pro klíčové informace. Odpovídej česky.
+    """
+    try:
+        return model.generate_content(prompt).text
+    except Exception as e:
+        return f"Strategické spojení přerušeno: {e}"
