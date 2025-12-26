@@ -44,7 +44,7 @@ from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis,
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response
 )
-
+from streamlit_mic_recorder import speech_to_text
 
 # --- KONFIGURACE ---
 # Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
@@ -3432,3 +3432,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
