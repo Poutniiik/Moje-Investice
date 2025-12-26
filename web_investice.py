@@ -1836,7 +1836,6 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     st.session_state['data_core'] = data_core
     return data_core
 
-# --- NOVÁ FUNKCE: LÉTAJÍCÍ AI CHATBOT (VLOŽIT PŘED def main()) ---
 def render_ai_chat_widget(model, data_core):
     """
     Vykreslí plovoucí chatovací okno vpravo dole.
@@ -1848,13 +1847,14 @@ def render_ai_chat_widget(model, data_core):
             {"role": "model", "parts": ["Ahoj! Jsem tvůj investiční asistent. Vidím tvé portfolio. Co tě zajímá?"]}
         ]
 
-    # 2. Kotva pro CSS (Tohle způsobí, že následující Expander bude "létat")
-    st.markdown('<div id="floating-bot-anchor"></div>', unsafe_allow_html=True)
-
-    # 3. Samotné okno chatu (Expander)
+    # 2. Samotné okno chatu (Expander)
     # Díky CSS ve styles.py se tento expander změní na kulatou ikonku, která se po kliknutí rozbalí
     with st.expander("💬 AI ASISTENT"):
         
+        # --- KLÍČOVÁ OPRAVA: KOTVA MUSÍ BÝT UVNITŘ EXPANDERU ---
+        # Tím, že je uvnitř, CSS pozná, že TENTO expander má být ten létající.
+        st.markdown('<div id="floating-bot-anchor"></div>', unsafe_allow_html=True)
+
         # Kontejner pro zprávy (aby se dalo scrollovat)
         chat_container = st.container()
         
@@ -3405,3 +3405,4 @@ def render_bank_lab_page():
 # ==========================================
 if __name__ == "__main__":
     main()
+
