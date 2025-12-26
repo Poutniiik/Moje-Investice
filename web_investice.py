@@ -2064,10 +2064,10 @@ def process_cli_command():
 
     # A. POKUD JE TO PŘÍKAZ (začíná lomítkem /)
     if cmd_raw.startswith("/"):
-    cmd_parts = cmd_raw.strip().split()
-    cmd = cmd_parts[0].lower()
-    msg_text = None
-    msg_icon = None
+        cmd_parts = cmd_raw.strip().split()
+        cmd = cmd_parts[0].lower()
+        msg_text = None
+        msg_icon = None
 
             try:
                 if cmd == "/help":
@@ -3484,6 +3484,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
