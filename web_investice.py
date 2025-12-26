@@ -1153,10 +1153,10 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
 
 
 def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
-    """Vykreslí vylepšenou RPG stránku s XP systémem. Přijímá i původní parametry pro kompatibilitu."""
+    """Vykreslí vylepšenou RPG stránku s XP systémem. Quest Log je nyní na konci."""
     st.title("🎮 INVESTIČNÍ ARÉNA (Profil Hráče)")
 
-    # 1. Načtení RPG dat (XP systém má přednost před starým levelováním)
+    # 1. Načtení RPG dat
     stats = get_user_stats(USER)
     total_xp = stats.get('XP', 0)
     level_rpg = stats.get('Level', 1)
@@ -1174,7 +1174,6 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             st.progress(progress_pct_rpg)
             st.caption(f"✨ **{xp_v_levelu} / 500 XP** (Chybí {xp_do_dalsiho} XP do levelu {level_rpg + 1})")
         with col2:
-            # Dynamická ikona podle levelu
             rank_icons = {1: "🧒 Novic", 2: "🧑‍🎓 Učeň", 3: "💼 Trader", 4: "🎩 Profi", 5: "🐋 Velryba"}
             current_rank = rank_icons.get(level_rpg if level_rpg <= 5 else 5, "🚀 Legenda")
             st.markdown(f"### {current_rank.split()[0]}")
@@ -1183,21 +1182,15 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
     # 3. RPG ATRIBUTY
     st.write("")
     c1, c2, c3 = st.columns(3)
-    
     with c1:
         with st.container(border=True):
-            # Trpělivost: Podle počtu akcií s držením 'Free' (nad 3 roky)
             trpelivost = len(vdf[vdf['Dan'] == '🟢 Free']) if not vdf.empty else 0
             st.metric("⏳ TRPĚLIVOST", f"{trpelivost}", help="Počet pozic držených v časovém testu.")
-    
     with c2:
         with st.container(border=True):
-            # Aktivita: Celkový počet XP
             st.metric("🔥 AKTIVITA", f"{total_xp}", help="Tvé celkové zkušenostní skóre.")
-            
     with c3:
         with st.container(border=True):
-            # Bohatství: Tvůj finanční rank (původní level_name z jmění)
             st.metric("💰 RANK", f"{level_name}", help="Tvá hodnost založená na celkovém jmění.")
 
     # 4. SÍŇ SLÁVY (Odznaky)
@@ -1239,6 +1232,42 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             if 'rpg_story_cache' in st.session_state and st.session_state['rpg_story_cache']:
                 st.info(f"_{st.session_state['rpg_story_cache']}_")
 
+    # --- 6. QUEST LOG (Přesunuto na konec) ---
+    st.divider()
+    st.subheader("📜 QUEST LOG (Aktivní výzvy)")
+    
+    if 'completed_quests' not in st.session_state:
+        st.session_state['completed_quests'] = []
+
+    # Procházíme definované RPG úkoly
+    for i, task in enumerate(RPG_TASKS):
+        is_completed = False
+        try:
+            # Předpokládáme, že df_watch je v session_state nebo dostupný globálně
+            df_w = st.session_state.get('df_watch', pd.DataFrame())
+            is_completed = task['check_fn'](df, df_w, zustatky, vdf)
+            current, target, progress_text = get_task_progress(i, df, df_w, zustatky, vdf)
+        except:
+            current, target, progress_text = 0, 1, "Chyba dat"
+
+        if is_completed and i not in st.session_state['completed_quests']:
+            add_xp(USER, 100)
+            st.session_state['completed_quests'].append(i)
+            st.balloons()
+            st.toast(f"🏆 Quest dokončen: {task['title']}", icon="✅")
+
+        with st.container(border=True):
+            q_col1, q_col2 = st.columns([1, 5])
+            with q_col1:
+                st.markdown(f"<div style='font-size: 25px; text-align: center;'>{'✅' if is_completed else '📜'}</div>", unsafe_allow_html=True)
+            with q_col2:
+                st.markdown(f"**{task['title']}**")
+                st.caption(task['desc'])
+                if target > 0:
+                    pct = min(current / target, 1.0)
+                    st.progress(pct)
+                    st.caption(f"Postup: {progress_text} ({int(pct*100)}%)")
+
 
         if st.session_state['rpg_story_cache']:
             st.markdown(f"""
@@ -1246,6 +1275,8 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
                 <p style="font-style: italic; color: #E6E6E6; margin: 0;">"{st.session_state['rpg_story_cache']}"</p>
             </div>
             """, unsafe_allow_html=True)
+
+            
            
     # --- 5. MOUDRO DNE ---
     st.divider()
@@ -3333,5 +3364,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
