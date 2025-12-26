@@ -78,7 +78,7 @@ class VoiceAssistant:
 
         try:
             # Použijeme Gemini Flash - je rychlý a levný
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             
             # Gemini umí přijmout přímo raw data (blob)
             # Webové prohlížeče obvykle posílají audio/webm
