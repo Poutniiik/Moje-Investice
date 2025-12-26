@@ -128,7 +128,7 @@ def nacti_csv(nazev_souboru):
         if nazev_souboru == SOUBOR_WATCHLIST: cols = ["Ticker", "TargetBuy", "TargetSell", "Owner"]
         if nazev_souboru == SOUBOR_DIVIDENDY: cols = ["Ticker", "Castka", "Mena", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_UZIVATELE: cols = ["username", "password", "recovery_key"]
-        if nazev_souboru == SOUBOR_STATS: cols = ["Owner", "XP", "LastLogin", "Level"]
+        if nazev_souboru == SOUBOR_STATS: cols = ["Owner", "XP", "LastLogin", "Level", "CompletedQuests"]
         return pd.DataFrame(columns=cols)
 
 def uloz_data_uzivatele(user_df, username, nazev_souboru):
