@@ -2069,15 +2069,15 @@ def process_cli_command():
         msg_text = None
         msg_icon = None
 
-            try:
-                if cmd == "/help":
+        try:
+            if cmd == "/help":
                     msg_text = "Příkazy:\n/price [TICKER]\n/buy [TICKER] [KUSY]\n/sell [TICKER] [KUSY]\n/cash\n/ai_audit [TICKER]"
                     msg_icon = "ℹ️"
 
                 # --- TVOJE FUNKCE AI AUDIT ---
-                elif cmd == "/ai_audit":
+            elif cmd == "/ai_audit":
                     # Krok 1: Kontrola AI a Data Core
-                    if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
+                if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
                         msg_text = "❌ AI je neaktivní."
                         msg_icon = "⚠️"
                     elif 'data_core' not in st.session_state:
@@ -3484,6 +3484,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
