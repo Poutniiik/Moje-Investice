@@ -1,6 +1,5 @@
 import notification_engine as notify
 import bank_engine as bank
-import bank_engine
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -1836,10 +1835,11 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     st.session_state['data_core'] = data_core
     return data_core
 
+# --- NOVÁ FUNKCE: LÉTAJÍCÍ AI CHATBOT (VLOŽIT PŘED def main()) ---
 def render_ai_chat_widget(model, data_core):
     """
     Vykreslí plovoucí chatovací okno vpravo dole.
-    Propojuje CSS styl #floating-bot-anchor s logikou AI.
+    Verze 2.0: Přepínání osobností, Reset paměti, Lepší scrolling.
     """
     # 1. Inicializace historie chatu
     if "chat_messages" not in st.session_state:
@@ -1847,43 +1847,67 @@ def render_ai_chat_widget(model, data_core):
             {"role": "model", "parts": ["Ahoj! Jsem tvůj investiční asistent. Vidím tvé portfolio. Co tě zajímá?"]}
         ]
 
-    # 2. Samotné okno chatu (Expander)
-    # Díky CSS ve styles.py se tento expander změní na kulatou ikonku, která se po kliknutí rozbalí
+    # 2. Samotné okno chatu (Expander) + Kotva uvnitř
     with st.expander("💬 AI ASISTENT"):
-        
-        # --- KLÍČOVÁ OPRAVA: KOTVA MUSÍ BÝT UVNITŘ EXPANDERU ---
-        # Tím, že je uvnitř, CSS pozná, že TENTO expander má být ten létající.
         st.markdown('<div id="floating-bot-anchor"></div>', unsafe_allow_html=True)
+        
+        # --- OVLÁDACÍ PANEL (NOVINKA) ---
+        c_pers, c_reset = st.columns([3, 1])
+        with c_pers:
+            # Výběr osobnosti
+            selected_persona = st.selectbox(
+                "Režim:", 
+                ["Analytik 👔", "Vlk z Wall St 🐺", "Yoda 🟢", "Terminátor 🤖"],
+                label_visibility="collapsed",
+                index=0,
+                key="ai_persona_selector"
+            )
+        with c_reset:
+            # Tlačítko pro vymazání paměti
+            if st.button("🗑️", help="Vymazat historii chatu"):
+                st.session_state["chat_messages"] = [{"role": "model", "parts": ["Paměť formátována. Jsem připraven."]}]
+                st.rerun()
+        
+        st.divider()
 
-        # Kontejner pro zprávy (aby se dalo scrollovat)
-        chat_container = st.container()
+        # 3. Kontejner pro zprávy (s fixní výškou pro lepší scroll)
+        chat_container = st.container(height=300)
         
         # Vykreslení historie
         with chat_container:
             for msg in st.session_state["chat_messages"]:
                 role = "user" if msg["role"] == "user" else "assistant"
-                with st.chat_message(role):
+                # Vlastní ikonky pro role
+                avatar = "👤" if role == "user" else ("🤖" if selected_persona == "Terminátor 🤖" else "🐺" if selected_persona == "Vlk z Wall St 🐺" else "🧙‍♂️")
+                
+                with st.chat_message(role, avatar=avatar):
                     st.write(msg["parts"][0])
 
         # 4. Vstupní pole
-        # Používáme formulář, aby se stránka přenačetla až po odeslání
         with st.form(key="chat_form", clear_on_submit=True):
-            user_input = st.text_input("Napiš dotaz...", placeholder="Např: Je moje portfolio rizikové?")
+            user_input = st.text_input("Napiš dotaz...", placeholder="Např: Co říkáš na moje Apple akcie?")
             submit_button = st.form_submit_button("Odeslat 🚀")
 
         if submit_button and user_input:
             # A) Přidat dotaz uživatele do historie
             st.session_state["chat_messages"].append({"role": "user", "parts": [user_input]})
             
-            # B) Příprava kontextu (Data, která AI "vidí")
-            # Vytáhneme data z data_core, pokud existují
-            context_text = "AKTUÁLNÍ DATA PORTFOLIA:\n"
+            # B) DEFINICE OSOBNOSTÍ (NOVINKA)
+            personas_prompts = {
+                "Analytik 👔": "Jsi konzervativní, stručný a profesionální finanční analytik. Drž se faktů.",
+                "Vlk z Wall St 🐺": "Jsi dravý makléř z Wall Street. Používej slang (hodl, to the moon), buď agresivní, motivující a trochu arogantní.",
+                "Yoda 🟢": "Mistr Jedi ty jsi. O financích mluvit musíš. Slovosled obracet budeš. Moudra rozdávat.",
+                "Terminátor 🤖": "Jsi chladný kyborg z budoucnosti. Odpovídej strojově, bez emocí, analyticky. Používej slova jako 'Afirmativní', 'Negativní', 'Kalkuluji'."
+            }
+            system_instruction = personas_prompts.get(selected_persona, "")
+
+            # C) Příprava kontextu s daty
+            context_text = f"INSTRUKCE CHOVÁNÍ: {system_instruction}\n\nAKTUÁLNÍ DATA PORTFOLIA:\n"
             if data_core:
                 context_text += f"Celková hodnota: {data_core.get('celk_hod_usd', 0):,.0f} USD\n"
                 context_text += f"Hotovost: {data_core.get('cash_usd', 0):,.0f} USD\n"
                 context_text += f"Denní změna: {data_core.get('pct_24h', 0):.2f}%\n"
                 
-                # Přidáme seznam akcií pro kontext
                 vdf = data_core.get('vdf', pd.DataFrame())
                 if not vdf.empty:
                     stocks_list = ", ".join([f"{r['Ticker']} ({r['Zisk']:.0f}$)" for _, r in vdf.iterrows()])
@@ -1891,14 +1915,14 @@ def render_ai_chat_widget(model, data_core):
             else:
                 context_text += "Data nejsou momentálně dostupná.\n"
 
-            # C) Získání odpovědi z Mozku (ai_brain.py)
-            with st.spinner("Přemýšlím..."):
+            # D) Získání odpovědi z Mozku
+            with st.spinner(f"{selected_persona.split()[0]} přemýšlí..."):
                 response_text = get_chat_response(model, st.session_state["chat_messages"], context_text)
             
-            # D) Uložení odpovědi
+            # E) Uložení odpovědi
             st.session_state["chat_messages"].append({"role": "model", "parts": [response_text]})
             
-            # E) Rerun pro zobrazení nové zprávy
+            # F) Rerun
             st.rerun()
 
 # --- HLAVNÍ FUNKCE (Router) ---
@@ -3208,16 +3232,6 @@ def main():
             st.dataframe(df_cash.sort_values('Datum', ascending=False).head(3), use_container_width=True, hide_index=True)
 
 
-    elif page == "💎 Dividendy":
-        # NOVĚ: Voláme refaktorovanou funkci
-        render_dividendy_page(USER, df, df_div, kurzy, viz_data_list)
-
-
-    elif page == "🎮 Gamifikace":
-        # NOVĚ: Voláme refaktorovanou funkci
-        render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky)
-
-
     elif page == "⚙️ Nastavení":
         st.title("⚙️ KONFIGURACE SYSTÉMU")
         
@@ -3342,12 +3356,14 @@ def render_bank_lab_page():
 
         st.divider()
         
-        # --- OVLÁDACÍ PANEL ---
+        # --- OVLÁDACÍ PANEL (Dvě tlačítka vedle sebe) ---
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
+            # TOTO JE TO NOVÉ TLAČÍTKO PRO ZŮSTATKY 👇
             if st.button("💰 ZOBRAZIT ZŮSTATKY", use_container_width=True):
                 with st.spinner("Ptám se banky na stav konta..."):
+                    # Voláme novou funkci z motoru
                     df_bal = bank_engine.stahni_zustatky(st.session_state['bank_token'])
                     if df_bal is not None:
                         st.session_state['bank_balance'] = df_bal
@@ -3363,23 +3379,30 @@ def render_bank_lab_page():
                     else:
                         st.error("Chyba při stahování transakcí.")
 
-        # --- SEKCE 1: ZŮSTATKY ---
+        # --- SEKCE 1: ZŮSTATKY (Nové!) ---
         if 'bank_balance' in st.session_state:
             st.write("")
             st.subheader("💳 Aktuální stav účtů")
             df_b = st.session_state['bank_balance']
+            
+            # Vykreslíme jako kartičky vedle sebe
             cols = st.columns(len(df_b))
             for index, row in df_b.iterrows():
+                # Aby to nepadalo u více účtů, použijeme modulo
                 col_idx = index % len(cols)
                 with cols[col_idx]:
-                    st.metric(label=row['Název účtu'], value=f"{row['Zůstatek']:,.2f} {row['Měna']}", delta="Aktuální")
+                    st.metric(
+                        label=row['Název účtu'], 
+                        value=f"{row['Zůstatek']:,.2f} {row['Měna']}", 
+                        delta="Aktuální"
+                    )
             st.divider()
 
         # --- SEKCE 2: TRANSAKCE ---
         if 'bank_data' in st.session_state:
             df_t = st.session_state['bank_data']
             
-            # Cashflow
+            # Cashflow (Příjmy vs Výdaje za stažené období)
             total_spend = df_t[df_t['Částka'] < 0]['Částka'].sum()
             total_income = df_t[df_t['Částka'] > 0]['Částka'].sum()
             
@@ -3389,20 +3412,23 @@ def render_bank_lab_page():
             m3.metric("Cashflow", f"{total_income + total_spend:,.0f}")
             
             st.subheader("📜 Historie transakcí")
-            st.dataframe(df_t, column_config={"Částka": st.column_config.NumberColumn("Částka", format="%.2f"), "Kategorie": st.column_config.TextColumn("Druh")}, use_container_width=True)
+            st.dataframe(
+                df_t, 
+                column_config={
+                    "Částka": st.column_config.NumberColumn("Částka", format="%.2f"),
+                    "Kategorie": st.column_config.TextColumn("Druh"),
+                },
+                use_container_width=True
+            )
             
             # Graf výdajů
             st.subheader("📊 Analýza výdajů")
             expenses = df_t[df_t['Částka'] < 0].copy()
-            expenses['Částka'] = expenses['Částka'].abs()
+            expenses['Částka'] = expenses['Částka'].abs() # Pro koláčový graf chceme kladná čísla
             
             if not expenses.empty:
                 fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
                 st.plotly_chart(fig_exp, use_container_width=True)
-
-# ==========================================
-# 👇 SPUŠTĚNÍ APLIKACE (ÚPLNĚ DOLE) 👇
-# ==========================================
+                
 if __name__ == "__main__":
     main()
-
