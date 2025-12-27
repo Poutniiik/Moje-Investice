@@ -1761,6 +1761,14 @@ def send_daily_telegram_report(USER, data_core, alerts, kurzy):
 def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     """Složitý výpočet metrik s podporou Turbo Startu z JSON cache."""
     all_tickers = list(set(df['Ticker'].unique().tolist() + df_watch['Ticker'].unique().tolist()))
+    LIVE_DATA = {}
+    turbo_active = False
+    celk_hod_usd = 0
+    celk_inv_usd = 0
+    viz_data = []
+    fundament_data = {}
+    zmena_24h = 0  # Inicializace proměnné, aby byla vždy definována
+    pct_24h = 0  
     
     # --- 1. TURBO MODE: POKUS O NAČTENÍ Z CACHE ---
     cache = download_json_from_github("market_cache.json")
@@ -3531,6 +3539,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
