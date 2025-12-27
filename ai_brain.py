@@ -223,3 +223,25 @@ def get_portfolio_health_score(model, vdf, cash_usd, market_sentiment):
         return {"score": 50, "comment": "Analýza se nezdařila, ale trh běží dál."}
     except Exception:
         return {"score": 50, "comment": "AI strážce si dává pauzu."}
+
+def get_voice_briefing_text(model, user_name, health_score, market_sentiment):
+    """
+    Vygeneruje text pro krátký hlasový briefing při vstupu do aplikace.
+    """
+    prompt = f"""
+    Jsi Attis AI, hlasový asistent Terminalu Pro. Pozdrav uživatele {user_name}.
+    STAV: Zdraví portfolia je na {health_score} %, nálada na trhu je {market_sentiment}.
+    
+    ÚKOL:
+    Napiš krátký pozdrav a doporučení (max 20 slov). 
+    - Pokud je skóre < 50: Buď varovný.
+    - Pokud je skóre > 70: Buď povzbudivý.
+    - Pokud je trh v "Extreme Fear": Doporuč odvahu.
+    
+    Mluv česky, stručně a profesionálně.
+    """
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception:
+        return f"Vítejte zpět, veliteli. Zdraví vašeho portfolia je na {health_score} procentech."
