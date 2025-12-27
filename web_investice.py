@@ -48,6 +48,25 @@ from ai_brain import (
 # --- NOVINKA: INTEGRACE HLASOVÉHO ASISTENTA ---
 from voice_engine import VoiceAssistant
 
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
+
+def download_json_from_github(filename):
+    """Stáhne a naparsuje JSON soubor přímo z GitHubu nebo lokální zálohy."""
+    if not GITHUB_TOKEN:
+        if os.path.exists(filename):
+            with open(filename, 'r', encoding='utf-8') as f: return json.load(f)
+        return None
+    try:
+        g = Github(GITHUB_TOKEN)
+        repo = g.get_repo(REPO_NAZEV)
+        contents = repo.get_contents(filename)
+        return json.loads(contents.decoded_content.decode("utf-8"))
+    except Exception:
+        # Fallback na lokální soubor, pokud GitHub selže
+        if os.path.exists(filename):
+            with open(filename, 'r', encoding='utf-8') as f: return json.load(f)
+        return None
+
 # --- KONFIGURACE ---
 # Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
 st.set_page_config(
@@ -1738,127 +1757,83 @@ def send_daily_telegram_report(USER, data_core, alerts, kurzy):
 
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
-    """
-    Spouští všechny složité výpočty a cachuje výsledky do session_state.
-    Tím se zabrání zbytečnému opakování stahování dat a kalkulací.
-    """
+    """Složitý výpočet metrik s podporou Turbo Startu z JSON cache."""
+    all_tickers = list(set(df['Ticker'].unique().tolist() + df_watch['Ticker'].unique().tolist()))
     
-    # Krok 1: Inicializace (zajištění, že máme data k práci)
-    all_tickers = []
-    if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
-    if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
+    # --- 1. TURBO MODE: POKUS O NAČTENÍ Z CACHE ---
+    cache = download_json_from_github("market_cache.json")
+    LIVE_DATA = {}
+    turbo_active = False
+
+    if cache and "prices" in cache:
+        # Kontrola, zda cache není starší než 24 hodin
+        cache_age = time.time() - cache.get("timestamp", 0)
+        if cache_age < 86400:
+            LIVE_DATA = cache["prices"]
+            # Aktualizace kurzů přímo z cache
+            kurzy["CZK"] = cache.get("usd_czk", kurzy.get("CZK", 23.5))
+            kurzy["EUR"] = cache.get("eur_usd", kurzy.get("EUR", 1.08))
+            turbo_active = True
+            st.session_state['turbo_active'] = True
     
-    # Stáhneme živá data a kurzy (POUŽITÍ CACHE WRAPPERU)
-    LIVE_DATA = cached_ceny_hromadne(list(set(all_tickers)))
+    # --- 2. FALLBACK: STANDARDNÍ STAŽENÍ (Pokud cache chybí nebo je neplatná) ---
+    if not turbo_active:
+        st.session_state['turbo_active'] = False
+        LIVE_DATA = cached_ceny_hromadne(all_tickers)
+        if LIVE_DATA:
+            if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
+            if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
     
-    # Poznámka: LIVE_DATA může být None, pokud se nepovedlo stažení, ale ziskej_ceny_hromadne obvykle vrací {}
-    if LIVE_DATA:
-        if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
-        if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
+    st.session_state['LIVE_DATA'] = LIVE_DATA if LIVE_DATA else {}
     
-    st.session_state['LIVE_DATA'] = LIVE_DATA if LIVE_DATA else {} # Uložíme pro fallback v proved_prodej
-    
-    # Krok 2: Fundamentální data pro portfolio (POUŽITÍ CACHE WRAPPERU)
+    # --- 3. VÝPOČET PORTFOLIA ---
     fundament_data = {}
     if not df.empty:
-        tickers_in_portfolio = df['Ticker'].unique().tolist()
-        for tkr in tickers_in_portfolio:
-            info, _ = cached_detail_akcie(tkr) # Použití cache místo přímého volání
+        for tkr in df['Ticker'].unique():
+            info, _ = cached_detail_akcie(tkr)
             fundament_data[tkr] = info
 
-    # Krok 3: Výpočet portfolia
     viz_data = []
-    celk_hod_usd = 0
-    celk_inv_usd = 0
+    celk_hod_usd, celk_inv_usd = 0, 0
 
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
+        # Přepočítáme celkovou investici na základě původních cen
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
-        df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
-
-        for i, (idx, row) in enumerate(df_g.iterrows()):
+        
+        for _, row in df_g.iterrows():
             tkr = row['Ticker']
-            p, m, d_zmena = ziskej_info(tkr)
-            if p is None: p = row['Cena']
-            if m is None or m == "N/A": m = "USD"
+            p_info = LIVE_DATA.get(tkr, {})
+            p = p_info.get('price', row['Cena'])
+            m = p_info.get('curr', 'USD')
 
-            fundamenty = fundament_data.get(tkr, {})
-            pe_ratio = fundamenty.get('trailingPE', 0)
-            market_cap = fundamenty.get('marketCap', 0)
-
-            try:
-                raw_sektor = df[df['Ticker'] == tkr]['Sektor'].iloc[0]
-                sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
-            except Exception: sektor = "Doplnit"
-
-            nakupy_data = df[df['Ticker'] == tkr]['Datum']
-            dnes = datetime.now()
-            limit_dni = 1095
-            vsechny_ok = True
-            vsechny_fail = True
-
-            for d in nakupy_data:
-                if (dnes - d).days < limit_dni: vsechny_ok = False
-                else: vsechny_fail = False
-
-            if vsechny_ok: dan_status = "🟢 Free"
-            elif vsechny_fail: dan_status = "🔴 Zdanit"
-            else: dan_status = "🟠 Mix"
-
-            country = "United States"
-            tkr_upper = str(tkr).upper()
-            if tkr_upper.endswith(".PR"): country = "Czechia"
-            elif tkr_upper.endswith(".DE"): country = "Germany"
-            elif tkr_upper.endswith(".L"): country = "United Kingdom"
-            elif tkr_upper.endswith(".PA"): country = "France"
-
-            div_vynos = ziskej_yield(tkr)
-            hod = row['Pocet']*p
-            inv = row['Investice']
-            z = hod-inv
-
-            try:
-                if m == "CZK": k = 1.0 / kurzy.get("CZK", 20.85)
-                elif m == "EUR": k = kurzy.get("EUR", 1.16)
-                else: k = 1.0
-            except Exception: k = 1.0
-
-            celk_hod_usd += hod*k
-            celk_inv_usd += inv*k
-
+        try:
+            k = 1.0 / kurzy.get("CZK", 21) if m == "CZK" else (kurzy.get("EUR", 1.1) if m == "EUR" else 1.0)
+            hod_usd = row['Pocet'] * p * k
+            celk_hod_usd += hod_usd
+            celk_inv_usd += row['Investice'] * k
             viz_data.append({
-                "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m,
-                "Hodnota": hod, "Cena": p, "Kusy": row['Pocet'], "Průměr": row['Cena'], "Dan": dan_status, "Investice": inv, "Divi": div_vynos, "Dnes": d_zmena,
-                "Země": country,
-                "P/E": pe_ratio,
-                "Kapitalizace": market_cap / 1e9 if market_cap else 0
+                "Ticker": tkr, 
+                "HodnotaUSD": hod_usd, 
+                "Měna": m, 
+                "Kusy": row['Pocet'], 
+                "Sektor": "Doplnit", 
+                "Dnes": p_info.get('change', 0)/100
             })
+        except Exception:
+            continue
 
-    vdf = pd.DataFrame(viz_data) if viz_data else pd.DataFrame()
-
-    # Krok 4: Výpočet denní změny
     hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
-    zmena_24h = 0
-    pct_24h = 0
-    if len(hist_vyvoje) > 1:
-        vcera = hist_vyvoje.iloc[-2]['TotalUSD']
-        if pd.notnull(vcera) and vcera > 0:
-            zmena_24h = celk_hod_usd - vcera
-            pct_24h = (zmena_24h / vcera * 100)
-
-    # Krok 5: Výpočet hotovosti (USD ekvivalent)
-    cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*kurzy.get("EUR", 1.16))
-
-    # Krok 6: Sestavení a uložení Data Core
+    
     data_core = {
-        'vdf': vdf,
+        'vdf': pd.DataFrame(viz_data),
         'viz_data_list': viz_data,
         'celk_hod_usd': celk_hod_usd,
         'celk_inv_usd': celk_inv_usd,
         'hist_vyvoje': hist_vyvoje,
-        'zmena_24h': zmena_24h,
+        'zmena_24h': zmena_24h, 
         'pct_24h': pct_24h,
-        'cash_usd': cash_usd,
+        'cash_usd': (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 23.5)),
         'fundament_data': fundament_data,
         'kurzy': kurzy,
         'timestamp': datetime.now()
@@ -2304,9 +2279,11 @@ def main():
 
         st.divider()
         st.header(f"👤 {USER.upper()}")
+
         
-        # --- 1. NAVIGACE (POSUNUTO NAHORU PRO LEPŠÍ OVLÁDÁNÍ) ---
-        # Na mobilu je lepší mít tlačítka hned po ruce
+        if st.session_state.get('turbo_active'):
+            st.sidebar.caption("⚡ Turbo Start: Ceny načteny z cache.")
+        
         page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení", "🧪 Banka"], label_visibility="collapsed")
         
         st.divider()
