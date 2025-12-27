@@ -1829,7 +1829,7 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
                 
                 viz_data.append({
                     "Ticker": tkr, 
-                    "HodnotaUSD": hod_usd, 
+                    "HodnotaUSD": hod_usd_tkr, 
                     "Měna": m, 
                     "Kusy": row['Pocet'],
                     "Průměr": row['Cena'], 
@@ -3547,6 +3547,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
