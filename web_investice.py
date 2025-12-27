@@ -527,11 +527,11 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
     # 1.5 AI DIAGNOSTIKA ZDRAVÍ (Novinka)
     if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
         with st.container(border=True):
-        st.caption("🩺 AI DIAGNOSTIKA PORTFOLIA")
+            st.caption("🩺 AI DIAGNOSTIKA PORTFOLIA")
         
         # Získání sentimentu pro kontext
-        score_fg, rating_fg = cached_fear_greed()
-        sentiment_context = f"{rating_fg} ({score_fg}/100)" if score_fg else "Neutrální"
+            score_fg, rating_fg = cached_fear_greed()
+            sentiment_context = f"{rating_fg} ({score_fg}/100)" if score_fg else "Neutrální"
         
         # Volání tvé nové funkce z ai_brain.py
         with st.spinner("Provádím hloubkovou diagnostiku..."):
@@ -3576,6 +3576,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
