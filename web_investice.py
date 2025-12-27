@@ -1820,9 +1820,13 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
             try:
                 # Výpočet kurzu s fallbackem
                 k = 1.0 / kurzy.get("CZK", 21) if m == "CZK" else (kurzy.get("EUR", 1.1) if m == "EUR" else 1.0)
-                hod_usd = row['Pocet'] * p * k
-                celk_hod_usd += hod_usd
-                celk_inv_usd += row['Investice'] * k
+                hod_usd_tkr = row['Pocet'] * p * k
+                inv_usd_tkr = row['Investice'] * k
+                
+                celk_hod_usd += hod_usd_tkr
+                celk_inv_usd += inv_usd_tkr
+
+                
                 viz_data.append({
                     "Ticker": tkr, 
                     "HodnotaUSD": hod_usd, 
@@ -3543,6 +3547,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
