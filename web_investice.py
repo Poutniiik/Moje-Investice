@@ -1875,6 +1875,18 @@ def main():
     # 1. Start Cookie Manager
     cookie_manager = get_manager()
 
+    if "chat_messages" not in st.session_state:
+        st.session_state["chat_messages"] = []
+    
+    if "chat_expanded" not in st.session_state:
+        st.session_state["chat_expanded"] = False
+
+    if "ai_news_analysis" not in st.session_state:
+        st.session_state["ai_news_analysis"] = {}
+
+    if "last_voice_input" not in st.session_state:
+        st.session_state["last_voice_input"] = ""
+
     # 2. Inicializace stavu (Session State)
     if 'prihlasen' not in st.session_state:
         st.session_state['prihlasen'] = False
@@ -1894,6 +1906,7 @@ def main():
             st.session_state['user'] = cookie_user
             st.rerun()
 
+                        
     # --- ZOBRAZENÍ LOGIN FORMULÁŘE ---
     if not st.session_state['prihlasen']:
         c1,c2,c3 = st.columns([1, 2, 1])
@@ -3501,6 +3514,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
