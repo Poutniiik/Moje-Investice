@@ -1866,6 +1866,65 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     st.session_state['data_core'] = data_core
     return data_core
 
+def call_gemini_with_retry(model, prompt):
+    """Bezpečné volání Gemini API s exponenciálním backoffem."""
+    for n in range(5):
+        try:
+            return model.generate_content(prompt)
+        except Exception as e:
+            if "429" in str(e):
+                time.sleep((2 ** n) + random.random())
+            else:
+                return None
+    return None
+
+# --- PŘIDEJ TUTO FUNKCI PRO VYKRESLENÍ CHATU ---
+def render_ai_assistant(model, AI_AVAILABLE):
+    """Vykreslí AI chatovací rozhraní na konci každé stránky."""
+    if not AI_AVAILABLE or not st.session_state.get('ai_enabled', False):
+        return
+
+    st.write("") # Trochu místa
+    st.divider()
+    
+    # Ovládání rozbalení přes session_state
+    is_expanded = st.session_state.get('chat_expanded', False)
+    
+    with st.expander("💬 AI INVESTIČNÍ ASISTENT", expanded=is_expanded):
+        # Pokud se uživatel rozhodne expander zavřít ručně, musíme to synchronizovat
+        # (Streamlit expander tohle neumí detekovat automaticky bez hacku, 
+        # tak aspoň zajistíme, že po kliknutí na zprávu se to přepne na True)
+        
+        # Zobrazení historie zpráv
+        for message in st.session_state["chat_messages"]:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        # Vstup pro novou zprávu
+        if prompt := st.chat_input("Zeptej se na své portfolio nebo zprávy..."):
+            st.session_state["chat_messages"].append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Přemýšlím..."):
+                    res = call_gemini_with_retry(model, prompt)
+                    if res:
+                        ans = res.text
+                        st.markdown(ans)
+                        st.session_state["chat_messages"].append({"role": "assistant", "content": ans})
+                        # Pokud je zapnutý hlas, můžeš přidat i VoiceAssistant.speak(ans)
+                    else:
+                        st.error("AI je momentálně přetížené nebo nedostupné. Zkus to za chvíli.")
+        
+        # Ovládací prvky pod chatem
+        c1, c2 = st.columns([3, 1])
+        if st.session_state["chat_messages"]:
+            if c2.button("🗑️ Smazat chat", use_container_width=True):
+                st.session_state["chat_messages"] = []
+                st.session_state['chat_expanded'] = False
+                st.rerun()
+
 
 # --- HLAVNÍ FUNKCE (Router) ---
 def main():
@@ -3523,6 +3582,7 @@ def render_bank_lab_page():
     
 if __name__ == "__main__":
     main()
+
 
 
 
