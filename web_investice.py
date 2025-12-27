@@ -43,7 +43,7 @@ from utils import (
 )
 from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis,
-    generate_rpg_story, analyze_headlines_sentiment, get_chat_response, get_strategic_advice, get_portfolio_health_score
+    generate_rpg_story, analyze_headlines_sentiment, get_chat_response, get_strategic_advice, get_portfolio_health_score, get_voice_briefing_text
 )
 # --- NOVINKA: INTEGRACE HLASOVÉHO ASISTENTA ---
 from voice_engine import VoiceAssistant
@@ -536,6 +536,19 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         # Volání tvé nové funkce z ai_brain.py
         with st.spinner("Provádím hloubkovou diagnostiku..."):
             health = get_portfolio_health_score(model, vdf, cash_usd, sentiment_context)
+            h_score = health.get('score', 50)
+
+        # --- NOVINKA: AUTOMATICKÝ HLASOVÝ BRIEFING (Pouze 1x za relaci) ---
+        if 'briefing_played' not in st.session_state:
+            with st.spinner("Attis AI připravuje hlášení..."):
+                    # Vygenerujeme text pozdravu
+                    briefing_text = get_voice_briefing_text(model, USER, h_score, sentiment_context)
+                    # Převedeme na audio HTML
+                    audio_html = VoiceAssistant.speak(briefing_text)
+                if audio_html:
+                    st.components.v1.html(audio_html, height=0)
+                    # Nastavíme zámek, aby to příště nezmáčkl
+                    st.session_state['briefing_played'] = True
             
         h_col1, h_col2 = st.columns([1, 3])
         
@@ -3576,6 +3589,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
