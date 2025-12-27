@@ -3359,41 +3359,59 @@ def main():
         render_bank_lab_page()
 
 # =========================================================================
-    # 🤖 PLOVOUCÍ AI ASISTENT (UI) - POSLEDNÍ VĚC V MAIN
+    # 🤖 PLOVOUCÍ AI ASISTENT (FINÁLNÍ VERZE S AUTOMATICKOU ODPOVĚDÍ)
     # =========================================================================
-    # Tím, že je to na stejné úrovni jako "elif page == ...", 
-    # se tento blok provede PŘI KAŽDÉM RENDERU bez ohledu na aktivní stránku.
-    if st.session_state.get('ai_enabled', False):
+    if st.session_state.get('ai_enabled', False) and AI_AVAILABLE:
+        
         with st.expander("AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
             st.markdown('<div id="floating-bot-anchor"></div>', unsafe_allow_html=True)
             
             chat_container = st.container()
+            
+            # 1. Zobrazení historie
+            messages = st.session_state.get('chat_messages', [])
             with chat_container:
-                for msg in st.session_state.get('chat_messages', []):
+                if not messages:
+                    st.caption("Zatím žádné zprávy. Zeptej se mě na své portfolio!")
+                for msg in messages:
                     with st.chat_message(msg["role"]):
                         st.write(msg["content"])
 
-            if chat_prompt := st.chat_input("Zeptej se na portfolio..."):
+            # 2. Manuální vstup od uživatele
+            if chat_prompt := st.chat_input("Zeptej se na portfolio...", key="floating_chat_input"):
                 st.session_state['chat_messages'].append({"role": "user", "content": chat_prompt})
-                with chat_container:
-                    with st.chat_message("user"):
-                        st.write(chat_prompt)
+                st.rerun() # Refreshneme, aby se spustila logika odpovědi níže
 
+            # 3. AUTOMATICKÁ ODPOVĚĎ (Tady je to kouzlo!)
+            # Pokud je poslední zpráva od uživatele, bot musí odpovědět
+            if messages and messages[-1]["role"] == "user":
                 with chat_container:
                     with st.chat_message("assistant"):
-                        with st.spinner("Přemýšlím..."):
-                            # Mapování rolí pro Gemini API
-                            history = [{"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]} 
-                                       for m in st.session_state['chat_messages']]
+                        with st.spinner("Analyzuji data a přemýšlím..."):
+                            # Příprava historie pro Gemini (mapování na 'user' a 'model')
+                            history_for_api = []
+                            for m in messages:
+                                role = "user" if m["role"] == "user" else "model"
+                                history_for_api.append({"role": role, "parts": [{"text": m["content"]}]})
                             
+                            # Kontext pro bota (aby věděl, o kom mluví)
                             current_context = f"Uživatel: {USER}. Celkové jmění: {celk_hod_czk:,.0f} Kč. Hotovost: {cash_usd:,.0f} USD."
                             
                             try:
-                                response = get_chat_response(model, history, current_context)
-                                st.write(response)
-                                st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+                                # Voláme tvou funkci z ai_brain.py
+                                # Předáváme celou historii a kontext
+                                response = get_chat_response(model, history_for_api, current_context)
+                                
+                                if response:
+                                    st.write(response)
+                                    st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+                                    # Po odpovědi už nebudeme dělat rerun, aby se necyklilo
+                                else:
+                                    st.error("AI vrátila prázdnou odpověď.")
                             except Exception as e:
-                                st.error(f"Spojení s mozkem selhalo: {e}")
+                                st.error(f"Spojení s AI mozkem selhalo: {e}")
+                                # Pokud chceš vidět přesnou chybu v logu, odkomentuj:
+                                # print(f"CHYBA AI: {e}")
 
 # ==========================================
 # 👇 FINÁLNÍ BANKOVNÍ CENTRÁLA (VERZE 3.1 - I SE ZŮSTATKY) 👇
@@ -3508,5 +3526,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
