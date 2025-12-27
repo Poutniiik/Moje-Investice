@@ -20,7 +20,6 @@ import zipfile
 import io
 import os
 import json 
-import loop
 import requests
 import feedparser
 from streamlit_lottie import st_lottie
@@ -1824,7 +1823,6 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
                 "Dnes": p_info.get('change', 0)/100
             })
         except Exception:
-            continue
 
     hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
     
@@ -3531,5 +3529,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
