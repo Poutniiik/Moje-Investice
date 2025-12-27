@@ -1880,6 +1880,12 @@ def main():
         st.session_state['prihlasen'] = False
         st.session_state['user'] = ""
 
+    # --- INICIALIZACE CHATU (Prevence KeyError) ---
+    if 'chat_messages' not in st.session_state:
+        st.session_state['chat_messages'] = [
+        {"role": "assistant", "content": "Ahoj! Jsem tvůj AI asistent. Jak ti mohu dnes pomoci s tvým portfoliem?"}
+    ]
+
     # 3. ZPOŽDĚNÍ PRO COOKIES (Nutné pro stx)
     time.sleep(0.3)
 
@@ -3453,6 +3459,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
