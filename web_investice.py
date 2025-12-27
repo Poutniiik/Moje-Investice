@@ -3169,13 +3169,14 @@ def main():
         def analyze_news_with_ai(title, link, celk_hod_czk, viz_data_list):
             portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
             if viz_data_list: 
-            portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
+            
+                portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
     
             prompt_to_send = f"{portfolio_context}\n\nAnalyzuj tuto zprávu V KONTEXTU MÉHO PORTFOLIA.\nZpráva: {title}\nOdkaz: {link}"
     
             # Důležité: Pokud chat neexistuje, inicializujeme ho
             if "chat_messages" not in st.session_state:
-            st.session_state["chat_messages"] = []
+                st.session_state["chat_messages"] = []
         
             st.session_state["chat_messages"].append({"role": "user", "content": prompt_to_send})
             st.session_state['chat_expanded'] = True
@@ -3582,6 +3583,7 @@ def render_bank_lab_page():
     
 if __name__ == "__main__":
     main()
+
 
 
 
