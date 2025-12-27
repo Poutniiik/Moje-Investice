@@ -43,7 +43,7 @@ from utils import (
 )
 from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis,
-    generate_rpg_story, analyze_headlines_sentiment, get_chat_response, get_strategic_advice
+    generate_rpg_story, analyze_headlines_sentiment, get_chat_response, get_strategic_advice, get_portfolio_health_score
 )
 # --- NOVINKA: INTEGRACE HLASOVÉHO ASISTENTA ---
 from voice_engine import VoiceAssistant
@@ -523,6 +523,31 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
         k4.metric("💳 HOTOVOST (USD)", f"${cash_usd:,.0f}", "Volné prostředky")
 
     st.write("") 
+
+    # 1.5 AI DIAGNOSTIKA ZDRAVÍ (Novinka)
+if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
+    with st.container(border=True):
+        st.caption("🩺 AI DIAGNOSTIKA PORTFOLIA")
+        
+        # Získání sentimentu pro kontext
+        score_fg, rating_fg = cached_fear_greed()
+        sentiment_context = f"{rating_fg} ({score_fg}/100)" if score_fg else "Neutrální"
+        
+        # Volání tvé nové funkce z ai_brain.py
+        with st.spinner("Provádím hloubkovou diagnostiku..."):
+            health = get_portfolio_health_score(model, vdf, cash_usd, sentiment_context)
+            
+        h_col1, h_col2 = st.columns([1, 3])
+        
+        with h_col1:
+            # Určení barvy podle skóre
+            h_color = "red" if health['score'] < 40 else ("orange" if health['score'] < 70 else "green")
+            st.markdown(f"<h2 style='text-align: center; color: {h_color};'>{health['score']}%</h2>", unsafe_allow_html=True)
+            st.progress(health['score'] / 100)
+            
+        with h_col2:
+            st.markdown(f"**Verdikt:** {health['comment']}")
+            st.caption("💡 Tip: AI hodnotí diverzifikaci sektorů a tvůj 'cash buffer'.")
 
     # 2. ŘÁDEK: TRŽNÍ NÁLADA + KOMPAS
     c_left, c_right = st.columns([1, 2])
@@ -3551,3 +3576,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
