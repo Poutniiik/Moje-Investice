@@ -17,7 +17,7 @@ except ImportError as e:
 VOICE_LANG = 'cs' 
 GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025"
 
-# 1. BEZPEČNOST A NAČTENÍ KLÍČE (OPRAVENO)
+# 1. BEZPEČNOST A NAČTENÍ KLÍČE
 API_KEY = None
 try:
     if "google" in st.secrets and "api_key" in st.secrets["google"]:
@@ -37,7 +37,7 @@ except Exception as e:
 class VoiceAssistant:
     """
     Třída pro správu hlasových funkcí aplikace.
-    V4.2: Přidána podpora pro čtení systémových chyb (Quota 429) a robustní přepis.
+    V4.3: Smart Context Edition. Asistent už není "tupý", protože dostává briefing o datech.
     """
     
     @staticmethod
@@ -57,10 +57,10 @@ class VoiceAssistant:
             audio_b64 = base64.b64encode(audio_buffer.read()).decode()
             audio_type = "audio/mp3"
             
-            # HTML přehrávač s automatickým spuštěním
+            # HTML přehrávač s automatickým spuštěním (neviditelný pro čisté UI)
             audio_html = f"""
-                <div style="margin-top: 10px;">
-                    <audio controls autoplay="true" style="width: 100%; height: 40px; border-radius: 5px;">
+                <div style="display:none;">
+                    <audio controls autoplay="true">
                         <source src="data:{audio_type};base64,{audio_b64}" type="{audio_type}">
                     </audio>
                 </div>
@@ -82,8 +82,7 @@ class VoiceAssistant:
         try:
             model = genai.GenerativeModel(GEMINI_MODEL)
             response = model.generate_content([
-                "Instrukce: Přepiš toto audio doslovně do textu. Zachovej jazyk mluvčího. "
-                "Pokud je v audiu ticho, vrať prázdný řetězec. Ignoruj šumy.",
+                "Instrukce: Přepiš toto audio doslovně do textu v češtině. Zachovej tón mluvčího.",
                 {
                     "mime_type": "audio/webm",
                     "data": audio_bytes
@@ -92,73 +91,74 @@ class VoiceAssistant:
             return response.text.strip()
         except Exception as e:
             error_msg = str(e)
-            # Detekce limitu 429 už zde v přepisu
             if "429" in error_msg or "quota" in error_msg.lower():
                 return "ERROR_429: AI má teď pauzu, protože jsme vyčerpali limit zpráv. Zkus to prosím za chvilku."
             return f"ERROR_GENERIC: Chyba při přepisu: {error_msg}"
 
     @staticmethod
-    def ask_gemini(prompt):
+    def ask_gemini(prompt, context=""):
         """
-        Zpracování textového dotazu mozkem AI (Gemini 2.5).
+        Zpracování textového dotazu s přihlédnutím k datům aplikace (context).
         """
         if not API_KEY:
             return "Chybí API klíč, nemohu odpovědět."
 
         try:
             model = genai.GenerativeModel(GEMINI_MODEL)
-            context_prompt = (
-                "Jsi profesionální finanční asistent. Odpovídej stručně, maximálně dvě věty, česky. "
-                "Dotaz uživatele: "
+            
+            # Tady definujeme "osobnost" a dáváme mu oči (kontext)
+            system_instruction = (
+                f"Jsi Attis AI, inteligentní finanční asistent integrovaný v aplikaci Terminal Pro. "
+                f"Tvé aktuální vědomosti o portfoliu a stavu aplikace: {context}. "
+                "Odpovídej stručně (max 2 věty), lidsky a česky. "
+                "Pokud se uživatel ptá na svá data, využij informace v kontextu. "
+                "Pokud se ptá na něco, co v datech nevidíš, slušně vysvětli, že k těmto informacím nemáš přístup."
             )
-            response = model.generate_content(f"{context_prompt} {prompt}")
+            
+            full_prompt = f"{system_instruction}\n\nDotaz uživatele: {prompt}"
+            response = model.generate_content(full_prompt)
             return response.text
         except Exception as e:
             error_msg = str(e)
             if "429" in error_msg:
                 return "AI má teď pauzu, limit zpráv byl vyčerpán. Počkej prosím minutu."
-            return f"Omlouvám se, došlo k chybě mozků: {e}"
+            return f"Omlouvám se, došlo k chybě: {e}"
 
     @staticmethod
-    def render_voice_ui():
+    def render_voice_ui(user_context=""):
         """
-        Vykreslí UI komponenty v aplikaci a zpracuje hlasovou interakci.
+        Vykreslí UI komponenty a přijme briefing (user_context) z hlavní aplikace.
         """
         st.markdown("---")
-        st.subheader("🎙️ AI Hlasový Asistent (v4.2)")
+        st.subheader("🎙️ Attis AI Hlasový Asistent (v4.3)")
         
         audio_input = mic_recorder(
             start_prompt="🎤 Začít mluvit",
             stop_prompt="⏹️ Dokončit",
             just_once=True,
-            key='recorder_gemini_v42_stable'
+            key='recorder_gemini_v43_smart'
         )
         
         if audio_input:
-            with st.spinner("Analyzuji zvuk..."):
+            with st.spinner("Poslouchám..."):
                 user_text = VoiceAssistant.transcribe_audio_with_gemini(audio_input['bytes'])
                 
                 if user_text:
-                    # Kontrola, zda se nevrátila technická chyba už z přepisu
                     if user_text.startswith("ERROR_"):
-                        # Odstraníme technický prefix pro uživatele
                         clean_error = user_text.split(": ", 1)[1] if ": " in user_text else user_text
                         st.warning(clean_error)
-                        
-                        # ASISTENT CHYBU PŘEČTE
                         audio_html = VoiceAssistant.speak(clean_error)
                         if audio_html:
                             st.components.v1.html(audio_html, height=0)
                     else:
-                        # Standardní průběh - přepis proběhl OK
-                        st.write(f"🗣️ **Slyšel jsem:** {user_text}")
+                        st.write(f"🗣️ **Ty:** {user_text}")
                         
-                        with st.spinner("Generuji odpověď..."):
-                            ai_response = VoiceAssistant.ask_gemini(user_text)
+                        with st.spinner("Přemýšlím..."):
+                            # Tady posíláme briefing do mozku
+                            ai_response = VoiceAssistant.ask_gemini(user_text, context=user_context)
                         
-                        st.write(f"🤖 **Asistent:** {ai_response}")
+                        st.write(f"🤖 **Attis AI:** {ai_response}")
                         
-                        # Asistent přečte odpověď (nebo informaci o limitu z ask_gemini)
                         audio_html = VoiceAssistant.speak(ai_response)
                         if audio_html:
                             st.components.v1.html(audio_html, height=0)
