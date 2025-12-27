@@ -526,7 +526,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
 
     # 1.5 AI DIAGNOSTIKA ZDRAVÍ (Novinka)
     if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
-    with st.container(border=True):
+        with st.container(border=True):
         st.caption("🩺 AI DIAGNOSTIKA PORTFOLIA")
         
         # Získání sentimentu pro kontext
@@ -3576,5 +3576,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
