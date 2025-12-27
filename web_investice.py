@@ -3107,10 +3107,17 @@ def main():
         # --- 3. NEWS FEED (KARTY POD SEBOU) ---
         # Žádné sloupce! Jeden dlouhý feed, jako na Instagramu/Twitteru.
         
-        def analyze_news_with_ai(title, link):
+        def analyze_news_with_ai(title, link, celk_hod_czk, viz_data_list):
             portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
-            if viz_data_list: portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
-            prompt_to_send = f"Analyzuj tuto zprávu V KONTEXTU MÉHO PORTFOLIA. Zpráva: {title}. Jaký má dopad? (Odkaz: {link})"
+            if viz_data_list: 
+            portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
+    
+            prompt_to_send = f"{portfolio_context}\n\nAnalyzuj tuto zprávu V KONTEXTU MÉHO PORTFOLIA.\nZpráva: {title}\nOdkaz: {link}"
+    
+            # Důležité: Pokud chat neexistuje, inicializujeme ho
+            if "chat_messages" not in st.session_state:
+            st.session_state["chat_messages"] = []
+        
             st.session_state["chat_messages"].append({"role": "user", "content": prompt_to_send})
             st.session_state['chat_expanded'] = True
             st.rerun()
@@ -3511,9 +3518,12 @@ def render_bank_lab_page():
             if not expenses.empty:
                 fig_exp = px.pie(expenses, values='Částka', names='Kategorie', hole=0.4, template="plotly_dark")
                 st.plotly_chart(fig_exp, use_container_width=True)
-                
+
+    render_ai_assistant(model, AI_AVAILABLE)
+    
 if __name__ == "__main__":
     main()
+
 
 
 
