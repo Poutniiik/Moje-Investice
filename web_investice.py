@@ -545,10 +545,10 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
                     briefing_text = get_voice_briefing_text(model, USER, h_score, sentiment_context)
                     # Převedeme na audio HTML
                     audio_html = VoiceAssistant.speak(briefing_text)
-                if audio_html:
-                    st.components.v1.html(audio_html, height=0)
-                    # Nastavíme zámek, aby to příště nezmáčkl
-                    st.session_state['briefing_played'] = True
+        if audio_html:
+            st.components.v1.html(audio_html, height=0)
+            # Nastavíme zámek, aby to příště nezmáčkl
+            st.session_state['briefing_played'] = True
             
         h_col1, h_col2 = st.columns([1, 3])
         
@@ -3589,6 +3589,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
