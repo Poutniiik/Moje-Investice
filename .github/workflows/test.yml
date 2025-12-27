@@ -36,8 +36,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
           # Zkusíme instalovat, a pokud to selže, chceme vidět proč
-          pip install -r requirements.txt
           pip install pandas
+          pip install streamlit>=1.28.0
+          pip install yfinance>=0.2.40
+          pip install plotly
+          pip install PyGithub
+          pip install matplotlib
+          pip install requests
+          pip install requests-cache
+          pip install streamlit-lottie
+          pip install google-generativeai
+          pip install feedparser
+          pip install fpdf
+          pip install extra-streamlit-components
+          pip install kaleido
+          pip install wordcloud
+          pip install prophet
+          pip install plaid-python
+          pip install gTTS
+          pip install streamlit-mic-recorder
+          pip install SpeechRecognition
 
       - name: Run Pytest
         run: |
