@@ -3054,25 +3054,25 @@ def main():
         
         def analyze_news_with_ai(title, link):
             # 1. Defenzivní kontrola - pokud klíč chybí, vytvoříme ho "on the fly"
-            if "chat_messages" not in st.session_state:
-            st.session_state["chat_messages"] = []
+                if "chat_messages" not in st.session_state:
+                st.session_state["chat_messages"] = []
     
-            # 2. Příprava kontextu
-            portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
-            if viz_data_list: 
-            portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
+                # 2. Příprava kontextu
+                portfolio_context = f"Uživatel má celkem {celk_hod_czk:,.0f} CZK. "
+                    if viz_data_list: 
+                    portfolio_context += "Portfolio: " + ", ".join([f"{i['Ticker']} ({i['Sektor']})" for i in viz_data_list])
     
-            # 3. Sestavení promptu
-            prompt_to_send = f"Analyzuj tuto zprávu V KONTEXTU MÉHO PORTFOLIA. Zpráva: {title}. Jaký má dopad? (Odkaz: {link})"
+                    # 3. Sestavení promptu
+                    prompt_to_send = f"Analyzuj tuto zprávu V KONTEXTU MÉHO PORTFOLIA. Zpráva: {title}. Jaký má dopad? (Odkaz: {link})"
     
-            # 4. Přidání do historie chatu
-            st.session_state["chat_messages"].append({"role": "user", "content": prompt_to_send})
+                    # 4. Přidání do historie chatu
+                    st.session_state["chat_messages"].append({"role": "user", "content": prompt_to_send})
     
-            # 5. Otevření chatu a refresh
-            st.session_state['chat_expanded'] = True
-            st.toast("Analýza odeslána do AI chatu!", icon="🤖")
-            time.sleep(0.5)
-            st.rerun()
+                    # 5. Otevření chatu a refresh
+                    st.session_state['chat_expanded'] = True
+                    st.toast("Analýza odeslána do AI chatu!", icon="🤖")
+                    time.sleep(0.5)
+                    st.rerun()
 
         news = cached_zpravy()
         ai_results = st.session_state.get('ai_news_analysis', {})
@@ -3473,6 +3473,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
