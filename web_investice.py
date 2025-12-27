@@ -1808,31 +1808,32 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
 
     if not df.empty:
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
-        # Přepočítáme celkovou investici na základě původních cen
-        df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
+        # Vypočítáme investici pro každý řádek seskupení
+        df_g['Investice'] = df_g.apply(lambda x: x['Pocet'] * x['Cena'], axis=1)
         
         for _, row in df_g.iterrows():
             tkr = row['Ticker']
             p_info = LIVE_DATA.get(tkr, {})
             p = p_info.get('price', row['Cena'])
             m = p_info.get('curr', 'USD')
-
-        try:
-            k = 1.0 / kurzy.get("CZK", 21) if m == "CZK" else (kurzy.get("EUR", 1.1) if m == "EUR" else 1.0)
-            hod_usd = row['Pocet'] * p * k
-            celk_hod_usd += hod_usd
-            celk_inv_usd += row['Investice'] * k
-            viz_data.append({
-                "Ticker": tkr, 
-                "HodnotaUSD": hod_usd, 
-                "Měna": m, 
-                "Kusy": row['Pocet'], 
-                "Sektor": "Doplnit", 
-                "Dnes": p_info.get('change', 0)/100
-            })
-        except Exception:
             
-            continue
+            try:
+                # Výpočet kurzu s fallbackem
+                k = 1.0 / kurzy.get("CZK", 21) if m == "CZK" else (kurzy.get("EUR", 1.1) if m == "EUR" else 1.0)
+                hod_usd = row['Pocet'] * p * k
+                celk_hod_usd += hod_usd
+                celk_inv_usd += row['Investice'] * k
+                viz_data.append({
+                    "Ticker": tkr, 
+                    "HodnotaUSD": hod_usd, 
+                    "Měna": m, 
+                    "Kusy": row['Pocet'], 
+                    "Sektor": "Doplnit", 
+                    "Dnes": p_info.get('change', 0)/100
+                })
+            except Exception:
+                # Pokud dojde k chybě u jednoho tickeru, přeskočíme ho (Oprava F702)
+                continue 
 
     hist_vyvoje = aktualizuj_graf_vyvoje(USER, celk_hod_usd)
     
@@ -3539,6 +3540,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
