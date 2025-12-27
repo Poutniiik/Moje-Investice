@@ -2368,7 +2368,36 @@ def main():
             st.error("🔔 CENOVÉ ALERTY!", icon="🔥")
             for a in alerts:
                 st.markdown(f"- **{a}**")
-        VoiceAssistant.render_voice_ui()
+                
+        # =====================================================================
+        # 🎙️ SMART BRIEFING PRO ASISTENTA (V4.3) - TADY SE DĚJE TO KOUZLO
+        # =====================================================================
+        # 1. Základní briefing (Jméno a celkové peníze)
+        briefing = f"Jsi Attis AI v aplikaci Terminal Pro. Uživatel: {USER}. Celkové jmění: {celk_hod_czk:,.0f} Kč. Hotovost: {cash_usd:,.0f} USD. "
+
+        # 2. Rozbor portfolia (Akcie a sektory), aby věděl, co vlastníš
+        if not vdf.empty:
+            seznam_akcii = ", ".join(vdf['Ticker'].tolist())
+            briefing += f"Vlastníš tyto akcie: {seznam_akcii}. "
+            
+            # Výpočet rozdělení sektorů (na tohle jsi se ptal)
+            if 'Sektor' in vdf.columns and 'HodnotaUSD' in vdf.columns:
+                sector_dist = vdf.groupby('Sektor')['HodnotaUSD'].sum()
+                total_usd = sector_dist.sum()
+                if total_usd > 0:
+                    dist_str = ", ".join([f"{s}: {(v/total_usd)*100:.1f}%" for s, v in sector_dist.items()])
+                    briefing += f"Tvé investice jsou rozděleny do těchto sektorů: {dist_str}. "
+        else:
+            briefing += "Portfolio je momentálně prázdné. "
+
+        # 3. Info o bance
+        if 'bank_data' in st.session_state:
+            briefing += "Máš aktivní propojení s bankovním API pro transakce. "
+        else:
+            briefing += "Data z externí banky nejsou připojena. "
+
+        # 4. VOLÁNÍ ASISTENTA S KONTEXTEM (TADY MU DÁVÁME TY OČI)
+        VoiceAssistant.render_voice_ui(user_context=briefing)
         
         # --- NOVINKA: VELITELSKÁ ŘÁDKA (CLI) ---
         st.divider()
@@ -3522,7 +3551,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
