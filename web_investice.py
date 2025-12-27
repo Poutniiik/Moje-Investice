@@ -3359,7 +3359,7 @@ def main():
         render_bank_lab_page()
 
 # =========================================================================
-    # 🤖 PLOVOUCÍ AI ASISTENT (FINÁLNÍ VERZE S AUTOMATICKOU ODPOVĚDÍ)
+    # 🤖 PLOVOUCÍ AI ASISTENT (FINÁLNÍ VERZE S OŠETŘENÍM LIMITŮ)
     # =========================================================================
     if st.session_state.get('ai_enabled', False) and AI_AVAILABLE:
         
@@ -3377,41 +3377,37 @@ def main():
                     with st.chat_message(msg["role"]):
                         st.write(msg["content"])
 
-            # 2. Manuální vstup od uživatele
+            # 2. Manuální vstup
             if chat_prompt := st.chat_input("Zeptej se na portfolio...", key="floating_chat_input"):
                 st.session_state['chat_messages'].append({"role": "user", "content": chat_prompt})
-                st.rerun() # Refreshneme, aby se spustila logika odpovědi níže
+                st.rerun()
 
-            # 3. AUTOMATICKÁ ODPOVĚĎ (Tady je to kouzlo!)
-            # Pokud je poslední zpráva od uživatele, bot musí odpovědět
+            # 3. AUTOMATICKÁ ODPOVĚĎ AI
             if messages and messages[-1]["role"] == "user":
                 with chat_container:
                     with st.chat_message("assistant"):
                         with st.spinner("Analyzuji data a přemýšlím..."):
-                            # Příprava historie pro Gemini (mapování na 'user' a 'model')
                             history_for_api = []
                             for m in messages:
                                 role = "user" if m["role"] == "user" else "model"
                                 history_for_api.append({"role": role, "parts": [{"text": m["content"]}]})
                             
-                            # Kontext pro bota (aby věděl, o kom mluví)
                             current_context = f"Uživatel: {USER}. Celkové jmění: {celk_hod_czk:,.0f} Kč. Hotovost: {cash_usd:,.0f} USD."
                             
                             try:
-                                # Voláme tvou funkci z ai_brain.py
-                                # Předáváme celou historii a kontext
                                 response = get_chat_response(model, history_for_api, current_context)
-                                
                                 if response:
                                     st.write(response)
                                     st.session_state['chat_messages'].append({"role": "assistant", "content": response})
-                                    # Po odpovědi už nebudeme dělat rerun, aby se necyklilo
-                                else:
-                                    st.error("AI vrátila prázdnou odpověď.")
                             except Exception as e:
-                                st.error(f"Spojení s AI mozkem selhalo: {e}")
-                                # Pokud chceš vidět přesnou chybu v logu, odkomentuj:
-                                # print(f"CHYBA AI: {e}")
+                                # --- FORENZNÍ FILTR CHYB ---
+                                error_msg = str(e)
+                                if "429" in error_msg or "quota" in error_msg.lower():
+                                    st.warning("⚠️ **AI má pauzu.** Překročili jsme limit bezplatných zpráv (Quota). Zkus to prosím za minutu.")
+                                elif "401" in error_msg or "key" in error_msg.lower():
+                                    st.error("🔑 Chyba API klíče. Zkontroluj nastavení.")
+                                else:
+                                    st.error(f"📡 Spojení s mozkem přerušeno: {error_msg}")
 
 # ==========================================
 # 👇 FINÁLNÍ BANKOVNÍ CENTRÁLA (VERZE 3.1 - I SE ZŮSTATKY) 👇
@@ -3526,6 +3522,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
