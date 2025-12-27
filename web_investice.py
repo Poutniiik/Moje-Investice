@@ -3141,91 +3141,81 @@ def main():
     elif page == "💸 Obchod":
         st.title("💸 OBCHODNÍ PULT")
         
-        # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
         with st.container(border=True):
-            # Přepínač režimu
+            # 1. Volba režimu
             mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
-            
             st.divider()
-            
-            # Vstupy pro Ticker a Live Cenu
+
+            # 2. Vstupy a detekce Tickeru
             c1, c2 = st.columns([1, 1])
-            with c1:
-                # Ticker selector logic
-                if mode == "🔴 PRODEJ" and not df.empty:
-                    ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
-                else:
-                    ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
             
-            # Live Data Fetch
-            current_price, menu, denni_zmena = 0, "USD", 0
+            with c1:
+                if mode == "🔴 PRODEJ" and not df.empty:
+                    ticker_input = st.selectbox("Vyber akcii k prodeji", df['Ticker'].unique())
+                else:
+                    ticker_input = st.text_input("Zadej symbol (např. AAPL, CEZ.PR)").upper()
+
+            # 3. Získání dat (ZDE BYLA CHYBA VE VNOŘENÍ - teď je to venku a platí pro oba režimy)
             if ticker_input:
+                # Prioritně zkusíme naši Turbo Cache, pokud selže, jdeme na Live data
                 info = LIVE_DATA.get(ticker_input)
                 if info:
                     current_price = info.get('price', 0)
                     menu = info.get('curr', 'USD')
+                    denni_zmena = info.get('change', 0) / 100
                 else:
-                    p, m, z = ziskej_info(ticker_input)
-                    if p: current_price, menu, denni_zmena = p, m, z
+                    current_price, menu, denni_zmena = ziskej_info(ticker_input)
 
                 if current_price > 0:
                     with c2:
                         color_price = "green" if denni_zmena >= 0 else "red"
-                        st.markdown(f"**Cena:** :{color_price}[{current_price:,.2f} {menu}]")
-                        st.caption(f"Změna: {denni_zmena*100:+.2f}%")
-                else:
-                    with c2: st.warning("Cena nedostupná")
+                        st.markdown(f"**Aktuální cena:**")
+                        st.markdown(f"### :{color_price}[{current_price:,.2f} {menu}]")
+                        st.caption(f"Dnešní změna: {denni_zmena*100:+.2f}%")
 
-            # Množství a Limitní Cena
-            st.write("")
-            col_qty, col_price = st.columns(2)
-            with col_qty:
-                qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f")
-            with col_price:
-                limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1)
+                    # 4. Parametry obchodu
+                    st.write("")
+                    col_qty, col_limit = st.columns(2)
+                    with col_qty:
+                        qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f")
+                    with col_limit:
+                        limit_price = st.number_input(f"Cena za kus ({menu})", min_value=0.0, value=float(current_price), step=0.01)
 
-            # Kalkulace celkem
-            total_est = qty * limit_price
-            zustatek = zustatky.get(menu, 0)
-            
-            st.write("") 
-            
-            # --- LOGIKA TLAČÍTKA A VALIDACE ---
-            if mode == "🟢 NÁKUP":
-                if total_est > 0:
-                    c_info1, c_info2 = st.columns(2)
-                    c_info1.info(f"Celkem: **{total_est:,.2f} {menu}**")
-                    
-                    if zustatek >= total_est:
-                        c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
-                        if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
+                    total_est = qty * limit_price
+                    user_bal = zustatky.get(menu, 0)
+
+                    # 5. Potvrzení obchodu
+                    st.divider()
+                    if mode == "🟢 NÁKUP":
+                        st.info(f"Celkem k úhradě: **{total_est:,.2f} {menu}**")
+                        st.caption(f"Tvůj disponibilní zůstatek: {user_bal:,.2f} {menu}")
+                        
+                        if st.button("POTVRDIT NÁKUP", type="primary", use_container_width=True, disabled=(user_bal < total_est or qty <= 0)):
                             ok, msg = proved_nakup(ticker_input, qty, limit_price, USER)
-                            if ok: st.balloons(); st.success(msg); time.sleep(2); st.rerun()
-                            else: st.error(msg)
+                            if ok:
+                                st.balloons()
+                                st.success(msg)
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error(msg)
                     else:
-                        c_info2.error(f"Chybí: {total_est - zustatek:,.2f} {menu}")
-                        st.button("🚫 Nedostatek prostředků", disabled=True, use_container_width=True)
-                else:
-                    st.button("Zadej množství", disabled=True, use_container_width=True)
+                        # Kontrola, zda má uživatel dostatek kusů pro prodej
+                        shares_owned = df[df['Ticker'] == ticker_input]['Pocet'].sum() if not df.empty else 0
+                        st.info(f"Předpokládaný příjem: **{total_est:,.2f} {menu}**")
+                        st.caption(f"Vlastníš: {shares_owned} ks")
 
-            else: # PRODEJ
-                if total_est > 0:
-                    curr_qty = df[df['Ticker'] == ticker_input]['Pocet'].sum() if not df.empty else 0
-                    
-                    c_info1, c_info2 = st.columns(2)
-                    c_info1.info(f"Příjem: **{total_est:,.2f} {menu}**")
-                    
-                    if curr_qty >= qty:
-                        c_info2.success(f"Máš: {curr_qty} ks")
-                        if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True):
+                        if st.button("POTVRDIT PRODEJ", type="primary", use_container_width=True, disabled=(shares_owned < qty or qty <= 0)):
                             ok, msg = proved_prodej(ticker_input, qty, limit_price, USER, menu)
-                            if ok: st.success(msg); time.sleep(2); st.rerun()
-                            else: st.error(msg)
-                    else:
-                        c_info2.error(f"Máš jen: {curr_qty} ks")
-                        st.button("🚫 Nedostatek akcií", disabled=True, use_container_width=True)
+                            if ok:
+                                st.success(msg)
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error(msg)
                 else:
-                    st.button("Zadej množství", disabled=True, use_container_width=True)
+                    with c2:
+                        st.warning("⚠️ Nepodařilo se načíst cenu pro tento symbol.")
 
         # --- 2. SEKCE PRO SPRÁVU PENĚZ ---
         st.write("")
@@ -3547,6 +3537,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
