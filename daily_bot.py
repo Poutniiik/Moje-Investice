@@ -16,7 +16,8 @@ from github import Github  # Přidáno pro cloudovou synchronizaci
 matplotlib.use('Agg')
 
 # --- KONFIGURACE A TAJEMSTVÍ ---
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+# ZMĚNA: Sjednoceno na TELEGRAM_BOT_TOKEN (aby to ladilo s YAML a ostatními)
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") # Nové: Pro stahování dat z repozitáře
@@ -54,8 +55,11 @@ def download_csv_from_github(filename):
 
 # --- TELEGRAM FUNKCE ---
 def send_telegram(message):
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    # ZMĚNA: Používáme sjednocený TELEGRAM_BOT_TOKEN
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: 
+        print("❌ Chybí TELEGRAM_BOT_TOKEN nebo CHAT_ID.")
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
         requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"})
         print("📨 Telegram odeslán.")
@@ -63,8 +67,9 @@ def send_telegram(message):
         print(f"❌ Chyba Telegram: {e}")
 
 def send_telegram_photo(photo_path):
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    # ZMĚNA: Používáme sjednocený TELEGRAM_BOT_TOKEN
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
     try:
         with open(photo_path, 'rb') as photo:
             requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID}, files={"photo": photo})
@@ -256,8 +261,6 @@ def main():
     
     if df.empty:
         print(f"Žádná data pro uživatele {TARGET_OWNER}.")
-        # I když uživatel nemá data, zálohu celého souboru bychom udělat mohli,
-        # ale raději počkáme, až tam data budou.
         return
 
     # Seskupení
@@ -293,13 +296,12 @@ def main():
         if kusy <= 0: continue
 
         price, change = get_data_safe(ticker)
-        # time.sleep(0.1) # Malé zpoždění není nutné u fast_info, ale ok pro jistotu
         
         if price > 0:
             # Uložení do cache
             prices_cache[ticker] = {"price": price, "change": change}
             
-            # Konverze měn
+            # Konverze měn (Tvoje originální logika)
             val_czk = 0
             val_usd = 0
             
@@ -362,7 +364,6 @@ def main():
     msg += f"💵 Kurz USD: {usd_czk:.2f} Kč\n\n"
     
     msg += "<b>📋 Detail:</b>\n"
-    # Zobrazíme top 3 a flop 3, abychom nespamovali, pokud je toho hodně
     if len(sorted_items) > 8:
         for item in sorted_items[:3]:
             msg += f"🟢 <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
