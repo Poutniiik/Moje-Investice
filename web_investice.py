@@ -3358,43 +3358,6 @@ def main():
     elif page == "🧪 Banka":
         render_bank_lab_page()
 
-   # =========================================================================
-    # 🤖 PLOVOUCÍ AI ASISTENT (UI) - POSLEDNÍ VĚC V MAIN
-    # =========================================================================
-    # Tím, že je to na stejné úrovni jako "elif page == ...", 
-    # se tento blok provede PŘI KAŽDÉM RENDERU bez ohledu na aktivní stránku.
-    if st.session_state.get('ai_enabled', False):
-        with st.expander("AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
-            st.markdown('<div id="floating-bot-anchor"></div>', unsafe_allow_html=True)
-            
-            chat_container = st.container()
-            with chat_container:
-                for msg in st.session_state.get('chat_messages', []):
-                    with st.chat_message(msg["role"]):
-                        st.write(msg["content"])
-
-            if chat_prompt := st.chat_input("Zeptej se na portfolio..."):
-                st.session_state['chat_messages'].append({"role": "user", "content": chat_prompt})
-                with chat_container:
-                    with st.chat_message("user"):
-                        st.write(chat_prompt)
-
-                with chat_container:
-                    with st.chat_message("assistant"):
-                        with st.spinner("Přemýšlím..."):
-                            # Mapování rolí pro Gemini API
-                            history = [{"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]} 
-                                       for m in st.session_state['chat_messages']]
-                            
-                            current_context = f"Uživatel: {USER}. Celkové jmění: {celk_hod_czk:,.0f} Kč. Hotovost: {cash_usd:,.0f} USD."
-                            
-                            try:
-                                response = get_chat_response(model, history, current_context)
-                                st.write(response)
-                                st.session_state['chat_messages'].append({"role": "assistant", "content": response})
-                            except Exception as e:
-                                st.error(f"Spojení s mozkem selhalo: {e}")
-
 # ==========================================
 # 👇 FINÁLNÍ BANKOVNÍ CENTRÁLA (VERZE 3.1 - I SE ZŮSTATKY) 👇
 # ==========================================
@@ -3545,3 +3508,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
