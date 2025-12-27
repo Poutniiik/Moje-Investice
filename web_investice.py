@@ -1830,7 +1830,7 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
                     "Kusy": row['Pocet'],
                     "Průměr": row['Cena'], 
                     "Cena": p,              
-                    "Zisk": hod_usd - inv_usd, 
+                    "Zisk": hod_usd_tkr - inv_usd_tkr, 
                     "Sektor": "Doplnit", 
                     "Dnes": p_info.get('change', 0)/100
                 })
@@ -3543,6 +3543,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
