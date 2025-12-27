@@ -6,9 +6,13 @@ import time
 from io import StringIO
 from github import Github 
 
-# --- KONFIGURACE ---
+# --- KONFIGURACE A TAJEMSTVÍ ---
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 REPO_NAZEV = "Poutniiik/Moje-Investice"
+
+# ZMĚNA: Sjednoceno na TELEGRAM_BOT_TOKEN pro celý projekt
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
 # --- FUNKCE PRO GITHUB (Cloud Sync) ---
 def download_csv_from_github(filename):
@@ -35,17 +39,14 @@ def download_csv_from_github(filename):
 
 # --- TELEGRAM FUNKCE ---
 def send_telegram_message(message):
-    """Odešle zprávu na Telegram."""
-    TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
-    CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
-    
-    if not TOKEN or not CHAT_ID:
-        print("Chybí Telegram token nebo ID chatu.")
+    """Odešle zprávu na Telegram s využitím sjednoceného tokenu."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("❌ Chybí TELEGRAM_BOT_TOKEN nebo TELEGRAM_CHAT_ID.")
         return False, "Chybí token"
 
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
-        'chat_id': CHAT_ID,
+        'chat_id': TELEGRAM_CHAT_ID,
         'text': message,
         'parse_mode': 'Markdown'
     }
@@ -54,7 +55,7 @@ def send_telegram_message(message):
         response.raise_for_status()
         return True, "Odesláno"
     except Exception as e:
-        print(f"Chyba při odesílání Telegramu: {e}")
+        print(f"❌ Chyba při odesílání Telegramu: {e}")
         return False, str(e)
 
 # --- TECHNICKÁ ANALÝZA (RSI) ---
