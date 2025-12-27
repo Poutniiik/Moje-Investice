@@ -31,4 +31,4 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # GITHUB_TOKEN je automaticky dostupný v Actions, musíme ho jen předat
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python hlaseni_bot.py
+        run: python alert_bot.py
