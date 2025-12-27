@@ -183,3 +183,43 @@ def get_strategic_advice(model, market_sentiment, watchlist_data, portfolio_summ
         return model.generate_content(prompt).text
     except Exception as e:
         return f"Strategické spojení přerušeno: {e}"
+
+def get_portfolio_health_score(model, vdf, cash_usd, market_sentiment):
+    """
+    Vypočítá zdraví portfolia na základě diverzifikace a rizik.
+    Vrací: dict {"score": int, "comment": str}
+    """
+    if vdf.empty:
+        return {"score": 0, "comment": "Portfolio je prázdné. Začni nakupovat!"}
+
+    # Příprava rychlého shrnutí pro AI
+    sektory = vdf['Sektor'].unique().tolist()
+    pocet_akcii = len(vdf)
+    
+    prompt = f"""
+    Jsi analytik rizik. Ohodnoť zdraví tohoto portfolia na stupnici 0-100.
+    DATA:
+    - Počet akcií: {pocet_akcii}
+    - Sektory: {', '.join(sektory)}
+    - Volná hotovost: {cash_usd:,.0f} USD
+    - Sentiment trhu: {market_sentiment}
+    
+    PRAVIDLA:
+    - Málo akcií (< 3) = nižší skóre (riziko koncentrace).
+    - Žádná hotovost (< 500 USD) při medvědím trhu = nižší skóre.
+    - Dobrá diverzifikace (> 3 sektory) = vyšší skóre.
+    
+    VRAT POUZE JSON VE FORMÁTU: {{"score": číslo, "comment": "max 10 slov"}}
+    """
+    try:
+        response = model.generate_content(prompt)
+        # Jednoduchý parsing JSONu z textu (bezpečnostní pojistka)
+        import json
+        import re
+        text = response.text
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        return {"score": 50, "comment": "Analýza se nezdařila, ale trh běží dál."}
+    except Exception:
+        return {"score": 50, "comment": "AI strážce si dává pauzu."}
