@@ -115,7 +115,7 @@ def nacti_csv(nazev_souboru):
         
         if nazev_souboru == SOUBOR_DATA:
             if 'Sektor' not in df.columns: df['Sektor'] = "Doplnit"
-            if 'Poznamka' not in df.columns: df['Poznamka'] = ""
+            if 'Poznamka' not in df.columns: df['Poznamka'] = ""https://github.com/Poutniiik/Moje-Investice/blob/main/data_manager.py
         
         if 'Owner' not in df.columns: df['Owner'] = "admin"
         
@@ -145,14 +145,12 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
 def nacti_uzivatele(): 
     return nacti_csv(SOUBOR_UZIVATELE)
 
-# --- ALIASY PRO KOMPATIBILITU S MODULY (Mise č. 4 & 5) ---
-# Tyto řádky musí být na konci, aby Python už znal funkce uloz_csv_bezpecne a nacti_csv.
-
-save_df_to_github = uloz_csv_bezpecne
+# Tady propojíme moduly s tvou funkcí, která hlídá sloupeček 'Owner'
+save_df_to_github = uloz_data_uzivatele
 nacti_data_z_github = nacti_csv
 
 def ziskej_info(ticker):
-    """Pomocná funkce pro moduly, která se pokusí získat cenu přes yfinance"""
+    """Pomocná funkce pro získání ceny"""
     import yfinance as yf
     try:
         t = yf.Ticker(ticker)
