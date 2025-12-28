@@ -530,12 +530,19 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
     
 
 def render_sledovani_page(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model):
-       """Vykreslí stránku '🎯 Sledování' přes externí modul"""
-       # Volání nového modulu
-       ui_watchlist.render_watchlist(
-           USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, 
-           ziskej_info, save_df_to_github
-       )
+    """Vykreslí stránku '🎯 Sledování' přes externí modul"""
+    
+    # Volání modulu ui_watchlist. 
+    # Předáváme mu data a reference na funkce z data_manageru.
+    ui_watchlist.render_watchlist(
+        USER, 
+        df_watch, 
+        LIVE_DATA, 
+        AI_AVAILABLE, 
+        model, 
+        ziskej_info, 
+        save_df_to_github
+    )
 
 
 def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
@@ -3143,6 +3150,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
