@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import time # Důležité pro řešení latence GitHubu
 from ai_brain import get_alert_voice_text
 from voice_engine import VoiceAssistant
 from data_manager import SOUBOR_WATCHLIST # Importujeme konstantu pro správný soubor
@@ -13,41 +14,48 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
     st.title("🎯 TAKTICKÝ RADAR (Hlídač)")
 
     # --- FORENZNÍ DIAGNOSTIKA (Logy) ---
-    # Pokud ti diagnostika "nefaká", podívej se sem. Musí se tu měnit seznam Tickerů.
-    with st.expander("🔍 DIAGNOSTICKÝ LOG & OPRAVA", expanded=True):
-        st.write(f"**Aktivní uživatel:** `{USER}`")
-        st.write(f"**Cílový soubor na GitHubu:** `{SOUBOR_WATCHLIST}`")
-        st.write(f"**Počet položek v paměti:** {len(df_watch)}")
+    with st.expander("🔍 DIAGNOSTICKÝ LOG & OPRAVA", expanded=False):
+        col_diag1, col_diag2 = st.columns(2)
+        with col_diag1:
+            st.write(f"**Aktivní uživatel:** `{USER}`")
+            st.write(f"**Počet položek v paměti:** {len(df_watch)}")
+        with col_diag2:
+            if st.button("♻️ VYNUTIT REFRESH (Fix zamrzání)", use_container_width=True):
+                st.cache_data.clear()
+                st.rerun()
         
         if not df_watch.empty:
             st.write("**Aktuální seznam v paměti:**")
             st.code(", ".join(df_watch['Ticker'].tolist()))
         else:
-            st.warning("⚠️ Paměť modulu je prázdná. Hlavní soubor neposlal žádná data.")
-
-        if st.button("♻️ VYNUTIT VYČIŠTĚNÍ CACHE (Fix zamrzání)"):
-            st.cache_data.clear()
-            st.rerun()
+            st.warning("⚠️ Paměť modulu je prázdná.")
 
     # --- 1. SEKCE PRO PŘIDÁNÍ ---
     with st.expander("➕ Přidat novou akcii / Upravit cíl", expanded=False):
-        with st.form("add_w", clear_on_submit=True):
-            t = st.text_input("Symbol (např. AAPL, CEZ.PR)").upper()
+        # Unikátní klíč formuláře pomáhá Streamlitu správně reagovat na změny
+        with st.form(f"add_w_{len(df_watch)}", clear_on_submit=True):
+            t = st.text_input("Symbol (např. AAPL, CEZ.PR)").upper().strip()
             c_buy, c_sell = st.columns(2)
             with c_buy: target_buy = st.number_input("Cílová NÁKUPNÍ cena ($)", min_value=0.0, key="tg_buy")
             with c_sell: target_sell = st.number_input("Cílová PRODEJNÍ cena ($)", min_value=0.0, key="tg_sell")
 
-            if st.form_submit_button("Uložit do Radaru"):
+            if st.form_submit_button("Uložit do Radaru", use_container_width=True):
                 if t and (target_buy > 0 or target_sell > 0):
-                    # Logika přidání: Smažeme starý záznam a přidáme nový
-                    df_watch = df_watch[df_watch['Ticker'] != t]
-                    new_row = pd.DataFrame([{'Ticker': t, 'TargetBuy': target_buy, 'TargetSell': target_sell, 'Owner': USER}])
-                    df_watch = pd.concat([df_watch, new_row], ignore_index=True)
-                    
-                    # Uložení na GitHub (přes alias na uloz_data_uzivatele)
-                    save_df_to_github(df_watch, USER, SOUBOR_WATCHLIST)
-                    st.success(f"Akcie {t} byla přidána do radaru.")
-                    st.rerun()
+                    with st.status(f"Zapisuji {t} na GitHub...") as s:
+                        # Logika přidání
+                        df_watch = df_watch[df_watch['Ticker'] != t]
+                        new_row = pd.DataFrame([{'Ticker': t, 'TargetBuy': target_buy, 'TargetSell': target_sell, 'Owner': str(USER)}])
+                        df_updated = pd.concat([df_watch, new_row], ignore_index=True)
+                        
+                        # Uložení na GitHub (přes alias na uloz_data_uzivatele)
+                        success = save_df_to_github(df_updated, USER, SOUBOR_WATCHLIST)
+                        if success:
+                            s.update(label="✅ Zapsáno! Synchronizuji...", state="complete")
+                            st.cache_data.clear() 
+                            time.sleep(1) # Počkáme sekundu na GitHub
+                            st.rerun()
+                        else:
+                            s.update(label="❌ Chyba při ukládání", state="error")
                 else:
                     st.warning("Zadejte symbol a alespoň jednu cílovou cenu.")
 
@@ -63,7 +71,7 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
 
         # Hromadné stažení dat pro technické indikátory
         if tickers_list:
-            with st.spinner("Skenuji trh a počítám RSI..."):
+            with st.spinner("Skenuji trh..."):
                 try:
                     batch_data = yf.download(tickers_list, period="3mo", group_by='ticker', progress=False)
                 except: batch_data = pd.DataFrame()
@@ -71,7 +79,6 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
         for _, r in df_watch.iterrows():
             tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
 
-            # Získání ceny a určení měny
             inf = LIVE_DATA.get(tk, {})
             price = inf.get('price')
             cur = inf.get('curr', 'USD')
@@ -94,52 +101,44 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                     delta = hist.diff()
                     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
                     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                    rs = gain / loss
-                    rsi_val = (100 - (100 / (1 + rs))).iloc[-1]
+                    rsi_val = (100 - (100 / (1 + (gain / loss)))).iloc[-1]
                 
                 t_obj = yf.Ticker(tk)
                 y_low = t_obj.fast_info.year_low
                 y_high = t_obj.fast_info.year_high
                 
-                # OPRAVENO: Používáme y_low, jak bylo definováno výše
                 if price and y_high > y_low:
                     range_pos = max(0.0, min(1.0, (price - y_low) / (y_high - y_low)))
             except: pass
 
             # --- LOGIKA SNIPERA + HLAS ---
-            status_text = "Wait"
-            proximity_score = 0.0
-            active_target = 0
-            action_icon = "⚪️"
-            alert_triggered = False
-            action_type = ""
+            status_text = "Wait"; proximity_score = 0.0; active_target = 0; trig = False; act_type = ""
 
             if buy_trg > 0:
-                active_target = buy_trg; action_icon = "🟢 Buy"; action_type = "NÁKUP"
+                active_target = buy_trg; act_type = "NÁKUP"
                 if price and price > 0:
                     if price <= buy_trg:
-                        status_text = "🔥 BUY NOW"; proximity_score = 1.0; alert_triggered = True
+                        status_text = "🔥 BUY NOW"; proximity_score = 1.0; trig = True
                     else:
                         diff = (price - buy_trg) / price
                         proximity_score = max(0.0, 1.0 - (diff / 0.20)) if diff <= 0.20 else 0.0
                         status_text = f"Blíží se ({diff*100:.1f}%)"
             elif sell_trg > 0:
-                active_target = sell_trg; action_icon = "🔴 Sell"; action_type = "PRODEJ"
+                active_target = sell_trg; act_type = "PRODEJ"
                 if price and price > 0:
                     if price >= sell_trg:
-                        status_text = "💰 SELL NOW"; proximity_score = 1.0; alert_triggered = True
+                        status_text = "💰 SELL NOW"; proximity_score = 1.0; trig = True
                     else:
                         diff = (sell_trg - price) / price
                         proximity_score = max(0.0, 1.0 - (diff / 0.20)) if diff <= 0.20 else 0.0
                         status_text = f"Blíží se ({diff*100:.1f}%)"
 
             # HLASOVÝ ALERT
-            if alert_triggered:
-                st.toast(f"🔔 {tk} je na cíli!", icon="🎯")
-                alert_key = f"{tk}_{action_type}"
+            if trig:
+                alert_key = f"{tk}_{act_type}"
                 if alert_key not in st.session_state['played_alerts'] and st.session_state.get('ai_enabled', False) and AI_AVAILABLE:
                     with st.spinner(f"Attis AI hlásí {tk}..."):
-                        voice_msg = get_alert_voice_text(model, tk, price, active_target, action_type)
+                        voice_msg = get_alert_voice_text(model, tk, price, active_target, act_type)
                         audio_html = VoiceAssistant.speak(voice_msg)
                         if audio_html:
                             st.components.v1.html(audio_html, height=0)
@@ -147,7 +146,7 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
 
             w_data.append({
                 "Symbol": tk, "Cena": price, "Měna": cur, "RSI": rsi_val,
-                "Roční Rozsah": range_pos, "Cíl": active_target, "Akce": action_icon,
+                "Roční Rozsah": range_pos, "Cíl": active_target, "Akce": act_type,
                 "🎯 Radar": proximity_score, "Status": status_text
             })
 
@@ -169,11 +168,17 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
         st.divider()
         c_del1, c_del2 = st.columns([3, 1])
         with c_del2:
-            to_del = st.selectbox("Smazat z radaru:", df_watch['Ticker'].unique())
+            to_del = st.selectbox("Smazat z radaru:", df_watch['Ticker'].unique(), key="del_box")
             if st.button("🗑️ Smazat", use_container_width=True):
-                df_watch = df_watch[df_watch['Ticker'] != to_del]
-                save_df_to_github(df_watch, USER, SOUBOR_WATCHLIST)
-                st.warning(f"Akcie {to_del} byla smazána.")
-                st.rerun()
+                with st.status(f"Odstraňuji {to_del}...") as s:
+                    df_to_save = df_watch[df_watch['Ticker'] != to_del]
+                    success = save_df_to_github(df_to_save, USER, SOUBOR_WATCHLIST)
+                    if success:
+                        s.update(label="✅ Smazáno! Aktualizuji...", state="complete")
+                        st.cache_data.clear()
+                        time.sleep(1) # Klíčové pro GitHub
+                        st.rerun()
+                    else:
+                        s.update(label="❌ Chyba při mazání", state="error")
     else:
         st.info("Zatím nic nesleduješ. Přidej první akcii nahoře.")
