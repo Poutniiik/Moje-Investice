@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 
 # --- KONSTANTY (Databáze) ---
-REPO_NAZEV = "Poutniiik/Moje-Investice" ...
+REPO_NAZEV = "Poutniiik/Moje-Investice" 
 SOUBOR_DATA = "portfolio_data.csv"
 SOUBOR_UZIVATELE = "users_db.csv"
 SOUBOR_HISTORIE = "history_data.csv"
