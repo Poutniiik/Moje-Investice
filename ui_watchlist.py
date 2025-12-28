@@ -1,124 +1,150 @@
 import streamlit as st
 import pandas as pd
+import yfinance as yf
 from ai_brain import get_alert_voice_text
 from voice_engine import VoiceAssistant
 
-def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info, save_df_to_github):
+def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info, pridat_do_watchlistu, odebrat_z_watchlistu):
     """
-    Renderuje stránku Watchlistu (Sledování).
-    Obsahuje tabulku cílů, přidávání tickerů a hlasový Sniper Radar.
+    Renderuje kompletní stránku Watchlistu (Sledování) se všemi indikátory a AI hlasem.
     """
-    st.title("🎯 SNIPER RADAR & WATCHLIST")
+    st.title("🎯 TAKTICKÝ RADAR (Hlídač)")
 
-    # --- 1. HLASOVÝ SNIPER RADAR (LOGIKA) ---
-    if 'played_alerts' not in st.session_state:
-        st.session_state['played_alerts'] = set()
+    # --- 1. SEKCE PRO PŘIDÁNÍ (Z tvého kódu) ---
+    with st.expander("➕ Přidat novou akcii", expanded=False):
+        with st.form("add_w", clear_on_submit=True):
+            t = st.text_input("Symbol (např. AAPL)").upper()
+            c_buy, c_sell = st.columns(2)
+            with c_buy: target_buy = st.number_input("Cílová NÁKUPNÍ cena ($)", min_value=0.0, key="tg_buy")
+            with c_sell: target_sell = st.number_input("Cílová PRODEJNÍ cena ($)", min_value=0.0, key="tg_sell")
 
-    alerts = []
-    if not df_watch.empty:
-        for _, r in df_watch.iterrows():
-            tk = r['Ticker']
-            buy_trg = r['TargetBuy']
-            sell_trg = r['TargetSell']
-
-            if buy_trg > 0 or sell_trg > 0:
-                inf = LIVE_DATA.get(tk, {})
-                price = inf.get('price')
-                if not price:
-                    price, _, _ = ziskej_info(tk)
-
-                if price:
-                    alert_triggered = False
-                    action = ""
-                    target = 0
-                    
-                    if buy_trg > 0 and price <= buy_trg:
-                        action = "NÁKUP"
-                        target = buy_trg
-                        alert_triggered = True
-                    elif sell_trg > 0 and price >= sell_trg:
-                        action = "PRODEJ"
-                        target = sell_trg
-                        alert_triggered = True
-
-                    if alert_triggered:
-                        msg = f"{tk}: {action} ALERT! Cena {price:.2f} (Cíl: {target:.2f})"
-                        alerts.append(msg)
-                        st.toast(f"🔔 {tk} je na cíli!", icon="🎯")
-                        
-                        # Hlasová část
-                        alert_key = f"{tk}_{action}"
-                        if alert_key not in st.session_state['played_alerts'] and st.session_state.get('ai_enabled', False) and AI_AVAILABLE:
-                            with st.spinner(f"Attis AI hlásí příležitost na {tk}..."):
-                                voice_msg = get_alert_voice_text(model, tk, price, target, action)
-                                audio_html = VoiceAssistant.speak(voice_msg)
-                                if audio_html:
-                                    st.components.v1.html(audio_html, height=0)
-                                    st.session_state['played_alerts'].add(alert_key)
-
-    # --- 2. UI TABULKA A SPRÁVA ---
-    with st.container(border=True):
-        st.subheader("📋 Sledované pozice")
-        if not df_watch.empty:
-            # Přidáme aktuální cenu do zobrazení
-            df_display = df_watch.copy()
-            df_display['Live Cena'] = df_display['Ticker'].apply(lambda x: LIVE_DATA.get(x, {}).get('price', 0))
-            
-            st.dataframe(
-                df_display,
-                column_config={
-                    "Ticker": st.column_config.TextColumn("Symbol"),
-                    "TargetBuy": st.column_config.NumberColumn("Cíl Nákup", format="$%.2f"),
-                    "TargetSell": st.column_config.NumberColumn("Cíl Prodej", format="$%.2f"),
-                    "Live Cena": st.column_config.NumberColumn("Aktuální", format="$%.2f")
-                },
-                use_container_width=True, hide_index=True
-            )
-            
-            if st.button("🗑️ VYMAZAT CELÝ WATCHLIST", use_container_width=True):
-                df_watch = pd.DataFrame(columns=['Ticker', 'TargetBuy', 'TargetSell'])
-                save_df_to_github(df_watch, f"data/{USER}_watch.csv", f"Reset watchlist {USER}")
-                st.rerun()
-        else:
-            st.info("Watchlist je prázdný. Přidej první ticker níže.")
-
-    # --- 3. PŘIDÁVÁNÍ TICKERŮ ---
-    with st.expander("➕ PŘIDAT / UPRAVIT CÍL"):
-        with st.form("watch_form", clear_on_submit=True):
-            col1, col2, col3 = st.columns(3)
-            new_tk = col1.text_input("Ticker (např. AAPL)").upper()
-            new_buy = col2.number_input("Nákupní cíl ($)", min_value=0.0, step=0.1)
-            new_sell = col3.number_input("Prodejní cíl ($)", min_value=0.0, step=0.1)
-            
-            if st.form_submit_button("ULOŽIT DO RADARU"):
-                if new_tk:
-                    # Pokud už ticker existuje, smažeme ho a nahradíme novým
-                    df_watch = df_watch[df_watch['Ticker'] != new_tk]
-                    new_row = pd.DataFrame([{'Ticker': new_tk, 'TargetBuy': new_buy, 'TargetSell': new_sell}])
-                    df_watch = pd.concat([df_watch, new_row], ignore_index=True)
-                    
-                    save_df_to_github(df_watch, f"data/{USER}_watch.csv", f"Update watch {new_tk}")
-                    st.success(f"Radar nastaven na {new_tk}")
+            if st.form_submit_button("Sledovat"):
+                if t and (target_buy > 0 or target_sell > 0):
+                    pridat_do_watchlistu(t, target_buy, target_sell, USER)
                     st.rerun()
                 else:
-                    st.warning("Zadej prosím Ticker.")
-```
+                    st.warning("Zadejte symbol a alespoň jednu cílovou cenu.")
 
-### 2. Úprava `web_investice.py` (Přepojení kabelů)
+    if not df_watch.empty:
+        st.subheader("📡 TAKTICKÝ RADAR")
+        
+        w_data = []
+        tickers_list = df_watch['Ticker'].unique().tolist()
+        batch_data = pd.DataFrame()
 
-Nyní v hlavním souboru proveď tyto změny:
+        # Paměť pro alerty
+        if 'played_alerts' not in st.session_state:
+            st.session_state['played_alerts'] = set()
 
-1. **Import:** Nahoru přidej:
-   ```python
-   import ui_watchlist
-   ```
+        # Hromadné stažení dat pro RSI a 52T (Optimalizace)
+        if tickers_list:
+            with st.spinner("Skenuji trh a počítám indikátory..."):
+                try:
+                    batch_data = yf.download(tickers_list, period="3mo", group_by='ticker', progress=False)
+                except: batch_data = pd.DataFrame()
 
-2. **Refaktoring funkce:** Najdi `render_sledovani_page` a celou ji nahraď touto krásnou zkratkou:
-   ```python
-   def render_sledovani_page(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model):
-       """Vykreslí stránku '🎯 Sledování' přes externí modul"""
-       # Volání nového modulu
-       ui_watchlist.render_watchlist(
-           USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, 
-           ziskej_info, save_df_to_github
-       )
+        for _, r in df_watch.iterrows():
+            tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
+
+            # Získání ceny
+            inf = LIVE_DATA.get(tk, {})
+            price = inf.get('price')
+            cur = inf.get('curr', 'USD')
+            if not price:
+                price, _, _ = ziskej_info(tk)
+
+            # --- INDIKÁTORY (RSI + 52T) ---
+            rsi_val = 50
+            range_pos = 0.5
+            try:
+                # Výpočet RSI z batch dat
+                if len(tickers_list) > 1:
+                    hist = batch_data[tk]['Close'] if tk in batch_data.columns.levels[0] else pd.Series()
+                else:
+                    hist = batch_data['Close'] if 'Close' in batch_data.columns else pd.Series()
+
+                if not hist.empty and len(hist) > 14:
+                    delta = hist.diff()
+                    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                    rs = gain / loss
+                    rsi_val = (100 - (100 / (1 + rs))).iloc[-1]
+                
+                # 52 Week Range (Roční rozsah)
+                t_obj = yf.Ticker(tk)
+                y_low = t_obj.fast_info.year_low
+                y_high = t_obj.fast_info.year_high
+                if price and y_high > y_low:
+                    range_pos = max(0.0, min(1.0, (price - y_low) / (y_high - y_low)))
+            except: pass
+
+            # --- LOGIKA SNIPERA + HLAS ---
+            status_text = "💤 Wait"
+            proximity_score = 0.0
+            active_target = 0
+            action_icon = "⚪️"
+            alert_triggered = False
+            action_type = ""
+
+            if buy_trg > 0:
+                active_target = buy_trg; action_icon = "🟢 Buy"; action_type = "NÁKUP"
+                if price and price > 0:
+                    if price <= buy_trg:
+                        status_text = "🔥 BUY NOW"; proximity_score = 1.0; alert_triggered = True
+                    else:
+                        diff = (price - buy_trg) / price
+                        proximity_score = max(0.0, 1.0 - (diff / 0.20)) if diff <= 0.20 else 0.0
+                        status_text = f"Blíží se ({diff*100:.1f}%)"
+            elif sell_trg > 0:
+                active_target = sell_trg; action_icon = "🔴 Sell"; action_type = "PRODEJ"
+                if price and price > 0:
+                    if price >= sell_trg:
+                        status_text = "💰 SELL NOW"; proximity_score = 1.0; alert_triggered = True
+                    else:
+                        diff = (sell_trg - price) / price
+                        proximity_score = max(0.0, 1.0 - (diff / 0.20)) if diff <= 0.20 else 0.0
+                        status_text = f"Blíží se ({diff*100:.1f}%)"
+
+            # HLASOVÝ ALERT (Sniper)
+            if alert_triggered:
+                st.toast(f"🔔 {tk} je na cíli!", icon="🎯")
+                alert_key = f"{tk}_{action_type}"
+                if alert_key not in st.session_state['played_alerts'] and st.session_state.get('ai_enabled', False) and AI_AVAILABLE:
+                    with st.spinner(f"Attis AI hlásí {tk}..."):
+                        voice_msg = get_alert_voice_text(model, tk, price, active_target, action_type)
+                        audio_html = VoiceAssistant.speak(voice_msg)
+                        if audio_html:
+                            st.components.v1.html(audio_html, height=0)
+                            st.session_state['played_alerts'].add(alert_key)
+
+            w_data.append({
+                "Symbol": tk, "Cena": price, "Měna": cur, "RSI": rsi_val,
+                "Roční Rozsah": range_pos, "Cíl": active_target, "Akce": action_icon,
+                "🎯 Radar": proximity_score, "Status": status_text
+            })
+
+        wdf = pd.DataFrame(w_data)
+        if not wdf.empty:
+            st.dataframe(
+                wdf,
+                column_config={
+                    "Cena": st.column_config.NumberColumn(format="%.2f"),
+                    "Cíl": st.column_config.NumberColumn(format="%.2f"),
+                    "RSI": st.column_config.NumberColumn(format="%.0f", help="<30 Levné, >70 Drahé"),
+                    "Roční Rozsah": st.column_config.ProgressColumn(min_value=0, max_value=1, format=""),
+                    "🎯 Radar": st.column_config.ProgressColumn(min_value=0, max_value=1, format=""),
+                },
+                column_order=["Symbol", "Cena", "Akce", "Cíl", "🎯 Radar", "Status", "RSI", "Roční Rozsah"],
+                use_container_width=True, hide_index=True
+            )
+            st.caption("💡 **RSI Legenda:** Pod **30** = Přeprodáno 📉, Nad **70** = Překoupeno 📈.")
+
+        st.divider()
+        c_del1, c_del2 = st.columns([3, 1])
+        with c_del2:
+            to_del = st.selectbox("Vyber pro smazání:", df_watch['Ticker'].unique())
+            if st.button("🗑️ Smazat", use_container_width=True):
+                odebrat_z_watchlistu(to_del, USER)
+                st.rerun()
+    else:
+        st.info("Zatím nic nesleduješ. Přidej první akcii nahoře.")
