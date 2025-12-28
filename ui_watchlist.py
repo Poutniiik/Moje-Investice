@@ -13,11 +13,21 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
     st.title("🎯 TAKTICKÝ RADAR (Hlídač)")
 
     # --- FORENZNÍ DIAGNOSTIKA (Logy) ---
-    with st.expander("🔍 DIAGNOSTICKÝ LOG", expanded=False):
-        st.write(f"**Uživatel:** {USER}")
-        st.write(f"**Počet sledovaných položek v paměti:** {len(df_watch)}")
+    # Pokud ti diagnostika "nefaká", podívej se sem. Musí se tu měnit seznam Tickerů.
+    with st.expander("🔍 DIAGNOSTICKÝ LOG & OPRAVA", expanded=True):
+        st.write(f"**Aktivní uživatel:** `{USER}`")
+        st.write(f"**Cílový soubor na GitHubu:** `{SOUBOR_WATCHLIST}`")
+        st.write(f"**Počet položek v paměti:** {len(df_watch)}")
+        
         if not df_watch.empty:
-            st.write("**Aktuální Tickers v paměti:**", df_watch['Ticker'].tolist())
+            st.write("**Aktuální seznam v paměti:**")
+            st.code(", ".join(df_watch['Ticker'].tolist()))
+        else:
+            st.warning("⚠️ Paměť modulu je prázdná. Hlavní soubor neposlal žádná data.")
+
+        if st.button("♻️ VYNUTIT VYČIŠTĚNÍ CACHE (Fix zamrzání)"):
+            st.cache_data.clear()
+            st.rerun()
 
     # --- 1. SEKCE PRO PŘIDÁNÍ ---
     with st.expander("➕ Přidat novou akcii / Upravit cíl", expanded=False):
