@@ -5,18 +5,15 @@ import os
 import datetime
 from datetime import timedelta
 from io import StringIO
-from github import Github # Přidáno pro cloudovou synchronizaci
+from github import Github
 
 # --- KONFIGURACE ---
-TARGET_OWNER = 'Attis'
-
-# ZMĚNA: Sjednoceno na TELEGRAM_BOT_TOKEN
+# Používáme proměnné prostředí, které nastavuješ v GitHub Actions nebo Secrets
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-REPO_NAZEV = "Poutniiik/Moje-Investice" # Zde doplň svůj přesný název repozitáře!
+REPO_NAZEV = "Poutniiik/Moje-Investice"  # Tvůj repozitář
 
-# --- FUNKCE PRO GITHUB (Cloud Sync) ---
 def download_csv_from_github(filename):
     """
     Stáhne aktuální CSV data přímo z GitHubu.
@@ -36,16 +33,71 @@ def download_csv_from_github(filename):
         return pd.read_csv(StringIO(csv_data))
     except Exception as e:
         print(f"❌ Chyba stahování z GitHubu ({filename}): {e}")
+        # Fallback na lokální soubor
         if os.path.exists(filename):
-            print("🔄 Používám lokální zálohu.")
             return pd.read_csv(filename)
         return None
 
-def send_telegram(message):
-    # ZMĚNA: Používáme sjednocený TELEGRAM_BOT_TOKEN
+def load_all_tickers():
+    """
+    Načte unikátní tickery z Portfolia I Watchlistu.
+    """
+    tickers = set()
+    
+    # 1. Portfolio
+    df_p = download_csv_from_github("portfolio_data.csv")
+    if df_p is not None and not df_p.empty and 'Ticker' in df_p.columns:
+        tickers.update(df_p['Ticker'].unique())
+        print(f"✅ Načteno z portfolia: {len(df_p['Ticker'].unique())} tickerů")
+
+    # 2. Watchlist
+    df_w = download_csv_from_github("watchlist.csv")
+    if df_w is not None and not df_w.empty and 'Ticker' in df_w.columns:
+        tickers.update(df_w['Ticker'].unique())
+        print(f"✅ Načteno z watchlistu: {len(df_w['Ticker'].unique())} tickerů")
+
+    # Čištění
+    clean_tickers = [t for t in tickers if isinstance(t, str) and t.strip()]
+    print(f"🔍 Celkem ke kontrole: {len(clean_tickers)} unikátních tickerů.")
+    return list(clean_tickers)
+
+def get_earnings_date(ticker, start_date, end_date):
+    """
+    Zjistí, zda má firma earnings v daném rozmezí.
+    Vrací datum (datetime) nebo None.
+    """
+    try:
+        t = yf.Ticker(ticker)
+        # Získáme tabulku budoucích earnings
+        earnings = t.earnings_dates
+        
+        if earnings is None or earnings.empty:
+            return None
+
+        # Převedeme index na datetime bez časové zóny pro snadné porovnání
+        earnings.index = earnings.index.tz_localize(None)
+        
+        # Filtrujeme řádky, které spadají do našeho týdne
+        mask = (earnings.index >= start_date) & (earnings.index <= end_date)
+        upcoming = earnings[mask]
+
+        if not upcoming.empty:
+            # Vrátíme první nalezené datum v tom týdnu
+            return upcoming.index[0]
+            
+    except Exception as e:
+        # Tiché selhání u konkrétního tickeru, ať neshodíme celý skript
+        print(f"⚠️ Chyba u {ticker}: {e}")
+    
+    return None
+
+def send_telegram_message(message):
+    """Odešle zprávu na Telegram."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("❌ Chybí Telegram Token nebo ID.")
+        print("❌ Chybí Telegram tokeny. Jen vypisuji:")
+        print(message)
         return
+
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -53,121 +105,57 @@ def send_telegram(message):
         "parse_mode": "HTML"
     }
     try:
-        requests.post(url, json=payload)
-        print("📨 Telegram odeslán.")
+        requests.post(url, json=payload, timeout=10)
+        print("✅ Zpráva odeslána na Telegram.")
     except Exception as e:
         print(f"❌ Chyba při odesílání: {e}")
 
-def get_earnings_in_range(ticker, start_date, end_date):
-    """Zjistí, zda má firma earnings v daném rozmezí."""
-    try:
-        t = yf.Ticker(ticker)
-        cal = t.calendar
-        
-        # Pokud yfinance vrátí prázdný kalendář
-        if cal is None:
-            return None
-
-        dates = []
-        
-        # Varianta 1: Dictionary
-        if isinstance(cal, dict) and 'Earnings Date' in cal:
-            dates = cal['Earnings Date']
-        # Varianta 2: DataFrame
-        elif isinstance(cal, pd.DataFrame) and 'Earnings Date' in cal.index:
-            dates = cal.loc['Earnings Date'].tolist()
-            
-        # Projdeme data a hledáme shodu s příštím týdnem
-        for d in dates:
-            try:
-                # Univerzální převod: Ať je to cokoliv, pandas z toho udělá Timestamp
-                # a my si z něj vezmeme .date()
-                d_date = pd.to_datetime(d).date()
-                
-                if start_date <= d_date <= end_date:
-                    return d_date 
-            except Exception:
-                continue # Kdyby bylo jedno datum vadné, zkusíme další
-                
-    except Exception as e:
-        print(f"⚠️ Chyba u {ticker}: {e}")
-        
-    return None
-
-def load_tickers():
-    """Načte unikátní tickery z portfolia i watchlistu pro Attise (z Cloudu!)."""
-    tickers = set()
+def run_check():
+    print("🚀 Spouštím Earnings Bot...")
     
-    # 1. Portfolio (CLOUD)
-    try:
-        df = download_csv_from_github("portfolio_data.csv")
-        if df is not None and 'Owner' in df.columns:
-            df = df[df['Owner'] == TARGET_OWNER]
-            tickers.update(df['Ticker'].dropna().unique())
-    except Exception as e:
-        print(f"Chyba portfolio: {e}")
-
-    # 2. Watchlist (CLOUD)
-    try:
-        df = download_csv_from_github("watchlist.csv")
-        if df is not None and 'Owner' in df.columns:
-            df = df[df['Owner'] == TARGET_OWNER]
-            tickers.update(df['Ticker'].dropna().unique())
-    except Exception as e:
-        print(f"Chyba watchlist: {e}")
-            
-    # Očista tickerů (velká písmena, strip)
-    return {str(t).strip().upper() for t in tickers}
-
-def main():
-    print("🗓️ EARNINGS BOT STARTUJE...")
-    
-    # 1. Definice příštího týdne (Pondělí - Neděle)
-    today = datetime.date.today()
-    # Najdeme nejbližší pondělí (pokud je dnes neděle, zítra je pondělí)
-    days_ahead = 0 - today.weekday() 
-    if days_ahead <= 0: # Pokud už je pondělí nebo později, chceme AŽ TO PŘÍŠTÍ pondělí
-        days_ahead += 7
+    # Nastavíme rozsah na "Příští týden" (Pondělí až Neděle)
+    today = datetime.datetime.now()
+    days_until_monday = (7 - today.weekday()) % 7
+    if days_until_monday == 0: 
+        days_until_monday = 7 # Pokud je pondělí, chceme až to příští
         
-    next_monday = today + timedelta(days=days_ahead)
-    next_sunday = next_monday + timedelta(days=6)
-    
-    print(f"🔍 Hledám earnings pro týden: {next_monday} až {next_sunday}")
-    
-    tickers = load_tickers()
-    if not tickers:
-        print("❌ Žádné tickery k prohledání.")
-        return
+    next_monday = today + timedelta(days=days_until_monday)
+    # Reset času na půlnoc pro čisté porovnání
+    next_monday = next_monday.replace(hour=0, minute=0, second=0, microsecond=0)
+    next_sunday = next_monday + timedelta(days=6, hours=23, minutes=59)
 
-    upcoming_earnings = []
+    print(f"📅 Hledám reporty pro týden: {next_monday.strftime('%d.%m.')} - {next_sunday.strftime('%d.%m.%Y')}")
 
-    # 2. Kontrola tickerů
-    for ticker in tickers:
-        print(f"Kontroluji: {ticker}...")
-        date = get_earnings_in_range(ticker, next_monday, next_sunday)
+    tickers = load_all_tickers()
+    found_earnings = []
+
+    for tkr in tickers:
+        date = get_earnings_date(tkr, next_monday, next_sunday)
         if date:
-            print(f"✅ NÁLEZ! {ticker} má earnings {date}")
-            upcoming_earnings.append((date, ticker))
+            found_earnings.append((date, tkr))
+            print(f"💰 NÁLEZ: {tkr} reportuje {date.strftime('%d.%m.')}")
 
-    # 3. Odeslání zprávy
-    if upcoming_earnings:
+    if found_earnings:
         # Seřadíme podle data
-        upcoming_earnings.sort()
+        found_earnings.sort(key=lambda x: x[0])
         
         msg = "<b>📢 POZOR! Earnings příští týden:</b>\n\n"
-        for date, ticker in upcoming_earnings:
-            day_name = date.strftime("%A") # Den anglicky
-            # Překlad dne
-            days_cz = {"Monday": "Pondělí", "Tuesday": "Úterý", "Wednesday": "Středa", 
-                       "Thursday": "Čtvrtek", "Friday": "Pátek", "Saturday": "Sobota", "Sunday": "Neděle"}
-            day_cz = days_cz.get(day_name, day_name)
-            
-            msg += f"🗓️ <b>{day_cz} ({date.day}.{date.month}.)</b>: {ticker}\n"
         
-        msg += "\n<i>Připrav se na volatilitu!</i> 🎢"
-        send_telegram(msg)
+        for date, tkr in found_earnings:
+            day_name_cz = {
+                0: "Pondělí", 1: "Úterý", 2: "Středa", 3: "Čtvrtek", 
+                4: "Pátek", 5: "Sobota", 6: "Neděle"
+            }[date.weekday()]
+            
+            msg += f"🗓 <b>{day_name_cz} ({date.strftime('%d.%m.')})</b>\n"
+            msg += f"👉 <b>{tkr}</b>\n\n"
+            
+        msg += "<i>Připrav se na volatilitu! 📉📈</i>"
+        send_telegram_message(msg)
     else:
-        print("Žádné earnings v příštím týdnu.")
+        print("📭 Žádné earnings v tvém portfoliu/watchlistu pro příští týden.")
+        # Volitelné: Poslat zprávu "Klidný týden"
+        # send_telegram_message("🧘‍♂️ Příští týden žádné earnings reporty ve tvém seznamu.")
 
 if __name__ == "__main__":
-    main()
+    run_check()
