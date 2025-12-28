@@ -502,7 +502,6 @@ RPG_TASKS = [
      "check_fn": lambda df, df_w, zustatky, vdf: zustatky.get('CZK', 0) >= 5000},
 ]
 
-
 def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
     """
     Vykreslí stránku '🏠 Přehled' přes externí modul.
@@ -529,7 +528,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
     )
     
 
-    def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST):
+def render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST):
     """Vykreslí stránku '👀 Sledování' (Watchlist) - VERZE 2.1 (Fix Buy/Sell Cíl)"""
     st.title("👀 WATCHLIST (Hlídač) – Cenové zóny")
 
@@ -3304,6 +3303,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
