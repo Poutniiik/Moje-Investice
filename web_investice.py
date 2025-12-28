@@ -2054,7 +2054,7 @@ def main():
                             zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA)
 
     elif page == "👀 Sledování":
-        render_sledovani_page(USER, df_watch, LIVE_DATA, kurzy, df, SOUBOR_WATCHLIST)
+        render_sledovani_page(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model)
         
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
@@ -3150,6 +3150,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
