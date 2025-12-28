@@ -83,7 +83,8 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                 t_obj = yf.Ticker(tk)
                 y_low = t_obj.fast_info.year_low
                 y_high = t_obj.fast_info.year_high
-                # 👇 TADY JE TA OPRAVA: y_low místo year_low
+                
+                # OPRAVENO: Používáme y_low, jak bylo definováno výše
                 if price and y_high > y_low:
                     range_pos = max(0.0, min(1.0, (price - y_low) / (y_high - y_low)))
             except: pass
