@@ -152,7 +152,6 @@ nacti_data_z_github = nacti_csv
 
 def ziskej_info(ticker):
     """Pomocná funkce pro získání ceny"""
-    import yfinance as yf
     try:
         t = yf.Ticker(ticker)
         price = t.fast_info.last_price if hasattr(t, 'fast_info') else 0
