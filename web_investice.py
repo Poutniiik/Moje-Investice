@@ -36,7 +36,7 @@ from data_manager import (
     SOUBOR_CASH, SOUBOR_VYVOJ, SOUBOR_WATCHLIST, SOUBOR_DIVIDENDY, SOUBOR_STATS, SOUBOR_STRATEGIE, 
     RISK_FREE_RATE,
     get_repo, zasifruj, uloz_csv, uloz_csv_bezpecne, nacti_csv,
-    uloz_data_uzivatele, nacti_uzivatele, ziskej_info, save_df_to_github
+    uloz_data_uzivatele, nacti_uzivatele, save_df_to_github
 )
 from utils import (
     ziskej_fear_greed, ziskej_zpravy, ziskej_yield, ziskej_earnings_datum,
@@ -3143,6 +3143,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
