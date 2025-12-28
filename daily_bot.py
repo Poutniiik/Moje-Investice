@@ -139,6 +139,56 @@ def get_ai_comment(portfolio_text, total_val, perf, market_perf):
         return model.generate_content(prompt).text.strip()
     except: return "Trh promluvil."
 
+def generate_sexy_report(total_val_czk, my_portfolio_change, sp500_change, items, usd_czk, ai_commentary):
+    """
+    Vytvoří vizuálně atraktivní a deduplikovaný report pro Telegram.
+    """
+    # 1. Deduplikace (kdyby náhodou)
+    seen_tickers = set()
+    unique_items = []
+    for item in items:
+        if item['tkr'] not in seen_tickers:
+            unique_items.append(item)
+            seen_tickers.add(item['tkr'])
+
+    # 2. Výpočet souboje s trhem
+    diff = my_portfolio_change - sp500_change
+    if diff > 0:
+        battle_icon, battle_text = "🏆", f"Porazil jsi trh o <b>{diff:.2f}%</b>!"
+    else:
+        battle_icon, battle_text = "🐢", f"Trh byl dnes o <b>{abs(diff):.2f}%</b> rychlejší."
+
+    # 3. Sestavení zprávy
+    msg = f"<b>📊 DENNÍ UPDATE (Attis)</b>\n"
+    msg += f"📅 {datetime.datetime.now().strftime('%d.%m.%Y')}\n"
+    msg += f"<code>------------------------</code>\n"
+    msg += f"💰 <b>MAJETEK: {total_val_czk:,.0f} Kč</b>\n\n"
+    
+    perf_icon = "📈" if my_portfolio_change >= 0 else "📉"
+    msg += f"{perf_icon} Výkon: <b>{my_portfolio_change:+.2f}%</b>\n"
+    msg += f"🏛️ S&P 500: <b>{sp500_change:+.2f}%</b>\n"
+    msg += f"{battle_icon} <i>{battle_text}</i>\n"
+    msg += f"<code>------------------------</code>\n\n"
+
+    # 4. Detail pohybů (Top 3 a Bottom 2)
+    msg += "<b>📋 POHYBY DNES:</b>\n"
+    sorted_up = sorted(unique_items, key=lambda x: x['ch'], reverse=True)
+    sorted_down = sorted(unique_items, key=lambda x: x['ch'])
+    
+    for it in sorted_up[:3]:
+        msg += f"🟢 <b>{it['tkr']}</b>: {it['ch']:+.1f}%\n"
+    msg += "...\n"
+    for it in sorted_down[:2]:
+        if it['tkr'] not in [x['tkr'] for x in sorted_up[:3]]: # Aby nebyly stejné akcie nahoře i dole
+            msg += f"🔴 <b>{it['tkr']}</b>: {it['ch']:+.1f}%\n"
+
+    msg += f"\n💵 Kurz: <b>{usd_czk:.2f} Kč/$</b>\n"
+    msg += f"<code>------------------------</code>\n\n"
+    msg += f"<b>💡 ANALÝZA ATTIS AI:</b>\n"
+    msg += f"<i>\"{ai_commentary}\"</i>"
+    
+    return msg
+
 def perform_backup(df_p, df_h):
     """Time Machine - nedělní záloha dat."""
     if datetime.datetime.now().weekday() == 6:
@@ -209,18 +259,9 @@ def main():
     new_h.to_csv("value_history.csv", index=False)
     perform_backup(df_p_full, new_h)
 
-    # AI a Telegram
     ai_msg = get_ai_comment(p_text, final_czk, final_perf, sp500_ch)
-    msg = f"<b>📊 REPORT {TARGET_OWNER}</b>\n💰 <b>{final_czk:,.0f} Kč</b>\n"
-    msg += f"📈 Výkon: {final_perf:+.2f}% (S&P500: {sp500_ch:+.2f}%)\n"
-    msg += f"🤖 <i>{ai_msg}</i>\n\n<b>Pohyby:</b>\n"
+    msg = generate_sexy_report(final_czk, final_perf, sp500_ch, items, usd_czk, ai_msg)
     
-    for it in sorted(items, key=lambda x: x['ch'], reverse=True)[:3]:
-        msg += f"🟢 {it['tkr']}: {it['ch']:+.1f}%\n"
-    msg += "...\n"
-    for it in sorted(items, key=lambda x: x['ch'])[:2]:
-        msg += f"🔴 {it['tkr']}: {it['ch']:+.1f}%\n"
-
     send_telegram(msg)
     chart = create_chart(new_h)
     if chart: send_telegram_photo(chart)
