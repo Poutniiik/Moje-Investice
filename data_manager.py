@@ -46,7 +46,7 @@ def zasifruj(text):
 def uloz_csv_bezpecne(df, nazev_souboru, zprava):
     """
     Vylepšená verze ukládání s ochranou proti výpadkům sítě.
-    Zkouší uložit data 3x, než nahlásí chybu.
+    Returns: True při úspěchu, False při selhání.
     """
     repo = get_repo()
     if not repo:
@@ -106,7 +106,6 @@ def nacti_csv(nazev_souboru):
         
         if nazev_souboru == SOUBOR_DATA:
             if 'Sektor' not in df.columns: df['Sektor'] = "Doplnit"
-            # Tady byla ta opravená chyba se syntaktickou URL adresou
             if 'Poznamka' not in df.columns: df['Poznamka'] = ""
         
         if 'Owner' not in df.columns: df['Owner'] = "admin"
@@ -114,7 +113,6 @@ def nacti_csv(nazev_souboru):
         df['Owner'] = df['Owner'].astype(str)
         return df
     except Exception:
-        # Fallback tabulky pro případ, že soubor na GitHubu ještě není
         cols = ["Ticker", "Pocet", "Cena", "Datum", "Owner", "Sektor", "Poznamka"]
         if nazev_souboru == SOUBOR_HISTORIE: cols = ["Ticker", "Kusu", "Prodejka", "Zisk", "Mena", "Datum", "Owner"]
         if nazev_souboru == SOUBOR_CASH: cols = ["Typ", "Castka", "Mena", "Poznamka", "Datum", "Owner"]
@@ -133,15 +131,19 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
     if not user_df.empty:
         user_df['Owner'] = str(username)
         full_df = pd.concat([full_df, user_df], ignore_index=True)
-    uloz_csv(full_df, nazev_souboru, f"Update {username}")
+    
+    # 👇 KLÍČOVÁ OPRAVA: Musíme zachytit výsledek uložení a vrátit ho!
+    success = uloz_csv(full_df, nazev_souboru, f"Update {username}")
+    
+    # Vyčištění cache pro všechny funkce v aplikaci
     st.cache_data.clear()
+    
+    return success
 
 def nacti_uzivatele(): 
     return nacti_csv(SOUBOR_UZIVATELE)
 
-# --- ALIASY PRO MODULY (Důležité pro mazání a přidávání) ---
-# Tyto řádky propojují naše nové moduly s tvou logikou uživatelů.
-
+# --- ALIASY PRO MODULY ---
 save_df_to_github = uloz_data_uzivatele
 nacti_data_z_github = nacti_csv
 
