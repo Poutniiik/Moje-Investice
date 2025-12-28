@@ -527,44 +527,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
     st.write("") 
 
     # 1.5 AI DIAGNOSTIKA ZDRAVÍ (Novinka)
-    if AI_AVAILABLE and st.session_state.get('ai_enabled', False):
-        with st.container(border=True):
-            st.caption("🩺 AI DIAGNOSTIKA PORTFOLIA")
-
-            # 👇 KLÍČOVÁ OPRAVA: Inicializujeme proměnnou, aby existovala v každém průchodu
-            audio_html = None
-        # Získání sentimentu pro kontext
-            score_fg, rating_fg = cached_fear_greed()
-            sentiment_context = f"{rating_fg} ({score_fg}/100)" if score_fg else "Neutrální"
-        
-        # Volání tvé nové funkce z ai_brain.py
-        with st.spinner("Provádím hloubkovou diagnostiku..."):
-            health = get_portfolio_health_score(model, vdf, cash_usd, sentiment_context)
-            h_score = health.get('score', 50)
-
-        # --- NOVINKA: AUTOMATICKÝ HLASOVÝ BRIEFING (Pouze 1x za relaci) ---
-        if 'briefing_played' not in st.session_state:
-            with st.spinner("Attis AI připravuje hlášení..."):
-                    # Vygenerujeme text pozdravu
-                    briefing_text = get_voice_briefing_text(model, USER, h_score, sentiment_context)
-                    # Převedeme na audio HTML
-                    audio_html = VoiceAssistant.speak(briefing_text)
-        if audio_html:
-            st.components.v1.html(audio_html, height=0)
-            # Nastavíme zámek, aby to příště nezmáčkl
-            st.session_state['briefing_played'] = True
-            
-        h_col1, h_col2 = st.columns([1, 3])
-        
-        with h_col1:
-            # Určení barvy podle skóre
-            h_color = "red" if health['score'] < 40 else ("orange" if health['score'] < 70 else "green")
-            st.markdown(f"<h2 style='text-align: center; color: {h_color};'>{health['score']}%</h2>", unsafe_allow_html=True)
-            st.progress(health['score'] / 100)
-            
-        with h_col2:
-            st.markdown(f"**Verdikt:** {health['comment']}")
-            st.caption("💡 Tip: AI hodnotí diverzifikaci sektorů a tvůj 'cash buffer'.")
+    ui_dashboard.render_dashboard(USER, vdf, cash_usd, model, AI_AVAILABLE, cached_fear_greed)
 
     # 2. ŘÁDEK: TRŽNÍ NÁLADA + KOMPAS
     c_left, c_right = st.columns([1, 2])
@@ -3627,6 +3590,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
