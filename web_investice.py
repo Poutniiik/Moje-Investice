@@ -121,12 +121,22 @@ def cached_kurzy():
 
 # -----------------------------------------------------
 
-# --- NÁSTROJ PRO ŘÍZENÍ STAVU: ZNEHODNOCENÍ DAT ---
 def invalidate_data_core():
-    """Vynutí opětovný přepočet datového jádra při příštím zobrazení stránky."""
+    """
+    VYNUCENÝ REFRESH: Zneplatní výpočty i syrová data.
+    Tohle zajistí, že po každém nákupu/prodeji/změně watchlistu 
+    se data načtou čerstvá z GitHubu bez nutnosti ručního refreshe.
+    """
+    # 1. Zneplatníme časové razítko vypočteného jádra
     if 'data_core' in st.session_state:
-        # Nastavíme timestamp do minulosti, čímž vyprší 5minutový limit
         st.session_state['data_core']['timestamp'] = datetime.now() - timedelta(minutes=6)
+    
+    # 2. KLÍČOVÝ KROK: Vymažeme syrová data ze stavu aplikace
+    # Tím donutíme blok "if 'df' not in st.session_state" k opětovnému načtení
+    raw_data_keys = ['df', 'df_hist', 'df_cash', 'df_div', 'df_watch']
+    for key in raw_data_keys:
+        if key in st.session_state:
+            del st.session_state[key]
 
 # --- OPRAVA 1: CACHOVANÁ INICIALIZACE AI (Aby se nevolala pořád dokola) ---
 @st.cache_resource(show_spinner="Připojuji neurální sítě...")
@@ -532,8 +542,7 @@ def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_us
 def render_sledovani_page(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model):
     """Vykreslí stránku '🎯 Sledování' přes externí modul"""
     
-    # Volání modulu ui_watchlist. 
-    # Předáváme mu data a reference na funkce z data_manageru.
+    # Zavoláme modul a pošleme mu uloz_data_uzivatele (která teď vrací True/False)
     ui_watchlist.render_watchlist(
         USER, 
         df_watch, 
@@ -541,7 +550,7 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model):
         AI_AVAILABLE, 
         model, 
         ziskej_info, 
-        save_df_to_github
+        save_df_to_github # Tohle už vrací korektní výsledek
     )
 
 
@@ -3150,3 +3159,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
