@@ -3,11 +3,13 @@ import pandas as pd
 import yfinance as yf
 from ai_brain import get_alert_voice_text
 from voice_engine import VoiceAssistant
+from data_manager import SOUBOR_WATCHLIST # Importujeme konstantu pro správný soubor
 
 def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info, save_df_to_github):
     """
     Renderuje kompletní stránku Watchlistu (Sledování) se všemi indikátory a AI hlasem.
     Všechna logika (RSI, 52T, Sniper) je nyní izolována zde.
+    OPRAVENO: Mazání a přidávání nyní používá správné parametry pro uloz_data_uzivatele.
     """
     st.title("🎯 TAKTICKÝ RADAR (Hlídač)")
 
@@ -23,12 +25,12 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                 if t and (target_buy > 0 or target_sell > 0):
                     # Logika přidání: Smažeme starý záznam a přidáme nový
                     df_watch = df_watch[df_watch['Ticker'] != t]
-                    new_row = pd.DataFrame([{'Ticker': t, 'TargetBuy': target_buy, 'TargetSell': target_sell}])
+                    new_row = pd.DataFrame([{'Ticker': t, 'TargetBuy': target_buy, 'TargetSell': target_sell, 'Owner': USER}])
                     df_watch = pd.concat([df_watch, new_row], ignore_index=True)
                     
-                    # Uložení na GitHub (cesta se sestaví podle USER)
-                    path = f"data/{USER}_watch.csv"
-                    save_df_to_github(df_watch, path, f"Update watchlist: {t}")
+                    # Uložení na GitHub (přes alias na uloz_data_uzivatele)
+                    # Parametry: (DataFrame, Jméno uživatele, Konstanta souboru)
+                    save_df_to_github(df_watch, USER, SOUBOR_WATCHLIST)
                     st.success(f"Akcie {t} byla přidána do radaru.")
                     st.rerun()
                 else:
@@ -54,7 +56,7 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
         for _, r in df_watch.iterrows():
             tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
 
-            # Získání ceny a určení měny (z tvého původního kódu)
+            # Získání ceny a určení měny
             inf = LIVE_DATA.get(tk, {})
             price = inf.get('price')
             cur = inf.get('curr', 'USD')
@@ -88,7 +90,7 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
             except: pass
 
             # --- LOGIKA SNIPERA + HLAS ---
-            status_text = "💤 Wait"
+            status_text = "Wait"
             proximity_score = 0.0
             active_target = 0
             action_icon = "⚪️"
@@ -153,8 +155,11 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
         with c_del2:
             to_del = st.selectbox("Smazat z radaru:", df_watch['Ticker'].unique())
             if st.button("🗑️ Smazat", use_container_width=True):
+                # Odstraníme z lokálního DataFrame
                 df_watch = df_watch[df_watch['Ticker'] != to_del]
-                save_df_to_github(df_watch, f"data/{USER}_watch.csv", f"Delete from watchlist: {to_del}")
+                # Uložíme na GitHub přes uloz_data_uzivatele (alias save_df_to_github)
+                save_df_to_github(df_watch, USER, SOUBOR_WATCHLIST)
+                st.warning(f"Akcie {to_del} byla smazána.")
                 st.rerun()
     else:
         st.info("Zatím nic nesleduješ. Přidej první akcii nahoře.")
