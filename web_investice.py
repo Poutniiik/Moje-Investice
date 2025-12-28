@@ -1313,31 +1313,37 @@ def send_daily_telegram_report(USER, data_core, alerts, kurzy):
 # --- CENTRÁLNÍ DATOVÉ JÁDRO: VÝPOČET VŠECH METRIK ---
 def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     """
-    Spouští všechny složité výpočty a cachuje výsledky do session_state.
-    Tím se zabrání zbytečnému opakování stahování dat a kalkulací.
+    OPTIMALIZOVANÁ VERZE: Využívá hromadně stažená data (LIVE_DATA) a nevolá 
+    zbytečně API pro každou akcii zvlášť.
     """
     
-    # Krok 1: Inicializace (zajištění, že máme data k práci)
+    # Krok 1: Inicializace a příprava seznamu tickerů
     all_tickers = []
     if not df.empty: all_tickers.extend(df['Ticker'].unique().tolist())
     if not df_watch.empty: all_tickers.extend(df_watch['Ticker'].unique().tolist())
     
-    # Stáhneme živá data a kurzy (POUŽITÍ CACHE WRAPPERU)
-    LIVE_DATA = cached_ceny_hromadne(list(set(all_tickers)))
+    # Odebereme duplicity a prázdné hodnoty
+    all_tickers = list(set([t for t in all_tickers if str(t).strip() != '']))
+
+    # Stáhneme živá data a kurzy (BATCH DOWNLOAD - TOTO JE TO ZRYCHLENÍ)
+    with st.spinner("🚀 Bleskové načítání tržních dat..."):
+        LIVE_DATA = cached_ceny_hromadne(all_tickers)
     
-    # Poznámka: LIVE_DATA může být None, pokud se nepovedlo stažení, ale ziskej_ceny_hromadne obvykle vrací {}
+    # Aktualizace kurzů, pokud je Yahoo poslalo
     if LIVE_DATA:
         if "CZK=X" in LIVE_DATA: kurzy["CZK"] = LIVE_DATA["CZK=X"]["price"]
         if "EURUSD=X" in LIVE_DATA: kurzy["EUR"] = LIVE_DATA["EURUSD=X"]["price"]
     
-    st.session_state['LIVE_DATA'] = LIVE_DATA if LIVE_DATA else {} # Uložíme pro fallback v proved_prodej
+    # Uložíme do session state pro použití v jiných částech appky (např. Obchod)
+    st.session_state['LIVE_DATA'] = LIVE_DATA if LIVE_DATA else {}
     
-    # Krok 2: Fundamentální data pro portfolio (POUŽITÍ CACHE WRAPPERU)
+    # Krok 2: Fundamentální data (Cached)
     fundament_data = {}
     if not df.empty:
         tickers_in_portfolio = df['Ticker'].unique().tolist()
         for tkr in tickers_in_portfolio:
-            info, _ = cached_detail_akcie(tkr) # Použití cache místo přímého volání
+            # Fundamenty se mění málo, cache zde funguje dobře
+            info, _ = cached_detail_akcie(tkr) 
             fundament_data[tkr] = info
 
     # Krok 3: Výpočet portfolia
@@ -1346,16 +1352,38 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     celk_inv_usd = 0
 
     if not df.empty:
+        # Seskupíme nákupy téže akcie
         df_g = df.groupby('Ticker').agg({'Pocet': 'sum', 'Cena': 'mean'}).reset_index()
+        # Přesnější výpočet investice (suma: pocet * nákupka pro každou transakci)
         df_g['Investice'] = df.groupby('Ticker').apply(lambda x: (x['Pocet'] * x['Cena']).sum()).values
-        df_g['Cena'] = df_g['Investice'] / df_g['Pocet']
-
+        
+        # Iterace přes portfolio
         for i, (idx, row) in enumerate(df_g.iterrows()):
             tkr = row['Ticker']
-            p, m, d_zmena = ziskej_info(tkr)
-            if p is None: p = row['Cena']
-            if m is None or m == "N/A": m = "USD"
+            
+            # --- ZDE BYLA TA CHYBA (N+1 Problém) ---
+            # Původně: p, m, d_zmena = ziskej_info(tkr)  <-- TOTO ZPOMALOVALO
+            
+            # NOVĚ: Okamžitý lookup v paměti
+            p = 0
+            m = "USD"
+            d_zmena = 0
+            
+            if tkr in LIVE_DATA:
+                p = LIVE_DATA[tkr].get('price', 0)
+                m = LIVE_DATA[tkr].get('curr', 'USD')
+                # Pokud hromadná data nemají změnu (utils.py vrací jen price/curr), 
+                # necháme 0, abychom nezpomalovali. Rychlost > Detail na dashboardu.
+                d_zmena = LIVE_DATA[tkr].get('change', 0) 
+            else:
+                # Fallback: Jen pokud ticker chybí v balíku, zavoláme pomalou funkci
+                p, m, d_zmena = ziskej_info(tkr)
+            
+            # Záchrana, pokud cena stále chybí (např. delisted)
+            if p is None or p == 0: 
+                p = row['Cena'] # Použijeme nákupní cenu, aby to nebylo 0
 
+            # Zbytek logiky zůstává stejný...
             fundamenty = fundament_data.get(tkr, {})
             pe_ratio = fundamenty.get('trailingPE', 0)
             market_cap = fundamenty.get('marketCap', 0)
@@ -1365,6 +1393,7 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
                 sektor = str(raw_sektor) if not pd.isna(raw_sektor) and str(raw_sektor).strip() != "" else "Doplnit"
             except Exception: sektor = "Doplnit"
 
+            # Daňový test (beze změny)
             nakupy_data = df[df['Ticker'] == tkr]['Datum']
             dnes = datetime.now()
             limit_dni = 1095
@@ -1372,6 +1401,9 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
             vsechny_fail = True
 
             for d in nakupy_data:
+                # Ošetření, pokud datum není datetime
+                if not isinstance(d, datetime):
+                    d = pd.to_datetime(d)
                 if (dnes - d).days < limit_dni: vsechny_ok = False
                 else: vsechny_fail = False
 
@@ -1387,18 +1419,19 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
             elif tkr_upper.endswith(".PA"): country = "France"
 
             div_vynos = ziskej_yield(tkr)
-            hod = row['Pocet']*p
+            hod = row['Pocet'] * p
             inv = row['Investice']
-            z = hod-inv
+            z = hod - inv
 
+            # Konverze měny pro celkový součet v USD
             try:
                 if m == "CZK": k = 1.0 / kurzy.get("CZK", 20.85)
                 elif m == "EUR": k = kurzy.get("EUR", 1.16)
                 else: k = 1.0
             except Exception: k = 1.0
 
-            celk_hod_usd += hod*k
-            celk_inv_usd += inv*k
+            celk_hod_usd += hod * k
+            celk_inv_usd += inv * k
 
             viz_data.append({
                 "Ticker": tkr, "Sektor": sektor, "HodnotaUSD": hod*k, "Zisk": z, "Měna": m,
@@ -1423,7 +1456,7 @@ def calculate_all_data(USER, df, df_watch, zustatky, kurzy):
     # Krok 5: Výpočet hotovosti (USD ekvivalent)
     cash_usd = (zustatky.get('USD', 0)) + (zustatky.get('CZK', 0)/kurzy.get("CZK", 20.85)) + (zustatky.get('EUR', 0)*kurzy.get("EUR", 1.16))
 
-    # Krok 6: Sestavení a uložení Data Core
+    # Krok 6: Sestavení Data Core
     data_core = {
         'vdf': vdf,
         'viz_data_list': viz_data,
@@ -3159,4 +3192,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
