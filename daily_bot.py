@@ -59,20 +59,44 @@ def send_telegram_photo(photo_path):
 
 # --- ANALYTIKA A TRH ---
 def get_market_data(tickers):
-    """Hromadné stažení cen (Batch) - Zrychluje běh o 90%."""
+    """Hromadné stažení cen (Batch) s ošetřením NaN hodnot."""
     if not tickers: return {}
     all_to_download = list(set(tickers + ["^GSPC", "CZK=X", "EURUSD=X"]))
     try:
-        data = yf.download(all_to_download, period="2d", progress=False)
+        # Používáme 3 dny, abychom o víkendu vždy našli aspoň dva validní dny
+        data = yf.download(all_to_download, period="3d", progress=False)
+        if data.empty: return {}
+        
+        close_data = data['Close']
         res = {}
         for tkr in all_to_download:
             try:
-                curr = data['Close'][tkr].iloc[-1]
-                prev = data['Close'][tkr].iloc[-2]
-                res[tkr] = {"price": float(curr), "change": float(((curr - prev) / prev) * 100)}
+                # Odstraníme NaN pro konkrétní ticker a vezmeme poslední dvě ceny
+                valid_series = close_data[tkr].dropna()
+                if len(valid_series) < 2: continue
+                
+                curr = float(valid_series.iloc[-1])
+                prev = float(valid_series.iloc[-2])
+                
+                if pd.isna(curr) or pd.isna(prev) or prev == 0:
+                    change = 0.0
+                else:
+                    change = float(((curr - prev) / prev) * 100)
+                
+                res[tkr] = {"price": curr, "change": change}
             except: continue
         return res
     except: return {}
+
+def get_data_safe(ticker):
+    """
+    KOMPATIBILITA PRO TESTY: Tato funkce tu MUSÍ zůstat, aby fungoval 'pytest'.
+    Interně využívá rychlé hromadné stahování.
+    """
+    res = get_market_data([ticker])
+    if ticker in res:
+        return res[ticker]["price"], res[ticker]["change"]
+    return 0.0, 0.0
 
 def create_chart(df_hist):
     """Vytvoří graf vývoje majetku (Cyberpunk styl)."""
@@ -150,6 +174,9 @@ def main():
         d = live.get(tkr, {"price": 0, "change": 0})
         p, ch = d["price"], d["change"]
         
+        # Ochrana proti NaN hodnotám, které by zničily výpočet (nan%)
+        if pd.isna(p) or p <= 0: continue
+
         val_usd = (qty * p)
         if tkr.endswith(".PR"): val_usd /= usd_czk
         elif tkr.endswith(".DE"): val_usd *= eur_usd
