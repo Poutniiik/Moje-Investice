@@ -12,6 +12,13 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
     """
     st.title("🎯 TAKTICKÝ RADAR (Hlídač)")
 
+    # --- FORENZNÍ DIAGNOSTIKA (Logy) ---
+    with st.expander("🔍 DIAGNOSTICKÝ LOG", expanded=False):
+        st.write(f"**Uživatel:** {USER}")
+        st.write(f"**Počet sledovaných položek v paměti:** {len(df_watch)}")
+        if not df_watch.empty:
+            st.write("**Aktuální Tickers v paměti:**", df_watch['Ticker'].tolist())
+
     # --- 1. SEKCE PRO PŘIDÁNÍ ---
     with st.expander("➕ Přidat novou akcii / Upravit cíl", expanded=False):
         with st.form("add_w", clear_on_submit=True):
