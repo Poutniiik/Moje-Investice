@@ -9,7 +9,6 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
     """
     Renderuje kompletní stránku Watchlistu (Sledování) se všemi indikátory a AI hlasem.
     Všechna logika (RSI, 52T, Sniper) je nyní izolována zde.
-    OPRAVENO: Mazání a přidávání nyní používá správné parametry pro uloz_data_uzivatele.
     """
     st.title("🎯 TAKTICKÝ RADAR (Hlídač)")
 
@@ -29,7 +28,6 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                     df_watch = pd.concat([df_watch, new_row], ignore_index=True)
                     
                     # Uložení na GitHub (přes alias na uloz_data_uzivatele)
-                    # Parametry: (DataFrame, Jméno uživatele, Konstanta souboru)
                     save_df_to_github(df_watch, USER, SOUBOR_WATCHLIST)
                     st.success(f"Akcie {t} byla přidána do radaru.")
                     st.rerun()
@@ -85,7 +83,8 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                 t_obj = yf.Ticker(tk)
                 y_low = t_obj.fast_info.year_low
                 y_high = t_obj.fast_info.year_high
-                if price and y_high > year_low: # Oprava: year_low -> y_low
+                # 👇 TADY JE TA OPRAVA: y_low místo year_low
+                if price and y_high > y_low:
                     range_pos = max(0.0, min(1.0, (price - y_low) / (y_high - y_low)))
             except: pass
 
@@ -148,16 +147,13 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                 column_order=["Symbol", "Cena", "Akce", "Cíl", "🎯 Radar", "Status", "RSI", "Roční Rozsah"],
                 use_container_width=True, hide_index=True
             )
-            st.caption("💡 **RSI Legenda:** Pod **30** = Přeprodáno 📉, Nad **70** = Překoupeno 📈.")
 
         st.divider()
         c_del1, c_del2 = st.columns([3, 1])
         with c_del2:
             to_del = st.selectbox("Smazat z radaru:", df_watch['Ticker'].unique())
             if st.button("🗑️ Smazat", use_container_width=True):
-                # Odstraníme z lokálního DataFrame
                 df_watch = df_watch[df_watch['Ticker'] != to_del]
-                # Uložíme na GitHub přes uloz_data_uzivatele (alias save_df_to_github)
                 save_df_to_github(df_watch, USER, SOUBOR_WATCHLIST)
                 st.warning(f"Akcie {to_del} byla smazána.")
                 st.rerun()
