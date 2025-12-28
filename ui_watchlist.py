@@ -4,41 +4,49 @@ import yfinance as yf
 from ai_brain import get_alert_voice_text
 from voice_engine import VoiceAssistant
 
-def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info, pridat_do_watchlistu, odebrat_z_watchlistu):
+def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info, save_df_to_github):
     """
     Renderuje kompletní stránku Watchlistu (Sledování) se všemi indikátory a AI hlasem.
+    Všechna logika (RSI, 52T, Sniper) je nyní izolována zde.
     """
     st.title("🎯 TAKTICKÝ RADAR (Hlídač)")
 
-    # --- 1. SEKCE PRO PŘIDÁNÍ (Z tvého kódu) ---
-    with st.expander("➕ Přidat novou akcii", expanded=False):
+    # --- 1. SEKCE PRO PŘIDÁNÍ ---
+    with st.expander("➕ Přidat novou akcii / Upravit cíl", expanded=False):
         with st.form("add_w", clear_on_submit=True):
-            t = st.text_input("Symbol (např. AAPL)").upper()
+            t = st.text_input("Symbol (např. AAPL, CEZ.PR)").upper()
             c_buy, c_sell = st.columns(2)
             with c_buy: target_buy = st.number_input("Cílová NÁKUPNÍ cena ($)", min_value=0.0, key="tg_buy")
             with c_sell: target_sell = st.number_input("Cílová PRODEJNÍ cena ($)", min_value=0.0, key="tg_sell")
 
-            if st.form_submit_button("Sledovat"):
+            if st.form_submit_button("Uložit do Radaru"):
                 if t and (target_buy > 0 or target_sell > 0):
-                    pridat_do_watchlistu(t, target_buy, target_sell, USER)
+                    # Logika přidání: Smažeme starý záznam a přidáme nový
+                    df_watch = df_watch[df_watch['Ticker'] != t]
+                    new_row = pd.DataFrame([{'Ticker': t, 'TargetBuy': target_buy, 'TargetSell': target_sell}])
+                    df_watch = pd.concat([df_watch, new_row], ignore_index=True)
+                    
+                    # Uložení na GitHub (cesta se sestaví podle USER)
+                    path = f"data/{USER}_watch.csv"
+                    save_df_to_github(df_watch, path, f"Update watchlist: {t}")
+                    st.success(f"Akcie {t} byla přidána do radaru.")
                     st.rerun()
                 else:
                     st.warning("Zadejte symbol a alespoň jednu cílovou cenu.")
 
     if not df_watch.empty:
-        st.subheader("📡 TAKTICKÝ RADAR")
+        st.subheader("📡 AKTIVNÍ MONITORING")
         
         w_data = []
         tickers_list = df_watch['Ticker'].unique().tolist()
         batch_data = pd.DataFrame()
 
-        # Paměť pro alerty
         if 'played_alerts' not in st.session_state:
             st.session_state['played_alerts'] = set()
 
-        # Hromadné stažení dat pro RSI a 52T (Optimalizace)
+        # Hromadné stažení dat pro technické indikátory
         if tickers_list:
-            with st.spinner("Skenuji trh a počítám indikátory..."):
+            with st.spinner("Skenuji trh a počítám RSI..."):
                 try:
                     batch_data = yf.download(tickers_list, period="3mo", group_by='ticker', progress=False)
                 except: batch_data = pd.DataFrame()
@@ -46,10 +54,13 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
         for _, r in df_watch.iterrows():
             tk = r['Ticker']; buy_trg = r['TargetBuy']; sell_trg = r['TargetSell']
 
-            # Získání ceny
+            # Získání ceny a určení měny (z tvého původního kódu)
             inf = LIVE_DATA.get(tk, {})
             price = inf.get('price')
             cur = inf.get('curr', 'USD')
+            if tk.upper().endswith(".PR"): cur = "CZK"
+            elif tk.upper().endswith(".DE"): cur = "EUR"
+            
             if not price:
                 price, _, _ = ziskej_info(tk)
 
@@ -57,7 +68,6 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
             rsi_val = 50
             range_pos = 0.5
             try:
-                # Výpočet RSI z batch dat
                 if len(tickers_list) > 1:
                     hist = batch_data[tk]['Close'] if tk in batch_data.columns.levels[0] else pd.Series()
                 else:
@@ -70,7 +80,6 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                     rs = gain / loss
                     rsi_val = (100 - (100 / (1 + rs))).iloc[-1]
                 
-                # 52 Week Range (Roční rozsah)
                 t_obj = yf.Ticker(tk)
                 y_low = t_obj.fast_info.year_low
                 y_high = t_obj.fast_info.year_high
@@ -105,7 +114,7 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                         proximity_score = max(0.0, 1.0 - (diff / 0.20)) if diff <= 0.20 else 0.0
                         status_text = f"Blíží se ({diff*100:.1f}%)"
 
-            # HLASOVÝ ALERT (Sniper)
+            # HLASOVÝ ALERT
             if alert_triggered:
                 st.toast(f"🔔 {tk} je na cíli!", icon="🎯")
                 alert_key = f"{tk}_{action_type}"
@@ -142,9 +151,10 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
         st.divider()
         c_del1, c_del2 = st.columns([3, 1])
         with c_del2:
-            to_del = st.selectbox("Vyber pro smazání:", df_watch['Ticker'].unique())
+            to_del = st.selectbox("Smazat z radaru:", df_watch['Ticker'].unique())
             if st.button("🗑️ Smazat", use_container_width=True):
-                odebrat_z_watchlistu(to_del, USER)
+                df_watch = df_watch[df_watch['Ticker'] != to_del]
+                save_df_to_github(df_watch, f"data/{USER}_watch.csv", f"Delete from watchlist: {to_del}")
                 st.rerun()
     else:
         st.info("Zatím nic nesleduješ. Přidej první akcii nahoře.")
