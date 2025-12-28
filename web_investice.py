@@ -43,7 +43,8 @@ from utils import (
 )
 from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis,
-    generate_rpg_story, analyze_headlines_sentiment, get_chat_response, get_strategic_advice, get_portfolio_health_score, get_voice_briefing_text
+    generate_rpg_story, analyze_headlines_sentiment, get_chat_response, 
+    get_strategic_advice, get_portfolio_health_score, get_voice_briefing_text, get_alert_voice_text
 )
 # --- NOVINKA: INTEGRACE HLASOVÉHO ASISTENTA ---
 from voice_engine import VoiceAssistant
@@ -3589,6 +3590,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
