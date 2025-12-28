@@ -245,3 +245,27 @@ def get_voice_briefing_text(model, user_name, health_score, market_sentiment):
         return response.text.strip()
     except Exception:
         return f"Vítejte zpět, veliteli. Zdraví vašeho portfolia je na {health_score} procentech."
+
+def get_alert_voice_text(model, ticker, price, target_price, action_type):
+    """
+    Vygeneruje urgentní hlasové hlášení pro dosažení cílové ceny.
+    action_type: 'NÁKUP' nebo 'PRODEJ'
+    """
+    prompt = f"""
+    Jsi Attis AI, taktický asistent. 
+    UDÁLOST: Akcie {ticker} právě zasáhla tvůj cíl pro {action_type}!
+    AKTUÁLNÍ CENA: {price}
+    TVŮJ LIMIT: {target_price}
+    
+    ÚKOL:
+    Napiš velmi krátkou, naléhavou a motivující zprávu pro velitele (max 15 slov). 
+    Musí to znít jako výzva k akci v bojovém režimu. 
+    
+    Příklad: "Veliteli, Apple je na cíli! Čas k nákupu je právě teď."
+    Mluv česky a drsně.
+    """
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception:
+        return f"Pozor, {ticker} je na vaší cílové ceně pro {action_type}!"
