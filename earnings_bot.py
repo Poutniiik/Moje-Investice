@@ -5,7 +5,7 @@ import os
 import datetime
 from datetime import timedelta
 from io import StringIO
-from github import Github
+from github import Github, Auth  # Přidán Auth pro moderní volání
 
 # --- KONFIGURACE ---
 # Používáme proměnné prostředí, které nastavuješ v GitHub Actions nebo Secrets
@@ -26,7 +26,9 @@ def download_csv_from_github(filename):
             return None
 
     try:
-        g = Github(GITHUB_TOKEN)
+        # Moderní způsob autentizace (opravuje DeprecationWarning)
+        auth = Auth.Token(GITHUB_TOKEN)
+        g = Github(auth=auth)
         repo = g.get_repo(REPO_NAZEV)
         contents = repo.get_contents(filename)
         csv_data = contents.decoded_content.decode("utf-8")
@@ -67,6 +69,10 @@ def get_earnings_date(ticker, start_date, end_date):
     Vrací datum (datetime) nebo None.
     """
     try:
+        # Ignorujeme komodity jako zlato (GC=F), které nemají earnings
+        if "=" in ticker or "^" in ticker:
+            return None
+
         t = yf.Ticker(ticker)
         # Získáme tabulku budoucích earnings
         earnings = t.earnings_dates
@@ -86,8 +92,11 @@ def get_earnings_date(ticker, start_date, end_date):
             return upcoming.index[0]
             
     except Exception as e:
-        # Tiché selhání u konkrétního tickeru, ať neshodíme celý skript
-        print(f"⚠️ Chyba u {ticker}: {e}")
+        # Pokud chybí lxml, vypíšeme srozumitelnou radu
+        if "lxml" in str(e):
+            print(f"❌ CHYBA: Pro ticker {ticker} chybí knihovna 'lxml'. Přidej ji do requirements.txt!")
+        else:
+            print(f"⚠️ Chyba u {ticker}: {e}")
     
     return None
 
@@ -154,8 +163,6 @@ def run_check():
         send_telegram_message(msg)
     else:
         print("📭 Žádné earnings v tvém portfoliu/watchlistu pro příští týden.")
-        # Volitelné: Poslat zprávu "Klidný týden"
-        # send_telegram_message("🧘‍♂️ Příští týden žádné earnings reporty ve tvém seznamu.")
 
 if __name__ == "__main__":
     run_check()
