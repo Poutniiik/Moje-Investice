@@ -2300,59 +2300,59 @@ def main():
 
 
     # --- 8. KONTROLA WATCHLISTU (HLASOVÝ SNIPER RADAR) ---
-alerts = []
-# Inicializace paměti na odehrané alerty (pokud neexistuje)
-if 'played_alerts' not in st.session_state:
+    alerts = []
+    # Inicializace paměti na odehrané alerty (pokud neexistuje)
+    if 'played_alerts' not in st.session_state:
     st.session_state['played_alerts'] = set()
 
-if not df_watch.empty:
-    for _, r in df_watch.iterrows():
-        tk = r['Ticker']
-        buy_trg = r['TargetBuy']
-        sell_trg = r['TargetSell']
+    if not df_watch.empty:
+        for _, r in df_watch.iterrows():
+            tk = r['Ticker']
+            buy_trg = r['TargetBuy']
+            sell_trg = r['TargetSell']
 
-        if buy_trg > 0 or sell_trg > 0:
-            inf = LIVE_DATA.get(tk, {})
-            price = inf.get('price')
-            if not price:
-                price, _, _ = ziskej_info(tk)
+            if buy_trg > 0 or sell_trg > 0:
+                inf = LIVE_DATA.get(tk, {})
+                price = inf.get('price')
+                if not price:
+                    price, _, _ = ziskej_info(tk)
 
-            if price:
-                alert_triggered = False
-                action = ""
-                target = 0
+                if price:
+                    alert_triggered = False
+                    action = ""
+                    target = 0
                 
-                # Logika detekce
-                if buy_trg > 0 and price <= buy_trg:
-                    action = "NÁKUP"
-                    target = buy_trg
-                    alert_triggered = True
-                elif sell_trg > 0 and price >= sell_trg:
-                    action = "PRODEJ"
-                    target = sell_trg
-                    alert_triggered = True
+                    # Logika detekce
+                    if buy_trg > 0 and price <= buy_trg:
+                        action = "NÁKUP"
+                        target = buy_trg
+                        alert_triggered = True
+                    elif sell_trg > 0 and price >= sell_trg:
+                        action = "PRODEJ"
+                        target = sell_trg
+                        alert_triggered = True
 
-                if alert_triggered:
-                    # Textový alert pro UI/Telegram
-                    msg = f"{tk}: {action} ALERT! Cena {price:.2f} (Cíl: {target:.2f})"
-                    alerts.append(msg)
-                    st.toast(f"🔔 {tk} je na cíli!", icon="🎯")
+                    if alert_triggered:
+                        # Textový alert pro UI/Telegram
+                        msg = f"{tk}: {action} ALERT! Cena {price:.2f} (Cíl: {target:.2f})"
+                        alerts.append(msg)
+                        st.toast(f"🔔 {tk} je na cíli!", icon="🎯")
                     
-                    # --- HLASOVÁ ČÁST (Sniper) ---
-                    # Vytvoříme unikátní klíč pro tento konkrétní alert (např. AAPL_NÁKUP)
-                    alert_key = f"{tk}_{action}"
+                        # --- HLASOVÁ ČÁST (Sniper) ---
+                        # Vytvoříme unikátní klíč pro tento konkrétní alert (např. AAPL_NÁKUP)
+                        alert_key = f"{tk}_{action}"
                     
-                    # Pokud alert pro tuhle akci ještě dnes nezazněl a AI je aktivní
-                    if alert_key not in st.session_state['played_alerts'] and st.session_state.get('ai_enabled', False) and AI_AVAILABLE:
-                        with st.spinner(f"Attis AI hlásí příležitost na {tk}..."):
-                            # 1. Necháme Gemini vygenerovat drsný text
-                            voice_msg = get_alert_voice_text(model, tk, price, target, action)
-                            # 2. Převedeme na audio
-                            audio_html = VoiceAssistant.speak(voice_msg)
-                            if audio_html:
-                                st.components.v1.html(audio_html, height=0)
-                                # 3. Zapamatujeme si, že jsme ho už přehráli
-                                st.session_state['played_alerts'].add(alert_key)
+                        # Pokud alert pro tuhle akci ještě dnes nezazněl a AI je aktivní
+                        if alert_key not in st.session_state['played_alerts'] and st.session_state.get('ai_enabled', False) and AI_AVAILABLE:
+                            with st.spinner(f"Attis AI hlásí příležitost na {tk}..."):
+                                # 1. Necháme Gemini vygenerovat drsný text
+                                voice_msg = get_alert_voice_text(model, tk, price, target, action)
+                                # 2. Převedeme na audio
+                                audio_html = VoiceAssistant.speak(voice_msg)
+                                if audio_html:
+                                    st.components.v1.html(audio_html, height=0)
+                                    # 3. Zapamatujeme si, že jsme ho už přehráli
+                                    st.session_state['played_alerts'].add(alert_key)
     
 
     # --- 9. SIDEBAR ---
@@ -3624,6 +3624,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
