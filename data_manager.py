@@ -145,13 +145,15 @@ def uloz_data_uzivatele(user_df, username, nazev_souboru):
 def nacti_uzivatele(): 
     return nacti_csv(SOUBOR_UZIVATELE)
 
-# Tady propojíme moduly s tvou funkcí, která hlídá sloupeček 'Owner'
+# --- ALIASY PRO KOMPATIBILITU S MODULY (Mise č. 4 & 5) ---
+# Tyto řádky musí být na konci, aby Python už znal funkce uloz_csv_bezpecne a nacti_csv.
 
-save_df_to_github = uloz_data_uzivatele
+save_df_to_github = uloz_csv_bezpecne
 nacti_data_z_github = nacti_csv
 
 def ziskej_info(ticker):
-    """Pomocná funkce pro získání ceny"""
+    """Pomocná funkce pro moduly, která se pokusí získat cenu přes yfinance"""
+    import yfinance as yf
     try:
         t = yf.Ticker(ticker)
         price = t.fast_info.last_price if hasattr(t, 'fast_info') else 0
