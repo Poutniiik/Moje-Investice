@@ -146,6 +146,7 @@ def nacti_uzivatele():
     return nacti_csv(SOUBOR_UZIVATELE)
 
 # Tady propojíme moduly s tvou funkcí, která hlídá sloupeček 'Owner'
+
 save_df_to_github = uloz_data_uzivatele
 nacti_data_z_github = nacti_csv
 
