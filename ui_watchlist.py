@@ -8,7 +8,7 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
     """
     Renderuje kompletní stránku Watchlistu (Sledování) se všemi indikátory a AI hlasem.
     """
-    st.title("🎯 TAKTICKÝ RADAR (Hlídač)")
+    st.title("🎯 TAKTICKÝ RADAR (Hlídač)").
 
     # --- 1. SEKCE PRO PŘIDÁNÍ (Z tvého kódu) ---
     with st.expander("➕ Přidat novou akcii", expanded=False):
