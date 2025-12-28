@@ -6,6 +6,19 @@ import yfinance as yf
 from ai_brain import get_portfolio_health_score, get_voice_briefing_text, ask_ai_guard
 from voice_engine import VoiceAssistant
 
+@st.cache_data(ttl=3600)  # Pamatuje si skóre 1 hodinu
+def get_cached_health_score(USER, _model, vdf_json, cash_usd, sentiment):
+    vdf = pd.read_json(vdf_json)
+    return get_portfolio_health_score(_model, vdf, cash_usd, sentiment)
+
+@st.cache_data(ttl=3600)  # Pamatuje si text pozdravu 1 hodinu
+def get_cached_briefing_text(USER, _model, score, sentiment):
+    return get_voice_briefing_text(_model, USER, score, sentiment)
+
+@st.cache_data(ttl=600)  # Pamatuje si tržní data 10 minut
+def get_macro_data(tickers_tuple):
+    return yf.download(list(tickers_tuple), period="5d", progress=False)['Close']
+
 def render_dashboard(USER, vdf, cash_usd, model, AI_AVAILABLE, cached_fear_greed, 
                      kurzy, celk_hod_czk, celk_hod_usd, celk_inv_usd, zmena_24h, pct_24h):
     """
