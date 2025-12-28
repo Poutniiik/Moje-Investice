@@ -2303,7 +2303,7 @@ def main():
     alerts = []
     # Inicializace paměti na odehrané alerty (pokud neexistuje)
     if 'played_alerts' not in st.session_state:
-    st.session_state['played_alerts'] = set()
+        st.session_state['played_alerts'] = set()
 
     if not df_watch.empty:
         for _, r in df_watch.iterrows():
@@ -3624,6 +3624,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
