@@ -10,6 +10,7 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
     """
     Renderuje kompletní stránku Watchlistu (Sledování) se všemi indikátory a AI hlasem.
     Všechna logika (RSI, 52T, Sniper) je nyní izolována zde.
+    VYLEPŠENO: Vynucené mazání session_state pro okamžitý reload bez ruční aktualizace.
     """
     st.title("🎯 TAKTICKÝ RADAR (Hlídač)")
 
@@ -22,6 +23,9 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
         with col_diag2:
             if st.button("♻️ VYNUTIT REFRESH (Fix zamrzání)", use_container_width=True):
                 st.cache_data.clear()
+                # Smažeme i session_state klíče
+                for key in ['df_watch', 'data_core']:
+                    if key in st.session_state: del st.session_state[key]
                 st.rerun()
         
         if not df_watch.empty:
@@ -43,16 +47,22 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                 if t and (target_buy > 0 or target_sell > 0):
                     with st.status(f"Zapisuji {t} na GitHub...") as s:
                         # Logika přidání
-                        df_watch = df_watch[df_watch['Ticker'] != t]
+                        df_filtered = df_watch[df_watch['Ticker'] != t]
                         new_row = pd.DataFrame([{'Ticker': t, 'TargetBuy': target_buy, 'TargetSell': target_sell, 'Owner': str(USER)}])
-                        df_updated = pd.concat([df_watch, new_row], ignore_index=True)
+                        df_updated = pd.concat([df_filtered, new_row], ignore_index=True)
                         
-                        # Uložení na GitHub (přes alias na uloz_data_uzivatele)
+                        # Uložení na GitHub
                         success = save_df_to_github(df_updated, USER, SOUBOR_WATCHLIST)
                         if success:
-                            s.update(label="✅ Zapsáno! Synchronizuji...", state="complete")
+                            s.update(label="✅ Zapsáno! Vynucuji reload...", state="complete")
+                            
+                            # 👇 KLÍČOVÁ OPRAVA: Vymažeme klíče z hlavního souboru, aby se musely načíst znovu
+                            for key in ['df_watch', 'data_core']:
+                                if key in st.session_state:
+                                    del st.session_state[key]
+                            
                             st.cache_data.clear() 
-                            time.sleep(1) # Počkáme sekundu na GitHub
+                            time.sleep(1.5) # Dej GitHubu sekundu a půl na synchronizaci
                             st.rerun()
                         else:
                             s.update(label="❌ Chyba při ukládání", state="error")
@@ -174,9 +184,15 @@ def render_watchlist(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model, ziskej_info
                     df_to_save = df_watch[df_watch['Ticker'] != to_del]
                     success = save_df_to_github(df_to_save, USER, SOUBOR_WATCHLIST)
                     if success:
-                        s.update(label="✅ Smazáno! Aktualizuji...", state="complete")
+                        s.update(label="✅ Smazáno! Vynucuji reload...", state="complete")
+                        
+                        # 👇 ATOMOVKA NA CACHE: Smažeme klíče, aby se musela stáhnout nová data
+                        for key in ['df_watch', 'data_core']:
+                            if key in st.session_state:
+                                del st.session_state[key]
+                        
                         st.cache_data.clear()
-                        time.sleep(1) # Klíčové pro GitHub
+                        time.sleep(1.5) # Klíčové pro GitHub
                         st.rerun()
                     else:
                         s.update(label="❌ Chyba při mazání", state="error")
