@@ -672,7 +672,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             if st.button("🎲 GENEROVAT PŘÍBĚH DNE", use_container_width=True):
                 with st.spinner("Vypravěč píše kapitolu..."):
                     sc, _ = ziskej_fear_greed()
-                    res = generate_rpg_story(model, current_rank, 0, celk_hod_czk, sc if sc else 50)
+                    res = generate_rpg_story(model, current_rank_full, 0, celk_hod_czk, sc if sc else 50)
                     st.session_state['rpg_story_cache'] = res
             if st.session_state.get('rpg_story_cache'):
                 st.info(f"_{st.session_state['rpg_story_cache']}_")
@@ -682,7 +682,7 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
     st.subheader("📜 QUEST LOG (Aktivní výzvy)")
 
     # Načtení už uložených questů z databáze (formát "0,1,2")
-    saved_quests_raw = str(stats.get('CompletedQuests', ""))
+    saved_quests_raw = str(user_row['CompletedQuests'].iloc[0] if not user_row.empty else "")
     completed_list = [q.strip() for q in saved_quests_raw.split(",") if q.strip()]
 
     # Procházíme definované RPG úkoly
@@ -3134,6 +3134,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
