@@ -1686,12 +1686,26 @@ def main():
                 msg_text = f"🏦 {txt}"
                 msg_icon = "💵"
 
+            # --- V části process_cli_command() najdi tyto bloky a přepiš je ---
+
             elif cmd == "/buy" and len(cmd_parts) >= 3:
                 t_cli = cmd_parts[1].upper()
                 k_cli = float(cmd_parts[2])
                 p_cli, m_cli, _ = ziskej_info(t_cli)
                 if p_cli:
-                    ok, msg = proved_nakup(t_cli, k_cli, p_cli, USER)
+                    # TADY VOLÁME ENGINE MÍSTO SMAZANÉ FUNKCE
+                    soubory_nakup = {'data': SOUBOR_DATA, 'cash': SOUBOR_CASH}
+                    ok, msg, nove_p, nova_c = engine.proved_nakup_engine(
+                        t_cli, k_cli, p_cli, USER, 
+                        st.session_state['df'], st.session_state['df_cash'], 
+                        get_zustatky(USER), ziskej_info, uloz_data_uzivatele, 
+                        soubory_nakup
+                    )
+                    if ok:
+                        st.session_state['df'] = nove_p
+                        st.session_state['df_cash'] = nova_c
+                        invalidate_data_core()
+                        add_xp(USER, 50)
                     msg_text = msg
                     msg_icon = "✅" if ok else "❌"
                 else:
@@ -1703,8 +1717,18 @@ def main():
                 k_cli = float(cmd_parts[2])
                 p_cli, m_cli, _ = ziskej_info(t_cli)
                 if p_cli:
-                    # OPRAVA: Původně bylo 'm', nahrazeno za správné 'm_cli'
-                    ok, msg = proved_prodej(t_cli, k_cli, p_cli, USER, m_cli)
+                    # TADY VOLÁME ENGINE MÍSTO SMAZANÉ FUNKCE
+                    soubory_prodej = {'data': SOUBOR_DATA, 'historie': SOUBOR_HISTORIE, 'cash': SOUBOR_CASH}
+                    ok, msg, nove_df, nova_hist, nova_cash = engine.proved_prodej_engine(
+                        t_cli, k_cli, p_cli, USER, m_cli,
+                        st.session_state['df'], st.session_state['df_hist'], st.session_state['df_cash'],
+                        st.session_state.get('LIVE_DATA', {}), uloz_data_uzivatele, soubory_prodej
+                    )
+                    if ok:
+                        st.session_state['df'] = nove_df
+                        st.session_state['df_hist'] = nova_hist
+                        st.session_state['df_cash'] = nova_cash
+                        invalidate_data_core()
                     msg_text = msg
                     msg_icon = "✅" if ok else "❌"
                 else:
@@ -3058,5 +3082,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
