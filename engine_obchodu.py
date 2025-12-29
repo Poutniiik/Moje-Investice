@@ -1,11 +1,13 @@
 import pandas as pd
 from datetime import datetime
-from data_manager import pohyb_penez
+
 
 def proved_nakup_engine(ticker, kusy, cena, user, df_portfolio, df_cash, zustatky, ziskej_info_funkce, uloz_funkce, soubory):
     """
     Logika nákupu. Všechny soubory bere z balíčku 'soubory'.
     """
+    from data_manager import pohyb_penez
+    
     _, mena, _ = ziskej_info_funkce(ticker)
     cost = kusy * cena
 
@@ -41,6 +43,8 @@ def proved_prodej_engine(ticker, kusy, cena, user, mena_input, df_p, df_h, df_ca
     """
     Logika prodeje: Vypočítá FIFO (First In First Out) zisk a upraví tabulky.
     """
+    from data_manager import pohyb_penez
+    
     df_t = df_p[df_p['Ticker'] == ticker].sort_values('Datum')
 
     final_mena = mena_input
