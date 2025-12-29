@@ -1,4 +1,4 @@
- import pandas as pd
+import pandas as pd
 from datetime import datetime
 
 def proved_nakup_engine(ticker, kusy, cena, user, df_portfolio, df_cash, zustatky, ziskej_info_funkce, uloz_funkce, soubory):
