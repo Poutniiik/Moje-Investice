@@ -593,22 +593,31 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
 def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
     """Vykreslí vylepšenou RPG stránku napojenou na RPG Engine."""
     
-    # 1. Inicializace session state (ponecháno původní)
+    # 1. Inicializace session state
     if 'rpg_story_cache' not in st.session_state:
         st.session_state['rpg_story_cache'] = None
     if 'completed_quests_session' not in st.session_state:
         st.session_state['completed_quests_session'] = []
     
-    # 2. ZÍSKÁNÍ DAT Z ENGINU (Místo get_user_stats)
+    # 2. ZÍSKÁNÍ DAT S POJISTKOU (Tady to sjednotíme)
     stats_df = st.session_state.get('df_stats', pd.DataFrame())
+    
+    # Pokud v paměti nic není nebo chybí sloupce, vytvoříme prázdnou strukturu
+    if stats_df.empty or 'Owner' not in stats_df.columns:
+        stats_df = pd.DataFrame(columns=['Owner', 'XP', 'LastLogin', 'Level', 'CompletedQuests'])
+    
+    # Najdeme řádek uživatele
     user_row = stats_df[stats_df['Owner'] == str(USER)]
+    
+    # Určíme celkové XP (pokud uživatel neexistuje, dáme 0)
     total_xp = user_row['XP'].iloc[0] if not user_row.empty else 0
     
-    # Volání tvého nového motoru
+    # 3. VOLÁNÍ MOTORU (Výpočty proběhnou v engine_rpg.py)
     level_rpg, xp_v_levelu, progress_pct_rpg, xp_do_dalsiho = rpg.vypocitej_detail_levelu(total_xp)
     current_rank_full = rpg.ziskej_hodnost_a_ikonu(level_rpg)
 
     st.title("🎮 INVESTIČNÍ ARÉNA (Profil Hráče)")
+    # ... zbytek kódu (Hero Section, Badge, Questy) ...
 
     # --- ZOBRAZENÍ PROFILU (Hero Section) ---
     with st.container(border=True):
@@ -3134,6 +3143,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
