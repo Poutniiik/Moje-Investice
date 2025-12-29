@@ -2833,6 +2833,89 @@ def main():
                 else:
                     st.button("Zadej množství", disabled=True, use_container_width=True)
 
+        # --- 2. SEKCE PRO SPRÁVU PENĚZ ---
+        st.write("")
+        c_ex1, c_ex2 = st.columns(2)
+        
+        # LEVÝ SLOUPEC: SMĚNÁRNA
+        with c_ex1:
+            with st.expander("💱 SMĚNÁRNA", expanded=False):
+                am = st.number_input("Částka", 0.0, step=100.0)
+                fr = st.selectbox("Z", ["CZK", "USD", "EUR"], key="s_z")
+                to = st.selectbox("Do", ["USD", "CZK", "EUR"], key="s_do")
+                
+                if st.button("💱 Směnit", use_container_width=True):
+                    if zustatky.get(fr, 0) >= am:
+                        # VOLÁME ENGINE
+                        ok, msg, nova_cash = engine.proved_smenu_engine(
+                            am, fr, to, USER, 
+                            st.session_state['df_cash'], 
+                            kurzy, 
+                            uloz_data_uzivatele, 
+                            SOUBOR_CASH
+                        )
+                        
+                        if ok:
+                            st.session_state['df_cash'] = nova_cash
+                            invalidate_data_core()
+                            st.success(msg)
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                    else:
+                        st.error("Chybí prostředky na zdrojovém účtu")
+
+        # PRAVÝ SLOUPEC: BANKA + MANUÁLNÍ VKLAD (Upraveno)
+        with c_ex2:
+            with st.expander("🏧 BANKA & BANKOMAT", expanded=False):
+                
+                # A) BANKOVNÍ PROPOJENÍ
+                st.caption("🌐 Moje Banka (Plaid API)")
+                if st.button("🔄 Synchronizovat zůstatky", key="sync_bank", use_container_width=True):
+                    with st.spinner("Šifrované spojení..."):
+                        t_msg = bank.simulace_pripojeni()
+                        if "Chyba" in t_msg: st.error(t_msg)
+                        else:
+                            df_b = bank.stahni_zustatky(t_msg)
+                            if df_b is not None:
+                                st.session_state['bank_data'] = df_b
+                                st.toast("Data z banky stažena!", icon="✅")
+                            else: st.warning("Žádná data.")
+                
+                # Zobrazení dat z banky, pokud jsou načtena
+                if 'bank_data' in st.session_state:
+                    st.dataframe(st.session_state['bank_data'], use_container_width=True, hide_index=True)
+                    # Malý součet pro efekt
+                    celkem_banka = st.session_state['bank_data']['Zůstatek'].sum()
+                    mena_banka = st.session_state['bank_data'].iloc[0]['Měna']
+                    st.caption(f"Disponibilní v bance: **{celkem_banka:,.2f} {mena_banka}**")
+
+                st.divider()
+
+                # B) MANUÁLNÍ VKLAD/VÝBĚR (Tvé původní ovládání)
+                st.caption("📝 Manuální operace")
+                op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
+                v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
+                v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
+                
+                if st.button(f"Provést {op}", use_container_width=True):
+                    sign = 1 if op == "Vklad" else -1
+                    if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
+                        st.error("Nedostatek prostředků")
+                    else:
+                        df_cash_new = pohyb_penez(v_a * sign, v_m, op, "Manual", USER, st.session_state['df_cash'])
+                        uloz_data_uzivatele(df_cash_new, USER, SOUBOR_CASH)
+                        st.session_state['df_cash'] = df_cash_new
+                        invalidate_data_core()
+                        st.success("Hotovo"); time.sleep(1); st.rerun()
+
+        # Historie transakcí
+        if not df_cash.empty:
+            st.divider()
+            st.caption("Poslední pohyby na účtu")
+            st.dataframe(df_cash.sort_values('Datum', ascending=False).head(3), use_container_width=True, hide_index=True)
+
     # --- TADY ZAČÍNAJÍ DALŠÍ STRÁNKY (Musí být na stejné úrovni jako elif page == "💸 Obchod") ---
     elif page == "💎 Dividendy":
         render_dividendy_page(USER, df, df_div, kurzy, viz_data_list)
@@ -3082,6 +3165,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
