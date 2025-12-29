@@ -2893,22 +2893,35 @@ def main():
 
                 st.divider()
 
-                # B) MANUÁLNÍ VKLAD/VÝBĚR (Tvé původní ovládání)
+                # B) MANUÁLNÍ VKLAD/VÝBĚR
                 st.caption("📝 Manuální operace")
                 op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
                 v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
                 v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
                 
                 if st.button(f"Provést {op}", use_container_width=True):
-                    sign = 1 if op == "Vklad" else -1
+                    # Výpočet znaménka (Vklad +, Výběr -)
+                    final_amount = v_a if op == "Vklad" else -v_a
+                    
                     if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
-                        st.error("Nedostatek prostředků")
+                        st.error("Nedostatek prostředků na účtu")
                     else:
-                        df_cash_new = pohyb_penez(v_a * sign, v_m, op, "Manual", USER, st.session_state['df_cash'])
-                        uloz_data_uzivatele(df_cash_new, USER, SOUBOR_CASH)
-                        st.session_state['df_cash'] = df_cash_new
-                        invalidate_data_core()
-                        st.success("Hotovo"); time.sleep(1); st.rerun()
+                        # VOLÁME ENGINE
+                        uspech, msg, nova_cash = engine.proved_pohyb_hotovosti_engine(
+                            final_amount, v_m, op, "Manual", USER, 
+                            st.session_state['df_cash'], 
+                            uloz_data_uzivatele, 
+                            SOUBOR_CASH
+                        )
+                        
+                        if uspech:
+                            st.session_state['df_cash'] = nova_cash
+                            invalidate_data_core()
+                            st.success(msg)
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(msg)
 
         # Historie transakcí
         if not df_cash.empty:
@@ -3165,6 +3178,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
