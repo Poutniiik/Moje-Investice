@@ -2695,16 +2695,16 @@ def main():
     
         # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
         with st.container(border=True):
-        mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
-        st.divider()
+            mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
+            st.divider()
         
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            if mode == "🔴 PRODEJ" and not df.empty:
-                ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
-            else:
-                ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
-        
+            c1, c2 = st.columns([1, 1])
+            with c1:
+                if mode == "🔴 PRODEJ" and not df.empty:
+                    ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
+                else:
+                    ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
+     
         current_price, menu, denni_zmena = 0, "USD", 0
         if ticker_input:
             info = LIVE_DATA.get(ticker_input)
@@ -3126,3 +3126,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
