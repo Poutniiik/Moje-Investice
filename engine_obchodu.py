@@ -1,52 +1,57 @@
 import pandas as pd
 from datetime import datetime
 
-
 def proved_nakup_engine(ticker, kusy, cena, user, df_portfolio, df_cash, zustatky, ziskej_info_funkce, uloz_funkce, soubory):
     """
-    Logika nákupu. Všechny soubory bere z balíčku 'soubory'.
+    LOGIKA NÁKUPU: Vypočítá náklady a přidá akcie.
+    Nikoho neimportuje, vše dostává v argumentech.
     """
-    from data_manager import pohyb_penez
-    
+    # 1. Zjištění měny přes předanou funkci
     _, mena, _ = ziskej_info_funkce(ticker)
     cost = kusy * cena
 
+    # 2. Kontrola peněz
     if zustatky.get(mena, 0) < cost:
-        return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})", None, None
+        return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f})", None, None
 
+    # 3. Příprava nových dat v paměti
     df_p_new = df_portfolio.copy()
     df_cash_new = df_cash.copy()
 
-    # Použijeme pohyb_penez (už importováno nahoře)
-    df_cash_new = pohyb_penez(-cost, mena, "Nákup", ticker, user, df_cash_new)
-    
-    nova_transakce = pd.DataFrame([{
-        "Ticker": ticker, 
-        "Pocet": kusy, 
-        "Cena": cena, 
+    # 4. Zápis pohybu peněz (náhrada za pohyb_penez)
+    novy_pohyb = pd.DataFrame([{
+        "Typ": "Nákup", 
+        "Castka": -float(cost), 
+        "Mena": mena, 
+        "Poznamka": ticker, 
         "Datum": datetime.now(), 
-        "Owner": user, 
-        "Sektor": "Doplnit", 
-        "Poznamka": "Obchod"
+        "Owner": user
     }])
-    df_p_new = pd.concat([df_p_new, nova_transakce], ignore_index=True)
+    df_cash_new = pd.concat([df_cash_new, novy_pohyb], ignore_index=True)
+    
+    # 5. Zápis akcií
+    nova_akcie = pd.DataFrame([{
+        "Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), 
+        "Owner": user, "Sektor": "Doplnit", "Poznamka": "Obchod"
+    }])
+    df_p_new = pd.concat([df_p_new, nova_akcie], ignore_index=True)
 
+    # 6. Uložení přes předanou ukládací funkci
     try:
-        # TADY OPRAVA: Bereme názvy ze slovníku 'soubory'
         uloz_funkce(df_p_new, user, soubory['data'])
         uloz_funkce(df_cash_new, user, soubory['cash'])
         return True, f"✅ Koupeno: {kusy}x {ticker}", df_p_new, df_cash_new
     except Exception as e:
-        return False, f"❌ Chyba zápisu na disk: {e}", None, None
+        return False, f"❌ Chyba zápisu: {e}", None, None
+
 
 def proved_prodej_engine(ticker, kusy, cena, user, mena_input, df_p, df_h, df_cash, live_data_context, uloz_funkce, soubory):
     """
-    Logika prodeje: Vypočítá FIFO (First In First Out) zisk a upraví tabulky.
+    LOGIKA PRODEJE: FIFO odečtení akcií a připsání peněz.
     """
-    from data_manager import pohyb_penez
-    
     df_t = df_p[df_p['Ticker'] == ticker].sort_values('Datum')
 
+    # Zjištění měny (z vstupů nebo z kontextu živých dat)
     final_mena = mena_input
     if final_mena is None or final_mena == "N/A":
         final_mena = "USD"
@@ -63,6 +68,7 @@ def proved_prodej_engine(ticker, kusy, cena, user, mena_input, df_p, df_h, df_ca
     df_h_novy = df_h.copy()
     df_cash_novy = df_cash.copy()
 
+    # FIFO Logika (vypůjčeno z tvého originálu)
     indices_to_drop = []
     for idx, row in df_t.iterrows():
         if zbyva <= 0: break
@@ -76,11 +82,21 @@ def proved_prodej_engine(ticker, kusy, cena, user, mena_input, df_p, df_h, df_ca
 
     df_p_novy = df_p_novy.drop(indices_to_drop)
 
-    new_h = pd.DataFrame([{"Ticker": ticker, "Kusu": kusy, "Prodejka": cena, "Zisk": zisk, "Mena": final_mena, "Datum": datetime.now(), "Owner": user}])
+    # Zápis historie
+    new_h = pd.DataFrame([{
+        "Ticker": ticker, "Kusu": kusy, "Prodejka": cena, "Zisk": zisk, 
+        "Mena": final_mena, "Datum": datetime.now(), "Owner": user
+    }])
     df_h_novy = pd.concat([df_h_novy, new_h], ignore_index=True)
     
-    df_cash_novy = pohyb_penez(trzba, final_mena, "Prodej", f"Prodej {ticker}", user, df_cash_novy)
+    # Připsání peněz (náhrada za pohyb_penez)
+    pohyb_trzba = pd.DataFrame([{
+        "Typ": "Prodej", "Castka": float(trzba), "Mena": final_mena, 
+        "Poznamka": f"Prodej {ticker}", "Datum": datetime.now(), "Owner": user
+    }])
+    df_cash_novy = pd.concat([df_cash_novy, pohyb_trzba], ignore_index=True)
 
+    # Uložení
     try:
         uloz_funkce(df_p_novy, user, soubory['data'])
         uloz_funkce(df_h_novy, user, soubory['historie'])
