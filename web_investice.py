@@ -20,6 +20,7 @@ import zipfile
 import io
 import ui_dashboard
 import ui_watchlist
+import engine
 import requests
 import feedparser
 from streamlit_lottie import st_lottie
@@ -121,7 +122,7 @@ def cached_kurzy():
 
 # -----------------------------------------------------
 
-def invalidate_data_core():
+###def invalidate_data_core():
     """
     VYNUCENÝ REFRESH: Zneplatní výpočty i syrová data.
     Tohle zajistí, že po každém nákupu/prodeji/změně watchlistu 
@@ -176,7 +177,7 @@ def get_zustatky(user):
     return df_cash.groupby('Mena')['Castka'].sum().to_dict()
 
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
-def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
+###def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
     """
     Provede pohyb peněz a vrátí upravený DataFrame. 
     ULOŽENÍ do souboru se DĚJE VŽDY AŽ PO ÚSPĚŠNÉ TRANSAKCI.
@@ -185,7 +186,7 @@ def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
     df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
     return df_cash_temp
 
-def pridat_dividendu(ticker, castka, mena, user):
+###def pridat_dividendu(ticker, castka, mena, user):
     df_div = st.session_state['df_div']
     df_cash_temp = st.session_state['df_cash'].copy()
     
@@ -232,7 +233,7 @@ def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
     return full_hist[full_hist['Owner'] == str(user)]
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ NÁKUPU ---
-def proved_nakup(ticker, kusy, cena, user):
+###def proved_nakup(ticker, kusy, cena, user):
     df_p = st.session_state['df'].copy()
     df_cash_temp = st.session_state['df_cash'].copy()
     
@@ -266,7 +267,7 @@ def proved_nakup(ticker, kusy, cena, user):
         return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ PRODEJE ---
-def proved_prodej(ticker, kusy, cena, user, mena_input):
+###def proved_prodej(ticker, kusy, cena, user, mena_input):
     df_p = st.session_state['df'].copy()
     df_h = st.session_state['df_hist'].copy()
     df_cash_temp = st.session_state['df_cash'].copy()
@@ -3192,5 +3193,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
