@@ -1,4 +1,5 @@
 import notification_engine as notify
+import engine_obchodu as engine
 import bank_engine as bank
 import bank_engine
 import streamlit as st
@@ -231,101 +232,7 @@ def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
     uloz_csv(full_hist, SOUBOR_VYVOJ, "Daily snapshot")
     return full_hist[full_hist['Owner'] == str(user)]
 
-# --- ATOMICKÁ FUNKCE: PROVEDENÍ NÁKUPU ---
-def proved_nakup(ticker, kusy, cena, user):
-    df_p = st.session_state['df'].copy()
-    df_cash_temp = st.session_state['df_cash'].copy()
-    
-    _, mena, _ = ziskej_info(ticker)
-    cost = kusy * cena
-    zustatky = get_zustatky(user)
 
-    if zustatky.get(mena, 0) >= cost:
-        # Krok 1: Odepsání hotovosti (lokálně)
-        df_cash_temp = pohyb_penez(-cost, mena, "Nákup", ticker, user, df_cash_temp)
-        
-        # Krok 2: Připsání akcií (lokálně)
-        d = pd.DataFrame([{"Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), "Owner": user, "Sektor": "Doplnit", "Poznamka": "CLI/Auto"}])
-        df_p = pd.concat([df_p, d], ignore_index=True)
-        
-        # Krok 3: Atomické uložení a invalidace
-        try:
-            uloz_data_uzivatele(df_p, user, SOUBOR_DATA)
-            uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
-            
-            # Aktualizace Session State AŽ PO ÚSPĚCHU
-            st.session_state['df'] = df_p
-            st.session_state['df_cash'] = df_cash_temp
-            invalidate_data_core()
-            add_xp(user, 50) # Odměna za obchodní aktivitu
-            return True, f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
-        except Exception as e:
-            # Selhal zápis, stav v Session State zůstává starý, nic není poškozen
-            return False, f"❌ Chyba zápisu transakce (NÁKUP): {e}"
-    else:
-        return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
-
-# --- ATOMICKÁ FUNKCE: PROVEDENÍ PRODEJE ---
-def proved_prodej(ticker, kusy, cena, user, mena_input):
-    df_p = st.session_state['df'].copy()
-    df_h = st.session_state['df_hist'].copy()
-    df_cash_temp = st.session_state['df_cash'].copy()
-    
-    df_t = df_p[df_p['Ticker'] == ticker].sort_values('Datum')
-
-    # --- BEZPEČNOSTNÍ REFACTORING: Zjištění měny (fallback) ---
-    final_mena = mena_input
-    if final_mena is None or final_mena == "N/A":
-        final_mena = "USD"
-        if not df_t.empty and 'Měna' in df_p.columns:
-            final_mena = df_p[df_p['Ticker'] == ticker].iloc[0].get('Měna', 'USD')
-        elif 'LIVE_DATA' in st.session_state:
-            final_mena = st.session_state['LIVE_DATA'].get(ticker, {}).get('curr', 'USD')
-
-
-    if df_t.empty or df_t['Pocet'].sum() < kusy:
-        return False, "Nedostatek kusů."
-
-    zbyva, zisk, trzba = kusy, 0, kusy * cena
-    df_p_novy = df_p.copy() # Pracujeme s kopií, dokud neprovedeme atomický zápis
-
-    # Logika odebrání kusů z DF portfolia
-    indices_to_drop = []
-    
-    for idx, row in df_t.iterrows():
-        if zbyva <= 0: break
-        ukrojeno = min(row['Pocet'], zbyva)
-        zisk += (cena - row['Cena']) * ukrojeno
-        
-        if ukrojeno == row['Pocet']:
-            indices_to_drop.append(idx)
-        else:
-            df_p_novy.at[idx, 'Pocet'] -= ukrojeno
-        zbyva -= ukrojeno
-
-    df_p_novy = df_p_novy.drop(indices_to_drop)
-
-    # Krok 1: Záznam do historie
-    new_h = pd.DataFrame([{"Ticker": ticker, "Kusu": kusy, "Prodejka": cena, "Zisk": zisk, "Mena": final_mena, "Datum": datetime.now(), "Owner": user}])
-    df_h = pd.concat([df_h, new_h], ignore_index=True)
-    
-    # Krok 2: Připsání hotovosti (lokálně)
-    df_cash_temp = pohyb_penez(trzba, final_mena, "Prodej", f"Prodej {ticker}", user, df_cash_temp)
-    
-    # Krok 3: Atomické uložení a invalidace
-    try:
-        uloz_data_uzivatele(df_p_novy, user, SOUBOR_DATA)
-        uloz_data_uzivatele(df_h, user, SOUBOR_HISTORIE)
-        uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
-        
-        # Aktualizace Session State AŽ PO ÚSPĚCHU
-        st.session_state['df'] = df_p_novy
-        st.session_state['df_hist'] = df_h
-        st.session_state['df_cash'] = df_cash_temp
-        invalidate_data_core()
-        return True, f"Prodáno! +{trzba:,.2f} {final_mena} (Zisk: {zisk:,.2f})"
-    except Exception as e:
-        return False, f"❌ Chyba zápisu transakce (PRODEJ): {e}"
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ SMĚNY ---
 def proved_smenu(castka, z_meny, do_meny, user):
@@ -2784,93 +2691,120 @@ def main():
             st.info("Žádné nové zprávy.")
 
     elif page == "💸 Obchod":
-        st.title("💸 OBCHODNÍ PULT")
+    st.title("💸 OBCHODNÍ PULT")
+    
+    # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
+    with st.container(border=True):
+        mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
+        st.divider()
         
-        # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
-        with st.container(border=True):
-            # Přepínač režimu
-            mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
-            
-            st.divider()
-            
-            # Vstupy pro Ticker a Live Cenu
-            c1, c2 = st.columns([1, 1])
-            with c1:
-                # Ticker selector logic
-                if mode == "🔴 PRODEJ" and not df.empty:
-                    ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
-                else:
-                    ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
-            
-            # Live Data Fetch
-            current_price, menu, denni_zmena = 0, "USD", 0
-            if ticker_input:
-                info = LIVE_DATA.get(ticker_input)
-                if info:
-                    current_price = info.get('price', 0)
-                    menu = info.get('curr', 'USD')
-                else:
-                    p, m, z = ziskej_info(ticker_input)
-                    if p: current_price, menu, denni_zmena = p, m, z
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            if mode == "🔴 PRODEJ" and not df.empty:
+                ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
+            else:
+                ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
+        
+        current_price, menu, denni_zmena = 0, "USD", 0
+        if ticker_input:
+            info = LIVE_DATA.get(ticker_input)
+            if info:
+                current_price = info.get('price', 0)
+                menu = info.get('curr', 'USD')
+            else:
+                p, m, z = ziskej_info(ticker_input)
+                if p: current_price, menu, denni_zmena = p, m, z
 
-                if current_price > 0:
-                    with c2:
-                        color_price = "green" if denni_zmena >= 0 else "red"
-                        st.markdown(f"**Cena:** :{color_price}[{current_price:,.2f} {menu}]")
-                        st.caption(f"Změna: {denni_zmena*100:+.2f}%")
-                else:
-                    with c2: st.warning("Cena nedostupná")
+            if current_price > 0:
+                with c2:
+                    color_price = "green" if denni_zmena >= 0 else "red"
+                    st.markdown(f"**Cena:** :{color_price}[{current_price:,.2f} {menu}]")
+                    st.caption(f"Změna: {denni_zmena*100:+.2f}%")
+            else:
+                with c2: st.warning("Cena nedostupná")
 
-            # Množství a Limitní Cena
-            st.write("")
-            col_qty, col_price = st.columns(2)
-            with col_qty:
-                qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f")
-            with col_price:
-                limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1)
+        st.write("")
+        col_qty, col_price = st.columns(2)
+        with col_qty:
+            qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f")
+        with col_price:
+            limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1)
 
-            # Kalkulace celkem
-            total_est = qty * limit_price
-            zustatek = zustatky.get(menu, 0)
-            
-            st.write("") 
-            
-            # --- LOGIKA TLAČÍTKA A VALIDACE ---
-            if mode == "🟢 NÁKUP":
-                if total_est > 0:
-                    c_info1, c_info2 = st.columns(2)
-                    c_info1.info(f"Celkem: **{total_est:,.2f} {menu}**")
+        total_est = qty * limit_price
+        zustatek = zustatky.get(menu, 0)
+        st.write("") 
+
+        # --- LOGIKA TLAČÍTKA S NOVÝM ENGINEM ---
+        if mode == "🟢 NÁKUP":
+            if total_est > 0:
+                c_info1, c_info2 = st.columns(2)
+                c_info1.info(f"Celkem: **{total_est:,.2f} {menu}**")
+                
+                if zustatek >= total_est:
+                    c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
                     
-                    if zustatek >= total_est:
-                        c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
-                        if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
-                            ok, msg = proved_nakup(ticker_input, qty, limit_price, USER)
-                            if ok: st.balloons(); st.success(msg); time.sleep(2); st.rerun()
-                            else: st.error(msg)
-                    else:
-                        c_info2.error(f"Chybí: {total_est - zustatek:,.2f} {menu}")
-                        st.button("🚫 Nedostatek prostředků", disabled=True, use_container_width=True)
-                else:
-                    st.button("Zadej množství", disabled=True, use_container_width=True)
+                    # TADY JE TA ZMĚNA: Voláme engine místo staré funkce
+                    if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
+                        soubory = {'data': SOUBOR_DATA, 'cash': SOUBOR_CASH}
+                        
+                        uspech, zprava, nove_p, nova_c = engine.proved_nakup_engine(
+                            ticker_input, qty, limit_price, USER, 
+                            st.session_state['df'], st.session_state['df_cash'], 
+                            get_zustatky(USER), ziskej_info, uloz_data_uzivatele, 
+                            SOUBOR_DATA, SOUBOR_CASH, soubory
+                        )
 
-            else: # PRODEJ
-                if total_est > 0:
-                    curr_qty = df[df['Ticker'] == ticker_input]['Pocet'].sum() if not df.empty else 0
-                    
-                    c_info1, c_info2 = st.columns(2)
-                    c_info1.info(f"Příjem: **{total_est:,.2f} {menu}**")
-                    
-                    if curr_qty >= qty:
-                        c_info2.success(f"Máš: {curr_qty} ks")
-                        if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True):
-                            ok, msg = proved_prodej(ticker_input, qty, limit_price, USER, menu)
-                            if ok: st.success(msg); time.sleep(2); st.rerun()
-                            else: st.error(msg)
-                    else:
-                        c_info2.error(f"Máš jen: {curr_qty} ks")
-                        st.button("🚫 Nedostatek akcií", disabled=True, use_container_width=True)
+                        if uspech:
+                            st.session_state['df'] = nove_p
+                            st.session_state['df_cash'] = nova_c
+                            invalidate_data_core()
+                            add_xp(USER, 50)
+                            st.balloons()
+                            st.success(zprava)
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(zprava)
                 else:
-                    st.button("Zadej množství", disabled=True, use_container_width=True)
+                    c_info2.error(f"Chybí: {total_est - zustatek:,.2f} {menu}")
+                    st.button("🚫 Nedostatek prostředků", disabled=True, use_container_width=True)
+            else:
+                st.button("Zadej množství", disabled=True, use_container_width=True)
+
+        else: # PRODEJ
+            if total_est > 0:
+                curr_qty = df[df['Ticker'] == ticker_input]['Pocet'].sum() if not df.empty else 0
+                c_info1, c_info2 = st.columns(2)
+                c_info1.info(f"Příjem: **{total_est:,.2f} {menu}**")
+                
+                if curr_qty >= qty:
+                    c_info2.success(f"Máš: {curr_qty} ks")
+                    
+                    # TADY JE TA ZMĚNA: Voláme engine místo staré funkce
+                    if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True):
+                        soubory = {'data': SOUBOR_DATA, 'historie': SOUBOR_HISTORIE, 'cash': SOUBOR_CASH}
+                        
+                        uspech, zprava, nove_df, nova_hist, nova_cash = engine.proved_prodej_engine(
+                            ticker_input, qty, limit_price, USER, menu,
+                            st.session_state['df'], st.session_state['df_hist'], st.session_state['df_cash'],
+                            st.session_state.get('LIVE_DATA', {}), uloz_data_uzivatele, soubory
+                        )
+
+                        if uspech:
+                            st.session_state['df'] = nove_df
+                            st.session_state['df_hist'] = nova_hist
+                            st.session_state['df_cash'] = nova_cash
+                            invalidate_data_core()
+                            st.success(zprava)
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(zprava)
+                else:
+                    c_info2.error(f"Máš jen: {curr_qty} ks")
+                    st.button("🚫 Nedostatek akcií", disabled=True, use_container_width=True)
+            else:
+                st.button("Zadej množství", disabled=True, use_container_width=True)
 
         # --- 2. SEKCE PRO SPRÁVU PENĚZ ---
         st.write("")
@@ -3192,3 +3126,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
