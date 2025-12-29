@@ -142,32 +142,25 @@ def proved_smenu_engine(castka, z_meny, do_meny, user, df_cash, kurzy, uloz_funk
     except Exception as e:
         return False, f"❌ Chyba zápisu směny: {e}", None
 
-# B) MANUÁLNÍ VKLAD/VÝBĚR
-                st.caption("📝 Manuální operace")
-                op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
-                v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
-                v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
-                
-                if st.button(f"Provést {op}", use_container_width=True):
-                    # Výpočet znaménka (Vklad +, Výběr -)
-                    final_amount = v_a if op == "Vklad" else -v_a
-                    
-                    if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
-                        st.error("Nedostatek prostředků na účtu")
-                    else:
-                        # VOLÁME ENGINE
-                        uspech, msg, nova_cash = engine.proved_pohyb_hotovosti_engine(
-                            final_amount, v_m, op, "Manual", USER, 
-                            st.session_state['df_cash'], 
-                            uloz_data_uzivatele, 
-                            SOUBOR_CASH
-                        )
-                        
-                        if uspech:
-                            st.session_state['df_cash'] = nova_cash
-                            invalidate_data_core()
-                            st.success(msg)
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(msg)
+def proved_pohyb_hotovosti_engine(castka, mena, typ, poznamka, user, df_cash, uloz_funkce, soubor_cash):
+    """
+    Univerzální logika pro vklad nebo výběr peněz.
+    """
+    df_cash_new = df_cash.copy()
+    
+    novy_radek = pd.DataFrame([{
+        "Typ": typ, 
+        "Castka": float(castka), 
+        "Mena": mena, 
+        "Poznamka": poznamka, 
+        "Datum": datetime.now(), 
+        "Owner": user
+    }])
+    
+    df_cash_new = pd.concat([df_cash_new, novy_radek], ignore_index=True)
+    
+    try:
+        uloz_funkce(df_cash_new, user, soubor_cash)
+        return True, f"Pohyb zapsán: {castka:,.2f} {mena}", df_cash_new
+    except Exception as e:
+        return False, f"❌ Chyba zápisu hotovosti: {e}", None
