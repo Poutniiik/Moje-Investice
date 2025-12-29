@@ -1,4 +1,4 @@
-import pandas as pd
+import pandas as pd...
 from datetime import datetime
 from data_manager import pohyb_penez  # Dáme to nahoru, ať je to profi
 
