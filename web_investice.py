@@ -237,13 +237,13 @@ def get_user_stats(user):
 def add_xp(user, amount):
     """
     Zprostředkovatel mezi Engine a UI/Notifikacemi s kontrolou existence dat.
+    Zajišťuje zápis do paměti i na disk (perzistence).
     """
-    # 1. Kontrola, zda máme data v paměti, pokud ne, zkusíme je vytáhnout z hlavního jádra
+    # 1. Kontrola existence dat v paměti
     if 'df_stats' not in st.session_state:
-        # Pokud máš data v data_core, vezmeme je odtud, jinak prázdný DataFrame
         st.session_state['df_stats'] = st.session_state.get('data_core', {}).get('stats', pd.DataFrame())
 
-    # 2. Zavoláme engine
+    # 2. Zavoláme engine pro výpočet nových hodnot
     ok, n_level, lvl_up, df_stats_new = rpg.pridej_xp_engine(
         user, amount, 
         st.session_state['df_stats'], 
@@ -252,9 +252,16 @@ def add_xp(user, amount):
     )
     
     if ok:
+        # A) AKTUALIZACE PAMĚTI (Session State)
         st.session_state['df_stats'] = df_stats_new
+        
+        # B) AKTUALIZACE DISKU (Pojistka proti rebootu)
+        # Použijeme tvou funkci uloz_csv, aby se data zapsala do user_stats.csv navždy
+        uloz_csv(df_stats_new, SOUBOR_STATS, f"XP gain: {amount} for {user}")
+        
         st.toast(f"✨ +{amount} XP", icon="⭐")
 
+        # C) LEVEL UP EFEKTY A NOTIFIKACE
         if lvl_up:
             st.balloons()
             st.success(f"🎉 GRATULUJEME! Postoupil jsi na úroveň {n_level}!")
@@ -3143,6 +3150,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
