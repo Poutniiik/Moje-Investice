@@ -104,3 +104,40 @@ def proved_prodej_engine(ticker, kusy, cena, user, mena_input, df_p, df_h, df_ca
         return True, f"Prodáno! +{trzba:,.2f} {final_mena}", df_p_novy, df_h_novy, df_cash_novy
     except Exception as e:
         return False, f"❌ Chyba zápisu: {e}", None, None, None
+
+def proved_smenu_engine(castka, z_meny, do_meny, user, df_cash, kurzy, uloz_funkce, soubor_cash):
+    """
+    Logika směny peněz: Odečte jednu měnu, přičte druhou dle kurzu.
+    """
+    df_cash_new = df_cash.copy()
+    
+    # 1. Kalkulace směny (převod přes USD jako základ)
+    # Kurz CZK je např. 25, Kurz EUR je např. 1.1 (vůči USD)
+    if z_meny == "USD": castka_usd = castka
+    elif z_meny == "CZK": castka_usd = castka / kurzy.get("CZK", 23.0)
+    elif z_meny == "EUR": castka_usd = castka * kurzy.get("EUR", 1.08) # Zjednodušený převod EUR->USD
+
+    if do_meny == "USD": vysledna = castka_usd
+    elif do_meny == "CZK": vysledna = castka_usd * kurzy.get("CZK", 23.0)
+    elif do_meny == "EUR": vysledna = castka_usd / kurzy.get("EUR", 1.08)
+
+    # 2. Zápis pohybu - ODCHOD (mínus)
+    odchod = pd.DataFrame([{
+        "Typ": "Směna", "Castka": -float(castka), "Mena": z_meny, 
+        "Poznamka": f"Směna na {do_meny}", "Datum": datetime.now(), "Owner": user
+    }])
+    
+    # 3. Zápis pohybu - PŘÍCHOD (plus)
+    prichod = pd.DataFrame([{
+        "Typ": "Směna", "Castka": float(vysledna), "Mena": do_meny, 
+        "Poznamka": f"Směna z {z_meny}", "Datum": datetime.now(), "Owner": user
+    }])
+    
+    df_cash_new = pd.concat([df_cash_new, odchod, prichod], ignore_index=True)
+
+    # 4. Uložení
+    try:
+        uloz_funkce(df_cash_new, user, soubor_cash)
+        return True, f"Směněno: {vysledna:,.2f} {do_meny}", df_cash_new
+    except Exception as e:
+        return False, f"❌ Chyba zápisu směny: {e}", None
