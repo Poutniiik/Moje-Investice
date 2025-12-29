@@ -176,15 +176,6 @@ def get_zustatky(user):
     if df_cash.empty: return {}
     return df_cash.groupby('Mena')['Castka'].sum().to_dict()
 
-# --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
-def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
-    """
-    Provede pohyb peněz a vrátí upravený DataFrame. 
-    ULOŽENÍ do souboru se DĚJE VŽDY AŽ PO ÚSPĚŠNÉ TRANSAKCI.
-    """
-    novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
-    df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
-    return df_cash_temp
 
 def pridat_dividendu(ticker, castka, mena, user):
     df_div = st.session_state['df_div']
@@ -211,7 +202,6 @@ def pridat_dividendu(ticker, castka, mena, user):
     except Exception as e:
         return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
 
-
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
     if pd.isna(aktualni_hodnota_usd): return pd.DataFrame(columns=["Date", "TotalUSD", "Owner"])
     full_hist = nacti_csv(SOUBOR_VYVOJ)
@@ -231,35 +221,6 @@ def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
 
     uloz_csv(full_hist, SOUBOR_VYVOJ, "Daily snapshot")
     return full_hist[full_hist['Owner'] == str(user)]
-
-
-
-# --- ATOMICKÁ FUNKCE: PROVEDENÍ SMĚNY ---
-def proved_smenu(castka, z_meny, do_meny, user):
-    kurzy = st.session_state['data_core']['kurzy'] # Bereme aktuální kurzy z cache
-    df_cash_temp = st.session_state['df_cash'].copy()
-    
-    # Kalkulace směny
-    if z_meny == "USD": castka_usd = castka
-    elif z_meny == "CZK": castka_usd = castka / kurzy.get("CZK", 20.85)
-    elif z_meny == "EUR": castka_usd = castka / kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85) / kurzy.get("CZK", 20.85) # Aproximace
-
-    if do_meny == "USD": vysledna = castka_usd
-    elif do_meny == "CZK": vysledna = castka_usd * kurzy.get("CZK", 20.85)
-    elif do_meny == "EUR": vysledna = castka_usd / kurzy.get("EUR", 1.16)
-
-    # Krok 1: Odepsání a připsání (lokálně)
-    df_cash_temp = pohyb_penez(-castka, z_meny, "Směna", f"Směna na {do_meny}", user, df_cash_temp)
-    df_cash_temp = pohyb_penez(vysledna, do_meny, "Směna", f"Směna z {z_meny}", user, df_cash_temp)
-    
-    # Krok 2: Atomické uložení a invalidace
-    try:
-        uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
-        st.session_state['df_cash'] = df_cash_temp
-        invalidate_data_core()
-        return True, f"Směněno: {vysledna:,.2f} {do_meny}"
-    except Exception as e:
-        return False, f"❌ Chyba zápisu transakce (SMĚNA): {e}"
 
 def get_user_stats(user):
     """Načte nebo inicializuje statistiky hráče s podporou perzistence questů."""
@@ -3178,3 +3139,4 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
