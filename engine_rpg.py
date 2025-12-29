@@ -2,27 +2,32 @@ import pandas as pd
 from datetime import datetime
 
 # --- KONFIGURACE LEVELŮ ---
-# Tady si můžeš definovat názvy levelů, jak chceš
-LEVELS = {
-    1: "Burzovní Elév",
-    2: "Asistent Makléře",
-    3: "Junior Trader",
-    4: "Portfolio Manažer",
-    5: "Vlk z Wall Street",
-    10: "Investiční Legenda"
-}
+def ziskej_hodnost_a_ikonu(level):
+    """Převede číslo levelu na ikonu a název (sjednoceno s LEVELS)."""
+    # Použijeme tvé názvy z LEVELS a přidáme k nim ikony
+    rank_icons = {
+        1: "🧒 Burzovní Elév",
+        2: "🧑‍🎓 Asistent Makléře",
+        3: "💼 Junior Trader",
+        4: "🎩 Portfolio Manažer",
+        5: "🐋 Vankéř (Vlk z Wall Street)",
+        10: "🚀 Investiční Legenda"
+    }
+    # Najde nejbližší nižší nebo rovný level v seznamu
+    dostupne_levely = sorted(rank_icons.keys(), reverse=True)
+    for l in dostupne_levely:
+        if level >= l:
+            return rank_icons[l]
+    return "🧒 Burzovní Elév"
 
-def vypocitej_level(celkove_xp):
-    """Vrátí číslo levelu, název a progres k dalšímu levelu."""
-    # Každý level vyžaduje např. 500 XP
+def vypocitej_detail_levelu(total_xp):
+    """Vypočítá přesná čísla pro progress bar a popisky."""
     xp_za_level = 500
-    level = int(celkove_xp // xp_za_level) + 1
-    progress = (celkove_xp % xp_za_level) / xp_za_level
-    
-    # Získání názvu levelu (nebo default)
-    level_name = LEVELS.get(level, LEVELS[max(LEVELS.keys())] if level > max(LEVELS.keys()) else "Finanční Magnát")
-    
-    return level, level_name, progress
+    level = int(total_xp // xp_za_level) + 1
+    xp_v_levelu = total_xp % xp_za_level
+    progress_pct = xp_v_levelu / xp_za_level
+    xp_do_dalsiho = xp_za_level - xp_v_levelu
+    return level, xp_v_levelu, progress_pct, xp_do_dalsiho
 
 
 def pridej_xp_engine(user, xp_amount, df_stats, uloz_funkce, soubor_stats):
