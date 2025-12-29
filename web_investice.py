@@ -1,6 +1,7 @@
 import notification_engine as notify
 import engine_obchodu as engine
 import bank_engine as bank
+import engine_rpg as rpg
 import bank_engine
 import streamlit as st
 import pandas as pd
@@ -3130,6 +3131,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
