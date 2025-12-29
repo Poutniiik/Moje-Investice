@@ -186,7 +186,10 @@ def pridat_dividendu(ticker, castka, mena, user):
     df_div = pd.concat([df_div, novy], ignore_index=True)
     
     # Krok 2: Pohyb peněz (Atomický)
-    df_cash_temp = pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user, df_cash_temp)
+    ok, msg, df_cash_temp = engine.proved_pohyb_hotovosti_engine(
+    castka, mena, "Dividenda", f"Divi {ticker}", user, 
+    df_cash_temp, uloz_data_uzivatele, SOUBOR_CASH
+)
     
     # Krok 3: Uložení obou změn a invalidace
     try:
@@ -3139,4 +3142,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
