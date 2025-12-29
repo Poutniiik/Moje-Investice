@@ -27,32 +27,38 @@ def vypocitej_level(celkove_xp):
 
 def pridej_xp_engine(user, xp_amount, df_stats, uloz_funkce, soubor_stats):
     """
-    Čistá logika: Přičte XP a zjistí, zda došlo k Level Upu.
+    Robustní logika: Přičte XP a ošetří chybějící sloupce.
     """
     df_new = df_stats.copy()
     user_str = str(user)
     
-    # Inicializace uživatele
-    if df_new[df_new['Owner'] == user_str].empty:
+    # POJISTKA: Pokud je tabulka prázdná nebo nemá sloupec 'Owner', vytvoříme ho
+    if df_new.empty or 'Owner' not in df_new.columns:
+        # Vytvoříme úplně novou tabulku se správnými sloupci
+        df_new = pd.DataFrame(columns=['Owner', 'XP', 'Level', 'LastLogin'])
+    
+    # Teď už bezpečně hledáme uživatele
+    mask = df_new['Owner'] == user_str
+    
+    if df_new[mask].empty:
         old_level = 1
         new_row = pd.DataFrame([{
             "Owner": user_str, "XP": xp_amount, "Level": 1, "LastLogin": datetime.now()
         }])
         df_new = pd.concat([df_new, new_row], ignore_index=True)
-        idx = df_new[df_new['Owner'] == user_str].index[0]
+        new_level = 1
     else:
-        idx = df_new[df_new['Owner'] == user_str].index[0]
+        idx = df_new[mask].index[0]
         old_level = int(df_new.at[idx, 'XP'] // 500) + 1
         df_new.at[idx, 'XP'] += xp_amount
+        new_level = int(df_new.at[idx, 'XP'] // 500) + 1
+        df_new.at[idx, 'Level'] = new_level
+        df_new.at[idx, 'LastLogin'] = datetime.now()
 
-    # Výpočet nového levelu
-    new_level = int(df_new.at[idx, 'XP'] // 500) + 1
-    df_new.at[idx, 'Level'] = new_level
-    
     level_up = new_level > old_level
     
     try:
         uloz_funkce(df_new, user, soubor_stats)
         return True, new_level, level_up, df_new
     except:
-        return False, old_level, False, df_stats
+        return False, 1, False, df_stats
