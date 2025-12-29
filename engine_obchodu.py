@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime
-from data_manager import pohyb_penez  # Dáme to nahoru, ať je to profi
+from data_manager import pohyb_penez
 
 def proved_nakup_engine(ticker, kusy, cena, user, df_portfolio, df_cash, zustatky, ziskej_info_funkce, uloz_funkce, soubory):
     """
