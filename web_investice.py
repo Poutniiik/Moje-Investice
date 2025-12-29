@@ -1727,6 +1727,7 @@ def main():
             st.session_state['df_cash'] = nacti_csv(SOUBOR_CASH).query(f"Owner=='{USER}'").copy()
             st.session_state['df_div'] = nacti_csv(SOUBOR_DIVIDENDY).query(f"Owner=='{USER}'").copy()
             st.session_state['df_watch'] = nacti_csv(SOUBOR_WATCHLIST).query(f"Owner=='{USER}'").copy()
+            st.session_state['df_stats'] = nacti_csv(SOUBOR_STATS).query(f"Owner=='{USER}'").copy()
             # Hist. vyvoje se necha na 0, aby se spravne inicializoval v calculate_all_data
             st.session_state['hist_vyvoje'] = aktualizuj_graf_vyvoje(USER, 0)
     
@@ -3150,6 +3151,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
