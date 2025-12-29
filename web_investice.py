@@ -235,47 +235,35 @@ def get_user_stats(user):
 
 def add_xp(user, amount):
     """
-    Přičte XP, kontroluje Level Up a posílá notifikace.
+    Zprostředkovatel mezi Engine a UI/Notifikacemi.
     """
-    df_s = nacti_csv(SOUBOR_STATS)
+    # 1. Zavoláme engine
+    ok, n_level, lvl_up, df_stats_new = rpg.pridej_xp_engine(
+        user, amount, 
+        st.session_state['df_stats'], 
+        uloz_data_uzivatele, 
+        SOUBOR_STATS
+    )
     
-    # Inicializace nebo vyhledání uživatele
-    if df_s[df_s['Owner'] == str(user)].empty:
-        old_level = 1
-        new_row = pd.DataFrame([{"Owner": user, "XP": amount, "Level": 1, "LastLogin": datetime.now()}])
-        df_s = pd.concat([df_s, new_row], ignore_index=True)
-        idx = df_s[df_s['Owner'] == str(user)].index[0]
-    else:
-        idx = df_s[df_s['Owner'] == str(user)].index[0]
-        # Výpočet starého levelu před přičtením (každých 500 XP = 1 Level)
-        old_level = int(df_s.at[idx, 'XP'] // 500) + 1
-        df_s.at[idx, 'XP'] += amount
+    if ok:
+        # 2. Aktualizujeme stav aplikace
+        st.session_state['df_stats'] = df_stats_new
+        st.toast(f"✨ +{amount} XP", icon="⭐")
 
-    # Výpočet nového levelu
-    new_level = int(df_s.at[idx, 'XP'] // 500) + 1
-    df_s.at[idx, 'Level'] = new_level
-    
-    # --- LOGIKA LEVEL UP ---
-    if new_level > old_level:
-        # 1. Efekt v aplikaci
-        st.balloons()
-        
-        # 2. Zpráva na Telegram (přes tvůj notification_engine jako 'notify')
-        msg = (
-            f"🎊 <b>LEVEL UP: {user.upper()}</b> 🎊\n"
-            f"--------------------------------\n"
-            f"Tvé investiční zkušenosti vzrostly!\n"
-            f"Aktuální úroveň: <b>{new_level}</b> 🚀\n"
-            f"<i>Jen tak dál, kapitáne!</i>"
-        )
-        notify.poslat_zpravu(msg)
-        
-        # 3. Informační box v UI
-        st.success(f"🎉 GRATULUJEME! Postoupil jsi na úroveň {new_level}!")
-
-    # Uložení dat
-    uloz_csv(df_s, SOUBOR_STATS, f"XP Update {user}")
-    st.toast(f"✨ +{amount} XP", icon="⭐")
+        # 3. Pokud je Level Up, spustíme parádu
+        if lvl_up:
+            st.balloons()
+            st.success(f"🎉 GRATULUJEME! Postoupil jsi na úroveň {n_level}!")
+            
+            # Telegram notifikace
+            msg = (
+                f"🎊 <b>LEVEL UP: {user.upper()}</b> 🎊\n"
+                f"--------------------------------\n"
+                f"Tvé investiční zkušenosti vzrostly!\n"
+                f"Aktuální úroveň: <b>{n_level}</b> 🚀\n"
+                f"<i>Jen tak dál, kapitáne!</i>"
+            )
+            notify.poslat_zpravu(msg)
 
 def render_ticker_tape(data_dict):
     if not data_dict: return
@@ -3142,5 +3130,6 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
