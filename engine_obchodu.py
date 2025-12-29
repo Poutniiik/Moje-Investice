@@ -1,4 +1,4 @@
-import pandas as pd
+ import pandas as pd
 from datetime import datetime
 
 def proved_nakup_engine(ticker, kusy, cena, user, df_portfolio, df_cash, zustatky, ziskej_info_funkce, uloz_funkce, soubory):
@@ -141,3 +141,33 @@ def proved_smenu_engine(castka, z_meny, do_meny, user, df_cash, kurzy, uloz_funk
         return True, f"Směněno: {vysledna:,.2f} {do_meny}", df_cash_new
     except Exception as e:
         return False, f"❌ Chyba zápisu směny: {e}", None
+
+# B) MANUÁLNÍ VKLAD/VÝBĚR
+                st.caption("📝 Manuální operace")
+                op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
+                v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
+                v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
+                
+                if st.button(f"Provést {op}", use_container_width=True):
+                    # Výpočet znaménka (Vklad +, Výběr -)
+                    final_amount = v_a if op == "Vklad" else -v_a
+                    
+                    if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
+                        st.error("Nedostatek prostředků na účtu")
+                    else:
+                        # VOLÁME ENGINE
+                        uspech, msg, nova_cash = engine.proved_pohyb_hotovosti_engine(
+                            final_amount, v_m, op, "Manual", USER, 
+                            st.session_state['df_cash'], 
+                            uloz_data_uzivatele, 
+                            SOUBOR_CASH
+                        )
+                        
+                        if uspech:
+                            st.session_state['df_cash'] = nova_cash
+                            invalidate_data_core()
+                            st.success(msg)
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(msg)
