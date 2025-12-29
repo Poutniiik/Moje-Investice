@@ -236,9 +236,14 @@ def get_user_stats(user):
 
 def add_xp(user, amount):
     """
-    Zprostředkovatel mezi Engine a UI/Notifikacemi.
+    Zprostředkovatel mezi Engine a UI/Notifikacemi s kontrolou existence dat.
     """
-    # 1. Zavoláme engine
+    # 1. Kontrola, zda máme data v paměti, pokud ne, zkusíme je vytáhnout z hlavního jádra
+    if 'df_stats' not in st.session_state:
+        # Pokud máš data v data_core, vezmeme je odtud, jinak prázdný DataFrame
+        st.session_state['df_stats'] = st.session_state.get('data_core', {}).get('stats', pd.DataFrame())
+
+    # 2. Zavoláme engine
     ok, n_level, lvl_up, df_stats_new = rpg.pridej_xp_engine(
         user, amount, 
         st.session_state['df_stats'], 
@@ -247,16 +252,13 @@ def add_xp(user, amount):
     )
     
     if ok:
-        # 2. Aktualizujeme stav aplikace
         st.session_state['df_stats'] = df_stats_new
         st.toast(f"✨ +{amount} XP", icon="⭐")
 
-        # 3. Pokud je Level Up, spustíme parádu
         if lvl_up:
             st.balloons()
             st.success(f"🎉 GRATULUJEME! Postoupil jsi na úroveň {n_level}!")
             
-            # Telegram notifikace
             msg = (
                 f"🎊 <b>LEVEL UP: {user.upper()}</b> 🎊\n"
                 f"--------------------------------\n"
@@ -3131,6 +3133,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
