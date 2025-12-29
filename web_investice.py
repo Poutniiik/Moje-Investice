@@ -2745,13 +2745,13 @@ def main():
                     
                     # TADY JE TA ZMĚNA: Voláme engine místo staré funkce
                     if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
-                        soubory = {'data': SOUBOR_DATA, 'cash': SOUBOR_CASH}
+                        soubory_nakup = {'data': SOUBOR_DATA, 'cash': SOUBOR_CASH}
                         
                         uspech, zprava, nove_p, nova_c = engine.proved_nakup_engine(
                             ticker_input, qty, limit_price, USER, 
                             st.session_state['df'], st.session_state['df_cash'], 
                             get_zustatky(USER), ziskej_info, uloz_data_uzivatele, 
-                            SOUBOR_DATA, SOUBOR_CASH, soubory
+                            SOUBOR_DATA, SOUBOR_CASH, soubory_nakup
                         )
 
                         if uspech:
@@ -3126,4 +3126,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
