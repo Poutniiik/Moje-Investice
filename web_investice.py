@@ -2893,7 +2893,7 @@ def main():
 
                 st.divider()
 
-                # B) MANUÁLNÍ VKLAD/VÝBĚR
+               # B) MANUÁLNÍ VKLAD/VÝBĚR
                 st.caption("📝 Manuální operace")
                 op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
                 v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
@@ -2922,7 +2922,7 @@ def main():
                             st.rerun()
                         else:
                             st.error(msg)
-
+                            
         # Historie transakcí
         if not df_cash.empty:
             st.divider()
@@ -3178,8 +3178,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
