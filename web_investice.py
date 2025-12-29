@@ -123,16 +123,16 @@ def cached_kurzy():
 
 def invalidate_data_core():
     """
-   VYNUCENÝ REFRESH: Zneplatní výpočty i syrová data.
-  Tohle zajistí, že po každém nákupu/prodeji/změně watchlistu 
+    VYNUCENÝ REFRESH: Zneplatní výpočty i syrová data.
+    Tohle zajistí, že po každém nákupu/prodeji/změně watchlistu 
     se data načtou čerstvá z GitHubu bez nutnosti ručního refreshe.
     """
     # 1. Zneplatníme časové razítko vypočteného jádra
     if 'data_core' in st.session_state:
-       st.session_state['data_core']['timestamp'] = datetime.now() - timedelta(minutes=6)
+        st.session_state['data_core']['timestamp'] = datetime.now() - timedelta(minutes=6)
     
     # 2. KLÍČOVÝ KROK: Vymažeme syrová data ze stavu aplikace
-    #Tím donutíme blok "if 'df' not in st.session_state" k opětovnému načtení
+    # Tím donutíme blok "if 'df' not in st.session_state" k opětovnému načtení
     raw_data_keys = ['df', 'df_hist', 'df_cash', 'df_div', 'df_watch']
     for key in raw_data_keys:
         if key in st.session_state:
@@ -208,7 +208,7 @@ def pridat_dividendu(ticker, castka, mena, user):
         add_xp(user, 30)
         return True, f"✅ Připsáno {castka:,.2f} {mena} od {ticker}"
     except Exception as e:
-       return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
+        return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
 
 
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
@@ -240,7 +240,7 @@ def proved_nakup(ticker, kusy, cena, user):
     cost = kusy * cena
     zustatky = get_zustatky(user)
 
-   if zustatky.get(mena, 0) >= cost:
+    if zustatky.get(mena, 0) >= cost:
         # Krok 1: Odepsání hotovosti (lokálně)
         df_cash_temp = pohyb_penez(-cost, mena, "Nákup", ticker, user, df_cash_temp)
         
@@ -253,7 +253,7 @@ def proved_nakup(ticker, kusy, cena, user):
             uloz_data_uzivatele(df_p, user, SOUBOR_DATA)
             uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
             
-           # Aktualizace Session State AŽ PO ÚSPĚCHU
+            # Aktualizace Session State AŽ PO ÚSPĚCHU
             st.session_state['df'] = df_p
             st.session_state['df_cash'] = df_cash_temp
             invalidate_data_core()
@@ -277,10 +277,10 @@ def proved_prodej(ticker, kusy, cena, user, mena_input):
     final_mena = mena_input
     if final_mena is None or final_mena == "N/A":
         final_mena = "USD"
-       if not df_t.empty and 'Měna' in df_p.columns:
+        if not df_t.empty and 'Měna' in df_p.columns:
             final_mena = df_p[df_p['Ticker'] == ticker].iloc[0].get('Měna', 'USD')
-       elif 'LIVE_DATA' in st.session_state:
-          final_mena = st.session_state['LIVE_DATA'].get(ticker, {}).get('curr', 'USD')
+        elif 'LIVE_DATA' in st.session_state:
+            final_mena = st.session_state['LIVE_DATA'].get(ticker, {}).get('curr', 'USD')
 
 
     if df_t.empty or df_t['Pocet'].sum() < kusy:
@@ -3192,8 +3192,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
