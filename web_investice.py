@@ -686,11 +686,11 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             if st.session_state.get('rpg_story_cache'):
                 st.info(f"_{st.session_state['rpg_story_cache']}_")
 
-    # --- 6. QUEST LOG (OPRAVENÁ VERZE PRO PERZISTENCI) ---
+    # --- 6. QUEST LOG (OPRAVENÁ VERZE) ---
     st.divider()
     st.subheader("📜 QUEST LOG (Aktivní výzvy)")
 
-    # Načtení už uložených questů z databáze (formát "0,1,2")
+    # 1. Získáme aktuální seznam hotových úkolů přímo z naší proměnné user_row
     saved_quests_raw = str(user_row['CompletedQuests'].iloc[0] if not user_row.empty else "")
     completed_list = [q.strip() for q in saved_quests_raw.split(",") if q.strip()]
 
@@ -698,33 +698,33 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
     for i, task in enumerate(RPG_TASKS):
         is_completed = False
         try:
-            # Oprava F821: df_w získáme ze session_state uvnitř smyčky
             df_w = st.session_state.get('df_watch', pd.DataFrame())
-            # Kontrola splnění úkolu
             is_completed = task['check_fn'](df, df_w, zustatky, vdf)
-            # Získání postupu pro progress bar
             current, target, progress_text = get_task_progress(i, df, df_w, zustatky, vdf)
         except Exception:
             current, target, progress_text = 0, 1, "Chyba dat"
 
-        # LOGIKA ODMĚNY: Pokud je splněno a ID questu (jako string) není v seznamu hotových
+        # LOGIKA ODMĚNY: Pokud je splněno a ID úkolu NENÍ v seznamu hotových
         if is_completed and str(i) not in completed_list:
-            # 1. Přidáme XP přes motor
+            # A) Přidáme XP přes motor
             add_xp(USER, 100)
-            # 2. Aktualizujeme lokální seznam
+            
+            # B) Aktualizujeme seznam v paměti aplikace (stopeka pro farmení)
             completed_list.append(str(i))
             new_completed_str = ",".join(completed_list)
             
-            # 3. Zapíšeme změnu do souboru statistik
-            df_s = nacti_csv(SOUBOR_STATS)
-            if not df_s[df_s['Owner'] == str(USER)].empty:
-                idx = df_s[df_s['Owner'] == str(USER)].index[0]
-                df_s.at[idx, 'CompletedQuests'] = new_completed_str
-                uloz_csv(df_s, SOUBOR_STATS, f"Quest {i} done by {USER}")
-                st.balloons()
-                st.toast(f"🏆 Quest dokončen: {task['title']}", icon="✅")
+            # C) Zapíšeme to přímo do Session State, aby o tom zbytek aplikace věděl hned
+            if not st.session_state['df_stats'].empty:
+                idx = st.session_state['df_stats'][st.session_state['df_stats']['Owner'] == str(USER)].index[0]
+                st.session_state['df_stats'].at[idx, 'CompletedQuests'] = new_completed_str
+                
+                # D) Uložíme celou tabulku do CSV (už bez zbytečného nacti_csv)
+                uloz_data_uzivatele(st.session_state['df_stats'], USER, SOUBOR_STATS)
+            
+            st.balloons()
+            st.toast(f"🏆 Quest dokončen: {task['title']}", icon="✅")
 
-        # Vykreslení karty questu
+        # --- Vykreslení karty questu (beze změny) ---
         with st.container(border=True):
             q_col1, q_col2 = st.columns([1, 5])
             with q_col1:
@@ -3143,6 +3143,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
