@@ -20,7 +20,6 @@ import zipfile
 import io
 import ui_dashboard
 import ui_watchlist
-import engine
 import requests
 import feedparser
 from streamlit_lottie import st_lottie
@@ -122,22 +121,22 @@ def cached_kurzy():
 
 # -----------------------------------------------------
 
-#def invalidate_data_core():
-#    """
-#   VYNUCENÝ REFRESH: Zneplatní výpočty i syrová data.
-#  Tohle zajistí, že po každém nákupu/prodeji/změně watchlistu 
-#    se data načtou čerstvá z GitHubu bez nutnosti ručního refreshe.
-#    """
-#    # 1. Zneplatníme časové razítko vypočteného jádra
-#    if 'data_core' in st.session_state:
-#       st.session_state['data_core']['timestamp'] = datetime.now() - timedelta(minutes=6)
-#    
-#    # 2. KLÍČOVÝ KROK: Vymažeme syrová data ze stavu aplikace
-#    # Tím donutíme blok "if 'df' not in st.session_state" k opětovnému načtení
-#    raw_data_keys = ['df', 'df_hist', 'df_cash', 'df_div', 'df_watch']
-#    for key in raw_data_keys:
-#        if key in st.session_state:
-#            del st.session_state[key]
+def invalidate_data_core():
+    """
+   VYNUCENÝ REFRESH: Zneplatní výpočty i syrová data.
+  Tohle zajistí, že po každém nákupu/prodeji/změně watchlistu 
+    se data načtou čerstvá z GitHubu bez nutnosti ručního refreshe.
+    """
+    # 1. Zneplatníme časové razítko vypočteného jádra
+    if 'data_core' in st.session_state:
+       st.session_state['data_core']['timestamp'] = datetime.now() - timedelta(minutes=6)
+    
+    # 2. KLÍČOVÝ KROK: Vymažeme syrová data ze stavu aplikace
+    #Tím donutíme blok "if 'df' not in st.session_state" k opětovnému načtení
+    raw_data_keys = ['df', 'df_hist', 'df_cash', 'df_div', 'df_watch']
+    for key in raw_data_keys:
+        if key in st.session_state:
+            del st.session_state[key]
 
 # --- OPRAVA 1: CACHOVANÁ INICIALIZACE AI (Aby se nevolala pořád dokola) ---
 @st.cache_resource(show_spinner="Připojuji neurální sítě...")
@@ -177,39 +176,39 @@ def get_zustatky(user):
     return df_cash.groupby('Mena')['Castka'].sum().to_dict()
 
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ (Upravena pro atomicitu) ---
-#def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
-#    """
-#    Provede pohyb peněz a vrátí upravený DataFrame. 
-#    ULOŽENÍ do souboru se DĚJE VŽDY AŽ PO ÚSPĚŠNÉ TRANSAKCI.
-#    """
-#    novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
-#    df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
-#    return df_cash_temp
+def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
+    """
+    Provede pohyb peněz a vrátí upravený DataFrame. 
+    ULOŽENÍ do souboru se DĚJE VŽDY AŽ PO ÚSPĚŠNÉ TRANSAKCI.
+    """
+    novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
+    df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
+    return df_cash_temp
 
-#def pridat_dividendu(ticker, castka, mena, user):
-#    df_div = st.session_state['df_div']
-#    df_cash_temp = st.session_state['df_cash'].copy()
-#    
-#    # Krok 1: Záznam dividendy
-#    novy = pd.DataFrame([{"Ticker": ticker, "Castka": float(castka), "Mena": mena, "Datum": datetime.now(), "Owner": user}])
-#    df_div = pd.concat([df_div, novy], ignore_index=True)
-#    
-#    # Krok 2: Pohyb peněz (Atomický)
-#    df_cash_temp = pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user, df_cash_temp)
-#    
-#    # Krok 3: Uložení obou změn a invalidace
-#    try:
-#        uloz_data_uzivatele(df_div, user, SOUBOR_DIVIDENDY)
-#        uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
-#        
-#        # Aktualizace Session State AŽ PO ÚSPĚCHU
-#        st.session_state['df_div'] = df_div
-#        st.session_state['df_cash'] = df_cash_temp
-#        invalidate_data_core()
-#        add_xp(user, 30)
-#        return True, f"✅ Připsáno {castka:,.2f} {mena} od {ticker}"
-#    except Exception as e:
-#       return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
+def pridat_dividendu(ticker, castka, mena, user):
+    df_div = st.session_state['df_div']
+    df_cash_temp = st.session_state['df_cash'].copy()
+    
+    # Krok 1: Záznam dividendy
+    novy = pd.DataFrame([{"Ticker": ticker, "Castka": float(castka), "Mena": mena, "Datum": datetime.now(), "Owner": user}])
+    df_div = pd.concat([df_div, novy], ignore_index=True)
+    
+    # Krok 2: Pohyb peněz (Atomický)
+    df_cash_temp = pohyb_penez(castka, mena, "Dividenda", f"Divi {ticker}", user, df_cash_temp)
+    
+    # Krok 3: Uložení obou změn a invalidace
+    try:
+        uloz_data_uzivatele(df_div, user, SOUBOR_DIVIDENDY)
+        uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
+        
+        # Aktualizace Session State AŽ PO ÚSPĚCHU
+        st.session_state['df_div'] = df_div
+        st.session_state['df_cash'] = df_cash_temp
+        invalidate_data_core()
+        add_xp(user, 30)
+        return True, f"✅ Připsáno {castka:,.2f} {mena} od {ticker}"
+    except Exception as e:
+       return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
 
 
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
@@ -233,100 +232,100 @@ def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
     return full_hist[full_hist['Owner'] == str(user)]
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ NÁKUPU ---
-#def proved_nakup(ticker, kusy, cena, user):
-#    df_p = st.session_state['df'].copy()
-#    df_cash_temp = st.session_state['df_cash'].copy()
-#    
-#    _, mena, _ = ziskej_info(ticker)
-#    cost = kusy * cena
-#    zustatky = get_zustatky(user)
-#
-#   if zustatky.get(mena, 0) >= cost:
-#        # Krok 1: Odepsání hotovosti (lokálně)
-#        df_cash_temp = pohyb_penez(-cost, mena, "Nákup", ticker, user, df_cash_temp)
-#        
-#        # Krok 2: Připsání akcií (lokálně)
-#        d = pd.DataFrame([{"Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), "Owner": user, "Sektor": "Doplnit", "Poznamka": "CLI/Auto"}])
-#        df_p = pd.concat([df_p, d], ignore_index=True)
-#        
-#        # Krok 3: Atomické uložení a invalidace
-#        try:
-#            uloz_data_uzivatele(df_p, user, SOUBOR_DATA)
-#            uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
-#            
-#           # Aktualizace Session State AŽ PO ÚSPĚCHU
-#            st.session_state['df'] = df_p
-#            st.session_state['df_cash'] = df_cash_temp
-#            invalidate_data_core()
-#            add_xp(user, 50) # Odměna za obchodní aktivitu
-#            return True, f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
-#        except Exception as e:
-#            # Selhal zápis, stav v Session State zůstává starý, nic není poškozen
-#            return False, f"❌ Chyba zápisu transakce (NÁKUP): {e}"
-#    else:
-#        return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
+def proved_nakup(ticker, kusy, cena, user):
+    df_p = st.session_state['df'].copy()
+    df_cash_temp = st.session_state['df_cash'].copy()
+    
+    _, mena, _ = ziskej_info(ticker)
+    cost = kusy * cena
+    zustatky = get_zustatky(user)
+
+   if zustatky.get(mena, 0) >= cost:
+        # Krok 1: Odepsání hotovosti (lokálně)
+        df_cash_temp = pohyb_penez(-cost, mena, "Nákup", ticker, user, df_cash_temp)
+        
+        # Krok 2: Připsání akcií (lokálně)
+        d = pd.DataFrame([{"Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), "Owner": user, "Sektor": "Doplnit", "Poznamka": "CLI/Auto"}])
+        df_p = pd.concat([df_p, d], ignore_index=True)
+        
+        # Krok 3: Atomické uložení a invalidace
+        try:
+            uloz_data_uzivatele(df_p, user, SOUBOR_DATA)
+            uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
+            
+           # Aktualizace Session State AŽ PO ÚSPĚCHU
+            st.session_state['df'] = df_p
+            st.session_state['df_cash'] = df_cash_temp
+            invalidate_data_core()
+            add_xp(user, 50) # Odměna za obchodní aktivitu
+            return True, f"✅ Koupeno: {kusy}x {ticker} za {cena:,.2f} {mena}"
+        except Exception as e:
+            # Selhal zápis, stav v Session State zůstává starý, nic není poškozen
+            return False, f"❌ Chyba zápisu transakce (NÁKUP): {e}"
+    else:
+        return False, f"❌ Nedostatek {mena} (Potřeba: {cost:,.2f}, Máš: {zustatky.get(mena, 0):,.2f})"
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ PRODEJE ---
-#def proved_prodej(ticker, kusy, cena, user, mena_input):
-#    df_p = st.session_state['df'].copy()
-#    df_h = st.session_state['df_hist'].copy()
-#    df_cash_temp = st.session_state['df_cash'].copy()
-#    
-#    df_t = df_p[df_p['Ticker'] == ticker].sort_values('Datum')
-#
+def proved_prodej(ticker, kusy, cena, user, mena_input):
+    df_p = st.session_state['df'].copy()
+    df_h = st.session_state['df_hist'].copy()
+    df_cash_temp = st.session_state['df_cash'].copy()
+    
+    df_t = df_p[df_p['Ticker'] == ticker].sort_values('Datum')
+
     # --- BEZPEČNOSTNÍ REFACTORING: Zjištění měny (fallback) ---
-#    final_mena = mena_input
-#    if final_mena is None or final_mena == "N/A":
-#        final_mena = "USD"
-#       if not df_t.empty and 'Měna' in df_p.columns:
-#            final_mena = df_p[df_p['Ticker'] == ticker].iloc[0].get('Měna', 'USD')
-#       elif 'LIVE_DATA' in st.session_state:
-#          final_mena = st.session_state['LIVE_DATA'].get(ticker, {}).get('curr', 'USD')
-#
-#
-#    if df_t.empty or df_t['Pocet'].sum() < kusy:
-#        return False, "Nedostatek kusů."
-#
-#    zbyva, zisk, trzba = kusy, 0, kusy * cena
-#    df_p_novy = df_p.copy() # Pracujeme s kopií, dokud neprovedeme atomický zápis
-#
-#    # Logika odebrání kusů z DF portfolia
-#    indices_to_drop = []
-#    
-#    for idx, row in df_t.iterrows():
-#        if zbyva <= 0: break
-#        ukrojeno = min(row['Pocet'], zbyva)
-#        zisk += (cena - row['Cena']) * ukrojeno
-#        
-#        if ukrojeno == row['Pocet']:
-#            indices_to_drop.append(idx)
-#        else:
-#            df_p_novy.at[idx, 'Pocet'] -= ukrojeno
-#        zbyva -= ukrojeno
-#
-#    df_p_novy = df_p_novy.drop(indices_to_drop)
+    final_mena = mena_input
+    if final_mena is None or final_mena == "N/A":
+        final_mena = "USD"
+       if not df_t.empty and 'Měna' in df_p.columns:
+            final_mena = df_p[df_p['Ticker'] == ticker].iloc[0].get('Měna', 'USD')
+       elif 'LIVE_DATA' in st.session_state:
+          final_mena = st.session_state['LIVE_DATA'].get(ticker, {}).get('curr', 'USD')
+
+
+    if df_t.empty or df_t['Pocet'].sum() < kusy:
+        return False, "Nedostatek kusů."
+
+    zbyva, zisk, trzba = kusy, 0, kusy * cena
+    df_p_novy = df_p.copy() # Pracujeme s kopií, dokud neprovedeme atomický zápis
+
+    # Logika odebrání kusů z DF portfolia
+    indices_to_drop = []
+    
+    for idx, row in df_t.iterrows():
+        if zbyva <= 0: break
+        ukrojeno = min(row['Pocet'], zbyva)
+        zisk += (cena - row['Cena']) * ukrojeno
+        
+        if ukrojeno == row['Pocet']:
+            indices_to_drop.append(idx)
+        else:
+            df_p_novy.at[idx, 'Pocet'] -= ukrojeno
+        zbyva -= ukrojeno
+
+    df_p_novy = df_p_novy.drop(indices_to_drop)
 
     # Krok 1: Záznam do historie
-#    new_h = pd.DataFrame([{"Ticker": ticker, "Kusu": kusy, "Prodejka": cena, "Zisk": zisk, "Mena": final_mena, "Datum": datetime.now(), "Owner": user}])
-#    df_h = pd.concat([df_h, new_h], ignore_index=True)
+    new_h = pd.DataFrame([{"Ticker": ticker, "Kusu": kusy, "Prodejka": cena, "Zisk": zisk, "Mena": final_mena, "Datum": datetime.now(), "Owner": user}])
+    df_h = pd.concat([df_h, new_h], ignore_index=True)
     
-#    # Krok 2: Připsání hotovosti (lokálně)
-#    df_cash_temp = pohyb_penez(trzba, final_mena, "Prodej", f"Prodej {ticker}", user, df_cash_temp)
-#    
-#    # Krok 3: Atomické uložení a invalidace
-#    try:
-#        uloz_data_uzivatele(df_p_novy, user, SOUBOR_DATA)
-#        uloz_data_uzivatele(df_h, user, SOUBOR_HISTORIE)
-#        uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
-#        
-#        # Aktualizace Session State AŽ PO ÚSPĚCHU
-#        st.session_state['df'] = df_p_novy
-#        st.session_state['df_hist'] = df_h
-#        st.session_state['df_cash'] = df_cash_temp
-#        invalidate_data_core()
-#        return True, f"Prodáno! +{trzba:,.2f} {final_mena} (Zisk: {zisk:,.2f})"
-#    except Exception as e:
-#        return False, f"❌ Chyba zápisu transakce (PRODEJ): {e}"
+    # Krok 2: Připsání hotovosti (lokálně)
+    df_cash_temp = pohyb_penez(trzba, final_mena, "Prodej", f"Prodej {ticker}", user, df_cash_temp)
+    
+    # Krok 3: Atomické uložení a invalidace
+    try:
+        uloz_data_uzivatele(df_p_novy, user, SOUBOR_DATA)
+        uloz_data_uzivatele(df_h, user, SOUBOR_HISTORIE)
+        uloz_data_uzivatele(df_cash_temp, user, SOUBOR_CASH)
+        
+        # Aktualizace Session State AŽ PO ÚSPĚCHU
+        st.session_state['df'] = df_p_novy
+        st.session_state['df_hist'] = df_h
+        st.session_state['df_cash'] = df_cash_temp
+        invalidate_data_core()
+        return True, f"Prodáno! +{trzba:,.2f} {final_mena} (Zisk: {zisk:,.2f})"
+    except Exception as e:
+        return False, f"❌ Chyba zápisu transakce (PRODEJ): {e}"
 
 # --- ATOMICKÁ FUNKCE: PROVEDENÍ SMĚNY ---
 def proved_smenu(castka, z_meny, do_meny, user):
@@ -3193,6 +3192,7 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
