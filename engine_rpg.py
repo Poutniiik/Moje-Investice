@@ -27,17 +27,26 @@ def vypocitej_level(celkove_xp):
 
 def pridej_xp_engine(user, xp_amount, df_stats, uloz_funkce, soubor_stats):
     """
-    Robustní logika: Přičte XP a ošetří chybějící sloupce.
+    Super-robustní logika: Pokud sloupce chybí, vytvoří je.
     """
-    df_new = df_stats.copy()
+    # 1. Pokud nám přišlo něco, co není DataFrame, nebo je to prázdné
+    if df_stats is None or (isinstance(df_stats, pd.DataFrame) and df_stats.empty and 'Owner' not in df_stats.columns):
+        df_new = pd.DataFrame(columns=['Owner', 'XP', 'LastLogin', 'Level', 'CompletedQuests'])
+    else:
+        df_new = df_stats.copy()
+
     user_str = str(user)
     
-    # POJISTKA: Pokud je tabulka prázdná nebo nemá sloupec 'Owner', vytvoříme ho
-    if df_new.empty or 'Owner' not in df_new.columns:
-        # Vytvoříme úplně novou tabulku se správnými sloupci
-        df_new = pd.DataFrame(columns=['Owner', 'XP', 'Level', 'LastLogin'])
-    
-    # Teď už bezpečně hledáme uživatele
+    # 2. POJISTKA: Pokud sloupec 'Owner' stále chybí (např. načten prázdný soubor bez hlavičky)
+    if 'Owner' not in df_new.columns:
+        # Pokud tam nejsou sloupce, ale jsou tam data, zkusíme je pojmenovat
+        if not df_new.empty and len(df_new.columns) >= 2:
+             df_new.columns = ['Owner', 'XP', 'LastLogin', 'Level', 'CompletedQuests'][:len(df_new.columns)]
+        else:
+             # Raději vytvoříme novou strukturu
+             df_new = pd.DataFrame(columns=['Owner', 'XP', 'LastLogin', 'Level', 'CompletedQuests'])
+
+    # 3. Teď už je hledání bezpečné
     mask = df_new['Owner'] == user_str
     
     if df_new[mask].empty:
