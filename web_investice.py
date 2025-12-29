@@ -2693,8 +2693,8 @@ def main():
     elif page == "💸 Obchod":
         st.title("💸 OBCHODNÍ PULT")
     
-    # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
-    with st.container(border=True):
+        # --- 1. HLAVNÍ OBCHODNÍ KARTA (VELÍN) ---
+        with st.container(border=True):
         mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
         st.divider()
         
@@ -3126,7 +3126,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
