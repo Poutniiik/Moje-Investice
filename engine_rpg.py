@@ -11,7 +11,7 @@ def ziskej_hodnost_a_ikonu(level):
         3: "💼 Junior Trader",
         4: "🎩 Portfolio Manažer",
         5: "🐋 Vankéř (Vlk z Wall Street)",
-        10: "🚀 Investiční Legenda"
+        10: "🚀 Investiční Matador"
     }
     # Najde nejbližší nižší nebo rovný level v seznamu
     dostupne_levely = sorted(rank_icons.keys(), reverse=True)
