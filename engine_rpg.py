@@ -24,34 +24,35 @@ def vypocitej_level(celkove_xp):
     
     return level, level_name, progress
 
+
 def pridej_xp_engine(user, xp_amount, df_stats, uloz_funkce, soubor_stats):
     """
-    Logika pro přidání zkušeností a uložení do statistik.
+    Čistá logika: Přičte XP a zjistí, zda došlo k Level Upu.
     """
     df_new = df_stats.copy()
+    user_str = str(user)
     
-    # Najdeme řádek uživatele, nebo vytvoříme nový
-    if user not in df_new['Owner'].values:
-        new_user = pd.DataFrame([{
-            "Owner": user, "XP": 0, "Level": 1, "Trades": 0, "LastUpdate": datetime.now()
+    # Inicializace uživatele
+    if df_new[df_new['Owner'] == user_str].empty:
+        old_level = 1
+        new_row = pd.DataFrame([{
+            "Owner": user_str, "XP": xp_amount, "Level": 1, "LastLogin": datetime.now()
         }])
-        df_new = pd.concat([df_new, new_user], ignore_index=True)
+        df_new = pd.concat([df_new, new_row], ignore_index=True)
+        idx = df_new[df_new['Owner'] == user_str].index[0]
+    else:
+        idx = df_new[df_new['Owner'] == user_str].index[0]
+        old_level = int(df_new.at[idx, 'XP'] // 500) + 1
+        df_new.at[idx, 'XP'] += xp_amount
+
+    # Výpočet nového levelu
+    new_level = int(df_new.at[idx, 'XP'] // 500) + 1
+    df_new.at[idx, 'Level'] = new_level
     
-    # Přidáme XP
-    idx = df_new[df_new['Owner'] == user].index[0]
-    stare_xp = df_new.at[idx, 'XP']
-    nove_xp = stare_xp + xp_amount
-    df_new.at[idx, 'XP'] = nove_xp
-    df_new.at[idx, 'LastUpdate'] = datetime.now()
-    
-    # Zjistíme, jestli postoupil na nový level pro hlášku
-    stary_lvl, _, _ = vypocitej_level(stare_xp)
-    novy_lvl, lvl_name, _ = vypocitej_level(nove_xp)
-    
-    level_up = novy_lvl > stary_lvl
+    level_up = new_level > old_level
     
     try:
         uloz_funkce(df_new, user, soubor_stats)
-        return True, nove_xp, level_up, lvl_name, df_new
-    except Exception as e:
-        return False, stare_xp, False, "", None
+        return True, new_level, level_up, df_new
+    except:
+        return False, old_level, False, df_stats
