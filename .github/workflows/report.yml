@@ -63,6 +63,8 @@ jobs:
       run: |
         git config --global user.name 'Investicni Robot'
         git config --global user.email 'robot@github.com'
+
+        git pull --rebase -X ours origin main
         
         # Přidáme hlavní soubory (pokud se změnily)
         git add value_history.csv || echo "value_history.csv beze změny"
