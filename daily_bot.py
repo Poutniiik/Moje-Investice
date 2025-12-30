@@ -66,6 +66,21 @@ def send_telegram(message):
     except Exception as e:
         print(f"❌ Chyba Telegram: {e}")
 
+def log_error(error_msg):
+    """Zapíše chybu do error_log.csv s časovou známkou."""
+    try:
+        filename = "error_log.csv"
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        error_data = pd.DataFrame([{"Timestamp": now, "Error": str(error_msg)}])
+        
+        if not os.path.exists(filename):
+            error_data.to_csv(filename, index=False)
+        else:
+            error_data.to_csv(filename, mode='a', header=False, index=False)
+        print(f"📝 Chyba zapsána do logu: {error_msg}")
+    except:
+        pass # Logování nesmí nikdy shodit hlavního bota
+
 def send_telegram_photo(photo_path):
     # ZMĚNA: Používáme sjednocený TELEGRAM_BOT_TOKEN
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return
@@ -136,6 +151,7 @@ def get_ai_comment(portfolio_text, total_val, change_today):
         response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
+        log_error(f"AI Error: {e}") # TADY TO POUŽIJEME
         print(f"❌ Chyba AI: {e}")
         return "Dnes nemám slov."
 
@@ -151,6 +167,7 @@ def get_data_safe(ticker):
             return float(price), float(change)
             
     except Exception as e:
+        log_error(f"Ticker Error {ticker}: {e}") # TADY TAKY
         print(f"   ⚠️ Chyba {ticker}: {e}")
         # Fallback na historii (pomalejší)
         try:
