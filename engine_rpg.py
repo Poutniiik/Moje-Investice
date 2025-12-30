@@ -1,78 +1,79 @@
 import pandas as pd
 from datetime import datetime
 
-# --- KONFIGURACE LEVELŮ ---
-def ziskej_hodnost_a_ikonu(level):
-    """Převede číslo levelu na ikonu a název (sjednoceno s LEVELS)."""
-    # Použijeme tvé názvy z LEVELS a přidáme k nim ikony
-    rank_icons = {
-        1: "🧒 Burzovní Elév",
-        2: "🧑‍🎓 Asistent Makléře",
-        3: "💼 Junior Trader",
-        4: "🎩 Portfolio Manažer",
-        5: "🐋 Vankéř (Vlk z Wall Street)",
-        10: "🚀 Investiční Matador"
-    }
-    # Najde nejbližší nižší nebo rovný level v seznamu
-    dostupne_levely = sorted(rank_icons.keys(), reverse=True)
-    for l in dostupne_levely:
+# --- KONFIGURACE ---
+XP_PER_LEVEL = 500
+
+RANKS = {
+    1: {"name": "Burzovní Elév", "icon": "🧒"},
+    2: {"name": "Asistent Makléře", "icon": "🧑‍🎓"},
+    3: {"name": "Junior Trader", "icon": "💼"},
+    4: {"name": "Portfolio Manažer", "icon": "🎩"},
+    5: {"name": "Bankéř (Vlk z Wall Street)", "icon": "🐋"},
+    10: {"name": "Investiční Matador", "icon": "🚀"}
+}
+
+def get_player_profile(user, df_stats):
+    """Kompletní balíček dat pro UI profilu."""
+    if df_stats.empty:
+        return None
+        
+    user_row = df_stats[df_stats['Owner'] == str(user)]
+    if user_row.empty:
+        return None
+        
+    total_xp = user_row['XP'].iloc[0]
+    
+    # Výpočty levelu
+    level = int(total_xp // XP_PER_LEVEL) + 1
+    xp_in_level = total_xp % XP_PER_LEVEL
+    progress_pct = min(xp_in_level / XP_PER_LEVEL, 1.0)
+    xp_to_next = XP_PER_LEVEL - xp_in_level
+    
+    # Získání hodnosti
+    rank_info = RANKS[1] # fallback
+    for l in sorted(RANKS.keys(), reverse=True):
         if level >= l:
-            return rank_icons[l]
-    return "🧒 Burzovní Elév"
-
-def vypocitej_detail_levelu(total_xp):
-    """Vypočítá přesná čísla pro progress bar a popisky."""
-    xp_za_level = 500
-    level = int(total_xp // xp_za_level) + 1
-    xp_v_levelu = total_xp % xp_za_level
-    progress_pct = xp_v_levelu / xp_za_level
-    xp_do_dalsiho = xp_za_level - xp_v_levelu
-    return level, xp_v_levelu, progress_pct, xp_do_dalsiho
-
+            rank_info = RANKS[l]
+            break
+            
+    # Načtení hotových questů
+    saved_raw = str(user_row['CompletedQuests'].iloc[0])
+    completed_ids = [q.strip() for q in saved_raw.split(",") if q.strip()]
+    
+    return {
+        "level": level,
+        "xp_total": total_xp,
+        "xp_current": xp_in_level,
+        "xp_needed": XP_PER_LEVEL,
+        "progress": progress_pct,
+        "xp_to_next": xp_to_next,
+        "rank_name": rank_info["name"],
+        "rank_icon": rank_info["icon"],
+        "completed_ids": completed_ids
+    }
 
 def pridej_xp_engine(user, xp_amount, df_stats, uloz_funkce, soubor_stats):
-    """
-    Super-robustní logika: Pokud sloupce chybí, vytvoří je.
-    """
-    # 1. Pokud nám přišlo něco, co není DataFrame, nebo je to prázdné
-    if df_stats is None or (isinstance(df_stats, pd.DataFrame) and df_stats.empty and 'Owner' not in df_stats.columns):
-        df_new = pd.DataFrame(columns=['Owner', 'XP', 'LastLogin', 'Level', 'CompletedQuests'])
-    else:
-        df_new = df_stats.copy()
-
+    """Zpracuje přidání XP a vrátí aktualizovaná data."""
+    df_new = df_stats.copy()
     user_str = str(user)
     
-    # 2. POJISTKA: Pokud sloupec 'Owner' stále chybí (např. načten prázdný soubor bez hlavičky)
-    if 'Owner' not in df_new.columns:
-        # Pokud tam nejsou sloupce, ale jsou tam data, zkusíme je pojmenovat
-        if not df_new.empty and len(df_new.columns) >= 2:
-             df_new.columns = ['Owner', 'XP', 'LastLogin', 'Level', 'CompletedQuests'][:len(df_new.columns)]
-        else:
-             # Raději vytvoříme novou strukturu
-             df_new = pd.DataFrame(columns=['Owner', 'XP', 'LastLogin', 'Level', 'CompletedQuests'])
-
-    # 3. Teď už je hledání bezpečné
-    mask = df_new['Owner'] == user_str
-    
-    if df_new[mask].empty:
-        old_level = 1
+    # Pokud uživatel neexistuje, vytvoříme ho
+    if df_new.empty or user_str not in df_new['Owner'].values:
         new_row = pd.DataFrame([{
-            "Owner": user_str, "XP": xp_amount, "Level": 1, "LastLogin": datetime.now()
+            "Owner": user_str, "XP": xp_amount, "Level": 1, "LastLogin": datetime.now(), "CompletedQuests": ""
         }])
         df_new = pd.concat([df_new, new_row], ignore_index=True)
-        new_level = 1
     else:
-        idx = df_new[mask].index[0]
-        old_level = int(df_new.at[idx, 'XP'] // 500) + 1
-        df_new.at[idx, 'XP'] += xp_amount
-        new_level = int(df_new.at[idx, 'XP'] // 500) + 1
-        df_new.at[idx, 'Level'] = new_level
+        idx = df_new[df_new['Owner'] == user_str].index[0]
+        old_xp = df_new.at[idx, 'XP']
+        new_xp = old_xp + xp_amount
+        df_new.at[idx, 'XP'] = new_xp
+        df_new.at[idx, 'Level'] = int(new_xp // XP_PER_LEVEL) + 1
         df_new.at[idx, 'LastLogin'] = datetime.now()
 
-    level_up = new_level > old_level
-    
     try:
         uloz_funkce(df_new, user, soubor_stats)
-        return True, new_level, level_up, df_new
+        return True, int(df_new[df_new['Owner'] == user_str]['Level'].iloc[0]), df_new
     except:
-        return False, 1, False, df_stats
+        return False, 1, df_stats
