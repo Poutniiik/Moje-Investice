@@ -64,16 +64,20 @@ jobs:
         git config --global user.name 'Investicni Robot'
         git config --global user.email 'robot@github.com'
 
+        # 1. Pokud jsou nějaké změny, na chvíli je schováme do "skříně"
+        git stash || echo "Nic ke schování"
         
-        # Přidáme hlavní soubory (pokud se změnily)
+        # 2. Teď si v klidu stáhneme změny z webu
+        git pull --rebase -X ours origin main
+        
+        # 3. Vytáhneme naše věci zpátky ze skříně
+        git stash pop || echo "Nic k vytažení"
+
+        # 4. Teď teprve přidáme soubory k odeslání
         git add value_history.csv || echo "value_history.csv beze změny"
         git add market_cache.json || echo "market_cache.json beze změny"
-        
-        # --- TOTO JE TA NOVINKA PRO TIME MACHINE ---
-        # Přidáme celou složku backups/ (pokud ji bot vytvořil - v neděli)
-        # Používáme '|| echo' aby to nespadlo, když složka neexistuje (v pondělí atd.)
         git add backups/ || echo "Složka backups/ dnes nevznikla"
-
-        # Zkusíme commitnout. Pokud není co (nic se nezměnilo), nevadí (|| exit 0)
+        
+        # 5. Commit a Push
         git commit -m "💾 Auto-save: Report + Záloha (Time Machine)" || exit 0
-        git push
+        git push origin main
