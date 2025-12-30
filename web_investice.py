@@ -597,50 +597,35 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
                 st.rerun()
 
 
-def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
-    """Vykreslí vylepšenou RPG stránku napojenou na RPG Engine."""
+def render_gamifikace_page(USER, level_name_money, level_progress_money, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
+    """Vykreslí vyčištěnou RPG stránku využívající centralizovaný Engine."""
     
     # 1. Inicializace session state
     if 'rpg_story_cache' not in st.session_state:
         st.session_state['rpg_story_cache'] = None
-    if 'completed_quests_session' not in st.session_state:
-        st.session_state['completed_quests_session'] = []
-    
-    # 2. ZÍSKÁNÍ DAT S POJISTKOU (Tady to sjednotíme)
+
+    # 2. ZÍSKÁNÍ DAT PŘES ENGINE (Nahrazuje tvou sekci #2 a #3)
     stats_df = st.session_state.get('df_stats', pd.DataFrame())
+    profile = rpg.get_player_profile(USER, stats_df)
     
-    # Pokud v paměti nic není nebo chybí sloupce, vytvoříme prázdnou strukturu
-    if stats_df.empty or 'Owner' not in stats_df.columns:
-        stats_df = pd.DataFrame(columns=['Owner', 'XP', 'LastLogin', 'Level', 'CompletedQuests'])
-    
-    # Najdeme řádek uživatele
-    user_row = stats_df[stats_df['Owner'] == str(USER)]
-    
-    # Určíme celkové XP (pokud uživatel neexistuje, dáme 0)
-    total_xp = user_row['XP'].iloc[0] if not user_row.empty else 0
-    
-    # 3. VOLÁNÍ MOTORU (Výpočty proběhnou v engine_rpg.py)
-    level_rpg, xp_v_levelu, progress_pct_rpg, xp_do_dalsiho = rpg.vypocitej_detail_levelu(total_xp)
-    current_rank_full = rpg.ziskej_hodnost_a_ikonu(level_rpg)
+    if not profile:
+        st.warning("Data profilu se připravují. Zkus provést obchod nebo nákup!")
+        return
 
     st.title("🎮 INVESTIČNÍ ARÉNA (Profil Hráče)")
-    # ... zbytek kódu (Hero Section, Badge, Questy) ...
 
     # --- ZOBRAZENÍ PROFILU (Hero Section) ---
     with st.container(border=True):
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.subheader(f"Level {level_rpg}: {USER.upper()}")
-            st.progress(progress_pct_rpg)
-            st.caption(f"✨ **{xp_v_levelu} / 500 XP** (Chybí {xp_do_dalsiho} XP do levelu {level_rpg + 1})")
+            st.subheader(f"Level {profile['level']}: {USER.upper()}")
+            st.progress(profile['progress'])
+            st.caption(f"✨ **{profile['xp_current']} / {profile['xp_needed']} XP** (Chybí {profile['xp_to_next']} XP do levelu {profile['level'] + 1})")
         with col2:
-            # Tady už čerpáme z tvého sjednoceného seznamu v Enginu
-            icon = current_rank_full.split()[0]
-            name = " ".join(current_rank_full.split()[1:])
-            st.markdown(f"### {icon}")
-            st.caption(name)
+            st.markdown(f"### {profile['rank_icon']}")
+            st.caption(profile['rank_name'])
 
-    # --- RPG ATRIBUTY (Ponecháno původní) ---
+    # --- RPG ATRIBUTY ---
     st.write("")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -649,13 +634,12 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             st.metric("⏳ TRPĚLIVOST", f"{trpelivost}", help="Počet pozic držených v časovém testu.")
     with c2:
         with st.container(border=True):
-            st.metric("🔥 AKTIVITA", f"{total_xp}", help="Tvé celkové zkušenostní skóre.")
+            st.metric("🔥 AKTIVITA", f"{profile['xp_total']}", help="Tvé celkové zkušenostní skóre.")
     with c3:
         with st.container(border=True):
-            # Tady používáme level_name z parametrů funkce (hodnost podle majetku)
-            st.metric("💰 RANK", f"{level_name}", help="Tvá hodnost založená na celkovém jmění.")
+            st.metric("💰 RANK", f"{level_name_money}", help="Tvá hodnost založená na celkovém jmění.")
 
-    # --- SÍŇ SLÁVY (Ponecháno původní) ---
+    # --- SÍŇ SLÁVY (Badge zustávají stejné) ---
     st.divider()
     st.subheader("🏆 SÍŇ SLÁVY")
     
@@ -688,50 +672,35 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
             if st.button("🎲 GENEROVAT PŘÍBĚH DNE", use_container_width=True):
                 with st.spinner("Vypravěč píše kapitolu..."):
                     sc, _ = ziskej_fear_greed()
-                    res = generate_rpg_story(model, current_rank_full, 0, celk_hod_czk, sc if sc else 50)
+                    res = generate_rpg_story(model, f"{profile['rank_icon']} {profile['rank_name']}", 0, celk_hod_czk, sc if sc else 50)
                     st.session_state['rpg_story_cache'] = res
             if st.session_state.get('rpg_story_cache'):
                 st.info(f"_{st.session_state['rpg_story_cache']}_")
 
-    # --- 6. QUEST LOG (OPRAVENÁ VERZE) ---
+    # --- QUEST LOG (Čistší verze) ---
     st.divider()
     st.subheader("📜 QUEST LOG (Aktivní výzvy)")
 
-    # 1. Získáme aktuální seznam hotových úkolů přímo z naší proměnné user_row
-    saved_quests_raw = str(user_row['CompletedQuests'].iloc[0] if not user_row.empty else "")
-    completed_list = [q.strip() for q in saved_quests_raw.split(",") if q.strip()]
-
-    # Procházíme definované RPG úkoly
     for i, task in enumerate(RPG_TASKS):
-        is_completed = False
         try:
             df_w = st.session_state.get('df_watch', pd.DataFrame())
             is_completed = task['check_fn'](df, df_w, zustatky, vdf)
             current, target, progress_text = get_task_progress(i, df, df_w, zustatky, vdf)
         except Exception:
-            current, target, progress_text = 0, 1, "Chyba dat"
+            is_completed, current, target, progress_text = False, 0, 1, "Chyba dat"
 
-        # LOGIKA ODMĚNY: Pokud je splněno a ID úkolu NENÍ v seznamu hotových
-        if is_completed and str(i) not in completed_list:
-            # A) Přidáme XP přes motor
+        # Logika odměny přes profil z Enginu
+        if is_completed and str(i) not in profile['completed_ids']:
             add_xp(USER, 100)
-            
-            # B) Aktualizujeme seznam v paměti aplikace (stopeka pro farmení)
-            completed_list.append(str(i))
-            new_completed_str = ",".join(completed_list)
-            
-            # C) Zapíšeme to přímo do Session State, aby o tom zbytek aplikace věděl hned
-            if not st.session_state['df_stats'].empty:
-                idx = st.session_state['df_stats'][st.session_state['df_stats']['Owner'] == str(USER)].index[0]
-                st.session_state['df_stats'].at[idx, 'CompletedQuests'] = new_completed_str
-                
-                # D) Uložíme celou tabulku do CSV (už bez zbytečného nacti_csv)
-                uloz_data_uzivatele(st.session_state['df_stats'], USER, SOUBOR_STATS)
-            
+            # Aktualizujeme SS a soubor hned
+            new_list = profile['completed_ids'] + [str(i)]
+            idx = stats_df[stats_df['Owner'] == str(USER)].index[0]
+            stats_df.at[idx, 'CompletedQuests'] = ",".join(new_list)
+            uloz_data_uzivatele(stats_df, USER, SOUBOR_STATS)
             st.balloons()
             st.toast(f"🏆 Quest dokončen: {task['title']}", icon="✅")
 
-        # --- Vykreslení karty questu (beze změny) ---
+        # Vykreslení karty questu
         with st.container(border=True):
             q_col1, q_col2 = st.columns([1, 5])
             with q_col1:
@@ -743,19 +712,9 @@ def render_gamifikace_page(USER, level_name, level_progress, celk_hod_czk, AI_AV
                 if target > 0:
                     pct = min(current / target, 1.0)
                     st.progress(pct)
-                    st.caption(f"Postup: {progress_text} ({int(pct*100)}%)")
+                    st.caption(f"Postup: {progress_text}")
 
-
-        if st.session_state['rpg_story_cache']:
-            st.markdown(f"""
-            <div style="background-color: #0D1117; border-left: 4px solid #AB63FA; padding: 15px; border-radius: 5px;">
-                <p style="font-style: italic; color: #E6E6E6; margin: 0;">"{st.session_state['rpg_story_cache']}"</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            
-           
-    # --- 5. MOUDRO DNE ---
+    # --- MOUDRO DNE ---
     st.divider()
     if 'quote' not in st.session_state: st.session_state['quote'] = random.choice(CITATY)
     st.caption("💡 Moudro dne")
@@ -3151,16 +3110,3 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
