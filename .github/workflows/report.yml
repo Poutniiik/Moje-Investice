@@ -64,7 +64,6 @@ jobs:
         git config --global user.name 'Investicni Robot'
         git config --global user.email 'robot@github.com'
 
-        git pull --rebase -X ours origin main
         
         # Přidáme hlavní soubory (pokud se změnily)
         git add value_history.csv || echo "value_history.csv beze změny"
@@ -74,7 +73,10 @@ jobs:
         # Přidáme celou složku backups/ (pokud ji bot vytvořil - v neděli)
         # Používáme '|| echo' aby to nespadlo, když složka neexistuje (v pondělí atd.)
         git add backups/ || echo "Složka backups/ dnes nevznikla"
-        
+
+        # 2. POJISTKA: Nejdříve si stáhneme změny z webu (přidáno sem)
+        # Použijeme rebase, aby se změny bota zařadily za změny z webu
+        git pull --rebase -X ours origin main
         # Zkusíme commitnout. Pokud není co (nic se nezměnilo), nevadí (|| exit 0)
         git commit -m "💾 Auto-save: Report + Záloha (Time Machine)" || exit 0
         git push
