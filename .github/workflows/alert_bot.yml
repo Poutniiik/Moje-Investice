@@ -3,7 +3,7 @@ name: Price Alert Bot
 on:
   schedule:
     # Spouští se každou hodinu v celou (0 minut), Po-Ne (1-7), 24/7 UTC
-    - cron: '5 * * * *' 
+    - cron: '7 * * * *' 
   workflow_dispatch:
 
 jobs:
