@@ -68,6 +68,7 @@ jobs:
         rm -f "=0.2.40" "=1.28.0" "chart.png" || echo "Smetí nenalezeno"
 
         # 2. Teď ten náš prověřený postup
+        git add error_log.csv || echo "Žádné nové chyby k zapsání"
         git add .
         git stash || echo "Nic ke schování"
         
