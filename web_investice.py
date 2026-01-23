@@ -664,55 +664,6 @@ def render_gamifikace_page(USER, level_name_money, level_progress_money, celk_ho
 
 
 
-def render_analýza_měny_page(vdf, viz_data_list, kurzy, celk_hod_usd):
-    """Vykreslí Měnový simulátor (Tab6 Analýzy)."""
-    st.subheader("💱 MĚNOVÝ SIMULÁTOR")
-    st.info("Jak změna kurzu koruny ovlivní hodnotu tvého portfolia?")
-    assets_by_curr = {"USD": 0, "EUR": 0, "CZK": 0}
-    
-    if viz_data_list:
-        if isinstance(viz_data_list, pd.DataFrame):
-            data_to_use = viz_data_list.to_dict('records')
-        else:
-            data_to_use = viz_data_list
-
-        for item in data_to_use:
-            curr = item['Měna']; val = item['Hodnota']
-            if curr in assets_by_curr: assets_by_curr[curr] += val
-            else: assets_by_curr["USD"] += item['HodnotaUSD'] # Zajištění, že se používá HodnotaUSD
-
-    kurz_usd_now = kurzy.get("CZK", 20.85)
-    kurz_eur_now = kurzy.get("EUR", 1.16) * kurz_usd_now
-    
-    col_s1, col_s2 = st.columns(2)
-    with col_s1: 
-        sim_usd = st.slider(f"Kurz USD/CZK (Aktuálně: {kurz_usd_now:.2f})", 15.0, 30.0, float(kurz_usd_now))
-    with col_s2: 
-        sim_eur = st.slider(f"Kurz EUR/CZK (Aktuálně: {kurz_eur_now:.2f})", 15.0, 35.0, float(kurz_eur_now))
-        
-    val_now_czk = (assets_by_curr["USD"] * kurz_usd_now) + (assets_by_curr["EUR"] * kurz_eur_now) + assets_by_curr["CZK"]
-    val_sim_czk = (assets_by_curr["USD"] * sim_usd) + (assets_by_curr["EUR"] * sim_eur) + assets_by_curr["CZK"]
-    diff = val_sim_czk - val_now_czk
-    
-    st.divider()
-    c_m1, c_m2 = st.columns(2)
-    c_m1.metric("Hodnota Portfolia (Simulace)", f"{val_sim_czk:,.0f} Kč", delta=f"{diff:,.0f} Kč")
-    
-    impact_data = pd.DataFrame({
-        "Měna": ["USD Aktiva", "EUR Aktiva", "CZK Aktiva"],
-        "Hodnota CZK (Teď)": [assets_by_curr["USD"] * kurz_usd_now, assets_by_curr["EUR"] * kurz_eur_now, assets_by_curr["CZK"]],
-        "Hodnota CZK (Simulace)": [assets_by_curr["USD"] * sim_usd, assets_by_curr["EUR"] * kurz_eur_now, assets_by_curr["CZK"]]
-    })
-    
-    fig_curr = go.Figure(data=[
-        go.Bar(name='Teď', x=impact_data["Měna"], y=impact_data["Hodnota CZK (Teď)"], marker_color='#555555'),
-        go.Bar(name='Simulace', x=impact_data["Měna"], y=impact_data["Hodnota CZK (Simulace)"], marker_color='#00CC96')
-    ])
-    fig_curr.update_layout(barmode='group', template="plotly_dark", height=300, margin=dict(l=0, r=0, t=30, b=0), font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-    fig_curr.update_xaxes(showgrid=False)
-    fig_curr.update_yaxes(showgrid=True, gridcolor='#30363D')
-    fig_curr = make_plotly_cyberpunk(fig_curr)
-    st.plotly_chart(fig_curr, use_container_width=True)
 
 
 def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
@@ -2841,6 +2792,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
