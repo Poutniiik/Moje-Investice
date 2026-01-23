@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+import pandas as p
 import numpy as np                 # <--- Nové (pro korelace)
 import yfinance as yf              # <--- Nové (pro stahování dat)
 import plotly.express as px
