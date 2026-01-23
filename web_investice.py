@@ -662,41 +662,7 @@ def render_gamifikace_page(USER, level_name_money, level_progress_money, celk_ho
 
 
 
-# --- NOVÉ FUNKCE PRO ANALÝZU (Tabulky 6, 7, 8, 9) ---
 
-
-def render_analýza_korelace_page(df, kurzy):
-    """Vykreslí Matice Korelace (Tab8 Analýzy)."""
-    st.subheader("📊 MATICE KORELACE (Diversifikace)")
-    st.info("Jak moc se tvé akcie hýbou společně? Čím více 'modrá', tím lepší diverzifikace.")
-    
-    if not df.empty:
-        tickers_list = df['Ticker'].unique().tolist()
-        if len(tickers_list) > 1:
-            try:
-                with st.spinner("Počítám korelace..."):
-                    hist_data = yf.download(tickers_list, period="1y")['Close']
-                    returns = hist_data.pct_change().dropna()
-                    corr_matrix = returns.corr()
-                    
-                    fig_corr = px.imshow(corr_matrix, text_auto=".2f", aspect="auto", color_continuous_scale="RdBu_r", origin='lower')
-                    fig_corr.update_layout(template="plotly_dark", height=600, font_family="Roboto Mono", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-                    
-                    fig_corr = make_plotly_cyberpunk(fig_corr)
-                    st.plotly_chart(fig_corr, use_container_width=True)
-                    
-                    avg_corr = corr_matrix.values[np.triu_indices_from(corr_matrix.values, 1)].mean()
-                    st.metric("Průměrná korelace portfolia", f"{avg_corr:.2f}")
-                    
-                    if avg_corr > 0.7: st.error("⚠️ Vysoká korelace! Tvé akcie se hýbou stejně.")
-                    elif avg_corr < 0.3: st.success("✅ Nízká korelace! Dobrá diverzifikace.")
-                    else: st.warning("⚖️ Střední korelace. Portfolio je vyvážené.")
-            except Exception as e: 
-                st.error(f"Chyba při výpočtu korelace: {e}")
-        else: 
-            st.warning("Pro výpočet korelace potřebuješ alespoň 2 různé akcie.")
-    else: 
-        st.info("Portfolio je prázdné.")
 
 def render_analýza_měny_page(vdf, viz_data_list, kurzy, celk_hod_usd):
     """Vykreslí Měnový simulátor (Tab6 Analýzy)."""
@@ -2875,6 +2841,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
