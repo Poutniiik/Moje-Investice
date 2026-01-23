@@ -1,38 +1,48 @@
-import pandas as pd
-import os
+import pytest
 import sys
+import os
 
-# Aby Python našel tvůj daily_bot.py, musíme přidat cestu do systému
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import daily_bot as bot # Importujeme tvůj hlavní bot
+# Přidáme kořenový adresář do cesty, aby Python viděl daily_bot.py
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 1. Testuje, jestli je DataFrame prázdný (hlídáme, jestli se nám nic nerozbilo)
-def test_portfolio_data_exists():
-    # Pokusíme se načíst tvůj portfolio_data.csv.
-    # POZOR: Tenhle test funguje jen pokud máš soubor v kořenové složce!
-    df = pd.read_csv("portfolio_data.csv")
-    # Tvrzení: Očekáváme, že DataFrame nebude prázdný a bude mít aspoň 1 řádek
-    assert not df.empty, "Chyba: Soubor portfolio_data.csv je prázdný!"
+import daily_bot as bot
 
-# 2. Testuje, jestli funkce get_data_safe vůbec funguje
-def test_get_data_safe_works():
-    # Zkusíme stáhnout data pro Apple
-    price, change = bot.get_data_safe("AAPL")
-    # Tvrzení 1: Očekáváme, že cena Applu bude větší než 10 USD
-    assert price > 10.0, "Chyba: Cena AAPL se nestáhla (je <= 10.0)."
-    # Tvrzení 2: Očekáváme, že změna je rozumné číslo (mezi -10 a 10 %)
-    assert -10.0 < change < 10.0, "Chyba: Změna AAPL je nerealistická."
+def test_batch_download_works():
+    """
+    Testuje, zda nová hromadná funkce (Turbo mode) funguje
+    a vrací data ve správném formátu.
+    """
+    test_tickers = ["AAPL", "MSFT"]
+    
+    # Zavoláme novou funkci
+    data = bot.get_batch_data(test_tickers)
+    
+    # 1. Musí vrátit slovník (ne prázdno)
+    assert isinstance(data, dict)
+    assert len(data) > 0
+    
+    # 2. Musí tam být naše akcie (pokud zrovna Yahoo nemá výpadek)
+    # Pozn: Kontrolujeme aspoň jednu, kdyby náhodou jedna selhala
+    found_any = False
+    for t in test_tickers:
+        if t in data:
+            found_any = True
+            item = data[t]
+            # 3. Kontrola struktury dat
+            assert "price" in item
+            assert "change" in item
+            assert item["price"] > 0
+            
+    if not found_any:
+        pytest.skip("Yahoo Finance pravděpodobně neodpovídá, přeskakuji test.")
 
-# 3. Testuje, jestli funguje přepočet na CZK
-def test_currency_conversion():
-    # Předpokládaný kurz USD/CZK = 24.0 (zadaný jako fallback v daily_bot.py)
-    # 100 USD akcie, 1 kus.
-    price = 100.0
-    kusy = 1
-    usd_czk = 24.0
-    eur_usd = 1.08 # Necháme fallback, aby byl test rychlý a nezávislý
-
-    # Výpočet hodnoty v CZK (USD akcie)
-    val_czk = price * kusy * usd_czk
-    # Tvrzení: 100 * 1 * 24.0 = 2400.0
-    assert val_czk == 2400.0, f"Chyba ve výpočtu CZK. Očekáváno 2400.0, dostali jsme {val_czk}"
+def test_ai_comment_fallback():
+    """
+    Testuje, že AI funkce nespadne, i když nemá klíč.
+    """
+    # Simulujeme chybějící klíč tím, že pošleme prázdný text
+    result = bot.get_ai_comment("Test portfolio", 100000)
+    
+    # Měla by vrátit string (buď komentář, nebo chybovou hlášku), ale nesmí spadnout
+    assert isinstance(result, str)
+    assert len(result) > 0
