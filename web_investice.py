@@ -1,8 +1,6 @@
 import notification_engine as notify
 import engine_obchodu as engine
-import bank_engine as bank
 import engine_rpg as rpg
-import bank_engine
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -1812,7 +1810,7 @@ def main():
         
         # --- 1. NAVIGACE (POSUNUTO NAHORU PRO LEPŠÍ OVLÁDÁNÍ) ---
         # Na mobilu je lepší mít tlačítka hned po ruce
-        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení", "🧪 Banka"], label_visibility="collapsed")
+        page = st.radio("Jít na:", ["🏠 Přehled", "👀 Sledování", "📈 Analýza", "📰 Zprávy", "💸 Obchod", "💎 Dividendy", "🎮 Gamifikace", "⚙️ Nastavení"], label_visibility="collapsed")
         
         st.divider()
 
@@ -2800,67 +2798,43 @@ def main():
                         st.error("Chybí prostředky na zdrojovém účtu")
 
         # PRAVÝ SLOUPEC: BANKA + MANUÁLNÍ VKLAD (Upraveno)
+        # PRAVÝ SLOUPEC: POUZE MANUÁLNÍ BANKOMAT (Vyčištěno)
         with c_ex2:
-            with st.expander("🏧 BANKA & BANKOMAT", expanded=False):
+            with st.expander("🏧 BANKOMAT (Vklad/Výběr)", expanded=True):
                 
-                # A) BANKOVNÍ PROPOJENÍ
-                st.caption("🌐 Moje Banka (Plaid API)")
-                if st.button("🔄 Synchronizovat zůstatky", key="sync_bank", use_container_width=True):
-                    with st.spinner("Šifrované spojení..."):
-                        t_msg = bank.simulace_pripojeni()
-                        if "Chyba" in t_msg: st.error(t_msg)
-                        else:
-                            df_b = bank.stahni_zustatky(t_msg)
-                            if df_b is not None:
-                                st.session_state['bank_data'] = df_b
-                                st.toast("Data z banky stažena!", icon="✅")
-                            else: st.warning("Žádná data.")
+                # ZDE JSME SMAZALI CELOU ČÁST "A) BANKOVNÍ PROPOJENÍ" (Plaid)
                 
-                # Zobrazení dat z banky, pokud jsou načtena
-                if 'bank_data' in st.session_state:
-                    st.dataframe(st.session_state['bank_data'], use_container_width=True, hide_index=True)
-                    # Malý součet pro efekt
-                    celkem_banka = st.session_state['bank_data']['Zůstatek'].sum()
-                    mena_banka = st.session_state['bank_data'].iloc[0]['Měna']
-                    st.caption(f"Disponibilní v bance: **{celkem_banka:,.2f} {mena_banka}**")
-
-                st.divider()
-
-               # B) MANUÁLNÍ VKLAD/VÝBĚR
-                st.caption("📝 Manuální operace")
+                # ZŮSTALA POUZE ČÁST B) MANUÁLNÍ VKLAD/VÝBĚR
+                st.info("📝 Zde si můžeš ručně zapsat vklad nebo výběr peněz.")
+                
                 op = st.radio("Akce", ["Vklad", "Výběr"], horizontal=True, label_visibility="collapsed")
                 v_a = st.number_input("Částka", 0.0, step=500.0, key="v_a")
                 v_m = st.selectbox("Měna", ["CZK", "USD", "EUR"], key="v_m")
                 
                 if st.button(f"Provést {op}", use_container_width=True):
-                    # Výpočet znaménka (Vklad +, Výběr -)
-                    final_amount = v_a if op == "Vklad" else -v_a
-                    
+                    sign = 1 if op == "Vklad" else -1
+                    # Kontrola zůstatku při výběru
                     if op == "Výběr" and zustatky.get(v_m, 0) < v_a:
-                        st.error("Nedostatek prostředků na účtu")
+                        st.error("❌ Nedostatek prostředků na účtu!")
                     else:
-                        # VOLÁME ENGINE
-                        uspech, msg, nova_cash = engine.proved_pohyb_hotovosti_engine(
-                            final_amount, v_m, op, "Manual", USER, 
-                            st.session_state['df_cash'], 
-                            uloz_data_uzivatele, 
-                            SOUBOR_CASH
-                        )
+                        # Tady voláme funkci pohyb_penez, která je definovaná přímo v tomto souboru
+                        # (nemá nic společného s bank_engine)
+                        df_cash_new = pohyb_penez(v_a * sign, v_m, op, "Manual", USER, st.session_state['df_cash'])
                         
-                        if uspech:
-                            st.session_state['df_cash'] = nova_cash
-                            invalidate_data_core()
-                            st.success(msg)
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(msg)
-                            
-        # Historie transakcí
+                        # Uložení
+                        uloz_data_uzivatele(df_cash_new, USER, SOUBOR_CASH)
+                        st.session_state['df_cash'] = df_cash_new
+                        invalidate_data_core() # Refresh dat
+                        
+                        st.success(f"✅ {op} proveden!"); 
+                        time.sleep(1); 
+                        st.rerun()
+
+        # Historie transakcí (Zobrazíme pod bankomatem)
         if not df_cash.empty:
             st.divider()
-            st.caption("Poslední pohyby na účtu")
-            st.dataframe(df_cash.sort_values('Datum', ascending=False).head(3), use_container_width=True, hide_index=True)
+            st.caption("📜 Poslední pohyby na účtu")
+            st.dataframe(df_cash.sort_values('Datum', ascending=False).head(5), use_container_width=True, hide_index=True)
 
     # --- TADY ZAČÍNAJÍ DALŠÍ STRÁNKY (Musí být na stejné úrovni jako elif page == "💸 Obchod") ---
     elif page == "💎 Dividendy":
@@ -2943,9 +2917,6 @@ def main():
             else:
                 st.error(f"Chyba: {msg}. Zkontroluj TELEGRAM_BOT_TOKEN.")
                 
-    # --- BANKOVNÍ TESTER (Stránka) ---
-    elif page == "🧪 Banka":
-        render_bank_lab_page()
 
 # =========================================================================
     # 🤖 PLOVOUCÍ AI ASISTENT (FINÁLNÍ VERZE S OŠETŘENÍM LIMITŮ)
@@ -3111,4 +3082,5 @@ def render_bank_lab_page():
                 
 if __name__ == "__main__":
     main()
+
 
