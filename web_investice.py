@@ -53,6 +53,8 @@ from engine_rpg import RPG_TASKS, get_task_progress
 # --- NOVINKA: INTEGRACE HLASOVÉHO ASISTENTA ---
 from voice_engine import VoiceAssistant
 
+from ui_pages import render_analýza_rentgen_page
+
 # --- KONFIGURACE ---
 # Důležité: set_page_config MUSÍ být voláno jako první Streamlit příkaz
 st.set_page_config(
@@ -2915,6 +2917,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
