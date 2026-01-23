@@ -666,114 +666,7 @@ def render_gamifikace_page(USER, level_name_money, level_progress_money, celk_ho
 
 
 
-def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
-    """Vykreslí Kalendář výsledků (Tab9 Analýzy)."""
-    st.subheader("📅 KALENDÁŘ VÝSLEDKŮ (Earnings)")
-    st.info("Termíny zveřejňování hospodářských výsledků tvých firem. Očekávej volatilitu!")
 
-    all_my_tickers = []
-    if not df.empty:
-        all_my_tickers.extend(df['Ticker'].unique().tolist())
-    if not df_watch.empty:
-        all_my_tickers.extend(df_watch['Ticker'].unique().tolist())
-    all_my_tickers = list(set(all_my_tickers))
-
-    if all_my_tickers:
-        earnings_data = []
-        with st.spinner(f"Skenuji kalendáře pro {len(all_my_tickers)} firem..."):
-            prog_bar = st.progress(0)
-            for i, tk in enumerate(all_my_tickers):
-                try:
-                    e_date = ziskej_earnings_datum(tk)
-                    if e_date:
-                        if hasattr(e_date, 'date'):
-                            e_date_norm = datetime.combine(e_date, datetime.min.time())
-                        else:
-                            e_date_norm = pd.to_datetime(e_date).to_pydatetime()
-
-                        days_left = (e_date_norm - datetime.now()).days
-
-                        status = "V budoucnu"
-                        color_icon = "⚪️"
-
-                        if 0 <= days_left <= 7:
-                            status = f"🔥 POZOR! Za {days_left} dní"
-                            color_icon = "🔴"
-                            st.toast(f"⚠️ {tk} má výsledky za {days_left} dní!", icon="📢")
-                        elif 7 < days_left <= 30:
-                            status = f"Blíží se (za {days_left} dní)"
-                            color_icon = "🟡"
-                        elif days_left < 0:
-                            status = "Již proběhlo"
-                            color_icon = "🟢"
-                        else:
-                            status = f"Za {days_left} dní"
-                            color_icon = "🟢"
-
-                        if days_left > -7:
-                            earnings_data.append({
-                                "Symbol": tk,
-                                "Datum": e_date_norm.strftime("%d.%m.%Y"),
-                                "Dní do akce": days_left,
-                                "Status": status,
-                                "Ikona": color_icon
-                            })
-                except Exception:
-                    pass
-                try:
-                    prog_bar.progress((i + 1) / len(all_my_tickers))
-                except Exception:
-                    pass
-            prog_bar.empty()
-
-        if earnings_data:
-            df_cal = pd.DataFrame(earnings_data).sort_values('Dní do akce')
-            try:
-                st.dataframe(
-                    df_cal,
-                    column_config={
-                        "Ikona": st.column_config.TextColumn("Riziko", width="small"),
-                        "Dní do akce": st.column_config.NumberColumn("Odpočet (dny)", format="%d")
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
-            except Exception:
-                st.dataframe(df_cal, use_container_width=True)
-
-            try:
-                df_future = df_cal[df_cal['Dní do akce'] >= 0].copy()
-                if not df_future.empty:
-                    df_future['Datum_ISO'] = pd.to_datetime(df_future['Datum'], format="%d.%m.%Y")
-                    fig_timeline = px.scatter(
-                        df_future,
-                        x="Datum_ISO",
-                        y="Symbol",
-                        color="Dní do akce",
-                        color_continuous_scale="RdYlGn_r",
-                        size=[20] * len(df_future),
-                        title="Časová osa výsledkové sezóny",
-                        template="plotly_dark"
-                    )
-                    fig_timeline.update_layout(
-                        height=300,
-                        xaxis_title="Datum",
-                        yaxis_title="",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        font_family="Roboto Mono"
-                    )
-                    try:
-                        fig_timeline = make_plotly_cyberpunk(fig_timeline)
-                    except Exception:
-                        pass
-                    st.plotly_chart(fig_timeline, use_container_width=True)
-            except Exception as e:
-                st.error(f"Chyba timeline: {e}")
-        else:
-            st.info("Žádná data o výsledcích nebyla nalezena (nebo jsou příliš daleko).")
-    else:
-        st.warning("Nemáš žádné akcie v portfoliu ani ve sledování.")
 
 
 def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
@@ -2792,6 +2685,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
