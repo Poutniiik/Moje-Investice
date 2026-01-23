@@ -2360,26 +2360,23 @@ def main():
                 to = st.selectbox("Do", ["USD", "CZK", "EUR"], key="s_do")
                 
                 if st.button("💱 Směnit", use_container_width=True):
+    # 1. Kontrola peněz na účtu
                     if zustatky.get(fr, 0) >= am:
-                        # VOLÁME ENGINE
-                        ok, msg, nova_cash = engine.proved_smenu_engine(
-                            am, fr, to, USER, 
-                            st.session_state['df_cash'], 
-                            kurzy, 
-                            uloz_data_uzivatele, 
-                            SOUBOR_CASH
-                        )
-                        
-                        if ok:
-                            st.session_state['df_cash'] = nova_cash
-                            invalidate_data_core()
-                            st.success(msg)
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(msg)
+        
+        # 2. Volání nové funkce (Stačí jí jen to nejdůležitější!)
+                    ok, msg = proved_smenu(am, fr, to, USER) 
+        
+                    if ok:
+            # Nemusíš ručně nastavovat session_state['df_cash'], 
+            # motor to udělal za tebe. Stačí jen invalidovat cache a refresh.
+                        invalidate_data_core()
+                        st.success(msg)
+                        time.sleep(1)
+                        st.rerun()
                     else:
-                        st.error("Chybí prostředky na zdrojovém účtu")
+                        st.error(msg)
+                else:
+                    st.error("Chybí prostředky na zdrojovém účtu")
 
         # PRAVÝ SLOUPEC: BANKA + MANUÁLNÍ VKLAD (Upraveno)
         # PRAVÝ SLOUPEC: POUZE MANUÁLNÍ BANKOMAT (Vyčištěno)
@@ -2560,15 +2557,3 @@ def main():
                 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
