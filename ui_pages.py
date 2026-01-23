@@ -1,8 +1,17 @@
 import streamlit as st
 import pandas as pd
+import numpy as np                 # <--- Nové (pro korelace)
+import yfinance as yf              # <--- Nové (pro stahování dat)
 import plotly.express as px
 import plotly.graph_objects as go
-from utils import ziskej_detail_akcie, make_plotly_cyberpunk
+from datetime import datetime, timedelta  # <--- Nové (pro kalendář)
+from utils import (
+    ziskej_detail_akcie, 
+    make_plotly_cyberpunk, 
+    ziskej_earnings_datum        # <--- Nové (pro kalendář)
+)
+
+# ... pod tím už je tvoje funkce render_analýza_rentgen_page ...
 
 def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
     """Vykreslí kartu Rentgen (Tab 1 Analýzy) - FINAL VERZE"""
