@@ -53,6 +53,8 @@ from engine_rpg import RPG_TASKS, get_task_progress
 # --- NOVINKA: INTEGRACE HLASOVÉHO ASISTENTA ---
 from voice_engine import VoiceAssistant
 
+from engine_obchodu import proved_nakup, proved_prodej, proved_smenu, pohyb_penez
+
 from ui_pages import (
     render_analýza_rentgen_page,
     render_analýza_rebalancing_page,
@@ -186,13 +188,7 @@ def get_zustatky(user):
     return df_cash.groupby('Mena')['Castka'].sum().to_dict()
 
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ ---
-def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
-    """
-    Provede pohyb peněz a vrátí upravený DataFrame.
-    """
-    novy = pd.DataFrame([{"Typ": typ, "Castka": float(castka), "Mena": mena, "Poznamka": poznamka, "Datum": datetime.now(), "Owner": user}])
-    df_cash_temp = pd.concat([df_cash_temp, novy], ignore_index=True)
-    return df_cash_temp
+
 
 
 def pridat_dividendu(ticker, castka, mena, user):
@@ -2564,6 +2560,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
