@@ -10,34 +10,28 @@ import google.generativeai as genai
 import matplotlib
 import matplotlib.pyplot as plt
 from io import StringIO
-from github import Github  # Přidáno pro cloudovou synchronizaci
+from github import Github
 
 # Nastavíme backend pro servery bez monitoru
 matplotlib.use('Agg')
 
-# --- KONFIGURACE A TAJEMSTVÍ ---
-# ZMĚNA: Sjednoceno na TELEGRAM_BOT_TOKEN (aby to ladilo s YAML a ostatními)
+# --- KONFIGURACE ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") # Nové: Pro stahování dat z repozitáře
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 
 # --- NASTAVENÍ VLASTNÍKA ---
 TARGET_OWNER = 'Attis' 
-REPO_NAZEV = "Poutniiik/Moje-Investice" # Zde doplň svůj přesný název repozitáře!
+REPO_NAZEV = "Poutniiik/Moje-Investice"
 
-# --- FUNKCE PRO GITHUB (Cloud Sync) ---
+# --- FUNKCE PRO GITHUB ---
 def download_csv_from_github(filename):
-    """
-    Stáhne aktuální CSV data přímo z GitHubu.
-    To zajistí, že bot má vždy čerstvá data, i když běží v cloudu.
-    """
+    """Stáhne aktuální CSV data přímo z GitHubu."""
     if not GITHUB_TOKEN:
         print("⚠️ GITHUB_TOKEN chybí. Zkouším číst lokální soubor.")
-        if os.path.exists(filename):
-            return pd.read_csv(filename)
-        else:
-            return None
+        if os.path.exists(filename): return pd.read_csv(filename)
+        return None
 
     try:
         g = Github(GITHUB_TOKEN)
@@ -47,17 +41,13 @@ def download_csv_from_github(filename):
         return pd.read_csv(StringIO(csv_data))
     except Exception as e:
         print(f"❌ Chyba stahování z GitHubu ({filename}): {e}")
-        # Fallback na lokální soubor
-        if os.path.exists(filename):
-            print("🔄 Používám lokální zálohu.")
-            return pd.read_csv(filename)
+        if os.path.exists(filename): return pd.read_csv(filename)
         return None
 
 # --- TELEGRAM FUNKCE ---
 def send_telegram(message):
-    # ZMĚNA: Používáme sjednocený TELEGRAM_BOT_TOKEN
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: 
-        print("❌ Chybí TELEGRAM_BOT_TOKEN nebo CHAT_ID.")
+        print("❌ Chybí TELEGRAM tokeny.")
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
@@ -66,342 +56,230 @@ def send_telegram(message):
     except Exception as e:
         print(f"❌ Chyba Telegram: {e}")
 
-def log_error(error_msg):
-    """Zapíše chybu do error_log.csv s časovou známkou."""
-    try:
-        filename = "error_log.csv"
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_data = pd.DataFrame([{"Timestamp": now, "Error": str(error_msg)}])
-        
-        if not os.path.exists(filename):
-            error_data.to_csv(filename, index=False)
-        else:
-            error_data.to_csv(filename, mode='a', header=False, index=False)
-        print(f"📝 Chyba zapsána do logu: {error_msg}")
-    except:
-        pass # Logování nesmí nikdy shodit hlavního bota
-
 def send_telegram_photo(photo_path):
-    # ZMĚNA: Používáme sjednocený TELEGRAM_BOT_TOKEN
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
     try:
         with open(photo_path, 'rb') as photo:
             requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID}, files={"photo": photo})
-        print("📸 Telegram (graf) odeslán.")
+        print("📸 Graf odeslán.")
     except Exception as e:
         print(f"❌ Chyba Telegram Foto: {e}")
 
-def create_chart(df_hist):
-    """Vytvoří graf z historie (DataFrame)."""
-    try:
-        if df_hist is None or df_hist.empty: return None
-        
-        # Filtrujeme podle vlastníka
-        if 'Owner' in df_hist.columns:
-            df = df_hist[df_hist['Owner'] == TARGET_OWNER].copy()
-        else:
-            df = df_hist.copy()
-            
-        if len(df) < 2: return None
-
-        # Formátování data
-        df['Date'] = pd.to_datetime(df['Date'], format='mixed')
-        df = df.sort_values(by='Date')
-
-        plt.figure(figsize=(10, 5))
-        # Stylování grafu do tmava (Cyberpunk light)
-        plt.style.use('dark_background')
-        plt.plot(df['Date'], df['TotalUSD'], marker='o', linestyle='-', color='#00FF99', linewidth=2)
-        plt.title(f"Vývoj hodnoty portfolia (USD) - {TARGET_OWNER}", fontsize=14, color='white')
-        plt.grid(True, which='both', linestyle='--', alpha=0.3)
-        plt.tight_layout()
-        
-        filename = "chart.png"
-        plt.savefig(filename, facecolor='#0E1117')
-        plt.close()
-        print("🎨 Graf vytvořen.")
-        return filename
-    except Exception as e:
-        print(f"⚠️ Chyba při tvorbě grafu: {e}")
-        return None
-
-def get_ai_comment(portfolio_text, total_val, change_today):
+# --- AI KOMENTÁŘ ---
+def get_ai_comment(portfolio_text, total_val):
     if not GEMINI_API_KEY: return "AI klíč nenalezen."
     
     personas = [
-        "Jsi sarkastický robot, který si dělá legraci z lidských peněz.",
-        "Jsi nadšený fotbalový komentátor, který komentuje vývoj akcií jako napínavý zápas.",
-        "Jsi moudrý mistr Yoda. Mluvíš v hádankách a obracíš slovosled.",
-        "Jsi pirát, který hlídá svůj poklad. Používej pirátský slang.",
-        "Jsi velmi formální britský komorník."
+        "Jsi sarkastický robot.", "Jsi nadšený fotbalový komentátor.", 
+        "Jsi mistr Yoda.", "Jsi pirát.", "Jsi britský komorník."
     ]
-    selected_persona = random.choice(personas)
-
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-2.5-flash') 
         prompt = (
-            f"{selected_persona}\n"
-            f"Zhodnoť stručně (max 3 věty) dnešní stav portfolia pro investora jménem {TARGET_OWNER}.\n"
+            f"{random.choice(personas)}\n"
+            f"Zhodnoť stručně (max 3 věty) dnešní stav portfolia pro investora {TARGET_OWNER}.\n"
             f"Celková hodnota: {total_val:,.0f} CZK.\n"
-            f"Dnešní pohyby akcií:\n{portfolio_text}\n"
+            f"Vývoj akcií:\n{portfolio_text}\n"
             f"Nepoužívej formátování textu."
         )
         response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
-        log_error(f"AI Error: {e}") # TADY TO POUŽIJEME
-        print(f"❌ Chyba AI: {e}")
-        return "Dnes nemám slov."
+        return f"AI mlčí ({e})."
 
-def get_data_safe(ticker):
+# --- TURBO STAHOVÁNÍ DAT (BATCH) 🚀 ---
+def get_batch_data(tickers):
+    """Stáhne data pro všechny tickery najednou."""
+    print(f"🚀 Stahuji data pro {len(tickers)} tickerů...")
+    data = {}
+    
+    # Přidáme měny a indexy, pokud tam nejsou
+    all_tickers = list(set(tickers + ["CZK=X", "EURUSD=X", "^GSPC"]))
+    
     try:
-        t = yf.Ticker(ticker)
-        # Fast info je rychlejší a méně náchylné na limity
-        price = t.fast_info.last_price
-        prev_close = t.fast_info.previous_close
+        # Hromadné stažení (To je to zrychlení!)
+        batch = yf.download(all_tickers, period="2d", group_by='ticker', progress=False)
         
-        if price and prev_close:
-            change = ((price - prev_close) / prev_close) * 100
-            return float(price), float(change)
-            
-    except Exception as e:
-        log_error(f"Ticker Error {ticker}: {e}") # TADY TAKY
-        print(f"   ⚠️ Chyba {ticker}: {e}")
-        # Fallback na historii (pomalejší)
-        try:
-            hist = t.history(period="2d")
-            if len(hist) >= 1:
-                price = float(hist['Close'].iloc[-1])
-                change = 0.0
-                if len(hist) >= 2:
-                    prev = float(hist['Close'].iloc[-2])
-                    change = ((price - prev) / prev) * 100
-                return price, change
-        except: pass
-        
-    return 0.0, 0.0
+        for t in all_tickers:
+            price = 0.0
+            change = 0.0
+            try:
+                # Zkusíme vytáhnout data z batche
+                # yfinance vrací MultiIndex, musíme se v tom vyznat
+                if len(all_tickers) > 1:
+                    if t in batch.columns.levels[0]:
+                        hist = batch[t]['Close'].dropna()
+                else:
+                    hist = batch['Close'].dropna()
 
-def save_history(total_usd):
-    """
-    Uloží historii. Pokud je GITHUB_TOKEN, měl by ideálně commitnout zpět,
-    ale pro jednoduchost zatím ukládáme lokálně (pro graf v tomto běhu).
-    """
+                if not hist.empty:
+                    price = float(hist.iloc[-1])
+                    if len(hist) >= 2:
+                        prev = float(hist.iloc[-2])
+                        change = ((price - prev) / prev) * 100
+            except: pass
+            
+            # Fallback (pokud batch selhal pro konkrétní ticker)
+            if price == 0:
+                try:
+                    t_obj = yf.Ticker(t)
+                    price = float(t_obj.fast_info.last_price)
+                    change = 0.0
+                except: pass
+            
+            if price > 0:
+                data[t] = {"price": price, "change": change}
+                
+    except Exception as e:
+        print(f"⚠️ Chyba batch download: {e}")
+        
+    return data
+
+# --- VÝPOČET A HISTORIE ---
+def save_history_local(total_usd):
+    """Uloží historii lokálně pro graf."""
+    filename = "value_history.csv"
+    df_hist = download_csv_from_github(filename)
+    if df_hist is None: df_hist = pd.DataFrame(columns=["Date", "TotalUSD", "Owner"])
+    
+    new_row = pd.DataFrame([{"Date": datetime.datetime.now().strftime("%Y-%m-%d"), "TotalUSD": total_usd, "Owner": TARGET_OWNER}])
+    df_hist = pd.concat([df_hist, new_row], ignore_index=True)
+    df_hist.to_csv(filename, index=False)
+    return df_hist
+
+def create_chart(df_hist):
     try:
-        filename = "value_history.csv"
-        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        if df_hist is None or df_hist.empty: return None
+        df = df_hist[df_hist['Owner'] == TARGET_OWNER].copy()
+        if len(df) < 2: return None
         
-        # Načteme existující (z GitHubu nebo lokálně)
-        df_hist = download_csv_from_github(filename)
-        
-        if df_hist is None:
-            df_hist = pd.DataFrame(columns=["Date", "TotalUSD", "Owner"])
-            
-        # Přidáme nový řádek
-        new_row = pd.DataFrame([{"Date": today, "TotalUSD": total_usd, "Owner": TARGET_OWNER}])
-        df_hist = pd.concat([df_hist, new_row], ignore_index=True)
-        
-        # Lokální uložení pro tento běh (aby z toho šel udělat graf)
-        df_hist.to_csv(filename, index=False)
-        print("💾 Historie aktualizována (lokálně).")
-        return df_hist
-    except Exception as e:
-        print(f"❌ Chyba historie: {e}")
-        return None
+        df['Date'] = pd.to_datetime(df['Date'], format='mixed')
+        df = df.sort_values('Date')
 
-# --- NOVINKA: CACHE WARMER 🚀 ---
-def save_market_cache(prices_dict, usd_czk, eur_usd):
-    """
-    Uloží stažené ceny do JSON souboru, který pak využije hlavní aplikace pro bleskový start.
-    """
-    cache_data = {
+        plt.figure(figsize=(10, 5))
+        plt.style.use('dark_background')
+        plt.plot(df['Date'], df['TotalUSD'], color='#00FF99', linewidth=2)
+        plt.title(f"Vývoj portfolia (USD)", color='white')
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig("chart.png", facecolor='#0E1117')
+        plt.close()
+        return "chart.png"
+    except: return None
+
+# --- CACHE WARMER ---
+def save_market_cache(market_data):
+    """Uloží JSON pro rychlý start webu."""
+    cache = {
         "timestamp": time.time(),
         "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "usd_czk": usd_czk,
-        "eur_usd": eur_usd,
-        "prices": prices_dict # Slovník {Ticker: {price: 100, change: 1.5}}
+        "usd_czk": market_data.get("CZK=X", {}).get("price", 24.0),
+        "eur_usd": market_data.get("EURUSD=X", {}).get("price", 1.08),
+        "prices": market_data
     }
-    
-    try:
-        with open("market_cache.json", "w") as f:
-            json.dump(cache_data, f)
-        print("🚀 Market Cache uložena (Turbo mode enabled).")
-    except Exception as e:
-        print(f"⚠️ Chyba ukládání cache: {e}")
+    with open("market_cache.json", "w") as f:
+        json.dump(cache, f)
+    print("💾 Cache uložena.")
 
-# --- NOVINKA: TIME MACHINE (ZÁLOHY) 🛡️ ---
-def perform_backup(df_portfolio, df_history):
-    """
-    Jednou týdně (v Neděli) vytvoří záložní kopii dat do složky 'backups'.
-    """
-    # 6 = Neděle (0 = Pondělí)
-    if datetime.datetime.now().weekday() == 6:
-        print("🛡️ Neděle -> Spouštím Time Machine (Zálohování)...")
-        backup_dir = "backups"
-        
-        # Vytvoříme složku, pokud neexistuje
-        if not os.path.exists(backup_dir):
-            os.makedirs(backup_dir)
-            
-        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-        
-        # Záloha portfolia
-        if df_portfolio is not None and not df_portfolio.empty:
-            p_name = f"{backup_dir}/portfolio_data_{date_str}.csv"
-            df_portfolio.to_csv(p_name, index=False)
-            print(f"📦 Záloha vytvořena: {p_name}")
-            
-        # Záloha historie
-        if df_history is not None and not df_history.empty:
-            h_name = f"{backup_dir}/value_history_{date_str}.csv"
-            df_history.to_csv(h_name, index=False)
-            print(f"📦 Záloha vytvořena: {h_name}")
-    else:
-        print("📅 Dnes není neděle, zálohu přeskakuji.")
+# --- ZÁLOHOVÁNÍ (TIME MACHINE) ---
+def perform_backup(df_p, df_h):
+    if datetime.datetime.now().weekday() == 6: # Neděle
+        if not os.path.exists("backups"): os.makedirs("backups")
+        d = datetime.datetime.now().strftime("%Y-%m-%d")
+        if df_p is not None: df_p.to_csv(f"backups/portfolio_{d}.csv", index=False)
+        if df_h is not None: df_h.to_csv(f"backups/history_{d}.csv", index=False)
+        print("📦 Záloha vytvořena.")
 
+# --- MAIN ---
 def main():
-    print("🧠 ROBOT 'AI ANALYTIK' STARTUJE...")
-
-    # 1. Načtení portfolia (z GitHubu nebo lokálně)
-    # Stahujeme CELÉ portfolio pro zálohu, filtrovat budeme až pak
-    df_full_portfolio = download_csv_from_github("portfolio_data.csv")
+    print("🚀 TURBO BOT STARTUJE...")
     
-    if df_full_portfolio is None or df_full_portfolio.empty:
-        print(f"❌ Kritická chyba: Nelze načíst portfolio data.")
-        return
-
-    # Filtr vlastníka pro výpočty
-    df = df_full_portfolio.copy()
-    if 'Owner' in df.columns:
-         df = df[df['Owner'] == TARGET_OWNER]
+    # 1. Načtení portfolia
+    df = download_csv_from_github("portfolio_data.csv")
+    if df is None or df.empty: return
     
-    if df.empty:
-        print(f"Žádná data pro uživatele {TARGET_OWNER}.")
-        return
-
-    # Seskupení
-    df['Ticker'] = df['Ticker'].astype(str).str.strip().str.upper()
-    df['Pocet'] = pd.to_numeric(df['Pocet'], errors='coerce').fillna(0)
-    df = df.groupby('Ticker', as_index=False)['Pocet'].sum()
-
-    # 2. Kurzy měn
-    usd_czk, _ = get_data_safe("CZK=X")
-    if usd_czk == 0: usd_czk = 24.0 # Fallback
-    eur_usd, _ = get_data_safe("EURUSD=X")
-    if eur_usd == 0: eur_usd = 1.08 # Fallback
-
-    # S&P 500
-    sp500_price, sp500_change = get_data_safe("^GSPC")
-    print(f"🌎 Trh (S&P 500) změna: {sp500_change:+.2f}%")
-
-    # 3. Akcie + Výpočty + Cache Building
-    portfolio_items = []
-    prices_cache = {} # Data pro JSON
+    # Filtrování
+    my_df = df[df['Owner'] == TARGET_OWNER].copy()
+    if my_df.empty: return
     
-    total_val_czk = 0
-    weighted_sum_change = 0 
-    total_val_usd = 0 # Pro historii
+    # Seznam tickerů
+    my_df['Ticker'] = my_df['Ticker'].str.strip().str.upper()
+    tickers = my_df['Ticker'].unique().tolist()
     
-    ai_text_input = "" 
-
-    print("--- Stahuji data ---")
-    for index, row in df.iterrows():
-        ticker = row['Ticker']
-        kusy = row['Pocet']
-        
+    # 2. STAHUJEME DATA (VŠE NARÁZ)
+    market_data = get_batch_data(tickers)
+    
+    # 3. Výpočty
+    total_czk = 0
+    total_usd = 0
+    port_text = ""
+    
+    usd_czk = market_data.get("CZK=X", {}).get("price", 24.0)
+    eur_usd = market_data.get("EURUSD=X", {}).get("price", 1.08)
+    sp500_change = market_data.get("^GSPC", {}).get("change", 0.0)
+    
+    # Agregace portfolia
+    grouped = my_df.groupby('Ticker')['Pocet'].sum()
+    
+    weighted_change = 0
+    
+    for t, kusy in grouped.items():
         if kusy <= 0: continue
-
-        price, change = get_data_safe(ticker)
+        info = market_data.get(t, {"price": 0, "change": 0})
+        p = info['price']
+        ch = info['change']
         
-        if price > 0:
-            # Uložení do cache
-            prices_cache[ticker] = {"price": price, "change": change}
-            
-            # Konverze měn (Tvoje originální logika)
-            val_czk = 0
+        if p > 0:
             val_usd = 0
+            val_czk = 0
             
-            if ticker.endswith(".PR"): 
-                val_czk = price * kusy
+            # Měny
+            if t.endswith(".PR"): # CZK
+                val_czk = p * kusy
                 val_usd = val_czk / usd_czk
-            elif ticker.endswith(".DE"): 
-                val_czk = price * kusy * eur_usd * usd_czk
-                val_usd = price * kusy * eur_usd
-            else: 
-                val_czk = price * kusy * usd_czk
-                val_usd = price * kusy
+            elif t.endswith(".DE"): # EUR
+                val_usd = p * kusy * eur_usd
+                val_czk = val_usd * usd_czk
+            else: # USD
+                val_usd = p * kusy
+                val_czk = val_usd * usd_czk
+                
+            total_czk += val_czk
+            total_usd += val_usd
+            weighted_change += val_czk * ch
             
-            total_val_czk += val_czk
-            total_val_usd += val_usd
-            weighted_sum_change += val_czk * change
-            
-            portfolio_items.append({"ticker": ticker, "value_czk": val_czk, "change": change})
-            print(f"✅ {ticker}: {change:+.2f}%")
-            ai_text_input += f"{ticker}: {change:+.1f}%\n"
+            port_text += f"{t}: {ch:+.1f}%\n"
 
-    # --- ULOŽENÍ TURBO CACHE ---
-    save_market_cache(prices_cache, usd_czk, eur_usd)
-
-    # --- VÝPOČET VÝKONU ---
-    my_portfolio_change = 0.0
-    if total_val_czk > 0:
-        my_portfolio_change = weighted_sum_change / total_val_czk
-
-    # 4. Historie
-    df_hist_new = save_history(total_val_usd)
+    # Uložení cache pro web
+    save_market_cache(market_data)
     
-    # --- ZÁLOHA (TIME MACHINE) ---
-    # Posíláme tam kompletní data (nejen filtrovaná), aby se zálohovalo vše
-    perform_backup(df_full_portfolio, df_hist_new)
+    # Výpočet výkonu
+    my_perf = (weighted_change / total_czk) if total_czk > 0 else 0
     
-    # 5. AI ANALÝZA
-    print("🤖 Ptám se AI na názor...")
-    ai_comment = get_ai_comment(ai_text_input, total_val_czk, 0)
-    print(f"💡 AI říká: {ai_comment}")
+    # 4. Uložení historie & Záloha
+    df_hist_new = save_history_local(total_usd)
+    perform_backup(df, df_hist_new)
     
-    # 6. Telegram
-    market_icon = "🟢" if sp500_change >= 0 else "🔴"
-    my_icon = "🟢" if my_portfolio_change >= 0 else "🔴"
+    # 5. Report
+    ai_msg = get_ai_comment(port_text, total_czk)
     
-    diff = my_portfolio_change - sp500_change
-    if diff > 0:
-        battle_result = f"🏆 <b>Porazil jsi trh o {diff:.1f}%!</b>"
-    else:
-        battle_result = f"🐢 <b>Trh byl dnes rychlejší o {abs(diff):.1f}%.</b>"
-
-    sorted_items = sorted(portfolio_items, key=lambda x: x['change'], reverse=True)
+    icon = "🟢" if my_perf >= 0 else "🔴"
+    msg = (
+        f"<b>📊 RANNÍ UPDATE ({TARGET_OWNER})</b>\n"
+        f"📅 {datetime.datetime.now().strftime('%d.%m.')}\n"
+        f"----------------\n"
+        f"💰 <b>{total_czk:,.0f} Kč</b>\n"
+        f"{icon} Tvůj výkon: <b>{my_perf:+.2f}%</b>\n"
+        f"🌎 S&P 500: <b>{sp500_change:+.2f}%</b>\n\n"
+        f"💡 <b>AI Komentář:</b>\n<i>{ai_msg}</i>"
+    )
     
-    msg = f"<b>📊 DENNÍ UPDATE ({TARGET_OWNER})</b>\n📅 {datetime.datetime.now().strftime('%d.%m.%Y')}\n"
-    msg += f"----------------\n"
-    msg += f"🤑 <b>CELKEM: {total_val_czk:,.0f} Kč</b>\n"
-    msg += f"{my_icon} Tvůj výkon: <b>{my_portfolio_change:+.2f}%</b>\n"
-    msg += f"{market_icon} S&P 500: <b>{sp500_change:+.2f}%</b>\n"
-    msg += f"{battle_result}\n\n"
-    msg += f"💵 Kurz USD: {usd_czk:.2f} Kč\n\n"
-    
-    msg += "<b>📋 Detail:</b>\n"
-    if len(sorted_items) > 8:
-        for item in sorted_items[:3]:
-            msg += f"🟢 <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
-        msg += "...\n"
-        for item in sorted_items[-3:]:
-            msg += f"🔴 <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
-    else:
-        for item in sorted_items:
-            icon = "🟢" if item['change'] >= 0 else "🔴"
-            msg += f"{icon} <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
-    
-    msg += f"\n💡 <b>AI Komentář:</b>\n<i>{ai_comment}</i>"
-
     send_telegram(msg)
-
-    # 7. Graf
-    chart_file = create_chart(df_hist_new)
-    if chart_file:
-        send_telegram_photo(chart_file)
-    else:
-        print("⚠️ Graf nelze vytvořit.")
+    
+    img = create_chart(df_hist_new)
+    if img: send_telegram_photo(img)
 
 if __name__ == "__main__":
     main()
