@@ -131,3 +131,46 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 
                 except Exception as e: st.error(f"Chyba zobrazení rentgenu: {e}")
             else: st.error("Nepodařilo se načíst data o firmě.")
+
+def render_analýza_rebalancing_page(df, vdf, kurzy):
+    """Vykreslí Rebalanční kalkulačku (Tab7 Analýzy)."""
+    st.subheader("⚖️ REBALANČNÍ KALKULAČKA")
+    if not vdf.empty:
+        df_reb = vdf.groupby('Sektor')['HodnotaUSD'].sum().reset_index()
+        total_val = df_reb['HodnotaUSD'].sum()
+        st.write("Nastav cílové váhy pro sektory:")
+        
+        # Abychom se vyhnuli problémům s klíči, musíme zajistit, že klíče jsou konzistentní
+        targets = {}; 
+        cols = st.columns(3)
+        for i, row in df_reb.iterrows():
+            current_pct = (row['HodnotaUSD'] / total_val) * 100
+            # Využití klíčů Session State pro uchování hodnoty slideru
+            key = f"reb_{row['Sektor']}"
+            with cols[i % 3]:
+                targets[row['Sektor']] = st.number_input(
+                    f"{row['Sektor']} (%)", 
+                    min_value=0.0, 
+                    max_value=100.0, 
+                    value=float(round(current_pct, 1)), 
+                    step=1.0, 
+                    key=key
+                )
+        
+        total_target = sum(targets.values())
+        if abs(total_target - 100) > 0.1: st.warning(f"⚠️ Součet cílů je {total_target:.1f}%. Měl by být 100%.")
+        
+        df_reb['Cíl %'] = df_reb['Sektor'].map(targets)
+        df_reb['Cílová Hodnota'] = total_val * (df_reb['Cíl %'] / 100)
+        df_reb['Rozdíl'] = df_reb['Cílová Hodnota'] - df_reb['HodnotaUSD']
+        
+        st.divider(); st.subheader("🛠️ Návrh akcí")
+        for _, r in df_reb.iterrows():
+            diff = r['Rozdíl']
+            if abs(diff) > 1:
+                if diff > 0: st.success(f"🟢 **{r['Sektor']}**: DOKOUPIT za {diff:,.0f} USD")
+                else: st.error(f"🔴 **{r['Sektor']}**: PRODAT za {abs(diff):,.0f} USD")
+        
+        st.dataframe(df_reb.style.format({"HodnotaUSD": "{:,.0f}", "Cílová Hodnota": "{:,.0f}", "Rozdíl": "{:+,.0f}"}))
+    else: 
+        st.info("Portfolio je prázdné.")
