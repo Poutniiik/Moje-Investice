@@ -2359,16 +2359,16 @@ def main():
                 fr = st.selectbox("Z", ["CZK", "USD", "EUR"], key="s_z")
                 to = st.selectbox("Do", ["USD", "CZK", "EUR"], key="s_do")
                 
-                if st.button("💱 Směnit", use_container_width=True):
-    # 1. Kontrola peněz na účtu
-                    if zustatky.get(fr, 0) >= am:
+            if st.button("💱 Směnit", use_container_width=True):
+                # 1. Kontrola peněz na účtu
+                if zustatky.get(fr, 0) >= am:
         
-        # 2. Volání nové funkce (Stačí jí jen to nejdůležitější!)
+                    # 2. Volání nové funkce (Stačí jí jen to nejdůležitější!)
                     ok, msg = proved_smenu(am, fr, to, USER) 
         
                     if ok:
-            # Nemusíš ručně nastavovat session_state['df_cash'], 
-            # motor to udělal za tebe. Stačí jen invalidovat cache a refresh.
+                        # Nemusíš ručně nastavovat session_state['df_cash'], 
+                        # motor to udělal za tebe. Stačí jen invalidovat cache a refresh.
                         invalidate_data_core()
                         st.success(msg)
                         time.sleep(1)
@@ -2557,3 +2557,4 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
