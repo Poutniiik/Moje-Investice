@@ -1,4 +1,4 @@
-import pandas as pd
+import pandas as p
 import yfinance as yf
 import requests
 import os
