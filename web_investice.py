@@ -48,6 +48,8 @@ from ai_brain import (
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response, 
     get_strategic_advice, get_portfolio_health_score, get_voice_briefing_text, get_alert_voice_text
 )
+# Najdi sekci importů nahoře a přidej/uprav:
+from engine_rpg import RPG_TASKS, get_task_progress
 # --- NOVINKA: INTEGRACE HLASOVÉHO ASISTENTA ---
 from voice_engine import VoiceAssistant
 
@@ -317,78 +319,6 @@ def add_download_button(fig, filename):
         )
     except Exception:
         st.caption("💡 Tip: Pro stažení obrázku použij ikonu fotoaparátu 📷, která se objeví v pravém horním rohu grafu po najetí myší.")
-
-# --- NOVÁ FUNKCE: Progresní funkce pro RPG úkoly ---
-def get_task_progress(task_id, df, df_w, zustatky, vdf):
-    """Vrací tuple (current, target) pro vizuální progress bar."""
-    
-    # Úkoly jsou indexovány dle RPG_TASKS
-    
-    if task_id == 0: # První průzkum: Přidej do Watchlistu akcii, kterou nemáš v portfoliu.
-        target = 1
-        current = 1 if not df_w.empty and any(t not in df['Ticker'].unique() for t in df_w['Ticker'].unique()) else 0
-        return current, target, f"Sledované (mimo portfolio): {current}/{target}"
-
-    elif task_id == 1: # Diverzifikace: Sektor: Drž akcie ve 3 různých sektorech.
-        target = 3
-        current = df['Sektor'].nunique() if not df.empty else 0
-        return current, target, f"Sektorů: {current}/{target}"
-
-    elif task_id == 2: # Měnová rovnováha: Drž hotovost alespoň ve 2 měnách.
-        target = 2
-        current = sum(1 for v in zustatky.values() if v > 100)
-        return current, target, f"Aktivních měn: {current}/{target}"
-
-    elif task_id == 3: # Mód Rentiera: Drž 3 akcie s dividendovým výnosem > 1%.
-        target = 3
-        # Kontrola, zda vdf je DataFrame nebo list dictů
-        viz_data_list_safe = vdf.to_dict('records') if isinstance(vdf, pd.DataFrame) else vdf
-        current = len([i for i in viz_data_list_safe if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01])
-        return current, target, f"Dividendových akcií: {current}/{target}"
-      
-    elif task_id == 4: # Cílovací expert: Nastav cílovou nákupní cenu u jedné akcie A cílovou prodejní cenu u jiné.
-        target = 2
-        has_buy = (df_w['TargetBuy'] > 0).any()
-        has_sell = (df_w['TargetSell'] > 0).any()
-        current = (1 if has_buy else 0) + (1 if has_sell else 0)
-        return current, target, f"Nastavené cíle (Buy + Sell): {current}/{target}"
-      
-    elif task_id == 5: # Pohotovostní fond: Drž alespoň 5 000 Kč v hotovosti.
-        target = 5000
-        current = zustatky.get('CZK', 0)
-        # Progress bar by mel být limitován do 1.0, i když máme více
-        current_progress = min(current, target)
-        return current_progress, target, f"CZK hotovost: {current:,.0f}/{target:,.0f} Kč"
-
-    return 0, 1, "Není kvantifikovatelné" # Výchozí hodnota
-
-# --- NOVÉ STATICKÉ DATOVÉ STRUKTURY PRO ÚKOLY ---
-# Zde rozšiřujeme a upřesňujeme seznam RPG úkolů
-RPG_TASKS = [
-    # 1. Watchlist research
-    {"title": "První průzkum", "desc": "Přidej do Watchlistu akcii, kterou nemáš v portfoliu.", 
-     "check_fn": lambda df, df_w, zustatky, vdf: not df_w.empty and any(t not in df['Ticker'].unique() for t in df_w['Ticker'].unique())},
-    
-    # 2. Diversification by sector
-    {"title": "Diverzifikace: Sektor", "desc": "Drž akcie ve 3 různých sektorech (Zkontroluj v Portfoliu).", 
-     "check_fn": lambda df, df_w, zustatky, vdf: df['Sektor'].nunique() >= 3 and df.shape[0] >= 3},
-    
-    # 3. Diversification by currency (cash)
-    {"title": "Měnová rovnováha", "desc": "Drž hotovost alespoň ve 2 měnách (USD, CZK, EUR).", 
-     "check_fn": lambda df, df_w, zustatky, vdf: sum(1 for v in zustatky.values() if v > 100) >= 2},
-    
-    # 4. Income investing
-    {"title": "Mód Rentiera", "desc": "Drž 3 akcie s dividendovým výnosem > 1%.", 
-     "check_fn": lambda df, df_w, zustatky, vdf: len([i for i in vdf.to_dict('records') if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01]) >= 3 if isinstance(vdf, pd.DataFrame) else len([i for i in vdf if i.get('Divi', 0) is not None and i.get('Divi', 0) > 0.01]) >= 3},
-      
-    # 5. Risk management (Setting both types of targets)
-    {"title": "Cílovací expert", "desc": "Nastav cílovou nákupní cenu u jedné akcie A cílovou prodejní cenu u jiné.", 
-     "check_fn": lambda df, df_w, zustatky, vdf: (df_w['TargetBuy'] > 0).any() and (df_w['TargetSell'] > 0).any()},
-    
-    # 6. Liquidity (CZK cash buffer) - NOVÝ ÚKOL
-    {"title": "Pohotovostní fond", "desc": "Drž alespoň 5 000 Kč v hotovosti (Měna CZK).", 
-     "check_fn": lambda df, df_w, zustatky, vdf: zustatky.get('CZK', 0) >= 5000},
-]
 
 def render_prehled_page(USER, vdf, hist_vyvoje, kurzy, celk_hod_usd, celk_inv_usd, celk_hod_czk, zmena_24h, pct_24h, cash_usd, AI_AVAILABLE, model, df_watch, fundament_data, LIVE_DATA):
     """
@@ -2985,6 +2915,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
