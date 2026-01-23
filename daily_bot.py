@@ -107,7 +107,6 @@ def get_batch_data(tickers):
             change = 0.0
             try:
                 # Zkusíme vytáhnout data z batche
-                # yfinance vrací MultiIndex, musíme se v tom vyznat
                 if len(all_tickers) > 1:
                     if t in batch.columns.levels[0]:
                         hist = batch[t]['Close'].dropna()
@@ -121,7 +120,7 @@ def get_batch_data(tickers):
                         change = ((price - prev) / prev) * 100
             except: pass
             
-            # Fallback (pokud batch selhal pro konkrétní ticker)
+            # Fallback
             if price == 0:
                 try:
                     t_obj = yf.Ticker(t)
@@ -224,6 +223,7 @@ def main():
     grouped = my_df.groupby('Ticker')['Pocet'].sum()
     
     weighted_change = 0
+    portfolio_items = [] # Seznam pro detailní výpis
     
     for t, kusy in grouped.items():
         if kusy <= 0: continue
@@ -251,6 +251,7 @@ def main():
             weighted_change += val_czk * ch
             
             port_text += f"{t}: {ch:+.1f}%\n"
+            portfolio_items.append({"ticker": t, "change": ch})
 
     # Uložení cache pro web
     save_market_cache(market_data)
@@ -262,20 +263,46 @@ def main():
     df_hist_new = save_history_local(total_usd)
     perform_backup(df, df_hist_new)
     
-    # 5. Report
+    # 5. Report - SESTAVENÍ ZPRÁVY (OPRAVENO!)
     ai_msg = get_ai_comment(port_text, total_czk)
     
+    # Souboj s trhem
+    diff = my_perf - sp500_change
+    if diff > 0:
+        battle_result = f"🏆 <b>Porazil jsi trh o {diff:.1f}%!</b>"
+    else:
+        battle_result = f"🐢 <b>Trh byl dnes rychlejší o {abs(diff):.1f}%.</b>"
+
     icon = "🟢" if my_perf >= 0 else "🔴"
-    msg = (
-        f"<b>📊 RANNÍ UPDATE ({TARGET_OWNER})</b>\n"
-        f"📅 {datetime.datetime.now().strftime('%d.%m.')}\n"
-        f"----------------\n"
-        f"💰 <b>{total_czk:,.0f} Kč</b>\n"
-        f"{icon} Tvůj výkon: <b>{my_perf:+.2f}%</b>\n"
-        f"🌎 S&P 500: <b>{sp500_change:+.2f}%</b>\n\n"
-        f"💡 <b>AI Komentář:</b>\n<i>{ai_msg}</i>"
-    )
     
+    # --- Zde skládáme zprávu postupně ---
+    msg = f"<b>📊 DENNÍ UPDATE ({TARGET_OWNER})</b>\n"
+    msg += f"📅 {datetime.datetime.now().strftime('%d.%m.')}\n"
+    msg += f"----------------\n"
+    msg += f"💰 <b>{total_czk:,.0f} Kč</b>\n"
+    msg += f"{icon} Tvůj výkon: <b>{my_perf:+.2f}%</b>\n"
+    msg += f"🌎 S&P 500: <b>{sp500_change:+.2f}%</b>\n"
+    msg += f"{battle_result}\n\n"
+    msg += f"💵 Kurz USD: {usd_czk:.2f} Kč\n\n"
+    
+    # Přidání detailů (TOP/FLOP)
+    sorted_items = sorted(portfolio_items, key=lambda x: x['change'], reverse=True)
+    msg += "<b>📋 Detail:</b>\n"
+    
+    if len(sorted_items) > 8:
+        for item in sorted_items[:3]:
+            msg += f"🟢 <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
+        msg += "...\n"
+        for item in sorted_items[-3:]:
+            msg += f"🔴 <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
+    else:
+        for item in sorted_items:
+            ic = "🟢" if item['change'] >= 0 else "🔴"
+            msg += f"{ic} <b>{item['ticker']}</b>: {item['change']:+.1f}%\n"
+            
+    msg += f"\n💡 <b>AI Komentář:</b>\n<i>{ai_msg}</i>"
+    
+    # Odeslání AŽ TEĎ, když je zpráva kompletní
     send_telegram(msg)
     
     img = create_chart(df_hist_new)
