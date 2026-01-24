@@ -219,6 +219,123 @@ def pridat_dividendu(ticker, castka, mena, user):
     except Exception as e:
         return False, f"❌ Chyba zápisu transakce (DIVI): {e}"
 
+
+# --- FUNKCE PRO VYKRESLENÍ PROFI GRAFU ---
+def ukaz_profi_graf(ticker):
+    """
+    Stáhne historii za 1 rok, vypočítá SMA 20 a SMA 50 a vykreslí interaktivní graf.
+    """
+    try:
+        # 1. Stáhneme data
+        stock = yf.Ticker(ticker)
+        df = stock.history(period="1y") # 1 rok historie
+        
+        if df.empty:
+            st.warning("Graf nedostupný (žádná data).")
+            return
+
+        # 2. Výpočet SMA (Klouzavé průměry)
+        df['SMA20'] = df['Close'].rolling(window=20).mean() # Rychlý trend (měsíc)
+        df['SMA50'] = df['Close'].rolling(window=50).mean() # Pomalý trend (čtvrtletí)
+
+        # 3. Vytvoření grafu (Plotly)
+        fig = go.Figure()
+
+        # A) Svíčky (Candlesticks)
+        fig.add_trace(go.Candlestick(
+            x=df.index,
+            open=df['Open'], high=df['High'],
+            low=df['Low'], close=df['Close'],
+            name='Cena'
+        ))
+
+        # B) SMA 20 (Modrá čára)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df['SMA20'],
+            mode='lines', name='SMA 20 (Rychlý)',
+            line=dict(color='cyan', width=1.5)
+        ))
+
+        # C) SMA 50 (Oranžová čára)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df['SMA50'],
+            mode='lines', name='SMA 50 (Pomalý)',
+            line=dict(color='orange', width=1.5)
+        ))
+
+        # Design grafu (Tmavý režim)
+        fig.update_layout(
+            title=f"Analýza: {ticker}",
+            xaxis_title="Datum",
+            yaxis_title="Cena",
+            template="plotly_dark", # Tmavý styl, aby ladil s aplikací
+            height=500, # Výška grafu
+            xaxis_rangeslider_visible=False # Schováme ten spodní posuvník, ať nezavazí
+        )
+
+        # 4. Vykreslení ve Streamlitu
+        st.plotly_chart(fig, use_container_width=True)
+    
+    except Exception as e:
+        st.error(f"Chyba grafu: {e}")# --- FUNKCE PRO VYKRESLENÍ PROFI GRAFU ---
+def ukaz_profi_graf(ticker):
+    """
+    Stáhne historii za 1 rok, vypočítá SMA 20 a SMA 50 a vykreslí interaktivní graf.
+    """
+    try:
+        # 1. Stáhneme data
+        stock = yf.Ticker(ticker)
+        df = stock.history(period="1y") # 1 rok historie
+        
+        if df.empty:
+            st.warning("Graf nedostupný (žádná data).")
+            return
+
+        # 2. Výpočet SMA (Klouzavé průměry)
+        df['SMA20'] = df['Close'].rolling(window=20).mean() # Rychlý trend (měsíc)
+        df['SMA50'] = df['Close'].rolling(window=50).mean() # Pomalý trend (čtvrtletí)
+
+        # 3. Vytvoření grafu (Plotly)
+        fig = go.Figure()
+
+        # A) Svíčky (Candlesticks)
+        fig.add_trace(go.Candlestick(
+            x=df.index,
+            open=df['Open'], high=df['High'],
+            low=df['Low'], close=df['Close'],
+            name='Cena'
+        ))
+
+        # B) SMA 20 (Modrá čára)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df['SMA20'],
+            mode='lines', name='SMA 20 (Rychlý)',
+            line=dict(color='cyan', width=1.5)
+        ))
+
+        # C) SMA 50 (Oranžová čára)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df['SMA50'],
+            mode='lines', name='SMA 50 (Pomalý)',
+            line=dict(color='orange', width=1.5)
+        ))
+
+        # Design grafu (Tmavý režim)
+        fig.update_layout(
+            title=f"Analýza: {ticker}",
+            xaxis_title="Datum",
+            yaxis_title="Cena",
+            template="plotly_dark", # Tmavý styl, aby ladil s aplikací
+            height=500, # Výška grafu
+            xaxis_rangeslider_visible=False # Schováme ten spodní posuvník, ať nezavazí
+        )
+
+        # 4. Vykreslení ve Streamlitu
+        st.plotly_chart(fig, use_container_width=True)
+    
+    except Exception as e:
+        st.error(f"Chyba grafu: {e}")
+
 def aktualizuj_graf_vyvoje(user, aktualni_hodnota_usd):
     if pd.isna(aktualni_hodnota_usd): return pd.DataFrame(columns=["Date", "TotalUSD", "Owner"])
     full_hist = nacti_csv(SOUBOR_VYVOJ)
@@ -2277,6 +2394,10 @@ def main():
                     with c2: st.warning("Cena nedostupná")
 
                 st.write("")
+
+                with st.expander(f"📈 Zobrazit graf a analýzu {ticker_input}", expanded=False):
+                    if ticker_input:
+                        ukaz_profi_graf(ticker_input)
                 
                 # 2. MNOŽSTVÍ A CENA
                 col_qty, col_price = st.columns(2)
@@ -2605,6 +2726,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
