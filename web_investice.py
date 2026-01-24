@@ -2242,21 +2242,24 @@ def main():
             c1, c2 = st.columns([1, 1])
             with c1:
                 # Ticker selector logic
-                if mode == "🔴 PRODEJ" and not df.empty:
+                # --- CELÁ SEKCE PRODEJ (Vstupy + Motor + Balónky) ---
+            if mode == "🔴 PRODEJ":
+                # 1. ČÁST: VÝBĚR AKCIE (Tvůj původní kód)
+                if not df.empty:
                     ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
                 else:
                     ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
-            
-            # Live Data Fetch
-            current_price, menu, denni_zmena = 0, "USD", 0
-            if ticker_input:
-                info = LIVE_DATA.get(ticker_input)
-                if info:
-                    current_price = info.get('price', 0)
-                    menu = info.get('curr', 'USD')
-                else:
-                    p, m, z = ziskej_info(ticker_input)
-                    if p: current_price, menu, denni_zmena = p, m, z
+                
+                # Live Data Fetch
+                current_price, menu, denni_zmena = 0, "USD", 0
+                if ticker_input:
+                    info = LIVE_DATA.get(ticker_input)
+                    if info:
+                        current_price = info.get('price', 0)
+                        menu = info.get('curr', 'USD')
+                    else:
+                        p, m, z = ziskej_info(ticker_input)
+                        if p: current_price, menu, denni_zmena = p, m, z
 
                 if current_price > 0:
                     with c2:
@@ -2266,17 +2269,58 @@ def main():
                 else:
                     with c2: st.warning("Cena nedostupná")
 
-            st.write("")
-            col_qty, col_price = st.columns(2)
-            with col_qty:
-                qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f")
-            with col_price:
-                limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1)
+                st.write("")
+                
+                # 2. ČÁST: VSTUPY (Množství a Cena)
+                col_qty, col_price = st.columns(2)
+                with col_qty:
+                    qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f")
+                with col_price:
+                    limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1)
 
-            # Kalkulace celkem
-            total_est = qty * limit_price
-            zustatek = zustatky.get(menu, 0)
-            st.write("") 
+                # Kalkulace celkem
+                total_est = qty * limit_price
+                zustatek = zustatky.get(menu, 0) # Jen pro info, u prodeje nás zajímá spíš počet akcií
+                st.write("")
+
+                # 3. ČÁST: LOGIKA TLAČÍTKA A MOTOR (Mé doplnění)
+                
+                # Zjistíme, kolik kusů té akcie reálně vlastníš
+                holding = 0
+                if not df.empty and ticker_input:
+                    holding = df[df['Ticker'] == ticker_input]['Pocet'].sum()
+
+                if total_est > 0:
+                    c_info1, c_info2 = st.columns(2)
+                    c_info1.info(f"Hodnota: **{total_est:,.2f} {menu}**")
+                    
+                    # Kontrola: Máš dost akcií?
+                    if holding >= qty:
+                        c_info2.success(f"Máš k dispozici: {holding} ks")
+                        
+                        if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True):
+                            
+                            # 🚀 VOLÁNÍ NOVÉHO MOTORU
+                            # Posíláme 5 věcí: Ticker, Kusy, Cena, User, Měna (menu)
+                            ok, msg = proved_prodej(ticker_input, qty, limit_price, USER, menu)
+                            
+                            if ok:
+                                invalidate_data_core() # Vyčistíme cache
+                                
+                                # 🎮 ODMĚNA
+                                add_xp(USER, 50)       # XP za úspěšný obchod
+                                st.balloons()          # Oslava!
+                                
+                                st.success(msg)
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error(msg)
+                    else:
+                        c_info2.error(f"Chyba: Máš jen {holding} ks")
+                        st.button("🚫 Nedostatek akcií", disabled=True, use_container_width=True)
+                else:
+                    st.button("Zadej množství", disabled=True, use_container_width=True)
             
             # --- LOGIKA TLAČÍTKA S NOVÝM ENGINEM (NÁKUP) ---
             if mode == "🟢 NÁKUP":
@@ -2554,6 +2598,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
