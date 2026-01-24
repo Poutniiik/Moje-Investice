@@ -2242,6 +2242,7 @@ def main():
                 # --- CELÁ SEKCE PRODEJ (Vstupy + Motor + Balónky) ---
             if mode == "🔴 PRODEJ":
                 
+                total_est = 0
                 # 1. Tady si vytvoříme sloupce (HEZKY UVNITŘ)
                 c1, c2 = st.columns([1, 1])
                 
@@ -2600,6 +2601,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
