@@ -2290,7 +2290,7 @@ def main():
                         if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
                             soubory_nakup = {'data': SOUBOR_DATA, 'cash': SOUBOR_CASH}
                             
-                            uspech, zprava, nove_p, nova_c = engine.proved_nakup_engine(
+                            uspech, zprava, nove_p, nova_c = engine.proved_nakup(
                                 ticker_input, qty, limit_price, USER, 
                                 st.session_state['df'], st.session_state['df_cash'], 
                                 get_zustatky(USER), ziskej_info, uloz_data_uzivatele, 
@@ -2557,4 +2557,5 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
