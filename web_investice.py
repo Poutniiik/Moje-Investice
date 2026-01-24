@@ -2278,7 +2278,7 @@ def main():
             zustatek = zustatky.get(menu, 0)
             st.write("") 
             
-            # --- LOGIKA TLAČÍTKA S NOVÝM ENGINEM ---
+            # --- LOGIKA TLAČÍTKA S NOVÝM ENGINEM (NÁKUP) ---
             if mode == "🟢 NÁKUP":
                 if total_est > 0:
                     c_info1, c_info2 = st.columns(2)
@@ -2288,26 +2288,23 @@ def main():
                         c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
                         
                         if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True):
-                            soubory_nakup = {'data': SOUBOR_DATA, 'cash': SOUBOR_CASH}
                             
-                            uspech, zprava, nove_p, nova_c = engine.proved_nakup(
-                                ticker_input, qty, limit_price, USER, 
-                                st.session_state['df'], st.session_state['df_cash'], 
-                                get_zustatky(USER), ziskej_info, uloz_data_uzivatele, 
-                                soubory_nakup
-                            )
-
-                            if uspech:
-                                st.session_state['df'] = nove_p
-                                st.session_state['df_cash'] = nova_c
-                                invalidate_data_core()
+                            # 1. Volání nové funkce (jen 4 parametry!)
+                            ok, msg = proved_nakup(ticker_input, qty, limit_price, USER)
+                            
+                            if ok:
+                                # 2. Pokud se to povedlo:
+                                invalidate_data_core() # Vyčistíme cache, aby se načetla nová data
+                                
+                                # 3. ODMĚNA (XP zůstávají!) 🎮
                                 add_xp(USER, 50)
                                 st.balloons()
-                                st.success(zprava)
+                                
+                                st.success(msg)
                                 time.sleep(1)
                                 st.rerun()
                             else:
-                                st.error(zprava)
+                                st.error(msg)
                     else:
                         c_info2.error(f"Chybí: {total_est - zustatek:,.2f} {menu}")
                         st.button("🚫 Nedostatek prostředků", disabled=True, use_container_width=True)
@@ -2557,5 +2554,6 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
