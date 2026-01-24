@@ -9,7 +9,7 @@ from data_manager import (
 )
 # Funkce ziskej_info importujeme až uvnitř funkcí nebo si ji vyžádáme jako parametr, 
 # abychom se vyhnuli kruhovým importům. Pro teď použijeme utils.
-from utils import ziskej_info
+from utils import ziskej_info, ziskej_sektor_tickeru
 
 # --- ATOMICKÁ FUNKCE: POHYB PENĚZ ---
 def pohyb_penez(castka, mena, typ, poznamka, user, df_cash_temp):
@@ -39,7 +39,9 @@ def proved_nakup(ticker, kusy, cena, user):
         df_cash_temp = pohyb_penez(-cost, mena, "Nákup", ticker, user, df_cash_temp)
         
         # Krok 2: Připsání akcií (lokálně)
-        d = pd.DataFrame([{"Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), "Owner": user, "Sektor": "Doplnit", "Poznamka": "CLI/Auto"}])
+        # Zjistíme sektor automaticky
+        sektor_akcie = ziskej_sektor_tickeru(ticker)
+        d = pd.DataFrame([{"Ticker": ticker, "Pocet": kusy, "Cena": cena, "Datum": datetime.now(), "Owner": user, "Sektor": sektor_akcie, "Poznamka": "CLI/Auto"}])
         df_p = pd.concat([df_p, d], ignore_index=True)
         
         # Krok 3: Uložení
