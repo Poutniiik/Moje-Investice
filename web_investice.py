@@ -2239,13 +2239,10 @@ def main():
             st.divider()
             
            
-                # --- CELÁ SEKCE PRODEJ (Vstupy + Motor + Balónky) ---
-            # --- CELÁ SEKCE PRODEJ (OPRAVENÁ V2) ---
-            # ==========================================
-            # 🟢 SEKCE NÁKUP (OPRAVENO: Initializace)
+                # ==========================================
+            # 🟢 SEKCE NÁKUP (S AUTO-FILLEM CENY)
             # ==========================================
             if mode == "🟢 NÁKUP":
-                # 🛡️ ZÁCHRANA: Definujeme proměnné hned na začátku
                 total_est = 0.0
                 qty = 0.0
                 limit_price = 0.0
@@ -2272,6 +2269,10 @@ def main():
                         color_price = "green" if denni_zmena >= 0 else "red"
                         st.markdown(f"**Cena:** :{color_price}[{current_price:,.2f} {menu}]")
                         st.caption(f"Změna: {denni_zmena*100:+.2f}%")
+                    
+                    # 🔥 AUTO-FILL: Pokud známe cenu a v políčku je nula, vyplníme ji tam!
+                    if "input_buy_price" in st.session_state and st.session_state.input_buy_price == 0.0:
+                        st.session_state.input_buy_price = float(current_price)
                 else:
                     with c2: st.warning("Cena nedostupná")
 
@@ -2282,7 +2283,8 @@ def main():
                 with col_qty:
                     qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f", key="input_buy_qty")
                 with col_price:
-                    limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1, key="input_buy_price")
+                    # Tady už se vezme hodnota ze session state (díky auto-fillu výše)
+                    limit_price = st.number_input("Cena za kus", min_value=0.0, step=0.1, key="input_buy_price")
 
                 # 3. VÝPOČET
                 total_est = qty * limit_price
@@ -2298,9 +2300,7 @@ def main():
                         c_info2.success(f"Na účtu: {zustatek:,.2f} {menu}")
                         
                         if st.button(f"KOUPIT {qty}x {ticker_input}", type="primary", use_container_width=True, key="btn_buy_action"):
-                            # Volání motoru
                             ok, msg = proved_nakup(ticker_input, qty, limit_price, USER)
-                            
                             if ok:
                                 invalidate_data_core()
                                 add_xp(USER, 50)
@@ -2311,17 +2311,16 @@ def main():
                             else:
                                 st.error(msg)
                     else:
-                        c_info2.error(f"Chybí: {total_est - zustatek:,.2f} {menu}")
+                        c_info2.error(f"Chyba: {total_est - zustatek:,.2f} {menu}")
                         st.button("🚫 Nedostatek prostředků", disabled=True, use_container_width=True, key="btn_buy_disabled")
                 else:
                     st.button("Zadej množství", disabled=True, use_container_width=True, key="btn_buy_wait")
 
 
             # ==========================================
-            # 🔴 SEKCE PRODEJ (OPRAVENO: Unikátní ID)
+            # 🔴 SEKCE PRODEJ (S AUTO-FILLEM CENY)
             # ==========================================
             if mode == "🔴 PRODEJ":
-                # 🛡️ ZÁCHRANA
                 total_est = 0.0
                 qty = 0.0
                 limit_price = 0.0
@@ -2351,6 +2350,10 @@ def main():
                         color_price = "green" if denni_zmena >= 0 else "red"
                         st.markdown(f"**Cena:** :{color_price}[{current_price:,.2f} {menu}]")
                         st.caption(f"Změna: {denni_zmena*100:+.2f}%")
+
+                    # 🔥 AUTO-FILL PRO PRODEJ
+                    if "input_sell_price" in st.session_state and st.session_state.input_sell_price == 0.0:
+                        st.session_state.input_sell_price = float(current_price)
                 else:
                     with c2: st.warning("Cena nedostupná")
 
@@ -2361,29 +2364,23 @@ def main():
                 with col_qty:
                     qty = st.number_input("Počet kusů", min_value=0.0, step=1.0, format="%.2f", key="input_sell_qty")
                 with col_price:
-                    limit_price = st.number_input("Cena za kus", min_value=0.0, value=float(current_price) if current_price else 0.0, step=0.1, key="input_sell_price")
+                    limit_price = st.number_input("Cena za kus", min_value=0.0, step=0.1, key="input_sell_price")
 
-                # 3. VÝPOČET
-                total_est = qty * limit_price
-                zustatek = zustatky.get(menu, 0)
-                st.write("")
-
-                # 4. LOGIKA TLAČÍTKA
+                # 3. VÝPOČET A TLAČÍTKA
                 holding = 0
                 if not df.empty and ticker_input:
                     holding = df[df['Ticker'] == ticker_input]['Pocet'].sum()
+                
+                total_est = qty * limit_price
 
                 if total_est > 0:
                     c_info1, c_info2 = st.columns(2)
                     c_info1.info(f"Hodnota: **{total_est:,.2f} {menu}**")
                     
                     if holding >= qty:
-                        c_info2.success(f"Máš k dispozici: {holding} ks")
-                        
+                        c_info2.success(f"Máš: {holding} ks")
                         if st.button(f"PRODAT {qty}x {ticker_input}", type="primary", use_container_width=True, key="btn_sell_action"):
-                            # Volání motoru
                             ok, msg = proved_prodej(ticker_input, qty, limit_price, USER, menu)
-                            
                             if ok:
                                 invalidate_data_core()
                                 add_xp(USER, 50)
@@ -2608,6 +2605,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
