@@ -436,3 +436,29 @@ def make_matplotlib_cyberpunk(fig, ax):
     ax.grid(True, color=grid_color, linestyle='--', linewidth=0.5, alpha=0.5)
     
     return fig
+
+# --- NOVÁ FUNKCE NA KONEC SOUBORU ---
+def ziskej_sektor_tickeru(ticker):
+    """
+    Zjistí, do jakého sektoru akcie patří (např. Technology, Energy).
+    """
+    try:
+        if ticker.endswith(".PR"): return "Energy/Utilities (CZ)" # Většina CZ akcií co kupuješ
+        
+        t = yf.Ticker(ticker)
+        # Zkusíme najít sektor v informacích
+        sektor = t.info.get('sector', 'Neznámý')
+        
+        # Překlad do češtiny (volitelné, pro hezčí grafy)
+        preklad = {
+            "Technology": "Technologie",
+            "Financial Services": "Finance",
+            "Energy": "Energie",
+            "Healthcare": "Zdravotnictví",
+            "Consumer Cyclical": "Zbytné spotřební",
+            "Industrials": "Průmysl",
+            "Communication Services": "Komunikace"
+        }
+        return preklad.get(sektor, sektor)
+    except:
+        return "Neznámý"
