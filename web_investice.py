@@ -2238,17 +2238,19 @@ def main():
             mode = st.radio("Režim:", ["🟢 NÁKUP", "🔴 PRODEJ"], horizontal=True, label_visibility="collapsed")
             st.divider()
             
-            # Vstupy pro Ticker a Live Cenu
-            c1, c2 = st.columns([1, 1])
-            with c1:
-                # Ticker selector logic
+           
                 # --- CELÁ SEKCE PRODEJ (Vstupy + Motor + Balónky) ---
             if mode == "🔴 PRODEJ":
-                # 1. ČÁST: VÝBĚR AKCIE (Tvůj původní kód)
-                if not df.empty:
-                    ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
-                else:
-                    ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
+                
+                # 1. Tady si vytvoříme sloupce (HEZKY UVNITŘ)
+                c1, c2 = st.columns([1, 1])
+                
+                # 2. Levý sloupec: VÝBĚR AKCIE
+                with c1:
+                    if not df.empty:
+                        ticker_input = st.selectbox("Ticker", df['Ticker'].unique())
+                    else:
+                        ticker_input = st.text_input("Ticker", placeholder="např. AAPL, CEZ.PR").upper()
                 
                 # Live Data Fetch
                 current_price, menu, denni_zmena = 0, "USD", 0
@@ -2598,6 +2600,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
