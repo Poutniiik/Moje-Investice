@@ -1681,7 +1681,7 @@ with st.expander("🔐 Účet"):
                         else: st.error("Chyba")
                     else: st.error("Staré heslo nesedí.")
 
-    if st.button("🚪 ODHLÁSIT", type="primary", use_container_width=True):
+     if st.button("🚪 ODHLÁSIT", type="primary", use_container_width=True):
                 cookie_manager.delete("invest_user")
                 st.session_state.clear()
                 st.rerun()
@@ -2803,6 +2803,7 @@ with st.expander("🔐 Účet"):
                 
 if __name__ == "__main__":
     main()
+
 
 
 
