@@ -2666,6 +2666,45 @@ def main():
                 st.success("Testovací zpráva odeslána!")
             else:
                 st.error(f"Chyba: {msg}. Zkontroluj TELEGRAM_BOT_TOKEN.")
+
+    # ==========================================
+        # 🔴 TOVÁRNÍ NASTAVENÍ (FACTORY RESET)
+        # ==========================================
+        st.divider() 
+        
+        with st.expander("🔴 NEBEZPEČNÁ ZÓNA: Tovární nastavení"):
+            st.warning("⚠️ POZOR: Tato akce je nevratná! Smaže kompletně celé portfolio, historii transakcí i všechny peněžní zůstatky. Aplikace začne od nuly.")
+            
+            # 1. Pojistka (Checkbox)
+            potvrzeni = st.checkbox("Rozumím a chci trvale smazat všechna data aplikace.")
+            
+            # 2. Samotné tlačítko (aktivní jen po zaškrtnutí)
+            if st.button("💣 SMAZAT VŠECHNA DATA A RESTARTOVAT", type="primary", disabled=not potvrzeni):
+                
+                # A) Vymažeme PORTFOLIO (nastavíme prázdný DataFrame jen se sloupci)
+                df_empty_portfolio = pd.DataFrame(columns=['Ticker', 'Pocet', 'Cena', 'Datum', 'Owner', 'Sektor', 'Poznamka'])
+                df_empty_portfolio.to_csv(SOUBOR_DATA, index=False)
+                
+                # B) Vymažeme HISTORII
+                df_empty_hist = pd.DataFrame(columns=['Datum', 'Typ', 'Ticker', 'Castka', 'Mena', 'Poznamka', 'Owner'])
+                df_empty_hist.to_csv(SOUBOR_HISTORIE, index=False)
+
+                # C) Vymažeme PENĚŽENKU (Hotovost)
+                df_empty_cash = pd.DataFrame(columns=['Datum', 'Typ', 'Ticker', 'Castka', 'Mena', 'Poznamka', 'Owner'])
+                df_empty_cash.to_csv(SOUBOR_CASH, index=False)
+
+                # D) Vymažeme DIVIDENDY a WATCHLIST (pro jistotu vše)
+                if 'SOUBOR_DIVIDENDY' in globals():
+                    pd.DataFrame(columns=['Ticker', 'Ex-Date', 'Pay-Date', 'Amount', 'Currency']).to_csv(SOUBOR_DIVIDENDY, index=False)
+                
+                # E) Vyčistíme paměť běžící aplikace (Session State)
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                
+                # F) Efekty a restart
+                st.toast("💥 Všechna data byla zničena! Začínáme od nuly.", icon="🗑️")
+                time.sleep(2)
+                st.rerun()
                 
 
 # =========================================================================
@@ -2726,6 +2765,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
