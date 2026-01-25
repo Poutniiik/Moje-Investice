@@ -231,6 +231,11 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             * **☠️ DEATH CROSS:** Když modrá překříží oranžovou směrem DOLŮ -> **PRODAT!**
                             * **🌟 GOLDEN CROSS:** Když modrá překříží oranžovou směrem NAHORU -> **NAKOUPIT!**
                             """)
+                            except Exception as e: 
+                    st.error(f"Chyba zobrazení rentgenu: {e}")
+            
+            else: 
+                st.error("Nepodařilo se načíst data o firmě.")
 
 def render_analýza_rebalancing_page(df, vdf, kurzy):
     """Vykreslí Rebalanční kalkulačku (Tab7 Analýzy)."""
