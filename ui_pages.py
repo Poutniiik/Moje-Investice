@@ -69,40 +69,53 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 
 
                             # --- NOVÉ: GRAHAMOVA FÉROVÁ CENA (Vnitřní hodnota) ---
-                            st.divider() # Čára pro oddělení
-                            
-                            # Vytáhneme data z t_info (zisk na akcii a účetní hodnota)
-                            eps = t_info.get('trailingEps')
-                            bvps = t_info.get('bookValue')
+                            st.divider() 
 
-                            st.write(f"🕵️ DEBUG DATA: EPS = {eps}, BookValue = {bvps}")
+                            # --- CHYTRÉ NAČÍTÁNÍ DAT PRO GRAHAMA ---
+                            # 1. Zisk na akcii (EPS) - Zkusíme minulý, když není, tak budoucí
+                            eps = t_info.get('trailingEps')
+                            if eps is None:
+                                eps = t_info.get('forwardEps') # Záchranné lano
                             
-                            # Kontrola, jestli data existují a jsou kladná (u ztrátových firem to nefunguje)
+                            # 2. Účetní hodnota (Book Value) - Zkusíme přímou, když není, dopočítáme
+                            bvps = t_info.get('bookValue')
+                            if bvps is None:
+                                # Zkusíme dopočítat: Cena / PriceToBook
+                                price = t_info.get('currentPrice')
+                                pb_ratio = t_info.get('priceToBook')
+                                if price and pb_ratio and pb_ratio > 0:
+                                    bvps = price / pb_ratio
+
+                            # --- VÝPOČET ---
+                            # Teď už by to mělo projít častěji
                             if eps is not None and bvps is not None and eps > 0 and bvps > 0:
-                                # Magický vzorec: Odmocnina z (22.5 * Zisk * Majetek)
-                                graham_number = (22.5 * eps * bvps) ** 0.5
-                                
-                                # Rozdíl (Férová cena mínus Aktuální cena)
-                                rozdil = graham_number - current_price
-                                
-                                st.metric(
-                                    label="⚖️ Grahamova férová cena",
-                                    value=f"{graham_number:,.2f} {currency}",
-                                    delta=f"{rozdil:,.2f}",
-                                    delta_color="normal", # Zelená = Graham je vyšší (Podhodnoceno), Červená = Graham je nižší (Drahé)
-                                    help="Teoretická 'správná' cena podle Benjamina Grahama. Pokud je vyšší než aktuální, je to SLEVA."
-                                )
-                                
-                                # Slovní hodnocení pro "polopatě" efekt
-                                if current_price < graham_number:
-                                    sleva_proc = ((graham_number / current_price) - 1) * 100
-                                    st.success(f"✅ **PODHODNOCENO!** Teoretická sleva {sleva_proc:.0f} %")
-                                else:
-                                    predrazeni_proc = ((current_price / graham_number) - 1) * 100
-                                    st.warning(f"⚠️ **DRAHÉ!** Cena je o {predrazeni_proc:.0f} % vyšší než hodnota.")
+                                try:
+                                    graham_number = (22.5 * eps * bvps) ** 0.5
+                                    rozdil = graham_number - current_price
+                                    
+                                    st.metric(
+                                        label="⚖️ Grahamova férová cena",
+                                        value=f"{graham_number:,.2f} {currency}",
+                                        delta=f"{rozdil:,.2f}",
+                                        delta_color="normal",
+                                        help="Vypočteno podle vzorce: Odmocnina(22.5 * EPS * BookValue)"
+                                    )
+                                    
+                                    if current_price < graham_number:
+                                        sleva_proc = ((graham_number / current_price) - 1) * 100
+                                        st.success(f"✅ **PODHODNOCENO!** Teoretická sleva {sleva_proc:.0f} %")
+                                    else:
+                                        predrazeni_proc = ((current_price / graham_number) - 1) * 100
+                                        st.warning(f"⚠️ **DRAHÉ!** Cena je o {predrazeni_proc:.0f} % vyšší než hodnota.")
+                                except:
+                                    st.info("⚖️ Chyba ve výpočtu odmocniny (data jsou asi divná).")
                             
                             else:
-                                st.info("⚖️ Grahamovo číslo nelze spočítat (Firma je ve ztrátě nebo chybí data).")
+                                # Tady vypíšeme, proč to nešlo, abychom věděli
+                                duvod = []
+                                if eps is None or eps <= 0: duvod.append("Zisk (EPS) je nulový/neznámý")
+                                if bvps is None or bvps <= 0: duvod.append("Majetek (Book Value) je nulový/neznámý")
+                                st.info(f"⚖️ Grahamovo číslo nelze spočítat. Důvod: {', '.join(duvod)}")
 
                     with c_d2:
                         # ČISTÝ NADPIS (BEZ UPDATE)
