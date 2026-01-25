@@ -234,8 +234,8 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                 except Exception as e: 
                     st.error(f"Chyba zobrazení rentgenu: {e}")
             
-           else:
-               st.error("Nepodařilo se načíst data o firmě.")
+            else:
+                st.error("Nepodařilo se načíst data o firmě.")
 
 def render_analýza_rebalancing_page(df, vdf, kurzy):
     """Vykreslí Rebalanční kalkulačku (Tab7 Analýzy)."""
