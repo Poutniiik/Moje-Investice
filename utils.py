@@ -163,6 +163,41 @@ def zjisti_stav_trhu(timezone_str, open_hour, close_hour):
     except:
         return "N/A", False
 
+# --- INSIDER TRADING (ŠPIONÁŽ) ---
+@st.cache_data(ttl=3600*12) # Stačí aktualizovat 1x za 12 hodin
+def ziskej_insider_transakce(ticker):
+    """
+    Stáhne seznam transakcí, které provedli manažeři firmy (Insiders).
+    """
+    try:
+        t = yf.Ticker(ticker)
+        insiders = t.insider_transactions
+        
+        if insiders is None or insiders.empty:
+            return None
+            
+        # 1. Seřadíme od nejnovějších
+        insiders = insiders.sort_values(by='Start Date', ascending=False)
+        
+        # 2. Vybereme jen to důležité (Datum, Kdo, Pozice, Akce, Počet, Hodnota)
+        # yfinance vrací sloupce anglicky, přejmenujeme je pro hezký vzhled
+        df_clean = insiders[['Start Date', 'Insider', 'Position', 'Shares', 'Value', 'Text']].copy()
+        
+        # Ošetření, aby to nepadalo na chybějících datech
+        df_clean['Shares'] = df_clean['Shares'].fillna(0).astype(int)
+        df_clean['Value'] = df_clean['Value'].fillna(0).astype(float)
+        
+        # Přejmenování sloupců do češtiny
+        df_clean.columns = ['Datum', 'Jméno', 'Pozice', 'Počet akcií', 'Hodnota ($)', 'Popis transakce']
+        
+        # Ořízneme datum jen na den (bez času)
+        df_clean['Datum'] = df_clean['Datum'].dt.strftime('%d.%m.%Y')
+        
+        return df_clean.head(15) # Vrátíme posledních 15 pohybů
+    except Exception as e:
+        # print(f"Chyba insider: {e}")
+        return None
+
 # ==========================================
 # 📄 NOVÝ GENERÁTOR PROFI PDF (EXECUTIVE)
 # ==========================================
