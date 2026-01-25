@@ -173,17 +173,64 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                         st.info(f"Pro ticker {vybrana_akcie} nejsou k dispozici data o insider transakcích (nebo je to ETF).")
 
                     st.divider()
-                    st.subheader(f"📈 PROFESIONÁLNÍ CHART")
+                    st.subheader(f"📈 PROFESIONÁLNÍ CHART (SMA 50/200)")
+                    
                     if hist_data is not None and not hist_data.empty:
-                        fig_candle = go.Figure(data=[go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'])])
-                        fig_candle.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, paper_bgcolor="rgba(0,0,0,0)")
+                        # --- 1. VÝPOČET INDIKÁTORŮ (Magie) ---
+                        # SMA 50 = Průměrná cena za posledních 50 dní (Modrá čára - Rychlá)
+                        hist_data['SMA50'] = hist_data['Close'].rolling(window=50).mean()
+                        # SMA 200 = Průměrná cena za posledních 200 dní (Oranžová čára - Pomalá)
+                        hist_data['SMA200'] = hist_data['Close'].rolling(window=200).mean()
+
+                        # --- 2. VYKRESLENÍ GRAFU ---
+                        fig_candle = go.Figure()
+
+                        # A) Svíčky (Cena)
+                        fig_candle.add_trace(go.Candlestick(
+                            x=hist_data.index,
+                            open=hist_data['Open'],
+                            high=hist_data['High'],
+                            low=hist_data['Low'],
+                            close=hist_data['Close'],
+                            name='Cena'
+                        ))
+
+                        # B) SMA 50 (Trend)
+                        fig_candle.add_trace(go.Scatter(
+                            x=hist_data.index,
+                            y=hist_data['SMA50'],
+                            line=dict(color='#00FFFF', width=2), # Azurová
+                            name='SMA 50 (Trend)'
+                        ))
+
+                        # C) SMA 200 (Dlouhodobý trend)
+                        fig_candle.add_trace(go.Scatter(
+                            x=hist_data.index,
+                            y=hist_data['SMA200'],
+                            line=dict(color='#FFA500', width=2), # Oranžová
+                            name='SMA 200 (Dlouhodobý)'
+                        ))
+
+                        # --- 3. DESIGN (Cyberpunk Style) ---
+                        fig_candle.update_layout(
+                            template="plotly_dark", 
+                            height=500, 
+                            xaxis_rangeslider_visible=False, 
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            legend=dict(orientation="h", y=1.02, x=0.5, xanchor="center"), # Legenda nahoře
+                            hovermode="x unified" # Ukáže všechny hodnoty najednou při najetí myší
+                        )
+                        
                         st.plotly_chart(fig_candle, use_container_width=True)
-
-                    if AI_AVAILABLE and st.button(f"🤖 SPUSTIT AI ANALÝZU", type="primary"):
-                         st.info("AI funkce připravena.")
-
-                except Exception as e: st.error(f"Chyba zobrazení rentgenu: {e}")
-            else: st.error("Nepodařilo se načíst data o firmě.")
+                        
+                        # Vysvětlivka pro tebe pod grafem
+                        with st.expander("📚 Co znamenají ty čáry? (Nápověda)"):
+                            st.markdown("""
+                            * **🔵 SMA 50 (Modrá):** Krátkodobý trend. Pokud je cena NAD ní, je to dobré.
+                            * **🟠 SMA 200 (Oranžová):** Dlouhodobý trend. To je "podlaha".
+                            * **☠️ DEATH CROSS:** Když modrá překříží oranžovou směrem DOLŮ -> **PRODAT!**
+                            * **🌟 GOLDEN CROSS:** Když modrá překříží oranžovou směrem NAHORU -> **NAKOUPIT!**
+                            """)
 
 def render_analýza_rebalancing_page(df, vdf, kurzy):
     """Vykreslí Rebalanční kalkulačku (Tab7 Analýzy)."""
