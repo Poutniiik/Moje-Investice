@@ -69,9 +69,9 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
 
 
                             # --- NOVÉ: GRAHAMOVA FÉROVÁ CENA (Vnitřní hodnota) ---
-                            st.divider() 
+                           st.divider() 
 
-                            # --- ULTIMÁTNÍ NAČÍTÁNÍ DAT (MacGyver Style) ---
+                            # --- NEZNIČITELNÝ MODEL OCEŇOVÁNÍ ---
                             current_price = t_info.get('currentPrice', 0)
                             
                             # 1. ZISK (EPS) - Pokud chybí, dopočítáme z P/E
@@ -79,22 +79,22 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             if eps is None:
                                 pe = t_info.get('trailingPE')
                                 if pe and current_price:
-                                    eps = current_price / pe # Zpětný výpočet!
+                                    eps = current_price / pe 
                             
-                            # 2. MAJETEK (Book Value) - Pokud chybí, dopočítáme z P/B
+                            # 2. MAJETEK (BVPS) - Pokud chybí, zkusíme P/B
                             bvps = t_info.get('bookValue')
                             if bvps is None:
                                 pb = t_info.get('priceToBook')
                                 if pb and current_price:
-                                    bvps = current_price / pb # Zpětný výpočet!
+                                    bvps = current_price / pb
 
-                            # --- VÝPOČET ---
+                            # --- ROZHODOVÁNÍ: GRAHAM NEBO LYNCH? ---
+                            
+                            # A) Zkusíme GRAHAMA (Nejpřísnější)
                             if eps and bvps and eps > 0 and bvps > 0:
                                 try:
                                     graham_number = (22.5 * eps * bvps) ** 0.5
                                     rozdil = graham_number - current_price
-                                    
-                                    # Barva podle toho, jestli je to sleva
                                     delta_color = "normal" if graham_number > current_price else "inverse"
 
                                     st.metric(
@@ -102,32 +102,40 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                                         value=f"{graham_number:,.2f} {currency}",
                                         delta=f"{rozdil:,.2f}",
                                         delta_color=delta_color,
-                                        help=f"Vypočteno z EPS: {eps:.2f} a BV: {bvps:.2f}"
+                                        help="Vypočteno podle aktiv a zisků (Graham)."
                                     )
-                                    
+                                    # Slovní verdikt
                                     if current_price < graham_number:
-                                        sleva_proc = ((graham_number / current_price) - 1) * 100
-                                        st.success(f"✅ **PODHODNOCENO!** Teoretická sleva {sleva_proc:.0f} %")
-                                    elif current_price > graham_number:
-                                        predrazeni_proc = ((current_price / graham_number) - 1) * 100
-                                        st.warning(f"⚠️ **DRAHÉ!** Cena je o {predrazeni_proc:.0f} % vyšší než hodnota.")
-                                except Exception as e:
-                                    st.info(f"⚖️ Chyba výpočtu: {e}")
-                            
+                                        sleva = ((graham_number / current_price) - 1) * 100
+                                        st.success(f"✅ **PODHODNOCENO (Graham)!** Sleva {sleva:.0f} %")
+                                    else:
+                                        st.warning(f"⚠️ **DRAHÉ (Graham)!** Cena je nad vnitřní hodnotou.")
+
+                                except: pass # Kdyby odmocnina selhala
+
+                            # B) ZÁCHRANA: PETER LYNCH (Když chybí majetek, ale máme zisk)
+                            elif eps and eps > 0:
+                                # Lynchova férová hodnota = EPS * 15 (Standard pro stabilní firmy)
+                                lynch_value = eps * 15 
+                                rozdil_lynch = lynch_value - current_price
+                                delta_lynch = "normal" if lynch_value > current_price else "inverse"
+
+                                st.metric(
+                                    label="🏷️ Peter Lynch cena (Záchrana)",
+                                    value=f"{lynch_value:,.2f} {currency}",
+                                    delta=f"{rozdil_lynch:,.2f}",
+                                    delta_color=delta_lynch,
+                                    help="Použito, protože chybí data o majetku. Vzorec: EPS * 15."
+                                )
+                                
+                                if current_price < lynch_value:
+                                    st.success(f"✅ **FÉROVÁ CENA (Lynch)**: Akcie je levnější než 15-násobek zisku.")
+                                else:
+                                    st.caption(f"ℹ️ Graham nelze spočítat (chybí BookValue), Lynch ukazuje férovou cenu {lynch_value:.2f}.")
+
+                            # C) KDYŽ NEMÁME ANI ZISK
                             else:
-                                # Tady je ta změna - vypíšeme přesně, co máme a co nemáme
-                                st.warning("⚠️ GRAHAM DIAGNOSTIKA:")
-                                col_err1, col_err2 = st.columns(2)
-                                
-                                with col_err1:
-                                    st.write(f"**EPS (Zisk):** {eps}")
-                                    st.caption(f"(Zdroj: {'Dopočítáno z P/E' if t_info.get('trailingPE') else 'Yahoo Direct'})")
-                                
-                                with col_err2:
-                                    st.write(f"**BVPS (Majetek):** {bvps}")
-                                    st.caption(f"(Raw BookValue: {t_info.get('bookValue')}, Raw P/B: {t_info.get('priceToBook')})")
-                                
-                                st.info("Pokud je BVPS 'None', Yahoo nám neposílá data o majetku firmy.")
+                                st.info("📉 Nedostatek dat pro ocenění (Firma je ve ztrátě nebo chybí data).")
 
                     with c_d2:
                         # ČISTÝ NADPIS (BEZ UPDATE)
