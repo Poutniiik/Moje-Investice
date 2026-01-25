@@ -8,7 +8,8 @@ from datetime import datetime, timedelta  # <--- Nové (pro kalendář)
 from utils import (
     ziskej_detail_akcie, 
     make_plotly_cyberpunk, 
-    ziskej_earnings_datum        # <--- Nové (pro kalendář)
+    ziskej_earnings_datum  # <--- Nové (pro kalendář)
+    ziskej_insider_transakce
 )
 
 # ... pod tím už je tvoje funkce render_analýza_rentgen_page ...
@@ -118,6 +119,58 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                         )
                         fig_own.update_traces(textinfo='percent', textposition='outside')
                         st.plotly_chart(fig_own, use_container_width=True)
+
+                    st.write("")
+                    st.divider()
+                    st.subheader("🕵️‍♂️ INSIDER RADAR")
+                    st.caption("Co dělají ředitelé a manažeři se svými akciemi? (Zelená = Nákup, Červená = Prodej)")
+
+                    # 1. Stáhneme data
+                    insider_df = ziskej_insider_transakce(vybrana_akcie)
+
+                    # 2. Pokud data máme, zobrazíme je
+                    if insider_df is not None and not insider_df.empty:
+                        # Spočítáme sentiment
+                        pocet_nakupu = insider_df[insider_df['Popis transakce'].str.contains("Purchase", case=False, na=False)].shape[0]
+                        pocet_prodeju = insider_df[insider_df['Popis transakce'].str.contains("Sale", case=False, na=False)].shape[0]
+
+                        # Metriky vedle sebe
+                        col_in1, col_in2 = st.columns([1, 3])
+                        with col_in1:
+                            st.metric("Nákupy vedení", pocet_nakupu)
+                            st.metric("Prodeje vedení", pocet_prodeju, delta_color="inverse")
+                        
+                        with col_in2:
+                            # Funkce pro barvení řádků
+                            def highlight_insider(row):
+                                text = str(row['Popis transakce']).lower()
+                                if 'purchase' in text: # Nákup = Zelená
+                                    return ['background-color: rgba(0, 255, 0, 0.1)'] * len(row)
+                                elif 'sale' in text:   # Prodej = Červená
+                                    return ['background-color: rgba(255, 0, 0, 0.1)'] * len(row)
+                                else:
+                                    return [''] * len(row)
+
+                            # Vykreslení tabulky
+                            st.dataframe(
+                                insider_df.style.apply(highlight_insider, axis=1),
+                                use_container_width=True,
+                                hide_index=True,
+                                column_config={
+                                    "Hodnota ($)": st.column_config.NumberColumn(format="$%.0f"),
+                                    "Počet akcií": st.column_config.NumberColumn(format="%.0f ks")
+                                }
+                            )
+                            
+                            # Rychlé shrnutí situace
+                            if pocet_nakupu > pocet_prodeju:
+                                st.success("✅ **Býčí signál:** Vedení firmy v poslední době více nakupuje. Věří růstu!")
+                            elif pocet_prodeju > pocet_nakupu:
+                                st.warning("⚠️ **Opatrnost:** Vedení spíše prodává. Sledujte důvody.")
+                            else:
+                                st.info("⚖️ **Neutrál:** Aktivita vedení je vyrovnaná.")
+                    else:
+                        st.info(f"Pro ticker {vybrana_akcie} nejsou k dispozici data o insider transakcích (nebo je to ETF).")
 
                     st.divider()
                     st.subheader(f"📈 PROFESIONÁLNÍ CHART")
