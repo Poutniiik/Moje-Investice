@@ -67,6 +67,41 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             if pe_ratio > 0: st.metric("P/E Ratio", f"{pe_ratio:.2f}")
                             else: st.metric("P/E Ratio", "---")
 
+
+                            # --- NOVÉ: GRAHAMOVA FÉROVÁ CENA (Vnitřní hodnota) ---
+                            st.divider() # Čára pro oddělení
+                            
+                            # Vytáhneme data z t_info (zisk na akcii a účetní hodnota)
+                            eps = t_info.get('trailingEps')
+                            bvps = t_info.get('bookValue')
+                            
+                            # Kontrola, jestli data existují a jsou kladná (u ztrátových firem to nefunguje)
+                            if eps is not None and bvps is not None and eps > 0 and bvps > 0:
+                                # Magický vzorec: Odmocnina z (22.5 * Zisk * Majetek)
+                                graham_number = (22.5 * eps * bvps) ** 0.5
+                                
+                                # Rozdíl (Férová cena mínus Aktuální cena)
+                                rozdil = graham_number - current_price
+                                
+                                st.metric(
+                                    label="⚖️ Grahamova férová cena",
+                                    value=f"{graham_number:,.2f} {currency}",
+                                    delta=f"{rozdil:,.2f}",
+                                    delta_color="normal", # Zelená = Graham je vyšší (Podhodnoceno), Červená = Graham je nižší (Drahé)
+                                    help="Teoretická 'správná' cena podle Benjamina Grahama. Pokud je vyšší než aktuální, je to SLEVA."
+                                )
+                                
+                                # Slovní hodnocení pro "polopatě" efekt
+                                if current_price < graham_number:
+                                    sleva_proc = ((graham_number / current_price) - 1) * 100
+                                    st.success(f"✅ **PODHODNOCENO!** Teoretická sleva {sleva_proc:.0f} %")
+                                else:
+                                    predrazeni_proc = ((current_price / graham_number) - 1) * 100
+                                    st.warning(f"⚠️ **DRAHÉ!** Cena je o {predrazeni_proc:.0f} % vyšší než hodnota.")
+                            
+                            else:
+                                st.info("⚖️ Grahamovo číslo nelze spočítat (Firma je ve ztrátě nebo chybí data).")
+
                     with c_d2:
                         # ČISTÝ NADPIS (BEZ UPDATE)
                         st.subheader(f"{long_name}")
