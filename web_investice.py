@@ -40,7 +40,7 @@ from data_manager import (
 )
 from utils import (
     ziskej_fear_greed, ziskej_zpravy, ziskej_yield, ziskej_earnings_datum,
-    ziskej_detail_akcie, zjisti_stav_trhu, vytvor_pdf_report, odeslat_email,
+    ziskej_detail_akcie, zjisti_stav_trhu, vygeneruj_profi_pdf, odeslat_email,
     ziskej_ceny_hromadne, ziskej_kurzy, ziskej_info, calculate_sharpe_ratio
 )
 from ai_brain import (
@@ -1633,7 +1633,7 @@ def main():
         st.divider()
         c_act1, c_act2 = st.columns(2)
         with c_act2:
-            pdf_data = vytvor_pdf_report(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
+            pdf_data = vygeneruj_profi_pdf(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
             st.download_button(label="📄 PDF", data=pdf_data, file_name=f"report.pdf", mime="application/pdf", use_container_width=True)
 
         with st.expander("🔐 Účet"):
@@ -2769,6 +2769,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
