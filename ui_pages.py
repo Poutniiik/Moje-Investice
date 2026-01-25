@@ -115,7 +115,19 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                                     st.info(f"⚖️ Chyba výpočtu: {e}")
                             
                             else:
-                                st.caption("⚖️ Grahamovo číslo: Nedostatek dat pro výpočet (Chybí EPS nebo BookValue).")
+                                # Tady je ta změna - vypíšeme přesně, co máme a co nemáme
+                                st.warning("⚠️ GRAHAM DIAGNOSTIKA:")
+                                col_err1, col_err2 = st.columns(2)
+                                
+                                with col_err1:
+                                    st.write(f"**EPS (Zisk):** {eps}")
+                                    st.caption(f"(Zdroj: {'Dopočítáno z P/E' if t_info.get('trailingPE') else 'Yahoo Direct'})")
+                                
+                                with col_err2:
+                                    st.write(f"**BVPS (Majetek):** {bvps}")
+                                    st.caption(f"(Raw BookValue: {t_info.get('bookValue')}, Raw P/B: {t_info.get('priceToBook')})")
+                                
+                                st.info("Pokud je BVPS 'None', Yahoo nám neposílá data o majetku firmy.")
 
                     with c_d2:
                         # ČISTÝ NADPIS (BEZ UPDATE)
