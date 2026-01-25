@@ -1629,59 +1629,55 @@ def main():
 
             st.text_input(">", key="cli_cmd", placeholder="/help", on_change=process_cli_command)
 
-        # --- AKCE (Tlačítka dole) ---
-st.divider()
-c_act1, c_act2 = st.columns(2)
+# --- AKCE (Tlačítka dole) ---
+        st.divider()
+        c_act1, c_act2 = st.columns(2)
 
-with c_act2:
-    # 1. PŘÍPRAVA SÍNĚ SLÁVY (Vítěz a Poražený)
-    # Zkusíme najít nejlepší akcii. Pokud zatím nemáš v 'df' sloupec se ziskem, 
-    # můžeš sem napsat natvrdo text, nebo to nechat prázdné.
-    
-    # PŘÍKLAD (Pokud chceš machrovat hned):
-    best_txt = "NVIDIA (+25 %)"   # Tady bys ideálně dal proměnnou
-    worst_txt = "COCA-COLA (-4 %)" 
-    
-    # POKROČILÁ VARIANTA (Až budeš mít v df sloupec 'Zisk_Procenta'):
-    # try:
-    #    vitez = df.loc[df['Zisk_Procenta'].idxmax()]
-    #    best_txt = f"{vitez['Ticker']} ({vitez['Zisk_Procenta']:.1f} %)"
-    #    porazeny = df.loc[df['Zisk_Procenta'].idxmin()]
-    #    worst_txt = f"{porazeny['Ticker']} ({porazeny['Zisk_Procenta']:.1f} %)"
-    # except: pass
+        with c_act2:
+            # 1. PŘÍPRAVA SÍNĚ SLÁVY (Vítěz a Poražený)
+            best_txt = "NVIDIA (+25 %)"   # Tady bys ideálně dal proměnnou
+            worst_txt = "COCA-COLA (-4 %)" 
+            
+            # 2. VOLÁNÍ FUNKCE (Posíláme tam ty nové texty!)
+            pdf_data = vygeneruj_profi_pdf(
+                user=USER, 
+                df=df, 
+                total_val=celk_hod_czk, 
+                cash=cash_usd, 
+                profit=(celk_hod_czk - celk_inv_czk),
+                best_stock=best_txt,   # <--- NOVINKA
+                worst_stock=worst_txt  # <--- NOVINKA
+            )
+            
+            st.download_button(
+                label="📄 STÁHNOUT PROFI PDF", 
+                data=pdf_data, 
+                file_name="investicni_report.pdf", 
+                mime="application/pdf", 
+                use_container_width=True
+            )
 
-    # 2. VOLÁNÍ FUNKCE (Posíláme tam ty nové texty!)
-    pdf_data = vygeneruj_profi_pdf(
-        user=USER, 
-        df=df, 
-        total_val=celk_hod_czk, 
-        cash=cash_usd, 
-        profit=(celk_hod_czk - celk_inv_czk),
-        best_stock=best_txt,   # <--- NOVINKA
-        worst_stock=worst_txt  # <--- NOVINKA
-    )
-    
-    
-    st.download_button(
-        label="📄 STÁHNOUT PROFI PDF", 
-        data=pdf_data, 
-        file_name="investicni_report.pdf", 
-        mime="application/pdf", 
-        use_container_width=True
-    )
-
-with st.expander("🔐 Účet"):
-    with st.form("pass_change"):
-                old = st.text_input("Staré", type="password"); new = st.text_input("Nové", type="password"); conf = st.text_input("Potvrdit", type="password")
+        with st.expander("🔐 Účet"):
+            with st.form("pass_change"):
+                old = st.text_input("Staré", type="password")
+                new = st.text_input("Nové", type="password")
+                conf = st.text_input("Potvrdit", type="password")
+                
                 if st.form_submit_button("Změnit heslo"):
-                    df_u = nacti_uzivatele(); row = df_u[df_u['username'] == USER]
+                    df_u = nacti_uzivatele()
+                    row = df_u[df_u['username'] == USER]
                     if not row.empty and row.iloc[0]['password'] == zasifruj(old):
                         if new == conf and len(new) > 0:
-                            df_u.at[row.index[0], 'password'] = zasifruj(new); uloz_csv(df_u, SOUBOR_UZIVATELE, f"Pass change {USER}"); st.success("Hotovo!")
-                        else: st.error("Chyba")
-                    else: st.error("Staré heslo nesedí.")
+                            df_u.at[row.index[0], 'password'] = zasifruj(new)
+                            uloz_csv(df_u, SOUBOR_UZIVATELE, f"Pass change {USER}")
+                            st.success("Hotovo!")
+                        else:
+                            st.error("Chyba")
+                    else:
+                        st.error("Staré heslo nesedí.")
 
-     if st.button("🚪 ODHLÁSIT", type="primary", use_container_width=True):
+            # TADY BYLA CHYBA - opraveno na správné odsazení (4 mezery od kraje expanderu)
+            if st.button("🚪 ODHLÁSIT", type="primary", use_container_width=True):
                 cookie_manager.delete("invest_user")
                 st.session_state.clear()
                 st.rerun()
@@ -2803,6 +2799,7 @@ with st.expander("🔐 Účet"):
                 
 if __name__ == "__main__":
     main()
+
 
 
 
