@@ -1662,7 +1662,7 @@ with c_act2:
     )
     
     
-st.download_button(
+    st.download_button(
         label="📄 STÁHNOUT PROFI PDF", 
         data=pdf_data, 
         file_name="investicni_report.pdf", 
@@ -2803,6 +2803,7 @@ st.download_button(
                 
 if __name__ == "__main__":
     main()
+
 
 
 
