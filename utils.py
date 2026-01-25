@@ -12,7 +12,9 @@ from datetime import datetime
 import pytz
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
-# Importujeme konstantu z data_manageru, abychom ji nemuseli definovat znovu
+import unicodedata  # Důležité pro odstranění háčků v PDF
+
+# Importujeme konstantu z data_manageru
 from data_manager import RISK_FREE_RATE 
 
 # --- ZDROJE ZPRÁV ---
@@ -74,7 +76,6 @@ def ziskej_earnings_datum(ticker):
     return None
 
 # --- POKROČILÉ CACHING FUNKCE PRO RENTGEN ---
-
 @st.cache_data(ttl=86400, show_spinner=False, persist="disk")
 def _ziskej_info_cached(ticker):
     t = yf.Ticker(str(ticker))
@@ -162,52 +163,112 @@ def zjisti_stav_trhu(timezone_str, open_hour, close_hour):
     except:
         return "N/A", False
 
-# --- PDF GENERATOR ---
+# ==========================================
+# 📄 NOVÝ GENERÁTOR PROFI PDF (EXECUTIVE)
+# ==========================================
 def clean_text(text):
-    replacements = {
-        'á': 'a', 'č': 'c', 'ď': 'd', 'é': 'e', 'ě': 'e', 'í': 'i', 'ň': 'n', 'ó': 'o', 'ř': 'r', 'š': 's', 'ť': 't', 'ú': 'u', 'ů': 'u', 'ý': 'y', 'ž': 'z',
-        'Á': 'A', 'Č': 'C', 'Ď': 'D', 'É': 'E', 'Ě': 'E', 'Í': 'I', 'Ň': 'N', 'Ó': 'O', 'Ř': 'R', 'Š': 'S', 'Ť': 'T', 'Ú': 'U', 'Ů': 'U', 'Ý': 'Y', 'Ž': 'Z'
-    }
-    for k, v in replacements.items():
-        text = text.replace(k, v)
-    return text
+    """Odstraní diakritiku, aby PDF nepadalo."""
+    if not isinstance(text, str): text = str(text)
+    return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 
-def vytvor_pdf_report(user, total_czk, cash_usd, profit_czk, data_list):
-    pdf = FPDF()
+class PDF(FPDF):
+    def header(self):
+        # Černé záhlaví
+        self.set_fill_color(20, 20, 20) 
+        self.rect(0, 0, 210, 40, 'F')
+        # Nadpis
+        self.set_font('Arial', 'B', 24)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 25, 'INVESTICNI REPORT', 0, 1, 'C')
+        # Podnadpis
+        self.set_font('Arial', '', 10)
+        self.set_text_color(150, 150, 150)
+        self.cell(0, -10, f'Terminal PRO | Uzivatel: {clean_text(self.user_name)}', 0, 1, 'C')
+        self.ln(20)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.set_text_color(128, 128, 128)
+        self.cell(0, 10, f'Strana {self.page_no()}', 0, 0, 'C')
+
+def vygeneruj_profi_pdf(user, df, total_val, cash, profit):
+    """
+    Funkce, která vytvoří luxusní PDF report.
+    """
+    pdf = PDF()
+    pdf.user_name = user
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, clean_text(f"INVESTICNI REPORT: {user}"), ln=True, align='C')
-    
-    pdf.set_font("Arial", size=10)
-    pdf.cell(0, 10, f"Generated: {datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=True, align='C')
-    pdf.ln(10)
-    
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "SOUHRN", ln=True)
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 10, clean_text(f"Celkove jmeni: {total_czk:,.0f} CZK"), ln=True)
-    pdf.cell(0, 10, clean_text(f"Hotovost: {cash_usd:,.0f} USD"), ln=True)
-    pdf.cell(0, 10, clean_text(f"Celkovy zisk/ztrata: {profit_czk:,.0f} CZK"), ln=True)
-    pdf.ln(10)
-    
-    pdf.set_font("Arial", 'B', 10)
-    pdf.set_fill_color(200, 220, 255)
-    pdf.cell(30, 10, "Ticker", 1, 0, 'C', 1)
-    pdf.cell(30, 10, "Kusy", 1, 0, 'C', 1)
-    pdf.cell(40, 10, "Cena (Avg)", 1, 0, 'C', 1)
-    pdf.cell(40, 10, "Hodnota (USD)", 1, 0, 'C', 1)
-    pdf.cell(40, 10, "Zisk (USD)", 1, 1, 'C', 1)
-    
-    pdf.set_font("Arial", size=10)
-    for item in data_list:
-        pdf.cell(30, 10, str(item['Ticker']), 1)
-        pdf.cell(30, 10, f"{item['Kusy']:.2f}", 1)
-        pdf.cell(40, 10, f"{item['Průměr']:.2f}", 1)
-        pdf.cell(40, 10, f"{item['HodnotaUSD']:.0f}", 1)
-        pdf.cell(40, 10, f"{item['Zisk']:.0f}", 1, 1)
-        
-    return pdf.output(dest='S').encode('latin-1', 'replace')
 
+    # 1. VELKÁ ČÍSLA (DASHBOARD)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 10, 'FINANCNI SOUHRN', 0, 1, 'L')
+    pdf.line(10, 55, 200, 55)
+    pdf.ln(5)
+
+    # Hodnota portfolia
+    pdf.set_font('Arial', '', 10)
+    pdf.cell(50, 10, "CELKOVA HODNOTA:", 0, 0)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(50, 10, f"{total_val:,.0f} CZK", 0, 1)
+
+    # Hotovost
+    pdf.set_font('Arial', '', 10)
+    pdf.cell(50, 10, "VOLNA HOTOVOST:", 0, 0)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(50, 10, f"{cash:,.0f} USD", 0, 1)
+
+    # Zisk (Barevně)
+    pdf.set_font('Arial', '', 10)
+    pdf.cell(50, 10, "CELKOVY ZISK:", 0, 0)
+    pdf.set_font('Arial', 'B', 14)
+    
+    if profit >= 0:
+        pdf.set_text_color(0, 150, 0) # Zelená
+        prefix = "+"
+    else:
+        pdf.set_text_color(200, 0, 0) # Červená
+        prefix = ""
+    
+    pdf.cell(50, 10, f"{prefix}{profit:,.0f} CZK", 0, 1)
+    pdf.set_text_color(0, 0, 0) # Zpět na černou
+    pdf.ln(10)
+
+    # 2. TABULKA POZIC
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, 'DETAIL PORTFOLIA', 0, 1, 'L')
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(5)
+
+    # Hlavička tabulky
+    pdf.set_font('Arial', 'B', 10)
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(40, 10, 'Ticker', 1, 0, 'C', fill=True)
+    pdf.cell(40, 10, 'Kusy', 1, 0, 'C', fill=True)
+    pdf.cell(40, 10, 'Nakup ($)', 1, 0, 'C', fill=True)
+    pdf.cell(50, 10, 'Hodnota ($)', 1, 1, 'C', fill=True)
+
+    # Data tabulky
+    pdf.set_font('Arial', '', 10)
+    for _, row in df.iterrows():
+        if row['Pocet'] > 0:
+            # Zkusíme zjistit aktuální hodnotu, pokud chybí data, dáme aspoň nákupku
+            try:
+                nakup_cena = float(row['Cena'])
+                aktualni_hodnota = nakup_cena * float(row['Pocet']) 
+            except:
+                nakup_cena = 0; aktualni_hodnota = 0
+
+            pdf.cell(40, 10, str(row['Ticker']), 1, 0, 'C')
+            pdf.cell(40, 10, str(row['Pocet']), 1, 0, 'C')
+            pdf.cell(40, 10, f"{nakup_cena:.2f}", 1, 0, 'R')
+            pdf.cell(50, 10, f"{aktualni_hodnota:.2f}", 1, 1, 'R')
+
+    return pdf.output(dest='S').encode('latin-1', errors='replace')
+
+
+# --- EMAIL ---
 def odeslat_email(prijemce, predmet, telo):
     try:
         sender_email = st.secrets["email"]["sender"]
@@ -264,7 +325,6 @@ def ziskej_ceny_hromadne(tickers):
             
             # Pokud cache pokryla vše, super!
             if not missing_tickers:
-                # print("🚀 Vše načteno z TURBO cache.")
                 return data
 
     except Exception:
@@ -272,52 +332,39 @@ def ziskej_ceny_hromadne(tickers):
         missing_tickers = tickers if tickers else []
 
     # 2. DOSTÁHNOUT CHYBĚJÍCÍ (nebo vše, pokud cache nebyla)
-    # Přidáme i měny, pokud chybí
     if "USD/CZK" not in data: missing_tickers.append("CZK=X")
     if "EUR/USD" not in data: missing_tickers.append("EURUSD=X")
     
-    # Odebereme duplicity
     missing_tickers = list(set(missing_tickers))
-    
     if not missing_tickers: return data
 
     try:
-        # Použijeme Yahoo download pro zbytek (batch download je rychlejší)
         batch = yf.download(missing_tickers, period="5d", group_by='ticker', progress=False)
-        
         for t in missing_tickers:
             price = 0.0
             try:
-                # Zkusíme vytáhnout Close z batche
                 if len(missing_tickers) > 1:
                     if t in batch.columns.levels[0]:
                         series = batch[t]['Close'].dropna()
                         if not series.empty: price = float(series.iloc[-1])
                 else:
-                    # Pokud byl jen jeden ticker, struktura je jiná
                     series = batch['Close'].dropna()
                     if not series.empty: price = float(series.iloc[-1])
             except: pass
             
-            # Pokud hromadné stažení selhalo, zkusíme individuálně (záchrana)
             if price == 0:
                 try:
                     s = yf.Ticker(t)
                     price = float(s.fast_info.last_price)
                 except: pass
 
-            # Uložení
             if price > 0:
                 curr = "USD"
                 label = t
-                
                 if ".PR" in str(t): curr = "CZK"
                 elif ".DE" in str(t): curr = "EUR"
-                elif "CZK=X" in str(t): 
-                    curr = "CZK"; label = "USD/CZK"
-                elif "EURUSD=X" in str(t): 
-                    curr = "USD"; label = "EUR/USD"
-                
+                elif "CZK=X" in str(t): curr = "CZK"; label = "USD/CZK"
+                elif "EURUSD=X" in str(t): curr = "USD"; label = "EUR/USD"
                 data[label] = {"price": price, "curr": curr}
                 
     except Exception as e:
@@ -360,7 +407,6 @@ def make_plotly_cyberpunk(fig):
     dark_bg = "rgba(0,0,0,0)"
     grid_color = "#30363D"
 
-    # Layout styling (bezpečné, univerzální)
     try:
         fig.update_layout(
             paper_bgcolor=dark_bg,
@@ -374,31 +420,21 @@ def make_plotly_cyberpunk(fig):
     except Exception:
         pass
 
-    # Aplikuj styl selektivně podle typu trace
     try:
         for t in fig.data:
             t_type = getattr(t, "type", None)
-
-            # PIE: obrys se nastavuje přes marker.line
             if t_type == "pie":
                 try:
                     current_marker = dict(t.marker) if getattr(t, "marker", None) is not None else {}
                     current_marker["line"] = dict(width=3, color=neon_green)
                     t.marker = current_marker
                 except Exception:
-                    try:
-                        t.marker = {"line": dict(width=3, color=neon_green)}
-                    except Exception:
-                        pass
-
-            # Trace, které běžně podporují line
+                    pass
             elif t_type in ("scatter", "bar", "line", "ohlc", "candlestick"):
                 try:
                     t.line = dict(width=3, color=neon_green)
                 except Exception:
                     pass
-
-            # Fallback: pokud má trace marker, pokusíme se nastavit marker.line
             else:
                 try:
                     if hasattr(t, "marker"):
@@ -409,7 +445,6 @@ def make_plotly_cyberpunk(fig):
                     pass
     except Exception:
         pass
-
     return fig
 
 # --- 2. STYLOVÁNÍ PRO MATPLOTLIB (Statické) ---
@@ -437,19 +472,17 @@ def make_matplotlib_cyberpunk(fig, ax):
     
     return fig
 
-# --- NOVÁ FUNKCE NA KONEC SOUBORU ---
+# --- POMOCNÁ FUNKCE SEKTORY ---
 def ziskej_sektor_tickeru(ticker):
     """
-    Zjistí, do jakého sektoru akcie patří (např. Technology, Energy).
+    Zjistí, do jakého sektoru akcie patří.
     """
     try:
-        if ticker.endswith(".PR"): return "Energy/Utilities (CZ)" # Většina CZ akcií co kupuješ
+        if ticker.endswith(".PR"): return "Energy/Utilities (CZ)"
         
         t = yf.Ticker(ticker)
-        # Zkusíme najít sektor v informacích
         sektor = t.info.get('sector', 'Neznámý')
         
-        # Překlad do češtiny (volitelné, pro hezčí grafy)
         preklad = {
             "Technology": "Technologie",
             "Financial Services": "Finance",
