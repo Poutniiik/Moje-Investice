@@ -1661,7 +1661,7 @@ with c_act2:
         worst_stock=worst_txt  # <--- NOVINKA
     )
     
-    st.download_button(
+        st.download_button(
         label="📄 STÁHNOUT PROFI PDF", 
         data=pdf_data, 
         file_name="investicni_report.pdf", 
@@ -2802,6 +2802,7 @@ with c_act2:
                 
 if __name__ == "__main__":
     main()
+
 
 
 
