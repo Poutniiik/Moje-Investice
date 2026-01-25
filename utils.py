@@ -201,8 +201,9 @@ def ziskej_insider_transakce(ticker):
 # ==========================================
 # 📄 NOVÝ GENERÁTOR PROFI PDF (EXECUTIVE)
 # ==========================================
+
 def clean_text(text):
-    """Odstraní diakritiku, aby PDF nepadalo."""
+    """Odstraní diakritiku, aby PDF nepadalo (FPDF neumí české znaky v základu)."""
     if not isinstance(text, str): text = str(text)
     return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 
@@ -216,9 +217,14 @@ class PDF(FPDF):
         self.set_text_color(255, 255, 255)
         self.cell(0, 25, 'INVESTICNI REPORT', 0, 1, 'C')
         # Podnadpis
+        try:
+            user_safe = clean_text(self.user_name)
+        except:
+            user_safe = "Neznamy"
+        
         self.set_font('Arial', '', 10)
         self.set_text_color(150, 150, 150)
-        self.cell(0, -10, f'Terminal PRO | Uzivatel: {clean_text(self.user_name)}', 0, 1, 'C')
+        self.cell(0, -10, f'Terminal PRO | Uzivatel: {user_safe}', 0, 1, 'C')
         self.ln(20)
 
     def footer(self):
@@ -229,20 +235,32 @@ class PDF(FPDF):
 
 def vygeneruj_profi_pdf(user, df, total_val, cash, profit, best_stock="", worst_stock=""):
     """
-    Generuje PDF s 'Hall of Fame' (Vítěz a Poražený).
+    Generuje PDF s 'Hall of Fame' (Vítěz a Poražený) a agregovanou tabulkou.
     """
     # --- 1. AGREGACE (SCUCNUTÍ) DAT ---
+    # Tohle zajistí, že se 20 řádků Apple spojí do jednoho
     if not df.empty:
-        df['Pocet'] = pd.to_numeric(df['Pocet'])
-        df['Cena'] = pd.to_numeric(df['Cena'])
-        df['Celkem_Investice'] = df['Pocet'] * df['Cena']
+        # Vytvoříme kopii, abychom nerozbili původní data v aplikaci
+        df_calc = df.copy()
         
-        df_agreg = df.groupby('Ticker').agg({
+        # Ujistíme se, že pracujeme s čísly
+        df_calc['Pocet'] = pd.to_numeric(df_calc['Pocet'], errors='coerce').fillna(0)
+        df_calc['Cena'] = pd.to_numeric(df_calc['Cena'], errors='coerce').fillna(0)
+        
+        # Pomocný sloupec pro celkovou investici
+        df_calc['Celkem_Investice'] = df_calc['Pocet'] * df_calc['Cena']
+        
+        # Seskupíme podle Tickeru
+        df_agreg = df_calc.groupby('Ticker').agg({
             'Pocet': 'sum',
             'Celkem_Investice': 'sum'
         }).reset_index()
         
-        df_agreg['Cena'] = df_agreg['Celkem_Investice'] / df_agreg['Pocet']
+        # Dopočítáme průměrnou nákupku
+        df_agreg['Cena'] = df_agreg.apply(
+            lambda x: x['Celkem_Investice'] / x['Pocet'] if x['Pocet'] > 0 else 0, axis=1
+        )
+        
         data_pro_tisk = df_agreg
     else:
         data_pro_tisk = df
@@ -260,7 +278,6 @@ def vygeneruj_profi_pdf(user, df, total_val, cash, profit, best_stock="", worst_
     pdf.ln(5)
 
     # --- 3. LEVÝ SLOUPEC (ČÍSLA) ---
-    # Uložíme si pozici, abychom mohli dát Vítěze doprava
     x_start = pdf.get_x()
     y_start = pdf.get_y()
 
@@ -290,7 +307,6 @@ def vygeneruj_profi_pdf(user, df, total_val, cash, profit, best_stock="", worst_
     pdf.set_text_color(0, 0, 0)
 
     # --- 4. PRAVÝ SLOUPEC (SÍŇ SLÁVY) ---
-    # Pokud jsme dostali vítěze/poraženého, zobrazíme je vpravo
     if best_stock or worst_stock:
         pdf.set_y(y_start) # Vrátíme se nahoru
         pdf.set_x(110)     # Posuneme se doprava
@@ -305,7 +321,7 @@ def vygeneruj_profi_pdf(user, df, total_val, cash, profit, best_stock="", worst_
             pdf.cell(30, 8, "Nejlepsi akcie:", 0, 0)
             pdf.set_font('Arial', 'B', 10)
             pdf.set_text_color(0, 150, 0) # Zelená
-            pdf.cell(0, 8, f" {best_stock}", 0, 1)
+            pdf.cell(0, 8, f" {clean_text(best_stock)}", 0, 1)
         
         # Poražený
         if worst_stock:
@@ -315,10 +331,10 @@ def vygeneruj_profi_pdf(user, df, total_val, cash, profit, best_stock="", worst_
             pdf.cell(30, 8, "Nejhorsi akcie:", 0, 0)
             pdf.set_font('Arial', 'B', 10)
             pdf.set_text_color(200, 0, 0) # Červená
-            pdf.cell(0, 8, f" {worst_stock}", 0, 1)
+            pdf.cell(0, 8, f" {clean_text(worst_stock)}", 0, 1)
 
     pdf.set_text_color(0, 0, 0)
-    pdf.ln(10) # Odřádkování před tabulkou
+    pdf.ln(10) # Odřádkování
 
     # --- 5. TABULKA (AGREGOVANÁ) ---
     pdf.set_font('Arial', 'B', 14)
@@ -336,11 +352,19 @@ def vygeneruj_profi_pdf(user, df, total_val, cash, profit, best_stock="", worst_
 
     # Data
     pdf.set_font('Arial', '', 10)
-    for _, row in data_pro_tisk.iterrows():
-        pdf.cell(40, 10, str(row['Ticker']), 1, 0, 'C')
-        pdf.cell(30, 10, f"{row['Pocet']:.1f}", 1, 0, 'C')
-        pdf.cell(40, 10, f"{row['Cena']:.2f}", 1, 0, 'R')
-        pdf.cell(40, 10, f"{row['Celkem_Investice']:.2f}", 1, 1, 'R')
+    if not data_pro_tisk.empty:
+        for _, row in data_pro_tisk.iterrows():
+            ticker = str(row['Ticker'])
+            pocet = row['Pocet']
+            cena = row['Cena']
+            celkem = row['Celkem_Investice']
+            
+            pdf.cell(40, 10, ticker, 1, 0, 'C')
+            pdf.cell(30, 10, f"{pocet:.1f}", 1, 0, 'C')
+            pdf.cell(40, 10, f"{cena:.2f}", 1, 0, 'R')
+            pdf.cell(40, 10, f"{celkem:.2f}", 1, 1, 'R')
+    else:
+        pdf.cell(0, 10, "Zadna data k zobrazeni", 1, 1, 'C')
 
     return pdf.output(dest='S').encode('latin-1', errors='replace')
 
