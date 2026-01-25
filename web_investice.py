@@ -1634,21 +1634,69 @@ def main():
         c_act1, c_act2 = st.columns(2)
 
         with c_act2:
-            # 1. PŘÍPRAVA SÍNĚ SLÁVY (Vítěz a Poražený)
-            best_txt = "NVIDIA (+25 %)"   # Tady bys ideálně dal proměnnou
-            worst_txt = "COCA-COLA (-4 %)" 
+            # ==================================================
+            # 🕵️‍♂️ AUTOPILOT S INTERNETEM (DOPLNĚNÍ CEN)
+            # ==================================================
+            import yfinance as yf # Pro jistotu importujeme
             
-            # 2. VOLÁNÍ FUNKCE (Posíláme tam ty nové texty!)
+            # 1. Uděláme si pracovní kopii dat, abychom nerozbili aplikaci
+            df_pdf = df.copy()
+            
+            # 2. Zjistíme unikátní tickery a stáhneme jejich aktuální ceny
+            # (Abychom nestahovali Apple 50x, stáhneme ho jednou)
+            unikátní_tickery = df_pdf['Ticker'].unique()
+            aktualni_ceny = {}
+            
+            # Rychlé stažení cen z Yahoo
+            for t in unikátní_tickery:
+                try:
+                    stock = yf.Ticker(t)
+                    # Zkusíme 'currentPrice', když není, tak 'regularMarketPrice'
+                    cena = stock.info.get('currentPrice') or stock.info.get('regularMarketPrice') or 0
+                    aktualni_ceny[t] = cena
+                except:
+                    aktualni_ceny[t] = 0
+
+            # 3. Dopočítáme zisky pro PDF
+            def spocitat_zisk(radek):
+                akt_cena = aktualni_ceny.get(radek['Ticker'], 0)
+                nakup_cena = float(radek['Cena'])
+                if nakup_cena > 0 and akt_cena > 0:
+                    return ((akt_cena - nakup_cena) / nakup_cena) * 100
+                return 0
+
+            df_pdf['Zisk_Pct'] = df_pdf.apply(spocitat_zisk, axis=1)
+
+            # 4. Teď už můžeme najít Vítěze a Poraženého!
+            try:
+                # Najdeme řádek s největším % ziskem
+                vitez_idx = df_pdf['Zisk_Pct'].idxmax()
+                vitez_ticker = df_pdf.loc[vitez_idx, 'Ticker']
+                vitez_pct = df_pdf.loc[vitez_idx, 'Zisk_Pct']
+                best_txt = f"{vitez_ticker} ({vitez_pct:+.1f} %)"
+
+                # Najdeme řádek s nejmenším (záporným) %
+                porazeny_idx = df_pdf['Zisk_Pct'].idxmin()
+                porazeny_ticker = df_pdf.loc[porazeny_idx, 'Ticker']
+                porazeny_pct = df_pdf.loc[porazeny_idx, 'Zisk_Pct']
+                worst_txt = f"{porazeny_ticker} ({porazeny_pct:+.1f} %)"
+            except:
+                best_txt = "Data nedostupná"
+                worst_txt = "Data nedostupná"
+
+            # ==================================================
+            # 🖨️ GENERUJEME PDF
+            # ==================================================
             pdf_data = vygeneruj_profi_pdf(
                 user=USER, 
-                df=df, 
+                df=df, # Posíláme původní df (agregace si poradí)
                 total_val=celk_hod_czk, 
                 cash=cash_usd, 
                 profit=(celk_hod_czk - celk_inv_czk),
-                best_stock=best_txt,   # <--- NOVINKA
-                worst_stock=worst_txt  # <--- NOVINKA
+                best_stock=best_txt,  # <--- TADY UŽ BUDOU REÁLNÁ DATA!
+                worst_stock=worst_txt
             )
-            st.write("🕵️‍♂️ CO VIDÍ AUTOPILOT:", df.head())
+            
             st.download_button(
                 label="📄 STÁHNOUT PROFI PDF", 
                 data=pdf_data, 
@@ -2799,6 +2847,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
