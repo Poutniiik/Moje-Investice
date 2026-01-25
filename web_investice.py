@@ -1648,7 +1648,7 @@ def main():
                 best_stock=best_txt,   # <--- NOVINKA
                 worst_stock=worst_txt  # <--- NOVINKA
             )
-            
+            st.write("🕵️‍♂️ CO VIDÍ AUTOPILOT:", df.head())
             st.download_button(
                 label="📄 STÁHNOUT PROFI PDF", 
                 data=pdf_data, 
@@ -2799,6 +2799,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
