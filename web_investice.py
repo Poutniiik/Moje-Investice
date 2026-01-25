@@ -1670,7 +1670,7 @@ with c_act2:
         use_container_width=True
     )
 
-        with st.expander("🔐 Účet"):
+    with st.expander("🔐 Účet"):
             with st.form("pass_change"):
                 old = st.text_input("Staré", type="password"); new = st.text_input("Nové", type="password"); conf = st.text_input("Potvrdit", type="password")
                 if st.form_submit_button("Změnit heslo"):
@@ -2803,6 +2803,7 @@ with c_act2:
                 
 if __name__ == "__main__":
     main()
+
 
 
 
