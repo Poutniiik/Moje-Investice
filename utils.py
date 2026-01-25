@@ -227,103 +227,120 @@ class PDF(FPDF):
         self.set_text_color(128, 128, 128)
         self.cell(0, 10, f'Strana {self.page_no()}', 0, 0, 'C')
 
-def vygeneruj_profi_pdf(user, df, total_val, cash, profit):
+def vygeneruj_profi_pdf(user, df, total_val, cash, profit, best_stock="", worst_stock=""):
     """
-    Funkce, která vytvoří luxusní PDF report s AGREGACÍ pozic.
+    Generuje PDF s 'Hall of Fame' (Vítěz a Poražený).
     """
-    # --- 1. ZDE JE TA MAGIE (AGREGÁTOR) ---
-    # Než začneme tisknout, sloučíme řádky se stejným Tickerem
+    # --- 1. AGREGACE (SCUCNUTÍ) DAT ---
     if not df.empty:
-        # Převedeme sloupce na čísla, aby to matematika pobrala
         df['Pocet'] = pd.to_numeric(df['Pocet'])
         df['Cena'] = pd.to_numeric(df['Cena'])
-        
-        # Vypočítáme celkovou investici pro každý řádek (Kusy * Cena)
         df['Celkem_Investice'] = df['Pocet'] * df['Cena']
         
-        # Seskupíme podle Tickeru
         df_agreg = df.groupby('Ticker').agg({
-            'Pocet': 'sum',             # Kusy sečteme (1 + 1 + 1 = 3)
-            'Celkem_Investice': 'sum'   # Peníze sečteme
+            'Pocet': 'sum',
+            'Celkem_Investice': 'sum'
         }).reset_index()
         
-        # Dopočítáme průměrnou nákupní cenu (Celkem peníze / Celkem kusy)
         df_agreg['Cena'] = df_agreg['Celkem_Investice'] / df_agreg['Pocet']
-        
-        # Použijeme tato nová, čistá data pro tisk!
         data_pro_tisk = df_agreg
     else:
         data_pro_tisk = df
 
-    # --- 2. ZBYTEK JE TVŮJ PŮVODNÍ KÓD (JEN MÍSTO 'df' POUŽÍVÁM 'data_pro_tisk') ---
-    
+    # --- 2. START PDF ---
     pdf = PDF()
     pdf.user_name = user
     pdf.add_page()
 
-    # 1. VELKÁ ČÍSLA (DASHBOARD)
+    # NADPIS SEKCE
     pdf.set_font('Arial', 'B', 14)
     pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 10, 'FINANCNI SOUHRN', 0, 1, 'L')
     pdf.line(10, 55, 200, 55)
     pdf.ln(5)
 
-    # Hodnota portfolia
+    # --- 3. LEVÝ SLOUPEC (ČÍSLA) ---
+    # Uložíme si pozici, abychom mohli dát Vítěze doprava
+    x_start = pdf.get_x()
+    y_start = pdf.get_y()
+
+    # Hodnota
     pdf.set_font('Arial', '', 10)
-    pdf.cell(50, 10, "CELKOVA HODNOTA:", 0, 0)
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(50, 10, f"{total_val:,.0f} CZK", 0, 1)
+    pdf.cell(40, 8, "CELKOVA HODNOTA:", 0, 0)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(40, 8, f"{total_val:,.0f} CZK", 0, 1)
 
     # Hotovost
     pdf.set_font('Arial', '', 10)
-    pdf.cell(50, 10, "VOLNA HOTOVOST:", 0, 0)
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(50, 10, f"{cash:,.0f} USD", 0, 1)
+    pdf.cell(40, 8, "VOLNA HOTOVOST:", 0, 0)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(40, 8, f"{cash:,.0f} USD", 0, 1)
 
-    # Zisk (Barevně)
+    # Zisk
     pdf.set_font('Arial', '', 10)
-    pdf.cell(50, 10, "CELKOVY ZISK:", 0, 0)
-    pdf.set_font('Arial', 'B', 14)
-    
+    pdf.cell(40, 8, "CELKOVY ZISK:", 0, 0)
+    pdf.set_font('Arial', 'B', 12)
     if profit >= 0:
-        pdf.set_text_color(0, 150, 0) # Zelená
+        pdf.set_text_color(0, 150, 0)
         prefix = "+"
     else:
-        pdf.set_text_color(200, 0, 0) # Červená
+        pdf.set_text_color(200, 0, 0)
         prefix = ""
-    
-    pdf.cell(50, 10, f"{prefix}{profit:,.0f} CZK", 0, 1)
-    pdf.set_text_color(0, 0, 0) # Zpět na černou
-    pdf.ln(10)
+    pdf.cell(40, 8, f"{prefix}{profit:,.0f} CZK", 0, 1)
+    pdf.set_text_color(0, 0, 0)
 
-    # 2. TABULKA POZIC
+    # --- 4. PRAVÝ SLOUPEC (SÍŇ SLÁVY) ---
+    # Pokud jsme dostali vítěze/poraženého, zobrazíme je vpravo
+    if best_stock or worst_stock:
+        pdf.set_y(y_start) # Vrátíme se nahoru
+        pdf.set_x(110)     # Posuneme se doprava
+
+        pdf.set_font('Arial', 'B', 10)
+        pdf.cell(0, 8, "VYKONNOST MESICE:", 0, 1)
+        
+        # Vítěz
+        if best_stock:
+            pdf.set_x(110)
+            pdf.set_font('Arial', '', 10)
+            pdf.cell(30, 8, "Nejlepsi akcie:", 0, 0)
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_text_color(0, 150, 0) # Zelená
+            pdf.cell(0, 8, f" {best_stock}", 0, 1)
+        
+        # Poražený
+        if worst_stock:
+            pdf.set_x(110)
+            pdf.set_font('Arial', '', 10)
+            pdf.set_text_color(0, 0, 0) # Černá
+            pdf.cell(30, 8, "Nejhorsi akcie:", 0, 0)
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_text_color(200, 0, 0) # Červená
+            pdf.cell(0, 8, f" {worst_stock}", 0, 1)
+
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(10) # Odřádkování před tabulkou
+
+    # --- 5. TABULKA (AGREGOVANÁ) ---
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 10, 'DETAIL PORTFOLIA', 0, 1, 'L')
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(5)
 
-    # Hlavička tabulky
+    # Hlavička
     pdf.set_font('Arial', 'B', 10)
-    pdf.set_fill_color(230, 230, 230)
+    pdf.set_fill_color(240, 240, 240)
     pdf.cell(40, 10, 'Ticker', 1, 0, 'C', fill=True)
-    pdf.cell(40, 10, 'Kusy', 1, 0, 'C', fill=True)
-    pdf.cell(40, 10, 'Nakup ($)', 1, 0, 'C', fill=True)
-    pdf.cell(50, 10, 'Hodnota ($)', 1, 1, 'C', fill=True)
+    pdf.cell(30, 10, 'Kusy', 1, 0, 'C', fill=True)
+    pdf.cell(40, 10, 'Prum. Cena ($)', 1, 0, 'C', fill=True)
+    pdf.cell(40, 10, 'Investice ($)', 1, 1, 'C', fill=True)
 
-    # Data tabulky - TADY JE ZMĚNA: Iterujeme přes 'data_pro_tisk'
+    # Data
     pdf.set_font('Arial', '', 10)
     for _, row in data_pro_tisk.iterrows():
-        if row['Pocet'] > 0:
-            try:
-                nakup_cena = float(row['Cena'])
-                aktualni_hodnota = nakup_cena * float(row['Pocet']) 
-            except:
-                nakup_cena = 0; aktualni_hodnota = 0
-
-            pdf.cell(40, 10, str(row['Ticker']), 1, 0, 'C')
-            pdf.cell(40, 10, f"{row['Pocet']:.1f}", 1, 0, 'C') # Formátování kusů
-            pdf.cell(40, 10, f"{nakup_cena:.2f}", 1, 0, 'R')
-            pdf.cell(50, 10, f"{aktualni_hodnota:.2f}", 1, 1, 'R')
+        pdf.cell(40, 10, str(row['Ticker']), 1, 0, 'C')
+        pdf.cell(30, 10, f"{row['Pocet']:.1f}", 1, 0, 'C')
+        pdf.cell(40, 10, f"{row['Cena']:.2f}", 1, 0, 'R')
+        pdf.cell(40, 10, f"{row['Celkem_Investice']:.2f}", 1, 1, 'R')
 
     return pdf.output(dest='S').encode('latin-1', errors='replace')
 
