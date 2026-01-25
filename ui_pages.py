@@ -68,8 +68,9 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             else: st.metric("P/E Ratio", "---")
 
 
-                            # --- NOVÉ: GRAHAMOVA FÉROVÁ CENA (Vnitřní hodnota) ---
-                           st.divider() 
+                            # ... (tady je konec sekce P/E Ratio) ...
+
+                            st.divider() 
 
                             # --- NEZNIČITELNÝ MODEL OCEŇOVÁNÍ ---
                             current_price = t_info.get('currentPrice', 0)
