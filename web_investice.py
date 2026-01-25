@@ -483,13 +483,12 @@ def render_sledovani_page(USER, df_watch, LIVE_DATA, AI_AVAILABLE, model):
 
 
 def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
-    """Vykreslí stránku '💎 Dividendy'."""
+    """Vykreslí stránku '💎 Dividendy' s novým LIVE kalendářem."""
     
     st.title("💎 DIVIDENDOVÝ KALENDÁŘ")
 
-    # --- PROJEKTOR PASIVNÍHO PŘÍJMU (OPRAVENO A ZROBUSTNĚNO) ---
+    # --- PROJEKTOR PASIVNÍHO PŘÍJMU (Tvůj původní kód) ---
     est_annual_income_czk = 0
-    # Abychom se vyhnuli chybě, zajistíme, že viz_data_list je list, i když je prázdný
     if isinstance(viz_data_list, pd.DataFrame):
         data_to_use = viz_data_list.to_dict('records')
     else:
@@ -497,24 +496,16 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
         
     if data_to_use:
         for item in data_to_use:
-            # Původní logika: HodnotaUSD * Divi Yield * Kurz CZK
-            # ZAJIŠTĚNÍ ČÍSELNÉ HODNOTY A FALLBACK: 0.0
-            # Divi je uložen jako desetinné číslo (např. 0.03 pro 3%)
             yield_val = item.get('Divi', 0.0)
             val_usd = item.get('HodnotaUSD', 0.0)
             
-            # Konverze na float, pokud by náhodou byl 'Divi' NaN nebo None
             try:
-                # Použijeme pd.isna pro robustní kontrolu Pandas NaN/None
                 yield_val = float(yield_val) if pd.notna(yield_val) and yield_val is not False else 0.0
                 val_usd = float(val_usd) if pd.notna(val_usd) and val_usd is not False else 0.0
             except ValueError:
-                yield_val = 0.0
-                val_usd = 0.0
+                yield_val = 0.0; val_usd = 0.0
 
-            # ZMĚNA: Podmínka pro výpočet zůstává, ale proměnné jsou nyní bezpečné
             if yield_val > 0 and val_usd > 0:
-                # Výpočet: USD Hodnota * (Dividendový Výnos, např. 0.03) * Kurz CZK
                 est_annual_income_czk += (val_usd * yield_val) * kurzy.get("CZK", 20.85)
 
     est_monthly_income_czk = est_annual_income_czk / 12
@@ -522,90 +513,59 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
     with st.container(border=True):
         st.subheader("🔮 PROJEKTOR PASIVNÍHO PŘÍJMU")
         cp1, cp2, cp3 = st.columns(3)
-        cp1.metric("Očekávaný roční příjem", f"{est_annual_income_czk:,.0f} Kč", help="Hrubý odhad na základě aktuálního dividendového výnosu držených akcií.")
-        cp2.metric("Měsíční průměr", f"{est_monthly_income_czk:,.0f} Kč", help="Kolik to dělá měsíčně k dobru.")
+        cp1.metric("Očekávaný roční příjem", f"{est_annual_income_czk:,.0f} Kč")
+        cp2.metric("Měsíční průměr", f"{est_monthly_income_czk:,.0f} Kč")
 
-        levels = {
-            "Netflix (300 Kč)": 300,
-            "Internet (600 Kč)": 600,
-            "Energie (2 000 Kč)": 2000,
-            "Nájem/Hypo (15 000 Kč)": 15000
-        }
-
-        next_goal = "Rentier"
-        next_val = 100000 
-        progress = 0.0
+        levels = {"Netflix (300 Kč)": 300, "Internet (600 Kč)": 600, "Energie (2 000 Kč)": 2000, "Nájem/Hypo (15 000 Kč)": 15000}
+        next_goal = "Rentier"; next_val = 100000; progress = 0.0
 
         for name, val in levels.items():
             if est_monthly_income_czk < val:
-                next_goal = name
-                next_val = val
+                next_goal = name; next_val = val
                 progress = min(est_monthly_income_czk / val, 1.0)
                 break
-            else:
-                pass
+        if est_monthly_income_czk > 15000: next_goal = "Finanční Svoboda 🏖️"; progress = 1.0
 
-        if est_monthly_income_czk > 15000:
-            next_goal = "Finanční Svoboda 🏖️"
-            progress = 1.0
-
-        cp3.caption(f"Cíl: **{next_goal}**")
-        cp3.progress(progress)
+        cp3.caption(f"Cíl: **{next_goal}**"); cp3.progress(progress)
 
     st.divider()
 
-    # 1. Metriky
+    # 1. Metriky Celkem vyplaceno
     total_div_czk = 0
     if not df_div.empty:
         for _, r in df_div.iterrows():
             amt = r['Castka']; currency = r['Mena']
             if currency == "USD": total_div_czk += amt * kurzy.get("CZK", 20.85)
-            elif currency == "EUR": total_div_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85)) # approx
+            elif currency == "EUR": total_div_czk += amt * (kurzy.get("EUR", 1.16) * kurzy.get("CZK", 20.85))
             else: total_div_czk += amt
 
     st.metric("CELKEM VYPLACENO (CZK)", f"{total_div_czk:,.0f} Kč")
 
-    t_div1, t_div2, t_div3 = st.tabs(["HISTORIE VÝPLAT", "❄️ EFEKT SNĚHOVÉ KOULE", "PŘIDAT DIVIDENDU"])
+    # --- ZMĚNA: PŘIDÁNA 4. ZÁLOŽKA "📅 LIVE DATA" ---
+    t_div1, t_div2, t_div3, t_div4 = st.tabs(["HISTORIE VÝPLAT", "❄️ EFEKT SNĚHOVÉ KOULE", "PŘIDAT DIVIDENDU", "📅 LIVE PREDIKCE"])
 
-    with t_div1:
+    with t_div1: # --- HISTORIE (Tvůj kód) ---
         if not df_div.empty:
-            # Graf - OPRAVA VIZUALIZACE
             plot_df = df_div.copy()
-            # Převedeme přesný čas jen na datum (string YYYY-MM-DD), aby měly sloupce šířku "1 den" a byly vidět
             plot_df['Datum_Den'] = pd.to_datetime(plot_df['Datum']).dt.strftime('%Y-%m-%d')
+            plot_df_grouped = plot_df.groupby(['Datum_Den', 'Ticker'])['Castka'].sum().reset_index().sort_values('Datum_Den')
 
-            # Seskupíme podle dne a tickeru (aby se v jednom dni sloupce sečetly/navrstvily)
-            plot_df_grouped = plot_df.groupby(['Datum_Den', 'Ticker'])['Castka'].sum().reset_index()
-            plot_df_grouped = plot_df_grouped.sort_values('Datum_Den')
-
-            fig_div = px.bar(plot_df_grouped, x='Datum_Den', y='Castka', color='Ticker',
-                             title="Historie výplat (po dnech)",
-                             labels={'Datum_Den': 'Datum', 'Castka': 'Částka'},
-                             template="plotly_dark")
-
-            # Vynutíme, aby osa X byla kategorie (text), ne časová osa -> tlusté sloupce
+            fig_div = px.bar(plot_df_grouped, x='Datum_Den', y='Castka', color='Ticker', title="Historie výplat", template="plotly_dark")
             fig_div.update_xaxes(type='category')
-
             fig_div.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
-            fig_div = make_plotly_cyberpunk(fig_div)
+            fig_div = make_plotly_cyberpunk(fig_div) # Předpokládám, že tuto funkci máš importovanou
             st.plotly_chart(fig_div, use_container_width=True)
-
-            # Tabulka - tu necháme s původními detailními daty
             st.dataframe(df_div.sort_values('Datum', ascending=False), use_container_width=True, hide_index=True)
         else:
             st.info("Zatím žádné dividendy.")
 
-    with t_div2:
+    with t_div2: # --- SNOWBALL (Tvůj kód) ---
         if not df_div.empty:
             st.subheader("❄️ KUMULATIVNÍ RŮST (Snowball)")
-            st.info("Tento graf ukazuje, jak se tvé dividendy sčítají v čase. Cílem je exponenciální růst!")
-            
-            # Příprava dat pro snowball
             snowball_df = df_div.copy()
             snowball_df['Datum'] = pd.to_datetime(snowball_df['Datum'])
             snowball_df = snowball_df.sort_values('Datum')
             
-            # Přepočet na CZK pro jednotný graf
             def convert_to_czk(row):
                 amt = row['Castka']; currency = row['Mena']
                 if currency == "USD": return amt * kurzy.get("CZK", 20.85)
@@ -615,45 +575,89 @@ def render_dividendy_page(USER, df, df_div, kurzy, viz_data_list):
             snowball_df['CastkaCZK'] = snowball_df.apply(convert_to_czk, axis=1)
             snowball_df['Kumulativni'] = snowball_df['CastkaCZK'].cumsum()
             
-            fig_snow = px.area(
-                snowball_df, 
-                x='Datum', 
-                y='Kumulativni',
-                title="Celkem vyplaceno v čase (CZK)",
-                template="plotly_dark",
-                color_discrete_sequence=['#00BFFF'] # Deep Sky Blue
-            )
-            
-            fig_snow.update_traces(line_color='#00BFFF', fillcolor='rgba(0, 191, 255, 0.2)')
-            fig_snow.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)", 
-                paper_bgcolor="rgba(0,0,0,0)", 
-                font_family="Roboto Mono",
-                yaxis_title="Celkem vyplaceno (Kč)",
-                xaxis_title=""
-            )
+            fig_snow = px.area(snowball_df, x='Datum', y='Kumulativni', title="Celkem vyplaceno v čase (CZK)", template="plotly_dark", color_discrete_sequence=['#00BFFF'])
+            fig_snow.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_family="Roboto Mono")
             fig_snow = make_plotly_cyberpunk(fig_snow)
             st.plotly_chart(fig_snow, use_container_width=True)
-            
-            last_total = snowball_df['Kumulativni'].iloc[-1]
-            st.metric("Celková 'Sněhová koule'", f"{last_total:,.0f} Kč", help="Suma všech dividend, které jsi kdy obdržel.")
-            
+            st.metric("Celková 'Sněhová koule'", f"{snowball_df['Kumulativni'].iloc[-1]:,.0f} Kč")
         else:
-            st.info("Zatím nemáš data pro sněhovou kouli. Přidej první dividendu!")
+            st.info("Zatím nemáš data pro sněhovou kouli.")
 
-    with t_div3:
+    with t_div3: # --- RUČNÍ PŘIDÁNÍ (Tvůj kód) ---
         st.caption("Peníze se automaticky připíší do peněženky.")
         with st.form("add_div"):
             dt_ticker = st.selectbox("Ticker", df['Ticker'].unique() if not df.empty else ["Jiny"])
             dt_amount = st.number_input("Částka (Netto)", 0.0, step=0.1)
             dt_curr = st.selectbox("Měna", ["USD", "CZK", "EUR"])
             
-            # Použijeme globální funkci z Canvasu
             if st.form_submit_button("💰 PŘIPSAT DIVIDENDU"):
-                pridat_dividendu(dt_ticker, dt_amount, dt_curr, USER)
+                pridat_dividendu(dt_ticker, dt_amount, dt_curr, USER) # Předpokládám funkci
                 st.success(f"Připsáno {dt_amount} {dt_curr} od {dt_ticker}")
-                time.sleep(1)
-                st.rerun()
+                time.sleep(1); st.rerun()
+
+    # --- 4. NOVÁ ZÁLOŽKA: LIVE PREDIKCE (Od Gemini) ---
+    with t_div4:
+        st.subheader("📡 Živá data z trhu (Yahoo Finance)")
+        st.caption("Tato tabulka se ptá burzy, kdy tvé firmy plánují platit příště.")
+        
+        if df.empty:
+            st.warning("Musíš mít nakoupené akcie, abych mohl hledat dividendy.")
+        else:
+            # Tlačítko pro načtení (aby to nezdržovalo start aplikace)
+            if st.button("🔍 Zjistit budoucí výplaty"):
+                with st.spinner("Volám na Wall Street... 📞"):
+                    live_div_data = []
+                    # Unikátní tickery, které držíš (kladný počet kusů)
+                    unique_tickers = df[df['Pocet'] > 0]['Ticker'].unique()
+                    
+                    for ticker in unique_tickers:
+                        try:
+                            # Získáme data
+                            stock = yf.Ticker(ticker)
+                            info = stock.info
+                            
+                            # Výplata dividend
+                            div_rate = info.get('dividendRate', 0)
+                            ex_div_timestamp = info.get('exDividendDate', None)
+                            
+                            ex_date_str = "Neznámé"
+                            days_to_ex = 999
+                            
+                            if ex_div_timestamp:
+                                ex_date = datetime.fromtimestamp(ex_div_timestamp)
+                                ex_date_str = ex_date.strftime('%d.%m.%Y')
+                                days_to_ex = (ex_date - datetime.now()).days
+
+                            # Spočítáme kolik máš kusů
+                            my_shares = df[df['Ticker'] == ticker]['Pocet'].sum()
+                            est_payout = my_shares * div_rate if div_rate else 0
+                            
+                            if div_rate and div_rate > 0:
+                                live_div_data.append({
+                                    "Ticker": ticker,
+                                    "Ex-Date (Kdy držet)": ex_date_str,
+                                    "Odhad výplaty": est_payout,
+                                    "Měna": info.get('currency', 'USD'),
+                                    "_sort_days": days_to_ex # Pomocné pro řazení
+                                })
+                        except Exception:
+                            continue # Chyba u jednoho tickeru nezhroutí zbytek
+                    
+                    if live_div_data:
+                        df_live = pd.DataFrame(live_div_data)
+                        # Seřadíme podle toho, co bude nejdřív
+                        df_live = df_live.sort_values(by="_sort_days")
+                        
+                        st.dataframe(
+                            df_live[['Ticker', 'Ex-Date (Kdy držet)', 'Odhad výplaty', 'Měna']],
+                            hide_index=True,
+                            use_container_width=True,
+                            column_config={
+                                "Odhad výplaty": st.column_config.NumberColumn("Očekávaná částka", format="%.2f")
+                            }
+                        )
+                    else:
+                        st.info("Yahoo Finance nenašlo pro tvé akcie žádná blízká data výplat.")
 
 
 def render_gamifikace_page(USER, level_name_money, level_progress_money, celk_hod_czk, AI_AVAILABLE, model, hist_vyvoje, kurzy, df, df_div, vdf, zustatky):
@@ -2765,6 +2769,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
