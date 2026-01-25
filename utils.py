@@ -229,8 +229,34 @@ class PDF(FPDF):
 
 def vygeneruj_profi_pdf(user, df, total_val, cash, profit):
     """
-    Funkce, která vytvoří luxusní PDF report.
+    Funkce, která vytvoří luxusní PDF report s AGREGACÍ pozic.
     """
+    # --- 1. ZDE JE TA MAGIE (AGREGÁTOR) ---
+    # Než začneme tisknout, sloučíme řádky se stejným Tickerem
+    if not df.empty:
+        # Převedeme sloupce na čísla, aby to matematika pobrala
+        df['Pocet'] = pd.to_numeric(df['Pocet'])
+        df['Cena'] = pd.to_numeric(df['Cena'])
+        
+        # Vypočítáme celkovou investici pro každý řádek (Kusy * Cena)
+        df['Celkem_Investice'] = df['Pocet'] * df['Cena']
+        
+        # Seskupíme podle Tickeru
+        df_agreg = df.groupby('Ticker').agg({
+            'Pocet': 'sum',             # Kusy sečteme (1 + 1 + 1 = 3)
+            'Celkem_Investice': 'sum'   # Peníze sečteme
+        }).reset_index()
+        
+        # Dopočítáme průměrnou nákupní cenu (Celkem peníze / Celkem kusy)
+        df_agreg['Cena'] = df_agreg['Celkem_Investice'] / df_agreg['Pocet']
+        
+        # Použijeme tato nová, čistá data pro tisk!
+        data_pro_tisk = df_agreg
+    else:
+        data_pro_tisk = df
+
+    # --- 2. ZBYTEK JE TVŮJ PŮVODNÍ KÓD (JEN MÍSTO 'df' POUŽÍVÁM 'data_pro_tisk') ---
+    
     pdf = PDF()
     pdf.user_name = user
     pdf.add_page()
@@ -284,11 +310,10 @@ def vygeneruj_profi_pdf(user, df, total_val, cash, profit):
     pdf.cell(40, 10, 'Nakup ($)', 1, 0, 'C', fill=True)
     pdf.cell(50, 10, 'Hodnota ($)', 1, 1, 'C', fill=True)
 
-    # Data tabulky
+    # Data tabulky - TADY JE ZMĚNA: Iterujeme přes 'data_pro_tisk'
     pdf.set_font('Arial', '', 10)
-    for _, row in df.iterrows():
+    for _, row in data_pro_tisk.iterrows():
         if row['Pocet'] > 0:
-            # Zkusíme zjistit aktuální hodnotu, pokud chybí data, dáme aspoň nákupku
             try:
                 nakup_cena = float(row['Cena'])
                 aktualni_hodnota = nakup_cena * float(row['Pocet']) 
@@ -296,7 +321,7 @@ def vygeneruj_profi_pdf(user, df, total_val, cash, profit):
                 nakup_cena = 0; aktualni_hodnota = 0
 
             pdf.cell(40, 10, str(row['Ticker']), 1, 0, 'C')
-            pdf.cell(40, 10, str(row['Pocet']), 1, 0, 'C')
+            pdf.cell(40, 10, f"{row['Pocet']:.1f}", 1, 0, 'C') # Formátování kusů
             pdf.cell(40, 10, f"{nakup_cena:.2f}", 1, 0, 'R')
             pdf.cell(50, 10, f"{aktualni_hodnota:.2f}", 1, 1, 'R')
 
