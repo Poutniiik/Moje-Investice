@@ -74,6 +74,8 @@ def render_analýza_rentgen_page(df, df_watch, vdf, model, AI_AVAILABLE):
                             # Vytáhneme data z t_info (zisk na akcii a účetní hodnota)
                             eps = t_info.get('trailingEps')
                             bvps = t_info.get('bookValue')
+
+                            st.write(f"🕵️ DEBUG DATA: EPS = {eps}, BookValue = {bvps}")
                             
                             # Kontrola, jestli data existují a jsou kladná (u ztrátových firem to nefunguje)
                             if eps is not None and bvps is not None and eps > 0 and bvps > 0:
