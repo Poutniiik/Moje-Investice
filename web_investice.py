@@ -1630,11 +1630,44 @@ def main():
             st.text_input(">", key="cli_cmd", placeholder="/help", on_change=process_cli_command)
 
         # --- AKCE (Tlačítka dole) ---
-        st.divider()
-        c_act1, c_act2 = st.columns(2)
-        with c_act2:
-            pdf_data = vygeneruj_profi_pdf(USER, df,  celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk))
-            st.download_button(label="📄 PDF", data=pdf_data, file_name=f"report.pdf", mime="application/pdf", use_container_width=True)
+st.divider()
+c_act1, c_act2 = st.columns(2)
+
+with c_act2:
+    # 1. PŘÍPRAVA SÍNĚ SLÁVY (Vítěz a Poražený)
+    # Zkusíme najít nejlepší akcii. Pokud zatím nemáš v 'df' sloupec se ziskem, 
+    # můžeš sem napsat natvrdo text, nebo to nechat prázdné.
+    
+    # PŘÍKLAD (Pokud chceš machrovat hned):
+    best_txt = "NVIDIA (+25 %)"   # Tady bys ideálně dal proměnnou
+    worst_txt = "COCA-COLA (-4 %)" 
+    
+    # POKROČILÁ VARIANTA (Až budeš mít v df sloupec 'Zisk_Procenta'):
+    # try:
+    #    vitez = df.loc[df['Zisk_Procenta'].idxmax()]
+    #    best_txt = f"{vitez['Ticker']} ({vitez['Zisk_Procenta']:.1f} %)"
+    #    porazeny = df.loc[df['Zisk_Procenta'].idxmin()]
+    #    worst_txt = f"{porazeny['Ticker']} ({porazeny['Zisk_Procenta']:.1f} %)"
+    # except: pass
+
+    # 2. VOLÁNÍ FUNKCE (Posíláme tam ty nové texty!)
+    pdf_data = vygeneruj_profi_pdf(
+        user=USER, 
+        df=df, 
+        total_val=celk_hod_czk, 
+        cash=cash_usd, 
+        profit=(celk_hod_czk - celk_inv_czk),
+        best_stock=best_txt,   # <--- NOVINKA
+        worst_stock=worst_txt  # <--- NOVINKA
+    )
+    
+    st.download_button(
+        label="📄 STÁHNOUT PROFI PDF", 
+        data=pdf_data, 
+        file_name="investicni_report.pdf", 
+        mime="application/pdf", 
+        use_container_width=True
+    )
 
         with st.expander("🔐 Účet"):
             with st.form("pass_change"):
@@ -2769,6 +2802,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
