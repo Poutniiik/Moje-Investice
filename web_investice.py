@@ -1633,7 +1633,7 @@ def main():
         st.divider()
         c_act1, c_act2 = st.columns(2)
         with c_act2:
-            pdf_data = vygeneruj_profi_pdf(USER, celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk), viz_data_list)
+            pdf_data = vygeneruj_profi_pdf(USER, df,  celk_hod_czk, cash_usd, (celk_hod_czk - celk_inv_czk))
             st.download_button(label="📄 PDF", data=pdf_data, file_name=f"report.pdf", mime="application/pdf", use_container_width=True)
 
         with st.expander("🔐 Účet"):
@@ -2769,6 +2769,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
