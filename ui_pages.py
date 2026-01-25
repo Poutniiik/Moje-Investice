@@ -8,7 +8,7 @@ from datetime import datetime, timedelta  # <--- Nové (pro kalendář)
 from utils import (
     ziskej_detail_akcie, 
     make_plotly_cyberpunk, 
-    ziskej_earnings_datum  # <--- Nové (pro kalendář)
+    ziskej_earnings_datum,  # <--- Nové (pro kalendář)
     ziskej_insider_transakce
 )
 
