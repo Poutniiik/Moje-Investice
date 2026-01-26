@@ -1629,6 +1629,45 @@ def main():
 
             st.text_input(">", key="cli_cmd", placeholder="/help", on_change=process_cli_command)
 
+        # ---------------------------------------------------------
+    # 🧮 KALKULAČKA PRO FYZICKÉ KOVY (Sidebar)
+    # ---------------------------------------------------------
+    with st.sidebar.expander("🧮 Kalkulačka Kovů"):
+        st.write("Převodník pro nákup fyzického zlata/stříbra:")
+        
+        typ_kovu = st.selectbox("Co jsi koupil?", ["Zlato (Gold)", "Stříbro (Silver)"])
+        vaha_typ = st.selectbox("Jaká váha?", ["1/25 oz", "1/10 oz", "1 oz", "1 gram", "100 gramů", "250 gramů", "500 gramů", "1 kg"])
+        pocet_kusu = st.number_input("Kolik kusů?", min_value=1, value=1, step=1)
+        cena_czk_celkem = st.number_input("Cena celkem (v CZK):", min_value=0, value=5000)
+        kurz_usd = st.number_input("Kurz USD/CZK (při nákupu):", value=24.0)
+
+        if st.button("Spočítat pro Portfolio"):
+            # 1. Převod váhy na Trojské unce (Troy oz)
+            vaha_v_uncich = 0
+            if vaha_typ == "1/25 oz": vaha_v_uncich = 1/25
+            elif vaha_typ == "1/10 oz": vaha_v_uncich = 1/10
+            elif vaha_typ == "1 oz": vaha_v_uncich = 1.0
+            elif vaha_typ == "1 gram": vaha_v_uncich = 1 / 31.1035
+            elif vaha_typ == "100 gramů": vaha_v_uncich = 100 / 31.1035
+            elif vaha_typ == "250 gramů": vaha_v_uncich = 250 / 31.1035
+            elif vaha_typ == "500 gramů": vaha_v_uncich = 500 / 31.1035
+            elif vaha_typ == "1 kg": vaha_v_uncich = 1000 / 31.1035
+
+            celkova_vaha_oz = vaha_v_uncich * pocet_kusu
+            
+            # 2. Převod ceny na USD
+            cena_usd_celkem = cena_czk_celkem / kurz_usd
+            
+            # 3. Cena za 1 unci (to, co chce Yahoo/Portfolio)
+            cena_za_unci_usd = cena_usd_celkem / celkova_vaha_oz if celkova_vaha_oz > 0 else 0
+
+            # VÝSLEDEK
+            st.success("👇 ZADEJ DO PORTFOLIA 👇")
+            st.markdown(f"**Ticker:** `{'GC=F' if 'Zlato' in typ_kovu else 'SI=F'}`")
+            st.markdown(f"**Počet (Kusy):** `{celkova_vaha_oz:.4f}`")
+            st.markdown(f"**Cena (Nákup $):** `{cena_za_unci_usd:.2f}`")
+            st.info(f"(To odpovídá tvým {cena_czk_celkem} Kč při kurzu {kurz_usd})")
+
 # --- AKCE (Tlačítka dole) ---
         st.divider()
         c_act1, c_act2 = st.columns(2)
@@ -2847,6 +2886,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
