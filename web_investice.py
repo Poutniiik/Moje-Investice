@@ -46,7 +46,7 @@ from utils import (
 from ai_brain import (
     init_ai, ask_ai_guard, audit_portfolio, get_tech_analysis,
     generate_rpg_story, analyze_headlines_sentiment, get_chat_response, 
-    get_strategic_advice, get_portfolio_health_score, get_voice_briefing_text, get_alert_voice_text
+    get_strategic_advice, get_portfolio_health_score, get_voice_briefing_text, get_alert_voice_text,PERSONAS
 )
 # Najdi sekci importů nahoře a přidej/uprav:
 from engine_rpg import RPG_TASKS, get_task_progress
@@ -2828,14 +2828,25 @@ def main():
                 st.rerun()
                 
 
-# =========================================================================
-    # 🤖 PLOVOUCÍ AI ASISTENT (FINÁLNÍ VERZE S OŠETŘENÍM LIMITŮ)
+    # =========================================================================
+    # 🤖 PLOVOUCÍ AI ASISTENT (S PŘEPÍNAČEM OSOBNOSTÍ)
     # =========================================================================
     if st.session_state.get('ai_enabled', False) and AI_AVAILABLE:
         
         with st.expander("AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
             st.markdown('<div id="floating-bot-anchor"></div>', unsafe_allow_html=True)
             
+            # --- NOVINKA: VÝBĚR PORADCE ---
+            # To je ta roletka uvnitř chatu!
+            selected_persona = st.selectbox(
+                "Kdo ti má poradit?", 
+                options=list(PERSONAS.keys()),
+                index=0,
+                label_visibility="collapsed" # Schováme nadpis, ať to nezabírá místo
+            )
+            st.divider() 
+            # ------------------------------
+
             chat_container = st.container()
             
             # 1. Zobrazení historie
@@ -2856,7 +2867,8 @@ def main():
             if messages and messages[-1]["role"] == "user":
                 with chat_container:
                     with st.chat_message("assistant"):
-                        with st.spinner("Analyzuji data a přemýšlím..."):
+                        with st.spinner(f"{selected_persona.split()[1]} přemýšlí..."): # Ukáže "Vlk přemýšlí..."
+                            
                             history_for_api = []
                             for m in messages:
                                 role = "user" if m["role"] == "user" else "model"
@@ -2865,20 +2877,14 @@ def main():
                             current_context = f"Uživatel: {USER}. Celkové jmění: {celk_hod_czk:,.0f} Kč. Hotovost: {cash_usd:,.0f} USD."
                             
                             try:
-                                response = get_chat_response(model, history_for_api, current_context)
+                                # TADY POSÍLÁME VYBRANOU OSOBNOST DO MOZKU 👇
+                                response = get_chat_response(model, history_for_api, current_context, selected_persona)
+                                
                                 if response:
                                     st.write(response)
                                     st.session_state['chat_messages'].append({"role": "assistant", "content": response})
                             except Exception as e:
-                                # --- FORENZNÍ FILTR CHYB ---
-                                error_msg = str(e)
-                                if "429" in error_msg or "quota" in error_msg.lower():
-                                    st.warning("⚠️ **AI má pauzu.** Překročili jsme limit bezplatných zpráv (Quota). Zkus to prosím za minutu.")
-                                elif "401" in error_msg or "key" in error_msg.lower():
-                                    st.error("🔑 Chyba API klíče. Zkontroluj nastavení.")
-                                else:
-                                    st.error(f"📡 Spojení s mozkem přerušeno: {error_msg}")
-
+                                st.error(f"Chyba: {e}")
 # ==========================================
 # 👇 FINÁLNÍ BANKOVNÍ CENTRÁLA (VERZE 3.1 - I SE ZŮSTATKY) 👇
 # ==========================================
@@ -2886,6 +2892,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
