@@ -2346,9 +2346,9 @@ def main():
 
         with tab11:
         # Importujeme tu novou funkci
-        from ui_pages import render_profit_calendar
+            from ui_pages import render_profit_calendar
         # Zavoláme ji
-        render_profit_calendar(hist_vyvoje, kurzy)
+            render_profit_calendar(hist_vyvoje, kurzy)
 
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
@@ -2898,6 +2898,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
