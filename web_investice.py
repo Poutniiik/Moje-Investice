@@ -2835,45 +2835,70 @@ def main():
                 
 
     # =========================================================================
-    # 🤖 PLOVOUCÍ AI ASISTENT (S PŘEPÍNAČEM OSOBNOSTÍ)
+    # 🎭 ZASEDAČKA (VISUAL AI CHAT)
     # =========================================================================
     if st.session_state.get('ai_enabled', False) and AI_AVAILABLE:
         
-        with st.expander("AI ASISTENT", expanded=st.session_state.get('chat_expanded', False)):
+        with st.expander("AI ZASEDAČKA (Chat)", expanded=st.session_state.get('chat_expanded', False)):
             st.markdown('<div id="floating-bot-anchor"></div>', unsafe_allow_html=True)
             
-            # --- NOVINKA: VÝBĚR PORADCE ---
-            # To je ta roletka uvnitř chatu!
+            # 1. VÝBĚR PORADCE
+            # Importujeme slovník z ai_brain
+            from ai_brain import PERSONAS 
+            
+            # --- MAPOVÁNÍ OBRÁZKŮ ---
+            # Tady propojíme jména v roletce s názvy souborů
+            # POZOR: Ujisti se, že soubory .jpg jsou ve stejné složce jako tento skript!
+            avatar_map = {
+                "🤖 Attis (Standard)": "boss.jpg",        # Když je to Attis, jsi tam TY (Boss)
+                "🐺 Vlk z Wall Street": "wolf.jpg",
+                "🐢 Warren Buffett": "buffett.jpg",
+                "🔮 Nostradamus (Věštec)": "nostradamus.jpg",
+                "👩‍💻 The Quant (Logika)": "quant.jpg"
+            }
+            
             selected_persona = st.selectbox(
-                "Kdo ti má poradit?", 
+                "Kdo má slovo?", 
                 options=list(PERSONAS.keys()),
                 index=0,
-                label_visibility="collapsed" # Schováme nadpis, ať to nezabírá místo
+                label_visibility="collapsed"
             )
+            
+            # 2. VYKRESLENÍ SCÉNY (Visual Novel Efekt)
+            # Pokud nikdo nemluví (nebo je prázdná historie), ukaž prázdnou zasedačku
+            # Pokud mluvíš ty nebo AI, ukaž avatara
+            
+            img_file = avatar_map.get(selected_persona, "room.jpg")
+            
+            # Zobrazíme obrázek přes celou šířku expanderu
+            # Použijeme st.image s popiskem
+            st.image(img_file, use_container_width=True, caption=f"Hovoří: {selected_persona}")
+            
             st.divider() 
-            # ------------------------------
 
             chat_container = st.container()
             
-            # 1. Zobrazení historie
+            # 3. Zobrazení historie chatu
             messages = st.session_state.get('chat_messages', [])
             with chat_container:
                 if not messages:
-                    st.caption("Zatím žádné zprávy. Zeptej se mě na své portfolio!")
+                    st.caption("Ticho v zasedačce... Čeká se na tvůj dotaz.")
                 for msg in messages:
-                    with st.chat_message(msg["role"]):
+                    # Rozlišení ikon v chatu podle role
+                    avatar_icon = "👤" if msg["role"] == "user" else "🤖"
+                    with st.chat_message(msg["role"], avatar=avatar_icon):
                         st.write(msg["content"])
 
-            # 2. Manuální vstup
-            if chat_prompt := st.chat_input("Zeptej se na portfolio...", key="floating_chat_input"):
+            # 4. Vstup uživatele
+            if chat_prompt := st.chat_input("Položit otázku na stůl...", key="floating_chat_input"):
                 st.session_state['chat_messages'].append({"role": "user", "content": chat_prompt})
                 st.rerun()
 
-            # 3. AUTOMATICKÁ ODPOVĚĎ AI
+            # 5. Odpověď AI
             if messages and messages[-1]["role"] == "user":
                 with chat_container:
-                    with st.chat_message("assistant"):
-                        with st.spinner(f"{selected_persona.split()[1]} přemýšlí..."): # Ukáže "Vlk přemýšlí..."
+                    with st.chat_message("assistant", avatar="🤖"):
+                        with st.spinner(f"{selected_persona.split()[1]} si bere slovo..."):
                             
                             history_for_api = []
                             for m in messages:
@@ -2883,12 +2908,13 @@ def main():
                             current_context = f"Uživatel: {USER}. Celkové jmění: {celk_hod_czk:,.0f} Kč. Hotovost: {cash_usd:,.0f} USD."
                             
                             try:
-                                # TADY POSÍLÁME VYBRANOU OSOBNOST DO MOZKU 👇
                                 response = get_chat_response(model, history_for_api, current_context, selected_persona)
                                 
                                 if response:
                                     st.write(response)
                                     st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+                                    # Po odpovědi chceme znovu vykreslit, aby tam ten obrázek zůstal
+                                    st.rerun() 
                             except Exception as e:
                                 st.error(f"Chyba: {e}")
 # ==========================================
@@ -2898,6 +2924,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
