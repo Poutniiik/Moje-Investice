@@ -1785,7 +1785,7 @@ def main():
     elif page == "📈 Analýza":
         st.title("📈 HLOUBKOVÁ ANALÝZA")
         
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE", "📅 KALENDÁŘ", "🎯 STRATÉG"])
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs(["🔍 RENTGEN", "⚔️ SOUBOJ", "🗺️ MAPA & SEKTORY", "🔮 VĚŠTEC", "🏆 BENCHMARK", "💱 MĚNY", "⚖️ REBALANCING", "📊 KORELACE", "📅 KALENDÁŘ", "🎯 STRATÉG", "🔥 HEATMAPA"])
 
         with tab1:
             # POUZE VOLÁNÍ FUNKCE (Refaktorovaný kód)
@@ -2344,6 +2344,12 @@ def main():
             else:
                 st.warning("Tvůj Watchlist je prázdný. Přidej akcie a nákupní cíle, aby mohl stratég pracovat.")
 
+        with tab11:
+        # Importujeme tu novou funkci
+        from ui_pages import render_profit_calendar
+        # Zavoláme ji
+        render_profit_calendar(hist_vyvoje, kurzy)
+
     elif page == "📰 Zprávy":
         st.title("📰 BURZOVNÍ ZPRAVODAJSTVÍ")
         
@@ -2892,6 +2898,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
