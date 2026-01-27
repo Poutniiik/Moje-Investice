@@ -546,3 +546,92 @@ def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
     else:
         st.warning("Nemáš žádné akcie v portfoliu ani ve sledování.")
 
+
+
+# --- NOVÁ FUNKCE: HEATMAPA ZISKU (Kalendář) ---
+def render_profit_calendar(hist_vyvoje, kurzy):
+    st.subheader("🔥 HEATMAPA ZISKOVOSTI")
+    st.caption("Tvůj rok v barvách: Zelená = Zisk, Červená = Ztráta, Černá = Nuda.")
+
+    # 1. Kontrola dat
+    if hist_vyvoje is None or hist_vyvoje.empty or len(hist_vyvoje) < 2:
+        st.info("Zatím nemáš dostatek historie pro heatmapu. Přijď zítra!")
+        return
+
+    # 2. Příprava dat
+    df = hist_vyvoje.copy()
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values('Date')
+    
+    # Převod na CZK (aby to dávalo smysl v korunách)
+    kurz_czk = kurzy.get('CZK', 20.85)
+    df['TotalCZK'] = df['TotalUSD'] * kurz_czk
+    
+    # Výpočet denní změny (Dnes - Včera)
+    df['Změna'] = df['TotalCZK'].diff().fillna(0)
+    
+    # Filtrování pouze pro aktuální rok (aby to nebylo nepřehledné)
+    aktualni_rok = datetime.now().year
+    df_rok = df[df['Date'].dt.year == aktualni_rok].copy()
+
+    if df_rok.empty:
+        st.warning(f"Žádná data pro rok {aktualni_rok}.")
+        return
+
+    # 3. Vytvoření mřížky (X = Týden, Y = Den v týdnu)
+    df_rok['Week'] = df_rok['Date'].dt.isocalendar().week.astype(int)
+    df_rok['DayOfWeek'] = df_rok['Date'].dt.weekday # 0=Pondělí, 6=Neděle
+    
+    # Pivot tabulka pro Heatmapu
+    heatmap_z = df_rok.pivot(index='DayOfWeek', columns='Week', values='Změna')
+    # Tabulka pro text po najetí myší (Datum)
+    heatmap_text = df_rok.pivot(index='DayOfWeek', columns='Week', values='Date').applymap(
+        lambda x: x.strftime('%d.%m.') if pd.notnull(x) else ""
+    )
+
+    # 4. Vykreslení (Plotly)
+    dny_popisky = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
+    
+    # Získání rozsahu pro barvy (aby byla 0 uprostřed = černá)
+    max_val = max(abs(df_rok['Změna'].min()), abs(df_rok['Změna'].max()))
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=heatmap_z.values,
+        x=heatmap_z.columns,
+        y=[dny_popisky[i] for i in heatmap_z.index],
+        text=heatmap_text.values,
+        hovertemplate="<b>%{text}</b><br>Výsledek: %{z:+.0f} Kč<extra></extra>",
+        colorscale=[
+            [0.0, '#FF4136'],  # Červená (Ztráta)
+            [0.5, '#0E1117'],  # Černá (Nula/Nuda)
+            [1.0, '#00FF99']   # Zelená (Zisk)
+        ],
+        zmin=-max_val, # Symetrický rozsah
+        zmax=max_val,
+        xgap=3, # Mezery mezi čtverečky
+        ygap=3,
+        showscale=False # Schováme legendu barev, ať je to čisté
+    ))
+
+    fig.update_layout(
+        title=f"Kalendář úspěchu {aktualni_rok}",
+        height=280,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font_family="Roboto Mono",
+        margin=dict(t=40, l=0, r=0, b=0),
+        xaxis=dict(title="Týden v roce", showgrid=False, zeroline=False),
+        yaxis=dict(autorange="reversed", showgrid=False, zeroline=False) # Pondělí nahoře
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Statistika pod grafem
+    c1, c2, c3 = st.columns(3)
+    dni_plus = len(df_rok[df_rok['Změna'] > 50])
+    dni_minus = len(df_rok[df_rok['Změna'] < -50])
+    best_day = df_rok['Změna'].max()
+    
+    c1.metric("Zelené dny", f"{dni_plus} dní", help="Dny se ziskem > 50 Kč")
+    c2.metric("Červené dny", f"{dni_minus} dní", help="Dny se ztrátou > 50 Kč")
+    c3.metric("Nejlepší den", f"+{best_day:,.0f} Kč")
