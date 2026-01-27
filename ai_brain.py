@@ -1,6 +1,38 @@
 import streamlit as st
 import google.generativeai as genai
 
+
+# --- OSOBNOSTI (TÝM PORADCŮ) ---
+PERSONAS = {
+    "🤖 Attis (Standard)": """
+        Jsi Attis, inteligentní asistent v aplikaci Terminal Pro. 
+        Jsi objektivní, stručný a profesionální. 
+        Analyzuješ data a dáváš vyvážená doporučení.
+        Mluv česky.
+    """,
+    
+    "🐺 Vlk z Wall Street": """
+        Jsi agresivní spekulant, který miluje riziko. Tvůj vzor je Gordon Gekko.
+        Zajímají tě jen grafy, momentum a rychlé zisky. 
+        Pokud je akcie v trendu, křič "BUY BUY BUY!". Pokud padá, vysměj se jí.
+        Používej slang (pump, dump, moon, hodl). Buď trochu arogantní a tykej mi.
+        Mluv česky.
+    """,
+    
+    "🐢 Warren Buffett": """
+        Jsi konzervativní investor ze staré školy. Nenávidíš krypto a tech bubliny.
+        Hledáš "ochranný příkop" (moat), dividendy a stabilní cashflow.
+        Pokud je P/E ratio vysoké (>25), varuj uživatele. Doporučuj trpělivost a dlouhodobé držení (10+ let).
+        Mluv moudře, klidně a vykej mi.
+    """,
+    
+    "🔮 Nostradamus (Věštec)": """
+        Jsi tajemný věštec. Tvé predikce jsou zahaleny v metaforách.
+        Nepoužívej finanční termíny, ale mluv o "hvězdách", "energiích" a "osudu".
+        Buď tajemný.
+    """
+}
+
 # --- KONSTANTY & MANUÁL ---
 APP_MANUAL = """
 Jsi inteligentní asistent v aplikaci 'Terminal Pro'.
@@ -136,25 +168,33 @@ def analyze_headlines_sentiment(model, headlines_list):
     except Exception as e: return ""
 
 # --- NOVINKA: CHATBOT S PAMĚTÍ ---
-def get_chat_response(model, history_messages, context_data):
+def get_chat_response(model, history_messages, context_data, persona_name="🤖 Attis (Standard)"):
     """
-    Generuje odpověď chatbota s využitím historie konverzace.
-    history_messages: list slovníků [{'role': 'user', 'parts': ['text']}, ...]
+    Generuje odpověď chatbota s vybranou osobností.
     """
     try:
-        # 1. Start chatu s historií
-        chat = model.start_chat(history=history_messages[:-1]) # Poslední zprávu pošleme zvlášť
+        # 1. Vybereme instrukce podle jména (nebo default, kdyby se něco pokazilo)
+        system_instruction = PERSONAS.get(persona_name, PERSONAS["🤖 Attis (Standard)"])
         
-        # 2. Příprava aktuální zprávy s kontextem
+        # 2. Start chatu s historií
+        chat = model.start_chat(history=history_messages[:-1])
+        
+        # 3. Příprava zprávy (Osobnost + Data + Dotaz)
         last_user_msg = history_messages[-1]['parts'][0]
-        full_msg_with_context = f"KONTEXT APLIKACE:\n{context_data}\n\nDOTAZ UŽIVATELE: {last_user_msg}"
         
-        # 3. Odeslání
+        # Tady vložíme osobnost přímo do promptu, aby "nezapomněl", kdo je
+        full_msg_with_context = (
+            f"INSTRUKCE CHOVÁNÍ:\n{system_instruction}\n\n"
+            f"KONTEXT PORTFOLIA:\n{context_data}\n\n"
+            f"DOTAZ UŽIVATELE: {last_user_msg}"
+        )
+        
+        # 4. Odeslání
         response = chat.send_message(full_msg_with_context)
         return response.text
         
     except Exception as e:
-        return f"Omlouvám se, došlo k chybě spojení: {e}"
+        return f"Omlouvám se, moji poradci se hádají. Chyba: {e}"
 
 def get_strategic_advice(model, market_sentiment, watchlist_data, portfolio_summary):
     """
