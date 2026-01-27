@@ -548,7 +548,8 @@ def render_analýza_kalendář_page(df, df_watch, LIVE_DATA):
 
 
 
-# --- NOVÁ FUNKCE: HEATMAPA ZISKU (Kalendář) ---
+
+# --- NOVÁ FUNKCE: HEATMAPA ZISKU (Opravená verze - Aggregation Fix) ---
 def render_profit_calendar(hist_vyvoje, kurzy):
     st.subheader("🔥 HEATMAPA ZISKOVOSTI")
     st.caption("Tvůj rok v barvách: Zelená = Zisk, Červená = Ztráta, Černá = Nuda.")
@@ -558,33 +559,48 @@ def render_profit_calendar(hist_vyvoje, kurzy):
         st.info("Zatím nemáš dostatek historie pro heatmapu. Přijď zítra!")
         return
 
-    # 2. Příprava dat
+    # 2. Příprava a Agregace dat (Tady byla chyba!)
     df = hist_vyvoje.copy()
     df['Date'] = pd.to_datetime(df['Date'])
-    df = df.sort_values('Date')
     
-    # Převod na CZK (aby to dávalo smysl v korunách)
+    # Převod na CZK
     kurz_czk = kurzy.get('CZK', 20.85)
     df['TotalCZK'] = df['TotalUSD'] * kurz_czk
+
+    # --- OPRAVA: Agregace na denní bázi ---
+    # Vytvoříme sloupec jen s datem (bez času)
+    df['JustDate'] = df['Date'].dt.date
+    
+    # Seskupíme podle data a vezmeme POSLEDNÍ hodnotu toho dne
+    df_daily = df.sort_values('Date').groupby('JustDate')['TotalCZK'].last().reset_index()
+    
+    # Převedeme zpět na datetime pro další operace
+    df_daily['Date'] = pd.to_datetime(df_daily['JustDate'])
     
     # Výpočet denní změny (Dnes - Včera)
-    df['Změna'] = df['TotalCZK'].diff().fillna(0)
+    df_daily['Změna'] = df_daily['TotalCZK'].diff().fillna(0)
     
-    # Filtrování pouze pro aktuální rok (aby to nebylo nepřehledné)
+    # Filtrování pouze pro aktuální rok
     aktualni_rok = datetime.now().year
-    df_rok = df[df['Date'].dt.year == aktualni_rok].copy()
+    df_rok = df_daily[df_daily['Date'].dt.year == aktualni_rok].copy()
 
     if df_rok.empty:
-        st.warning(f"Žádná data pro rok {aktualni_rok}.")
-        return
+        # Fallback: Pokud je začátek roku a nemáme data z letoška, zkusíme minulý rok
+        last_year = aktualni_rok - 1
+        df_rok = df_daily[df_daily['Date'].dt.year == last_year].copy()
+        if df_rok.empty:
+            st.warning(f"Žádná data pro heatmapu.")
+            return
+        aktualni_rok = last_year # Aktualizujeme titulek
 
     # 3. Vytvoření mřížky (X = Týden, Y = Den v týdnu)
     df_rok['Week'] = df_rok['Date'].dt.isocalendar().week.astype(int)
     df_rok['DayOfWeek'] = df_rok['Date'].dt.weekday # 0=Pondělí, 6=Neděle
     
-    # Pivot tabulka pro Heatmapu
+    # Pivot tabulka pro Heatmapu (Teď už je bezpečná, každý den je tam jen jednou)
     heatmap_z = df_rok.pivot(index='DayOfWeek', columns='Week', values='Změna')
-    # Tabulka pro text po najetí myší (Datum)
+    
+    # Tabulka pro text
     heatmap_text = df_rok.pivot(index='DayOfWeek', columns='Week', values='Date').applymap(
         lambda x: x.strftime('%d.%m.') if pd.notnull(x) else ""
     )
@@ -593,7 +609,11 @@ def render_profit_calendar(hist_vyvoje, kurzy):
     dny_popisky = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
     
     # Získání rozsahu pro barvy (aby byla 0 uprostřed = černá)
-    max_val = max(abs(df_rok['Změna'].min()), abs(df_rok['Změna'].max()))
+    # Ošetření prázdného sloupce změna
+    if df_rok['Změna'].abs().max() == 0:
+        max_val = 1
+    else:
+        max_val = max(abs(df_rok['Změna'].min()), abs(df_rok['Změna'].max()))
     
     fig = go.Figure(data=go.Heatmap(
         z=heatmap_z.values,
@@ -602,15 +622,15 @@ def render_profit_calendar(hist_vyvoje, kurzy):
         text=heatmap_text.values,
         hovertemplate="<b>%{text}</b><br>Výsledek: %{z:+.0f} Kč<extra></extra>",
         colorscale=[
-            [0.0, '#FF4136'],  # Červená (Ztráta)
-            [0.5, '#0E1117'],  # Černá (Nula/Nuda)
-            [1.0, '#00FF99']   # Zelená (Zisk)
+            [0.0, '#FF4136'],  # Červená
+            [0.5, '#0E1117'],  # Černá
+            [1.0, '#00FF99']   # Zelená
         ],
-        zmin=-max_val, # Symetrický rozsah
+        zmin=-max_val,
         zmax=max_val,
-        xgap=3, # Mezery mezi čtverečky
+        xgap=3,
         ygap=3,
-        showscale=False # Schováme legendu barev, ať je to čisté
+        showscale=False
     ))
 
     fig.update_layout(
@@ -621,7 +641,7 @@ def render_profit_calendar(hist_vyvoje, kurzy):
         font_family="Roboto Mono",
         margin=dict(t=40, l=0, r=0, b=0),
         xaxis=dict(title="Týden v roce", showgrid=False, zeroline=False),
-        yaxis=dict(autorange="reversed", showgrid=False, zeroline=False) # Pondělí nahoře
+        yaxis=dict(autorange="reversed", showgrid=False, zeroline=False)
     )
 
     st.plotly_chart(fig, use_container_width=True)
