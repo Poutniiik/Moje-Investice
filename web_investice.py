@@ -2854,7 +2854,7 @@ def main():
                 "🐺 Vlk z Wall Street": "wolf.jpg",
                 "🐢 Warren Buffett": "buffett.jpg",
                 "🔮 Nostradamus (Věštec)": "nostradamus.jpg",
-                "👩‍💻 The Quant (Logika)": "quant.jpg"
+                "👩‍💻 Th Quant (Logika)": "quant.jpg"
             }
             
             selected_persona = st.selectbox(
@@ -2924,6 +2924,7 @@ def main():
                 
 if __name__ == "__main__":
     main()
+
 
 
 
